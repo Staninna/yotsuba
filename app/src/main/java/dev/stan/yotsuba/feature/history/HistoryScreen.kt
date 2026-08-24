@@ -100,8 +100,8 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 modifier = Modifier.fillMaxSize().padding(padding),
             ) {
-                state.groups.forEach { (labelRes, entries) ->
-                    item(key = "header_$labelRes") { SectionHeader(stringResource(labelRes)) }
+                state.groups.forEach { (bucket, entries) ->
+                    item(key = "header_${bucket.name}") { SectionHeader(stringResource(bucket.labelRes)) }
                     items(entries.size, key = { entries[it].board + "/" + entries[it].threadNo }) { i ->
                         val entry = entries[i]
                         // Committing takes a drag to 75% of the width; onDismiss only fires
@@ -150,6 +150,14 @@ fun HistoryScreen(
         )
     }
 }
+
+private val HistoryBucket.labelRes: Int
+    get() = when (this) {
+        HistoryBucket.TODAY -> R.string.history_today
+        HistoryBucket.YESTERDAY -> R.string.history_yesterday
+        HistoryBucket.THIS_WEEK -> R.string.history_this_week
+        HistoryBucket.OLDER -> R.string.history_older
+    }
 
 @Composable
 private fun HistoryCard(entry: HistoryEntry, onClick: () -> Unit) {

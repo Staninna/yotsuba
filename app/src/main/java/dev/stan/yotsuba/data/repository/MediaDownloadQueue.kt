@@ -2,7 +2,7 @@ package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
-import dev.stan.yotsuba.domain.repository.VaultSaveContext
+import dev.stan.yotsuba.domain.model.VaultSaveContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope

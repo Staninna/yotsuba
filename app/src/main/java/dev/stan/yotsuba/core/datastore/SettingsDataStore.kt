@@ -42,26 +42,7 @@ class SettingsDataStore @Inject constructor(
         val hiddenCategories = stringSetPreferencesKey("hiddenCategories")
     }
 
-    override val settings: Flow<Settings> = dataStore.data.map { p ->
-        val d = Settings()
-        Settings(
-            themeMode = p[Keys.themeMode]?.let { enumOr(it, d.themeMode) } ?: d.themeMode,
-            dynamicColor = p[Keys.dynamicColor] ?: d.dynamicColor,
-            catalogLayout = p[Keys.catalogLayout]?.let { enumOr(it, d.catalogLayout) } ?: d.catalogLayout,
-            thumbnailSize = p[Keys.thumbnailSize]?.let { enumOr(it, d.thumbnailSize) } ?: d.thumbnailSize,
-            density = p[Keys.density]?.let { enumOr(it, d.density) } ?: d.density,
-            revealAllSpoilers = p[Keys.revealAllSpoilers] ?: d.revealAllSpoilers,
-            autoRefreshEnabled = p[Keys.autoRefreshEnabled] ?: d.autoRefreshEnabled,
-            confirmBeforeOpeningLinks = p[Keys.confirmBeforeOpeningLinks] ?: d.confirmBeforeOpeningLinks,
-            trustedDomains = p[Keys.trustedDomains] ?: d.trustedDomains,
-            mediaAutoplay = p[Keys.mediaAutoplay]?.let { enumOr(it, d.mediaAutoplay) } ?: d.mediaAutoplay,
-            recordHistory = p[Keys.recordHistory] ?: d.recordHistory,
-            historyRetention = p[Keys.historyRetention]?.let { enumOr(it, d.historyRetention) } ?: d.historyRetention,
-            favouriteBoards = p[Keys.favouriteBoards] ?: d.favouriteBoards,
-            hiddenBoards = p[Keys.hiddenBoards] ?: d.hiddenBoards,
-            hiddenCategories = p[Keys.hiddenCategories] ?: d.hiddenCategories,
-        )
-    }
+    override val settings: Flow<Settings> = dataStore.data.map(::snapshot)
 
     override suspend fun update(transform: (Settings) -> Settings) {
         dataStore.edit { p ->

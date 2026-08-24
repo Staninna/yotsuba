@@ -26,7 +26,7 @@ import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
-import dev.stan.yotsuba.domain.repository.VaultSaveContext
+import dev.stan.yotsuba.domain.model.VaultSaveContext
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton

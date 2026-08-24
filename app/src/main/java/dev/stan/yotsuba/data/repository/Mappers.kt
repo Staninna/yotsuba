@@ -1,22 +1,25 @@
 package dev.stan.yotsuba.data.repository
 
+import dev.stan.yotsuba.core.database.entity.BookmarkEntity
+import dev.stan.yotsuba.core.database.entity.HistoryEntity
 import dev.stan.yotsuba.core.network.dto.BoardDto
 import dev.stan.yotsuba.core.network.dto.PostDto
 import dev.stan.yotsuba.core.text.PostAnnotation
 import dev.stan.yotsuba.core.text.PostHtmlParser
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.Board
+import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 
-private val descriptionParser = PostHtmlParser()
-
 fun BoardDto.toDomain(): Board = Board(
     code = board,
     title = title,
-    description = descriptionParser.parse(meta_description).plainText,
+    description = PostHtmlParser.parse(meta_description).plainText,
     worksafe = ws_board == 1,
     category = BoardCategories.categoryOf(board),
     userIds = user_ids == 1,
@@ -30,11 +33,11 @@ fun BoardDto.toDomain(): Board = Board(
     textOnly = text_only == 1,
 )
 
-fun PostDto.toCatalogThread(board: String, parser: PostHtmlParser): CatalogThread = CatalogThread(
+fun PostDto.toCatalogThread(board: String): CatalogThread = CatalogThread(
     board = board,
     no = no,
-    subject = sub?.let { parser.parse(it).plainText.ifBlank { null } },
-    excerpt = parser.parse(com),
+    subject = sub?.let { PostHtmlParser.parse(it).plainText.ifBlank { null } },
+    excerpt = PostHtmlParser.parse(com),
     thumbnailUrl = tim?.let { Urls.thumbnail(board, it) },
     replyCount = replies ?: 0,
     imageCount = images ?: 0,
@@ -43,8 +46,8 @@ fun PostDto.toCatalogThread(board: String, parser: PostHtmlParser): CatalogThrea
     closed = closed == 1,
 )
 
-fun PostDto.toThreadPost(board: String, parser: PostHtmlParser): ThreadPost {
-    val body = parser.parse(com)
+fun PostDto.toThreadPost(board: String): ThreadPost {
+    val body = PostHtmlParser.parse(com)
     return ThreadPost(
         board = board,
         no = no,
@@ -56,7 +59,7 @@ fun PostDto.toThreadPost(board: String, parser: PostHtmlParser): ThreadPost {
         countryCode = country,
         countryName = country_name ?: flag_name,
         timeSeconds = time,
-        subject = sub?.let { parser.parse(it).plainText.ifBlank { null } },
+        subject = sub?.let { PostHtmlParser.parse(it).plainText.ifBlank { null } },
         body = body,
         media = toMediaItem(board),
         quotedPostNos = body.segments.mapNotNull {
@@ -89,7 +92,13 @@ fun PostDto.toMediaItem(board: String): MediaItem? {
     )
 }
 
-fun buildThreadDetails(board: String, threadNo: Long, posts: List<ThreadPost>): ThreadDetails {
+fun buildThreadDetails(
+    board: String,
+    threadNo: Long,
+    posts: List<ThreadPost>,
+    archived: Boolean = false,
+    closed: Boolean = false,
+): ThreadDetails {
     val backlinks = mutableMapOf<Long, MutableList<Long>>()
     for (post in posts) {
         for (quoted in post.quotedPostNos) {
@@ -100,8 +109,60 @@ fun buildThreadDetails(board: String, threadNo: Long, posts: List<ThreadPost>): 
         board = board,
         threadNo = threadNo,
         posts = posts,
-        archived = false,
-        closed = false,
+        archived = archived,
+        closed = closed,
         backlinks = backlinks,
     )
 }
+
+fun BookmarkEntity.toDomain() = Bookmark(
+    board = board,
+    threadNo = threadNo,
+    subject = subject,
+    opExcerpt = opExcerpt,
+    thumbnailUrl = thumbnailUrl,
+    replyCount = replyCount,
+    imageCount = imageCount,
+    bookmarkedAt = bookmarkedAt,
+    lastCheckedAt = lastCheckedAt,
+    lastSeenPostNo = lastSeenPostNo,
+    state = runCatching { BookmarkState.valueOf(state) }.getOrDefault(BookmarkState.UNKNOWN),
+    newReplies = newReplies,
+    unreadCount = unreadCount,
+)
+
+fun Bookmark.toEntity() = BookmarkEntity(
+    board = board,
+    threadNo = threadNo,
+    subject = subject,
+    opExcerpt = opExcerpt,
+    thumbnailUrl = thumbnailUrl,
+    replyCount = replyCount,
+    imageCount = imageCount,
+    bookmarkedAt = bookmarkedAt,
+    lastCheckedAt = lastCheckedAt,
+    lastSeenPostNo = lastSeenPostNo,
+    state = state.name,
+    newReplies = newReplies,
+    unreadCount = unreadCount,
+)
+
+fun HistoryEntity.toDomain() = HistoryEntry(
+    board = board,
+    threadNo = threadNo,
+    subject = subject,
+    opExcerpt = opExcerpt,
+    thumbnailUrl = thumbnailUrl,
+    viewedAt = viewedAt,
+    lastScrollPostNo = lastScrollPostNo,
+)
+
+fun HistoryEntry.toEntity() = HistoryEntity(
+    board = board,
+    threadNo = threadNo,
+    subject = subject,
+    opExcerpt = opExcerpt,
+    thumbnailUrl = thumbnailUrl,
+    viewedAt = viewedAt,
+    lastScrollPostNo = lastScrollPostNo,
+)

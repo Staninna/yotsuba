@@ -1,32 +1,39 @@
 package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.core.database.dao.HistoryDao
-import dev.stan.yotsuba.core.database.entity.HistoryEntity
 import dev.stan.yotsuba.domain.model.HistoryEntry
+import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.repository.HistoryRepository
+import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 @Singleton
 class HistoryRepositoryImpl @Inject constructor(
     private val dao: HistoryDao,
+    private val settingsRepository: SettingsRepository,
 ) : HistoryRepository {
 
     override val history: Flow<List<HistoryEntry>> =
-        dao.all().map { list ->
-            list.map {
-                HistoryEntry(it.board, it.threadNo, it.subject, it.opExcerpt, it.thumbnailUrl, it.viewedAt, it.lastScrollPostNo)
-            }
-        }
+        dao.all().map { list -> list.map { it.toDomain() } }
 
-    override suspend fun record(entry: HistoryEntry) = dao.record(
-        HistoryEntity(
-            entry.board, entry.threadNo, entry.subject, entry.opExcerpt, entry.thumbnailUrl,
-            entry.viewedAt, entry.lastScrollPostNo,
-        )
-    )
+    override suspend fun record(entry: HistoryEntry) {
+        dao.record(entry.toEntity())
+        applyRetention()
+    }
+
+    /** Applies the retention preference on every write, so trimming never depends on a screen. */
+    private suspend fun applyRetention() {
+        val cutoff = when (settingsRepository.settings.first().historyRetention) {
+            HistoryRetention.FOREVER -> return
+            HistoryRetention.DAYS_30 -> System.currentTimeMillis() - 30L * 86_400_000
+            HistoryRetention.DAYS_7 -> System.currentTimeMillis() - 7L * 86_400_000
+        }
+        dao.trimOlderThan(cutoff)
+    }
 
     override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) =
         dao.updateScroll(board, threadNo, postNo)

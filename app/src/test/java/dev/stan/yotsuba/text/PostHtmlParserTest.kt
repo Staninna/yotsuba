@@ -10,7 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PostHtmlParserTest {
-    private val parser = PostHtmlParser()
+    private val parser = PostHtmlParser
 
     @Test fun `empty and null com`() {
         assertTrue(parser.parse(null).segments.isEmpty())

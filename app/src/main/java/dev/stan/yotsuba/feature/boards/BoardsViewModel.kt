@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.domain.model.Board
+import dev.stan.yotsuba.core.util.LoadableFlow
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
@@ -22,25 +23,22 @@ class BoardsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
-    private val boardsResult = MutableStateFlow<DataResult<List<Board>>?>(null)
+    private val boardsResult = LoadableFlow(viewModelScope) { boardRepository.boards(it) }
     private val searchQuery = MutableStateFlow("")
     private val editMode = MutableStateFlow(false)
 
     init { load() }
 
     fun load(forceRefresh: Boolean = false) {
-        boardsResult.value = null
-        viewModelScope.launch {
-            boardsResult.value = boardRepository.boards(forceRefresh)
-        }
+        boardsResult.load(forceRefresh, showLoading = true)
     }
 
-    val uiState: StateFlow<BoardsUiState> = combine(
-        boardsResult, settingsRepository.settings, searchQuery, editMode,
+    val uiState: StateFlow<UiState<BoardsContent>> = combine(
+        boardsResult.flow, settingsRepository.settings, searchQuery, editMode,
     ) { result, settings, query, editing ->
         when (result) {
-            null -> BoardsUiState.Loading
-            is DataResult.Failure -> BoardsUiState.Error(result.error)
+            null -> UiState.Loading
+            is DataResult.Failure -> UiState.Error(result.error)
             is DataResult.Success -> {
                 val all = result.value
                 val matching = if (query.isBlank()) all else all.filter {
@@ -67,7 +65,7 @@ class BoardsViewModel @Inject constructor(
                         },
                     )
                 }
-                BoardsUiState.Success(
+                UiState.Success(BoardsContent(
                     favourites = visible.filter { it.code in settings.favouriteBoards },
                     sections = sections,
                     searchQuery = query,
@@ -75,10 +73,10 @@ class BoardsViewModel @Inject constructor(
                     hiddenBoards = settings.hiddenBoards,
                     hiddenCategories = settings.hiddenCategories,
                     favouriteBoardCodes = settings.favouriteBoards,
-                )
+                ))
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BoardsUiState.Loading)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun onSearchChange(query: String) { searchQuery.value = query }
     fun onToggleEditMode() { editMode.value = !editMode.value }
@@ -105,7 +103,7 @@ class BoardsViewModel @Inject constructor(
 
     fun onToggleCategoryVisible(category: BoardCategory, currentlyAllVisible: Boolean?) =
         viewModelScope.launch {
-            val boards = (boardsResult.value as? DataResult.Success)?.value.orEmpty()
+            val boards = (boardsResult.current as? DataResult.Success)?.value.orEmpty()
                 .filter { it.category == category }.map { it.code }
             settingsRepository.update { s ->
                 // Mixed or all-visible -> hide all; hidden -> show all (tri-state, D13).

@@ -56,8 +56,8 @@ class RoomTest {
     @Test fun `history upsert dedups by primary key and refreshes viewedAt`() = runTest {
         val dao = db.historyDao()
         val e = HistoryEntity("g", 1, "s", "e", null, viewedAt = 100, lastScrollPostNo = null)
-        dao.upsert(e)
-        dao.upsert(e.copy(viewedAt = 200))
+        dao.record(e)
+        dao.record(e.copy(viewedAt = 200))
         val all = dao.all().first()
         assertEquals(1, all.size)
         assertEquals(200L, all.single().viewedAt)
@@ -65,8 +65,8 @@ class RoomTest {
 
     @Test fun `history retention trim`() = runTest {
         val dao = db.historyDao()
-        dao.upsert(HistoryEntity("g", 1, null, "old", null, viewedAt = 100, lastScrollPostNo = null))
-        dao.upsert(HistoryEntity("g", 2, null, "new", null, viewedAt = 900, lastScrollPostNo = null))
+        dao.record(HistoryEntity("g", 1, null, "old", null, viewedAt = 100, lastScrollPostNo = null))
+        dao.record(HistoryEntity("g", 2, null, "new", null, viewedAt = 900, lastScrollPostNo = null))
         dao.trimOlderThan(500)
         assertEquals(listOf(2L), dao.all().first().map { it.threadNo })
     }

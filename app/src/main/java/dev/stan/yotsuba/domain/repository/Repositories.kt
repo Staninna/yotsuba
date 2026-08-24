@@ -5,8 +5,10 @@ import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
+import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.VaultSaveContext
 import kotlinx.coroutines.flow.Flow
 
 interface BoardRepository {
@@ -27,7 +29,7 @@ interface BookmarkRepository {
     val bookmarks: Flow<List<Bookmark>>
     suspend fun add(bookmark: Bookmark)
     suspend fun remove(board: String, threadNo: Long)
-    suspend fun isBookmarked(board: String, threadNo: Long): Flow<Boolean>
+    fun isBookmarked(board: String, threadNo: Long): Flow<Boolean>
     suspend fun refreshOne(bookmark: Bookmark): Bookmark
 
     /** The user is looking at the thread: record the newest post and zero the unread count. */
@@ -51,23 +53,12 @@ interface HistoryRepository {
     suspend fun trim(retainAfterMs: Long)
 }
 
-/** Everything known about a post at save time, used to file media into the vault. */
-data class VaultSaveContext(
-    val board: String,
-    val threadNo: Long,
-    /** Thread (OP) subject, for the thread directory slug. */
-    val threadSubject: String?,
-    /** Plain-text OP excerpt, slug fallback when the thread has no subject. */
-    val opExcerpt: String?,
-    val post: dev.stan.yotsuba.domain.model.ThreadPost?,
-)
-
 interface MediaVaultRepository {
     /** True when the app may read/write the vault directory. */
     fun hasStorageAccess(): Boolean
 
     /** Streams the media to its structured vault location, updates meta.json and the DB. */
-    suspend fun save(item: dev.stan.yotsuba.domain.model.MediaItem, context: VaultSaveContext): Boolean
+    suspend fun save(item: MediaItem, context: VaultSaveContext): Boolean
 
     /** Deletes the file, its meta entry, and the DB row; prunes emptied thread directories. */
     suspend fun delete(url: String): Boolean

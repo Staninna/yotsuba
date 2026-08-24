@@ -61,8 +61,8 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.core.designsystem.component.ErrorState
-import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
+import dev.stan.yotsuba.core.designsystem.component.UiStateContent
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.feature.thread.components.BodyTap
@@ -120,7 +120,7 @@ fun ThreadScreen(
     // Scroll restore, once content arrives. Priority: explicit target (quote/history tap) >
     // media last viewed in the full-screen viewer > reading position saved on scroll.
     LaunchedEffect(state, scrollToPostNo) {
-        val s = state as? ThreadUiState.Success ?: return@LaunchedEffect
+        val s = (state as? UiState.Success)?.data ?: return@LaunchedEffect
         val mediaTarget = viewModel.consumeLastViewedMedia()
         if (scrolledToTarget && mediaTarget == null) return@LaunchedEffect
         val target = when {
@@ -136,7 +136,7 @@ fun ThreadScreen(
 
     // Persist the reading position (first visible post) as the user scrolls.
     LaunchedEffect(state) {
-        val s = state as? ThreadUiState.Success ?: return@LaunchedEffect
+        val s = (state as? UiState.Success)?.data ?: return@LaunchedEffect
         androidx.compose.runtime.snapshotFlow { listState.firstVisibleItemIndex }
             .map { s.details.posts.getOrNull(it)?.no }
             .filterNotNull()
@@ -150,7 +150,7 @@ fun ThreadScreen(
     // Separately track the BOTTOM-most visible post: the true "read up to" mark that the
     // bookmarks unread count is based on (the scroll anchor above is a top-of-screen value).
     LaunchedEffect(state) {
-        val s = state as? ThreadUiState.Success ?: return@LaunchedEffect
+        val s = (state as? UiState.Success)?.data ?: return@LaunchedEffect
         androidx.compose.runtime.snapshotFlow {
             listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
         }
@@ -167,7 +167,7 @@ fun ThreadScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    val s = state as? ThreadUiState.Success
+                    val s = (state as? UiState.Success)?.data
                     Text(
                         s?.details?.posts?.firstOrNull()?.subject ?: "/$board/$threadNo",
                         maxLines = 1,
@@ -179,7 +179,7 @@ fun ThreadScreen(
                     }
                 },
                 actions = {
-                    val s = state as? ThreadUiState.Success
+                    val s = (state as? UiState.Success)?.data
                     IconButton(onClick = viewModel::onToggleBookmark) {
                         Icon(
                             if (s?.bookmarked == true) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
@@ -224,7 +224,7 @@ fun ThreadScreen(
                         )
                         DropdownMenuItem(
                             text = {
-                                val enabled = (state as? ThreadUiState.Success)?.autoRefreshEnabled == true
+                                val enabled = (state as? UiState.Success)?.data?.autoRefreshEnabled == true
                                 Text(stringResource(R.string.thread_auto_refresh) + if (enabled) " ✓" else "")
                             },
                             onClick = { menuOpen = false; viewModel.onToggleAutoRefresh() },
@@ -235,194 +235,190 @@ fun ThreadScreen(
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            when (val s = state) {
-                ThreadUiState.Loading -> LoadingSkeleton()
-                is ThreadUiState.Error -> ErrorState(s.error, onRetry = { viewModel.load() })
-                is ThreadUiState.Success -> {
-                    Column {
-                        if (s.archivedNotice) {
-                            Text(
-                                stringResource(R.string.thread_archived),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.errorContainer)
-                                    .padding(spacing.sm),
-                            )
-                        }
-                        if (searchOpen) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = spacing.md),
-                            ) {
-                                OutlinedTextField(
-                                    value = s.searchQuery.orEmpty(),
-                                    onValueChange = { viewModel.onSearchChange(it) },
-                                    placeholder = { Text(stringResource(R.string.thread_search_in_thread)) },
-                                    singleLine = true,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Text(
-                                    if (s.searchMatches.isEmpty()) "0/0"
-                                    else "${s.searchIndex + 1}/${s.searchMatches.size}",
-                                    style = MaterialTheme.typography.labelMedium,
-                                )
-                                IconButton(onClick = {
-                                    viewModel.onSearchStep(-1)
-                                    scrollToMatch(s, -1, listState, scope)
-                                }) { Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.thread_search_prev)) }
-                                IconButton(onClick = {
-                                    viewModel.onSearchStep(1)
-                                    scrollToMatch(s, 1, listState, scope)
-                                }) { Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.thread_search_next)) }
-                            }
-                        }
-                        LazyColumn(
-                            state = listState,
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(spacing.md),
-                            verticalArrangement = Arrangement.spacedBy(spacing.md),
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            items(s.details.posts.size, key = { s.details.posts[it].no }) { i ->
-                                val post = s.details.posts[i]
-                                if (s.newPostsAfter != null && i > 0 &&
-                                    s.details.posts[i - 1].no == s.newPostsAfter
-                                ) {
-                                    NewPostsDivider(
-                                        count = s.newPostsCount,
-                                        onTap = { viewModel.onDismissNewPostsDivider() },
-                                    )
-                                }
-                                PostCard(
-                                    post = post,
-                                    board = s.board,
-                                    backlinkCount = s.details.backlinks[post.no]?.size ?: 0,
-                                    saveStatus = post.media?.fullUrl?.let { s.mediaSaveStatuses[it] },
-                                    revealedSpoilerIds = s.revealedSpoilers
-                                        .filter { it.first == post.no }.map { it.second }.toSet(),
-                                    revealAll = s.revealAllSpoilers,
-                                    imageSpoilerRevealed = post.no in s.revealedImageSpoilers,
-                                    darkTheme = dark,
-                                    onBodyTap = { tap ->
-                                        when (tap) {
-                                            is BodyTap.Spoiler -> viewModel.onRevealSpoiler(post.no, tap.id)
-                                            is BodyTap.SameThreadQuote -> viewModel.onOpenPreview(tap.postNo)
-                                            is BodyTap.CrossThreadQuote -> onOpenInternal(
-                                                Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
-                                            )
-                                            is BodyTap.Link -> handleLink(tap.url)
-                                        }
-                                    },
-                                    onThumbnailTap = {
-                                        val media = post.media ?: return@PostCard
-                                        if (media.spoiler && !s.revealAllSpoilers && post.no !in s.revealedImageSpoilers) {
-                                            viewModel.onRevealImageSpoiler(post.no)
-                                        } else {
-                                            onOpenMedia(post.no)
-                                        }
-                                    },
-                                    onBacklinksTap = { viewModel.onOpenBacklinks(post.no) },
-                                    onCopyPostNo = {
-                                        clipboard.setText(AnnotatedString(post.no.toString()))
-                                        scope.launch { snackbar.showSnackbar(copiedMessage) }
-                                    },
-                                    highlight = s.searchQuery,
-                                )
-                            }
-                        }
-                    }
-
-                    // Quotelink preview card stack (D11) — overlay, level3 elevation.
-                    // System back pops one preview instead of leaving the thread.
-                    androidx.activity.compose.BackHandler(enabled = s.previewStack.isNotEmpty()) {
-                        viewModel.onClosePreview()
-                    }
-                    if (s.previewStack.isNotEmpty()) {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.35f))
-                                .clickable { viewModel.onClosePreview() },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            val group = s.previewStack.last()
-                            Card(
-                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                                modifier = Modifier
-                                    .padding(spacing.xl)
-                                    .heightIn(max = 480.dp)
-                                    .clickable(enabled = false) {},
-                            ) {
-                                Column(
-                                    Modifier
-                                        .verticalScroll(rememberScrollState())
-                                        .padding(spacing.sm),
-                                    verticalArrangement = Arrangement.spacedBy(spacing.sm),
-                                ) {
-                                    group.forEach { post ->
-                                        PostCard(
-                                            post = post,
-                                            board = s.board,
-                                            backlinkCount = 0,
-                                            saveStatus = post.media?.fullUrl?.let { s.mediaSaveStatuses[it] },
-                                            revealedSpoilerIds = s.revealedSpoilers
-                                                .filter { it.first == post.no }.map { it.second }.toSet(),
-                                            revealAll = s.revealAllSpoilers,
-                                            imageSpoilerRevealed = post.no in s.revealedImageSpoilers,
-                                            darkTheme = dark,
-                                            onBodyTap = { tap ->
-                                                when (tap) {
-                                                    is BodyTap.Spoiler -> viewModel.onRevealSpoiler(post.no, tap.id)
-                                                    is BodyTap.SameThreadQuote -> viewModel.onOpenPreview(tap.postNo)
-                                                    is BodyTap.CrossThreadQuote -> onOpenInternal(
-                                                        Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
-                                                    )
-                                                    is BodyTap.Link -> handleLink(tap.url)
-                                                }
-                                            },
-                                            onThumbnailTap = { onOpenMedia(post.no) },
-                                            onBacklinksTap = {},
-                                            onCopyPostNo = {},
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // External-link confirmation (D26).
-                    s.pendingExternalUrl?.let { url ->
-                        AlertDialog(
-                            onDismissRequest = viewModel::onDismissLinkDialog,
-                            title = { Text(stringResource(R.string.link_dialog_title)) },
-                            text = { Text(url) },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    viewModel.onDismissLinkDialog()
-                                    openExternal(url)
-                                }) { Text(stringResource(R.string.action_open)) }
-                            },
-                            dismissButton = {
-                                Row {
-                                    TextButton(onClick = {
-                                        viewModel.onTrustDomain(url)
-                                        openExternal(url)
-                                    }) {
-                                        Text(
-                                            stringResource(
-                                                R.string.link_always_trust,
-                                                Urls.domainOf(url) ?: "",
-                                            )
-                                        )
-                                    }
-                                    TextButton(onClick = viewModel::onDismissLinkDialog) {
-                                        Text(stringResource(R.string.action_cancel))
-                                    }
-                                }
-                            },
+            UiStateContent(state, onRetry = { viewModel.load() }) { s ->
+                Column {
+                    if (s.archivedNotice) {
+                        Text(
+                            stringResource(R.string.thread_archived),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .padding(spacing.sm),
                         )
                     }
+                    if (searchOpen) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = spacing.md),
+                        ) {
+                            OutlinedTextField(
+                                value = s.searchQuery.orEmpty(),
+                                onValueChange = { viewModel.onSearchChange(it) },
+                                placeholder = { Text(stringResource(R.string.thread_search_in_thread)) },
+                                singleLine = true,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                if (s.searchMatches.isEmpty()) "0/0"
+                                else "${s.searchIndex + 1}/${s.searchMatches.size}",
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                            IconButton(onClick = {
+                                viewModel.onSearchStep(-1)
+                                scrollToMatch(s, -1, listState, scope)
+                            }) { Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.thread_search_prev)) }
+                            IconButton(onClick = {
+                                viewModel.onSearchStep(1)
+                                scrollToMatch(s, 1, listState, scope)
+                            }) { Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.thread_search_next)) }
+                        }
+                    }
+                    LazyColumn(
+                        state = listState,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(spacing.md),
+                        verticalArrangement = Arrangement.spacedBy(spacing.md),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(s.details.posts.size, key = { s.details.posts[it].no }) { i ->
+                            val post = s.details.posts[i]
+                            if (s.newPostsAfter != null && i > 0 &&
+                                s.details.posts[i - 1].no == s.newPostsAfter
+                            ) {
+                                NewPostsDivider(
+                                    count = s.newPostsCount,
+                                    onTap = { viewModel.onDismissNewPostsDivider() },
+                                )
+                            }
+                            PostCard(
+                                post = post,
+                                board = s.board,
+                                backlinkCount = s.details.backlinks[post.no]?.size ?: 0,
+                                saveStatus = post.media?.fullUrl?.let { s.mediaSaveStatuses[it] },
+                                revealedSpoilerIds = s.revealedSpoilers
+                                    .filter { it.first == post.no }.map { it.second }.toSet(),
+                                revealAll = s.revealAllSpoilers,
+                                imageSpoilerRevealed = post.no in s.revealedImageSpoilers,
+                                darkTheme = dark,
+                                onBodyTap = { tap ->
+                                    when (tap) {
+                                        is BodyTap.Spoiler -> viewModel.onRevealSpoiler(post.no, tap.id)
+                                        is BodyTap.SameThreadQuote -> viewModel.onOpenPreview(tap.postNo)
+                                        is BodyTap.CrossThreadQuote -> onOpenInternal(
+                                            Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
+                                        )
+                                        is BodyTap.Link -> handleLink(tap.url)
+                                    }
+                                },
+                                onThumbnailTap = {
+                                    val media = post.media ?: return@PostCard
+                                    if (media.spoiler && !s.revealAllSpoilers && post.no !in s.revealedImageSpoilers) {
+                                        viewModel.onRevealImageSpoiler(post.no)
+                                    } else {
+                                        onOpenMedia(post.no)
+                                    }
+                                },
+                                onBacklinksTap = { viewModel.onOpenBacklinks(post.no) },
+                                onCopyPostNo = {
+                                    clipboard.setText(AnnotatedString(post.no.toString()))
+                                    scope.launch { snackbar.showSnackbar(copiedMessage) }
+                                },
+                                highlight = s.searchQuery,
+                            )
+                        }
+                    }
+                }
+
+                // Quotelink preview card stack (D11) — overlay, level3 elevation.
+                // System back pops one preview instead of leaving the thread.
+                androidx.activity.compose.BackHandler(enabled = s.previewStack.isNotEmpty()) {
+                    viewModel.onClosePreview()
+                }
+                if (s.previewStack.isNotEmpty()) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.35f))
+                            .clickable { viewModel.onClosePreview() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        val group = s.previewStack.last()
+                        Card(
+                            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                            modifier = Modifier
+                                .padding(spacing.xl)
+                                .heightIn(max = 480.dp)
+                                .clickable(enabled = false) {},
+                        ) {
+                            Column(
+                                Modifier
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(spacing.sm),
+                                verticalArrangement = Arrangement.spacedBy(spacing.sm),
+                            ) {
+                                group.forEach { post ->
+                                    PostCard(
+                                        post = post,
+                                        board = s.board,
+                                        backlinkCount = 0,
+                                        saveStatus = post.media?.fullUrl?.let { s.mediaSaveStatuses[it] },
+                                        revealedSpoilerIds = s.revealedSpoilers
+                                            .filter { it.first == post.no }.map { it.second }.toSet(),
+                                        revealAll = s.revealAllSpoilers,
+                                        imageSpoilerRevealed = post.no in s.revealedImageSpoilers,
+                                        darkTheme = dark,
+                                        onBodyTap = { tap ->
+                                            when (tap) {
+                                                is BodyTap.Spoiler -> viewModel.onRevealSpoiler(post.no, tap.id)
+                                                is BodyTap.SameThreadQuote -> viewModel.onOpenPreview(tap.postNo)
+                                                is BodyTap.CrossThreadQuote -> onOpenInternal(
+                                                    Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
+                                                )
+                                                is BodyTap.Link -> handleLink(tap.url)
+                                            }
+                                        },
+                                        onThumbnailTap = { onOpenMedia(post.no) },
+                                        onBacklinksTap = {},
+                                        onCopyPostNo = {},
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // External-link confirmation (D26).
+                s.pendingExternalUrl?.let { url ->
+                    AlertDialog(
+                        onDismissRequest = viewModel::onDismissLinkDialog,
+                        title = { Text(stringResource(R.string.link_dialog_title)) },
+                        text = { Text(url) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                viewModel.onDismissLinkDialog()
+                                openExternal(url)
+                            }) { Text(stringResource(R.string.action_open)) }
+                        },
+                        dismissButton = {
+                            Row {
+                                TextButton(onClick = {
+                                    viewModel.onTrustDomain(url)
+                                    openExternal(url)
+                                }) {
+                                    Text(
+                                        stringResource(
+                                            R.string.link_always_trust,
+                                            Urls.domainOf(url) ?: "",
+                                        )
+                                    )
+                                }
+                                TextButton(onClick = viewModel::onDismissLinkDialog) {
+                                    Text(stringResource(R.string.action_cancel))
+                                }
+                            }
+                        },
+                    )
                 }
             }
         }
@@ -430,7 +426,7 @@ fun ThreadScreen(
 }
 
 private fun scrollToMatch(
-    s: ThreadUiState.Success,
+    s: ThreadContent,
     delta: Int,
     listState: androidx.compose.foundation.lazy.LazyListState,
     scope: kotlinx.coroutines.CoroutineScope,

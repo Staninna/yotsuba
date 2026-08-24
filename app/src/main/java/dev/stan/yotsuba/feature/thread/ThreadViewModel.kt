@@ -8,6 +8,7 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
@@ -27,8 +28,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -91,10 +90,7 @@ class ThreadViewModel @AssistedInject constructor(
     private var backoffIndex = 0
     private val backoffMs = listOf(10_000L, 30_000L, 60_000L, 300_000L)
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    private val bookmarked = flowOf(Unit).flatMapLatest {
-        bookmarkRepository.isBookmarked(board, threadNo)
-    }
+    private val bookmarked = bookmarkRepository.isBookmarked(board, threadNo)
 
     init {
         load()
@@ -144,7 +140,7 @@ class ThreadViewModel @AssistedInject constructor(
         )
     }
 
-    val uiState: StateFlow<ThreadUiState> = combine(
+    val uiState: StateFlow<UiState<ThreadContent>> = combine(
         result, boardInfo, bookmarked, settingsRepository.settings,
         revealedSpoilers, revealedImageSpoilers, newPostsAfter, archivedNotice,
         searchQuery, searchIndex, previewStack, pendingExternalUrl, autoRefreshUserOverride,
@@ -169,15 +165,15 @@ class ThreadViewModel @AssistedInject constructor(
         @Suppress("UNCHECKED_CAST")
         val saveStatuses = values[13] as Map<String, MediaSaveStatus>
         when (res) {
-            null -> ThreadUiState.Loading
-            is DataResult.Failure -> ThreadUiState.Error(res.error)
+            null -> UiState.Loading
+            is DataResult.Failure -> UiState.Error(res.error)
             is DataResult.Success -> {
                 val details = res.value as ThreadDetails
                 val matches = if (query.isNullOrBlank()) emptyList() else details.posts.filter {
                     it.body.plainText.contains(query, true) || it.subject?.contains(query, true) == true
                 }.map { it.no }
                 val byNo = details.posts.associateBy { it.no }
-                ThreadUiState.Success(
+                UiState.Success(ThreadContent(
                     details = details,
                     board = info,
                     bookmarked = isBookmarked,
@@ -196,10 +192,10 @@ class ThreadViewModel @AssistedInject constructor(
                     confirmBeforeOpeningLinks = settings.confirmBeforeOpeningLinks,
                     trustedDomains = settings.trustedDomains,
                     mediaSaveStatuses = saveStatuses,
-                )
+                ))
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ThreadUiState.Loading)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     init {
         viewModelScope.launch { boardInfo.value = boardRepository.board(board) }
@@ -239,7 +235,7 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onToggleBookmark() = viewModelScope.launch {
-        val state = uiState.value as? ThreadUiState.Success ?: return@launch
+        val state = (uiState.value as? UiState.Success)?.data ?: return@launch
         if (state.bookmarked) {
             bookmarkRepository.remove(board, threadNo)
         } else {
@@ -275,7 +271,7 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onOpenBacklinks(postNo: Long) {
-        val s = uiState.value as? ThreadUiState.Success ?: return
+        val s = (uiState.value as? UiState.Success)?.data ?: return
         val links = s.details.backlinks[postNo].orEmpty()
         if (links.isNotEmpty()) previewStack.value = previewStack.value + listOf(links)
     }
@@ -290,14 +286,14 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onSearchStep(delta: Int) {
-        val s = uiState.value as? ThreadUiState.Success ?: return
+        val s = (uiState.value as? UiState.Success)?.data ?: return
         if (s.searchMatches.isEmpty()) return
         searchIndex.value = (searchIndex.value + delta).mod(s.searchMatches.size)
     }
 
     /** External-link tap: trusted domains skip the dialog (D26). */
     fun onExternalLink(url: String): Boolean {
-        val s = uiState.value as? ThreadUiState.Success ?: return false
+        val s = (uiState.value as? UiState.Success)?.data ?: return false
         val domain = Urls.domainOf(url)
         return if (!s.confirmBeforeOpeningLinks || (domain != null && domain in s.trustedDomains)) {
             true // open immediately

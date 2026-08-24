@@ -41,7 +41,7 @@ class BookmarksViewModelTest {
         override suspend fun remove(board: String, threadNo: Long) {
             state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
         }
-        override suspend fun isBookmarked(board: String, threadNo: Long) = flowOf(true)
+        override fun isBookmarked(board: String, threadNo: Long) = flowOf(true)
         override suspend fun refreshOne(bookmark: Bookmark): Bookmark {
             refreshed += bookmark.threadNo
             return bookmark

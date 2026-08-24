@@ -36,8 +36,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
-import dev.stan.yotsuba.core.designsystem.component.ErrorState
-import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
+import dev.stan.yotsuba.core.designsystem.component.UiStateContent
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.Board
 
@@ -54,7 +54,7 @@ fun BoardsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_boards)) },
                 actions = {
-                    val editing = (state as? BoardsUiState.Success)?.editMode == true
+                    val editing = (state as? UiState.Success)?.data?.editMode == true
                     IconButton(onClick = viewModel::onToggleEditMode) {
                         Icon(
                             if (editing) Icons.Filled.Check else Icons.Filled.Edit,
@@ -67,91 +67,87 @@ fun BoardsScreen(
             )
         },
     ) { padding ->
-        when (val s = state) {
-            BoardsUiState.Loading -> LoadingSkeleton(Modifier.padding(padding))
-            is BoardsUiState.Error -> ErrorState(s.error, onRetry = { viewModel.load(forceRefresh = true) }, Modifier.padding(padding))
-            is BoardsUiState.Success -> {
-                if (s.isEmpty && s.searchQuery.isBlank() && !s.editMode) {
-                    EmptyState(
-                        title = stringResource(R.string.boards_empty_title),
-                        explanation = stringResource(R.string.boards_empty_explanation),
-                        modifier = Modifier.padding(padding),
-                    )
-                } else {
-                    LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+        UiStateContent(state, onRetry = { viewModel.load(forceRefresh = true) }, Modifier.padding(padding)) { s ->
+            if (s.isEmpty && s.searchQuery.isBlank() && !s.editMode) {
+                EmptyState(
+                    title = stringResource(R.string.boards_empty_title),
+                    explanation = stringResource(R.string.boards_empty_explanation),
+                    modifier = Modifier.padding(padding),
+                )
+            } else {
+                LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+                    item {
+                        OutlinedTextField(
+                            value = s.searchQuery,
+                            onValueChange = viewModel::onSearchChange,
+                            placeholder = { Text(stringResource(R.string.boards_search_hint)) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = spacing.lg, vertical = spacing.sm),
+                        )
+                    }
+                    if (s.favourites.isNotEmpty() && !s.editMode) {
                         item {
-                            OutlinedTextField(
-                                value = s.searchQuery,
-                                onValueChange = viewModel::onSearchChange,
-                                placeholder = { Text(stringResource(R.string.boards_search_hint)) },
-                                singleLine = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = spacing.lg, vertical = spacing.sm),
+                            SectionHeader(stringResource(R.string.boards_favourites))
+                        }
+                        items(s.favourites.size, key = { "fav_" + s.favourites[it].code }) { i ->
+                            BoardRow(
+                                board = s.favourites[i],
+                                favourite = true,
+                                editMode = false,
+                                visible = true,
+                                onClick = { onOpenBoard(s.favourites[i].code) },
+                                onToggleFavourite = { viewModel.onToggleFavourite(s.favourites[i].code) },
+                                onToggleVisible = {},
                             )
                         }
-                        if (s.favourites.isNotEmpty() && !s.editMode) {
-                            item {
-                                SectionHeader(stringResource(R.string.boards_favourites))
-                            }
-                            items(s.favourites.size, key = { "fav_" + s.favourites[it].code }) { i ->
-                                BoardRow(
-                                    board = s.favourites[i],
-                                    favourite = true,
-                                    editMode = false,
-                                    visible = true,
-                                    onClick = { onOpenBoard(s.favourites[i].code) },
-                                    onToggleFavourite = { viewModel.onToggleFavourite(s.favourites[i].code) },
-                                    onToggleVisible = {},
-                                )
-                            }
+                    }
+                    if (s.searchQuery.isNotBlank() && s.favourites.isEmpty() && s.sections.isEmpty()) {
+                        item(key = "no_results") {
+                            EmptyState(
+                                title = stringResource(R.string.search_no_results_title),
+                                explanation = stringResource(
+                                    R.string.search_no_results_explanation, s.searchQuery,
+                                ),
+                                modifier = Modifier.fillParentMaxHeight(0.7f),
+                            )
                         }
-                        if (s.searchQuery.isNotBlank() && s.favourites.isEmpty() && s.sections.isEmpty()) {
-                            item(key = "no_results") {
-                                EmptyState(
-                                    title = stringResource(R.string.search_no_results_title),
-                                    explanation = stringResource(
-                                        R.string.search_no_results_explanation, s.searchQuery,
-                                    ),
-                                    modifier = Modifier.fillParentMaxHeight(0.7f),
-                                )
-                            }
-                        }
-                        s.sections.forEach { section ->
-                            item(key = "cat_" + section.category.name) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    SectionHeader(section.category.label, Modifier.weight(1f))
-                                    if (s.editMode) {
-                                        TriStateCheckbox(
-                                            state = when (section.allVisible) {
-                                                true -> ToggleableState.On
-                                                false -> ToggleableState.Off
-                                                null -> ToggleableState.Indeterminate
-                                            },
-                                            onClick = {
-                                                viewModel.onToggleCategoryVisible(section.category, section.allVisible)
-                                            },
-                                            modifier = Modifier.padding(end = spacing.lg),
-                                        )
-                                    }
+                    }
+                    s.sections.forEach { section ->
+                        item(key = "cat_" + section.category.name) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                SectionHeader(section.category.label, Modifier.weight(1f))
+                                if (s.editMode) {
+                                    TriStateCheckbox(
+                                        state = when (section.allVisible) {
+                                            true -> ToggleableState.On
+                                            false -> ToggleableState.Off
+                                            null -> ToggleableState.Indeterminate
+                                        },
+                                        onClick = {
+                                            viewModel.onToggleCategoryVisible(section.category, section.allVisible)
+                                        },
+                                        modifier = Modifier.padding(end = spacing.lg),
+                                    )
                                 }
                             }
-                            items(section.boards.size, key = { section.boards[it].code }) { i ->
-                                val board = section.boards[i]
-                                BoardRow(
-                                    board = board,
-                                    favourite = board.code in s.favouriteBoardCodes,
-                                    editMode = s.editMode,
-                                    visible = board.code !in s.hiddenBoards &&
-                                        board.category.name !in s.hiddenCategories,
-                                    onClick = { if (!s.editMode) onOpenBoard(board.code) },
-                                    onToggleFavourite = { viewModel.onToggleFavourite(board.code) },
-                                    onToggleVisible = { viewModel.onToggleBoardVisible(board.code) },
-                                )
-                            }
+                        }
+                        items(section.boards.size, key = { section.boards[it].code }) { i ->
+                            val board = section.boards[i]
+                            BoardRow(
+                                board = board,
+                                favourite = board.code in s.favouriteBoardCodes,
+                                editMode = s.editMode,
+                                visible = board.code !in s.hiddenBoards &&
+                                    board.category.name !in s.hiddenCategories,
+                                onClick = { if (!s.editMode) onOpenBoard(board.code) },
+                                onToggleFavourite = { viewModel.onToggleFavourite(board.code) },
+                                onToggleVisible = { viewModel.onToggleBoardVisible(board.code) },
+                            )
                         }
                     }
                 }

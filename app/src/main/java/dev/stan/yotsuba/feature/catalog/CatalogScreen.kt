@@ -56,8 +56,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
-import dev.stan.yotsuba.core.designsystem.component.ErrorState
-import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
+import dev.stan.yotsuba.core.designsystem.component.UiStateContent
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
 import dev.stan.yotsuba.core.designsystem.component.OfflineBanner
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
@@ -95,7 +95,7 @@ fun CatalogScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text((state as? CatalogUiState.Success)?.board?.title ?: board)
+                        Text((state as? UiState.Success)?.data?.board?.title ?: board)
                         Text(
                             "/$board/",
                             style = MaterialTheme.typography.labelSmall,
@@ -130,70 +130,66 @@ fun CatalogScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            when (val s = state) {
-                CatalogUiState.Loading -> LoadingSkeleton()
-                is CatalogUiState.Error -> ErrorState(s.error, onRetry = { viewModel.load() })
-                is CatalogUiState.Success -> {
-                    if (s.offline) {
-                        OfflineBanner(cachedAtLabel = null, onRetry = { viewModel.load(forceRefresh = true) })
-                    }
-                    if (searchVisible) {
-                        OutlinedTextField(
-                            value = s.searchQuery,
-                            onValueChange = viewModel::onSearchChange,
-                            placeholder = { Text(stringResource(R.string.catalog_search_hint)) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = spacing.lg, vertical = spacing.sm),
+            UiStateContent(state, onRetry = { viewModel.load() }) { s ->
+                if (s.offline) {
+                    OfflineBanner(cachedAtLabel = null, onRetry = { viewModel.load(forceRefresh = true) })
+                }
+                if (searchVisible) {
+                    OutlinedTextField(
+                        value = s.searchQuery,
+                        onValueChange = viewModel::onSearchChange,
+                        placeholder = { Text(stringResource(R.string.catalog_search_hint)) },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = spacing.lg, vertical = spacing.sm),
+                    )
+                }
+                if (s.threads.isEmpty()) {
+                    if (s.searchQuery.isNotBlank()) {
+                        EmptyState(
+                            title = stringResource(R.string.search_no_results_title),
+                            explanation = stringResource(
+                                R.string.search_no_results_explanation, s.searchQuery,
+                            ),
+                        )
+                    } else {
+                        EmptyState(
+                            title = stringResource(R.string.catalog_empty_title),
+                            explanation = stringResource(R.string.catalog_empty_explanation),
                         )
                     }
-                    if (s.threads.isEmpty()) {
-                        if (s.searchQuery.isNotBlank()) {
-                            EmptyState(
-                                title = stringResource(R.string.search_no_results_title),
-                                explanation = stringResource(
-                                    R.string.search_no_results_explanation, s.searchQuery,
-                                ),
-                            )
-                        } else {
-                            EmptyState(
-                                title = stringResource(R.string.catalog_empty_title),
-                                explanation = stringResource(R.string.catalog_empty_explanation),
-                            )
-                        }
-                    } else {
-                        PullToRefreshBox(
-                            isRefreshing = s.refreshing,
-                            onRefresh = { viewModel.load(forceRefresh = true) },
+                } else {
+                    PullToRefreshBox(
+                        isRefreshing = s.refreshing,
+                        onRefresh = { viewModel.load(forceRefresh = true) },
+                    ) {
+                        LazyVerticalGrid(
+                            state = gridState,
+                            columns = when (s.layout) {
+                                CatalogLayout.COMFORTABLE -> GridCells.Adaptive(260.dp)
+                                CatalogLayout.COMPACT -> GridCells.Adaptive(150.dp)
+                                CatalogLayout.LIST -> GridCells.Fixed(1)
+                            },
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(spacing.md),
+                            horizontalArrangement = Arrangement.spacedBy(spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(spacing.md),
+                            modifier = Modifier.fillMaxSize(),
                         ) {
-                            LazyVerticalGrid(
-                                state = gridState,
-                                columns = when (s.layout) {
-                                    CatalogLayout.COMFORTABLE -> GridCells.Adaptive(260.dp)
-                                    CatalogLayout.COMPACT -> GridCells.Adaptive(150.dp)
-                                    CatalogLayout.LIST -> GridCells.Fixed(1)
-                                },
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(spacing.md),
-                                horizontalArrangement = Arrangement.spacedBy(spacing.md),
-                                verticalArrangement = Arrangement.spacedBy(spacing.md),
-                                modifier = Modifier.fillMaxSize(),
-                            ) {
-                                items(s.threads.size, key = { s.threads[it].no }) { i ->
-                                    val thread = s.threads[i]
-                                    ThreadCard(
-                                        thread = thread,
-                                        layout = s.layout,
-                                        onClick = { onOpenThread(thread.no) },
-                                        onLongClick = {
-                                            viewModel.onHideThread(thread.no)
-                                            scope.launch {
-                                                val r = snackbar.showSnackbar(hiddenMessage, actionLabel = undoLabel)
-                                                if (r == SnackbarResult.ActionPerformed) viewModel.onUndoHide(thread.no)
-                                            }
-                                        },
-                                    )
-                                }
+                            items(s.threads.size, key = { s.threads[it].no }) { i ->
+                                val thread = s.threads[i]
+                                ThreadCard(
+                                    thread = thread,
+                                    layout = s.layout,
+                                    onClick = { onOpenThread(thread.no) },
+                                    onLongClick = {
+                                        viewModel.onHideThread(thread.no)
+                                        scope.launch {
+                                            val r = snackbar.showSnackbar(hiddenMessage, actionLabel = undoLabel)
+                                            if (r == SnackbarResult.ActionPerformed) viewModel.onUndoHide(thread.no)
+                                        }
+                                    },
+                                )
                             }
                         }
                     }

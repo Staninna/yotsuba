@@ -8,6 +8,8 @@ import dev.stan.yotsuba.core.database.entity.HiddenThreadEntity
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.util.DataResult
+import dev.stan.yotsuba.core.util.LoadableFlow
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.repository.BoardRepository
@@ -38,7 +40,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
         fun create(@dagger.assisted.Assisted("board") board: String, @dagger.assisted.Assisted("search") initialSearch: String?): CatalogViewModel
     }
 
-    private val result = MutableStateFlow<DataResult<List<CatalogThread>>?>(null)
+    private val result = LoadableFlow(viewModelScope) { catalogRepository.catalog(board, it) }
     private val boardInfo = MutableStateFlow<Board?>(null)
     private val searchQuery = MutableStateFlow(initialSearch.orEmpty())
     private val refreshing = MutableStateFlow(false)
@@ -52,15 +54,15 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
 
     fun load(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            if (forceRefresh) refreshing.value = true else result.value = null
-            result.value = catalogRepository.catalog(board, forceRefresh)
+            if (forceRefresh) refreshing.value = true
+            result.load(forceRefresh).join()
             refreshing.value = false
         }
     }
 
-    val uiState: StateFlow<CatalogUiState> = combine(
-        result, boardInfo, settingsRepository.settings, searchQuery, refreshing,
-        hiddenThreadDao.all(), networkStatus,
+    val uiState: StateFlow<UiState<CatalogContent>> = combine(
+        result.flow, boardInfo, settingsRepository.settings, searchQuery, refreshing,
+        hiddenThreadDao.forBoard(board), networkStatus,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val res = values[0] as DataResult<List<CatalogThread>>?
@@ -68,12 +70,11 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
         val settings = values[2] as dev.stan.yotsuba.domain.model.Settings
         val query = values[3] as String
         val isRefreshing = values[4] as Boolean
-        val hidden = (values[5] as List<HiddenThreadEntity>)
-            .filter { it.board == board }.map { it.threadNo }.toSet()
+        val hidden = (values[5] as List<HiddenThreadEntity>).map { it.threadNo }.toSet()
         val status = values[6] as NetworkStatus
         when (res) {
-            null -> CatalogUiState.Loading
-            is DataResult.Failure -> CatalogUiState.Error(res.error)
+            null -> UiState.Loading
+            is DataResult.Failure -> UiState.Error(res.error)
             is DataResult.Success -> {
                 val filtered = res.value
                     .filter { it.no !in hidden }
@@ -82,17 +83,17 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                             it.subject?.contains(query, true) == true ||
                             it.excerpt.plainText.contains(query, true)
                     }
-                CatalogUiState.Success(
+                UiState.Success(CatalogContent(
                     board = info,
                     threads = filtered,
                     layout = settings.catalogLayout,
                     searchQuery = query,
                     refreshing = isRefreshing,
                     offline = status == NetworkStatus.Offline,
-                )
+                ))
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CatalogUiState.Loading)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun onSearchChange(query: String) { searchQuery.value = query }
 

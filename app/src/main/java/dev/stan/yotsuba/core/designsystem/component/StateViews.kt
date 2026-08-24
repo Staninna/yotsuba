@@ -33,6 +33,22 @@ import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.NetworkError
+import dev.stan.yotsuba.core.util.UiState
+
+/** The shared screen shell: skeleton while loading, error with retry, otherwise [content]. */
+@Composable
+fun <T> UiStateContent(
+    state: UiState<T>,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (T) -> Unit,
+) {
+    when (state) {
+        UiState.Loading -> LoadingSkeleton(modifier)
+        is UiState.Error -> ErrorState(state.error, onRetry, modifier)
+        is UiState.Success -> content(state.data)
+    }
+}
 
 @Composable
 fun EmptyState(

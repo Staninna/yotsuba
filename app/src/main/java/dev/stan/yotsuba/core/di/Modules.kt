@@ -12,6 +12,11 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.stan.yotsuba.core.database.MIGRATION_1_2
+import dev.stan.yotsuba.core.database.MIGRATION_2_3
+import dev.stan.yotsuba.core.database.MIGRATION_3_4
+import dev.stan.yotsuba.core.database.MIGRATION_4_5
+import dev.stan.yotsuba.core.database.MIGRATION_5_6
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
 import dev.stan.yotsuba.core.network.CachePolicyInterceptor
@@ -96,45 +101,6 @@ object DatabaseModule {
     @Provides fun hiddenThreadDao(db: YotsubaDatabase) = db.hiddenThreadDao()
     @Provides fun downloadedMediaDao(db: YotsubaDatabase) = db.downloadedMediaDao()
     @Provides fun savedMediaDao(db: YotsubaDatabase) = db.savedMediaDao()
-
-    private val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
-        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-            db.execSQL(
-                "CREATE TABLE IF NOT EXISTS `downloaded_media` " +
-                    "(`url` TEXT NOT NULL, `downloadedAt` INTEGER NOT NULL, PRIMARY KEY(`url`))",
-            )
-        }
-    }
-
-    private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
-        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE `bookmarks` ADD COLUMN `newReplies` INTEGER NOT NULL DEFAULT 0")
-        }
-    }
-
-    private val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
-        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-            db.execSQL(
-                "CREATE TABLE IF NOT EXISTS `saved_media` (" +
-                    "`url` TEXT NOT NULL, `board` TEXT, `threadNo` INTEGER, `postNo` INTEGER, " +
-                    "`subject` TEXT, `displayName` TEXT NOT NULL, `absolutePath` TEXT NOT NULL, " +
-                    "`ext` TEXT, `sizeBytes` INTEGER, `width` INTEGER, `height` INTEGER, " +
-                    "`thumbnailUrl` TEXT, `savedAt` INTEGER NOT NULL, PRIMARY KEY(`url`))",
-            )
-        }
-    }
-
-    private val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
-        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE `bookmarks` ADD COLUMN `unreadCount` INTEGER NOT NULL DEFAULT 0")
-        }
-    }
-
-    private val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
-        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-            db.execSQL("ALTER TABLE `history` ADD COLUMN `maxReadPostNo` INTEGER")
-        }
-    }
 }
 
 @Module

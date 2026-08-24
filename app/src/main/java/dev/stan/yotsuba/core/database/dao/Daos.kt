@@ -121,6 +121,9 @@ interface HiddenThreadDao {
     @Query("SELECT * FROM hidden_threads")
     fun all(): Flow<List<HiddenThreadEntity>>
 
+    @Query("SELECT * FROM hidden_threads WHERE board = :board")
+    fun forBoard(board: String): Flow<List<HiddenThreadEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun hide(entity: HiddenThreadEntity)
 

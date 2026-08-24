@@ -1,16 +1,12 @@
 package dev.stan.yotsuba.core.text
 
-import javax.inject.Inject
-import javax.inject.Singleton
-
 /**
  * Hand-written tokenizer for 4chan post HTML (D10).
  *
  * Contract: any tag the tokenizer does not recognise is dropped and its text content kept.
  * Raw markup never reaches the UI.
  */
-@Singleton
-class PostHtmlParser @Inject constructor() {
+object PostHtmlParser {
 
     /** One open element; unknown-class spans and bare anchors carry null style/annotation. */
     private class Frame(val name: String, val style: PostStyle?, val annotation: PostAnnotation?)
@@ -159,8 +155,6 @@ class PostHtmlParser @Inject constructor() {
         else -> null
     }
 
-    companion object {
-        private val FRAMED_TAGS = setOf("s", "b", "i", "u", "pre", "span", "a")
-        private val CROSS_THREAD = Regex("""(?:https?:)?(?://boards\.4chan(?:nel)?\.org)?/(\w+)/thread/(\d+)(?:#p(\d+))?""")
-    }
+    private val FRAMED_TAGS = setOf("s", "b", "i", "u", "pre", "span", "a")
+    private val CROSS_THREAD = Regex("""(?:https?:)?(?://boards\.4chan(?:nel)?\.org)?/(\w+)/thread/(\d+)(?:#p(\d+))?""")
 }
