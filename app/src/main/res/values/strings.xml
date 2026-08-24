@@ -1,0 +1,220 @@
+<resources>
+    <string name="app_name">Yotsuba</string>
+
+    <!-- Tabs -->
+    <string name="tab_boards">Boards</string>
+    <string name="tab_bookmarks">Bookmarks</string>
+    <string name="tab_history">History</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Common actions / states -->
+    <string name="action_retry">Retry</string>
+    <string name="action_undo">Undo</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_open">Open</string>
+    <string name="action_search">Search</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_back">Back</string>
+    <string name="action_clear_all">Clear all</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_confirm">Confirm</string>
+    <string name="action_done">Done</string>
+    <string name="search_no_results_title">No matches</string>
+    <string name="search_no_results_explanation">Nothing matches \"%s\".</string>
+    <string name="error_offline">You\'re offline</string>
+    <string name="error_timeout">The request timed out</string>
+    <string name="error_rate_limited">Slow down — too many requests</string>
+    <string name="error_not_found">Not found</string>
+    <string name="error_server">Server error (%d)</string>
+    <string name="error_unknown">Something went wrong</string>
+    <string name="offline">Offline — showing cached data</string>
+    <string name="offline_showing_cached">Offline — showing cached from %s</string>
+
+    <!-- Boards -->
+    <string name="boards_search_hint">Search boards</string>
+    <string name="boards_favourites">Favourites</string>
+    <string name="boards_edit_visibility">Edit visible boards</string>
+    <string name="boards_done_editing">Done editing</string>
+    <string name="boards_nsfw">NSFW</string>
+    <string name="boards_empty_title">No boards</string>
+    <string name="boards_empty_explanation">Every board is hidden. Use the pencil to unhide some.</string>
+    <string name="boards_favourite_toggle">Toggle favourite</string>
+    <string name="boards_category_toggle">Toggle whole category</string>
+
+    <!-- Catalog -->
+    <string name="catalog_layout_switch">Switch layout</string>
+    <string name="catalog_empty_title">No threads</string>
+    <string name="catalog_empty_explanation">This board has no threads right now.</string>
+    <string name="catalog_search_hint">Search this catalog</string>
+    <string name="catalog_hide_thread">Hide thread</string>
+    <string name="catalog_thread_hidden">Thread hidden</string>
+    <string name="catalog_sticky">Sticky</string>
+    <string name="catalog_closed">Closed</string>
+    <string name="catalog_scroll_to_top">Scroll to top</string>
+    <plurals name="replies_count">
+        <item quantity="one">%d reply</item>
+        <item quantity="other">%d replies</item>
+    </plurals>
+    <plurals name="images_count">
+        <item quantity="one">%d image</item>
+        <item quantity="other">%d images</item>
+    </plurals>
+
+    <!-- Thread -->
+    <string name="thread_bookmark">Bookmark</string>
+    <string name="thread_remove_bookmark">Remove bookmark</string>
+    <string name="thread_share">Share</string>
+    <string name="thread_copy_link">Copy link</string>
+    <string name="thread_search_in_thread">Search in thread</string>
+    <string name="thread_open_in_browser">Open in browser</string>
+    <string name="thread_auto_refresh">Auto-refresh</string>
+    <string name="thread_archived">Thread archived</string>
+    <string name="thread_post_number_copied">Post number copied</string>
+    <string name="thread_spoiler">Spoiler, tap to reveal</string>
+    <string name="thread_file_deleted">File deleted: %s</string>
+    <string name="thread_search_prev">Previous match</string>
+    <string name="thread_search_next">Next match</string>
+    <plurals name="thread_new_posts">
+        <item quantity="one">%d new post</item>
+        <item quantity="other">%d new posts</item>
+    </plurals>
+    <plurals name="thread_replies_chip">
+        <item quantity="one">%d reply</item>
+        <item quantity="other">%d replies</item>
+    </plurals>
+
+    <!-- Media -->
+    <string name="media_save">Save</string>
+    <string name="media_saved">Saved to vault</string>
+    <string name="media_grant_storage">Grant \"All files access\" so media can be saved, then try again</string>
+    <string name="media_save_failed">Couldn\'t save</string>
+    <string name="media_share_failed">Couldn\'t share</string>
+    <string name="media_mute">Mute</string>
+    <string name="media_unmute">Unmute</string>
+    <string name="media_close">Close viewer</string>
+    <string name="media_play">Play</string>
+    <string name="media_pause">Pause</string>
+    <string name="media_pip">Picture-in-picture</string>
+    <string name="media_back">Back</string>
+    <string name="media_downloaded">Saved</string>
+    <string name="media_queued">Queued for download</string>
+    <string name="media_remove_download">Remove download</string>
+    <string name="media_redownload">Download again</string>
+    <string name="media_cancel_download">Cancel download</string>
+    <string name="media_retry_download">Retry download</string>
+    <string name="media_dismiss_failed">Dismiss</string>
+    <string name="media_downloading">Downloading…</string>
+    <string name="media_replies">Replies (%1$d)</string>
+    <string name="media_image_description">%1$s, %2$d×%3$d</string>
+
+    <!-- Bookmarks -->
+    <string name="bookmarks_empty_title">No bookmarks yet</string>
+    <string name="bookmarks_empty_explanation">Open a thread and tap the bookmark icon to keep it here.</string>
+    <string name="bookmarks_checking">Checking %1$d/%2$d</string>
+    <string name="bookmarks_archived_badge">Archived</string>
+    <string name="bookmarks_removed">Bookmark removed</string>
+    <string name="bookmarks_new_replies">+%d</string>
+    <string name="bookmarks_unread">%d unread</string>
+    <plurals name="bookmarks_new_replies_a11y">
+        <item quantity="one">%d new reply</item>
+        <item quantity="other">%d new replies</item>
+    </plurals>
+
+    <!-- History -->
+    <string name="history_empty_title">No history</string>
+    <string name="history_empty_explanation">Threads you read will show up here.</string>
+    <string name="history_disabled_title">History is off</string>
+    <string name="history_disabled_explanation">Enable \"Record history\" in Settings to keep a reading trail.</string>
+    <string name="history_today">Today</string>
+    <string name="history_yesterday">Yesterday</string>
+    <string name="history_this_week">This week</string>
+    <string name="history_older">Older</string>
+    <string name="history_entry_removed">Removed from history</string>
+    <string name="history_cleared">History cleared</string>
+    <string name="history_clear_confirm_title">Clear all history?</string>
+    <string name="history_clear_confirm_body">Your entire reading history will be deleted. This can\'t be undone.</string>
+
+    <!-- Settings -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_dynamic_color">Dynamic color</string>
+    <string name="settings_dynamic_color_summary">Follow the system palette (Android 12+)</string>
+    <string name="settings_catalog_layout">Catalog layout</string>
+    <string name="settings_layout_comfortable">Comfortable</string>
+    <string name="settings_layout_compact">Compact</string>
+    <string name="settings_layout_list">List</string>
+    <string name="settings_reveal_spoilers">Reveal all spoilers</string>
+    <string name="settings_reveal_spoilers_summary">Show text and image spoilers without tapping</string>
+    <string name="settings_behavior">Behavior</string>
+    <string name="settings_auto_refresh">Auto-refresh threads</string>
+    <string name="settings_auto_refresh_summary">Poll open threads with backoff while on screen</string>
+    <string name="settings_confirm_links">Confirm before opening links</string>
+    <string name="settings_confirm_links_summary">Show the full URL before leaving the app</string>
+    <string name="settings_trusted_domains">Trusted domains (%d)</string>
+    <string name="settings_media_autoplay">Autoplay videos</string>
+    <string name="settings_autoplay_always">Always</string>
+    <string name="settings_autoplay_unmetered">Unmetered connections only</string>
+    <string name="settings_autoplay_never">Never</string>
+    <string name="settings_record_history">Record history</string>
+    <string name="settings_history_retention">Keep history</string>
+    <string name="settings_retention_forever">Forever</string>
+    <string name="settings_retention_30d">30 days</string>
+    <string name="settings_retention_7d">7 days</string>
+    <string name="settings_hide_nsfw">Hide NSFW boards</string>
+    <string name="settings_hide_nsfw_summary">Bulk-hide all not-worksafe boards</string>
+    <string name="settings_data">Data</string>
+    <string name="settings_clear_cache">Clear cache</string>
+    <string name="settings_clear_history">Clear history</string>
+    <string name="settings_clear_bookmarks">Clear bookmarks</string>
+    <string name="settings_clear_trusted">Clear trusted domains</string>
+    <string name="settings_hidden_threads">Hidden threads (%d)</string>
+    <string name="settings_unhide">Unhide</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %s</string>
+    <string name="settings_attribution">This app uses the 4chan API. 4chan is a registered trademark of 4chan LLC.</string>
+    <string name="settings_confirm_title">Are you sure?</string>
+    <string name="settings_confirm_hide_nsfw_body">Every NSFW board will be hidden from the Boards list.</string>
+    <string name="settings_confirm_clear_cache_body">Cached pages and images will be deleted.</string>
+    <string name="settings_confirm_clear_history_body">Your entire reading history will be deleted.</string>
+    <string name="settings_confirm_clear_bookmarks_body">All bookmarks will be removed.</string>
+    <string name="settings_confirm_clear_trusted_body">All trusted domains will be forgotten.</string>
+    <string name="settings_list_empty">Nothing here.</string>
+    <string name="settings_cleared">Cleared</string>
+
+    <!-- Link dialog -->
+    <string name="link_dialog_title">Open external link?</string>
+    <string name="link_always_trust">Always trust %s</string>
+
+    <!-- Quotelink previews -->
+    <string name="preview_close">Close preview</string>
+
+    <!-- Saved-media vault -->
+    <string name="tab_vault">Saved</string>
+    <string name="vault_title">Saved media</string>
+    <string name="vault_rescan">Rescan vault</string>
+    <string name="vault_empty_title">Vault is empty</string>
+    <string name="vault_empty_explanation">Media you save from threads is filed under /sdcard/Yotsuba/.</string>
+    <string name="vault_grant_button">Grant storage access</string>
+    <string name="vault_grant_explanation">The vault needs \"All files access\" to read and write /sdcard/Yotsuba/.</string>
+    <string name="vault_unsorted">Unsorted</string>
+    <string name="vault_thread_untitled">Thread %1$d</string>
+    <plurals name="vault_items">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <string name="vault_delete">Delete</string>
+    <string name="vault_delete_title">Delete file?</string>
+    <string name="vault_delete_body">%1$s will be removed from the vault.</string>
+    <string name="vault_deleted">Deleted</string>
+    <string name="vault_cancel">Cancel</string>
+    <string name="vault_open_external">Open externally</string>
+    <string name="vault_shuffle">Shuffle play</string>
+    <string name="vault_shuffle_everything">Everything</string>
+    <string name="vault_shuffle_videos">Videos only</string>
+    <string name="vault_shuffle_images">Images only</string>
+    <string name="vault_auto_advance_on">Auto-advance on — tap to loop</string>
+    <string name="vault_auto_advance_off">Looping — tap to auto-advance</string>
+</resources>
