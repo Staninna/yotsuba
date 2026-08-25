@@ -146,6 +146,32 @@ class PostHtmlParserTest {
         assertEquals(PostAnnotation.Spoiler(0), tail.annotation)
     }
 
+    @Test fun `link inside spoiler keeps the spoiler reveal id`() {
+        // The Link annotation wins the segment's single annotation slot, so the reveal
+        // state must ride on spoilerId or the spoilered link text renders un-hidden.
+        val t = parser.parse("<s>go to <a href=\"//x.com\">x.com</a> now</s>")
+        val link = t.segments.first { it.text == "x.com" }
+        assertEquals(PostAnnotation.Link("https://x.com"), link.annotation)
+        assertTrue(link.styles.contains(PostStyle.SPOILER))
+        assertEquals(0, link.spoilerId)
+        assertEquals(0, t.segments.first { it.text == "go to " }.spoilerId)
+        assertEquals(0, t.segments.first { it.text == " now" }.spoilerId)
+    }
+
+    @Test fun `quotelink inside spoiler keeps the spoiler reveal id`() {
+        val t = parser.parse("<s><a href=\"#p7\" class=\"quotelink\">&gt;&gt;7</a></s>")
+        val quote = t.segments.single()
+        assertEquals(PostAnnotation.QuotelinkSameThread(7L), quote.annotation)
+        assertEquals(0, quote.spoilerId)
+    }
+
+    @Test fun `text outside a spoiler has no spoiler id`() {
+        val t = parser.parse("plain <s>hidden</s> tail")
+        assertNull(t.segments.first { it.text == "plain " }.spoilerId)
+        assertEquals(0, t.segments.first { it.text == "hidden" }.spoilerId)
+        assertNull(t.segments.first { it.text == " tail" }.spoilerId)
+    }
+
     @Test fun `nested known spans unwind innermost first`() {
         val t = parser.parse("<span class=\"quote\"><span class=\"sjis\">art</span>green</span>")
         val art = t.segments.first { it.text == "art" }

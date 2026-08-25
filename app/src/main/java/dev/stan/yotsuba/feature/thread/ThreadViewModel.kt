@@ -10,23 +10,31 @@ import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
-import dev.stan.yotsuba.domain.model.Board
+import dev.stan.yotsuba.data.repository.DownloadState
+import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
+import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
+import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
-import kotlinx.coroutines.Job
+import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -34,43 +42,25 @@ import kotlinx.coroutines.launch
 @HiltViewModel(assistedFactory = ThreadViewModel.Factory::class)
 class ThreadViewModel @AssistedInject constructor(
     @Assisted("board") private val board: String,
-    @Assisted private val threadNo: Long,
+    @Assisted("threadNo") private val threadNo: Long,
+    @Assisted("initialPostNo") private val initialPostNo: Long?,
     private val threadRepository: ThreadRepository,
     private val boardRepository: BoardRepository,
     private val bookmarkRepository: BookmarkRepository,
     private val historyRepository: HistoryRepository,
     private val settingsRepository: SettingsRepository,
-    private val mediaSessionStore: dev.stan.yotsuba.feature.media.MediaSessionStore,
-    mediaVault: dev.stan.yotsuba.domain.repository.MediaVaultRepository,
-    downloadQueue: dev.stan.yotsuba.data.repository.MediaDownloadQueue,
+    private val mediaSessionStore: MediaSessionStore,
+    mediaVault: MediaVaultRepository,
+    downloadQueue: MediaDownloadQueue,
 ) : ViewModel() {
-
-    /** URL → vault status for the thumbnail badges; saved wins over any queue state. */
-    private val mediaSaveStatuses = combine(mediaVault.savedUrls(), downloadQueue.statuses) { saved, queue ->
-        buildMap {
-            queue.forEach { (url, s) ->
-                put(
-                    url,
-                    when (s) {
-                        is dev.stan.yotsuba.data.repository.DownloadState.Queued -> MediaSaveStatus.QUEUED
-                        is dev.stan.yotsuba.data.repository.DownloadState.Downloading -> MediaSaveStatus.DOWNLOADING
-                        is dev.stan.yotsuba.data.repository.DownloadState.Failed -> MediaSaveStatus.FAILED
-                    },
-                )
-            }
-            saved.forEach { put(it, MediaSaveStatus.SAVED) }
-        }
-    }
-
-    /** Last media item viewed in the full-screen viewer for this thread, cleared on read. */
-    fun consumeLastViewedMedia(): Long? = mediaSessionStore.consumeLastViewed(board, threadNo)
-
-    /** Reading position saved on scroll, restored when the thread is reopened. */
-    suspend fun savedScrollPosition(): Long? = historyRepository.lastScrollPosition(board, threadNo)
 
     @AssistedFactory
     interface Factory {
-        fun create(@Assisted("board") board: String, threadNo: Long): ThreadViewModel
+        fun create(
+            @Assisted("board") board: String,
+            @Assisted("threadNo") threadNo: Long,
+            @Assisted("initialPostNo") initialPostNo: Long?,
+        ): ThreadViewModel
     }
 
     private val result = MutableStateFlow<DataResult<ThreadDetails>?>(null)
@@ -85,16 +75,106 @@ class ThreadViewModel @AssistedInject constructor(
     private val pendingExternalUrl = MutableStateFlow<String?>(null)
     private val autoRefreshUserOverride = MutableStateFlow<Boolean?>(null)
 
-    private var pollJob: Job? = null
+    private val scrollTargetFlow = MutableStateFlow<ScrollTarget?>(null)
+    private val topVisiblePostNo = MutableStateFlow<Long?>(null)
+    private val bottomVisiblePostNo = MutableStateFlow<Long?>(null)
+
     private var lastKnownPostNo = 0L
-    private var backoffIndex = 0
-    private val backoffMs = listOf(10_000L, 30_000L, 60_000L, 300_000L)
+    private var restoredScroll = false
+
+    private val poller = ThreadPoller(
+        isEnabled = {
+            !archivedNotice.value &&
+                (autoRefreshUserOverride.value ?: settingsRepository.settings.first().autoRefreshEnabled)
+        },
+        poll = { load(forceRefresh = true) },
+    )
 
     private val bookmarked = bookmarkRepository.isBookmarked(board, threadNo)
 
+    private val settingsState = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
+
+    /** URL → vault status for the thumbnail badges; saved wins over any queue state. */
+    private val mediaSaveStatuses = combine(mediaVault.savedUrls(), downloadQueue.statuses) { saved, queue ->
+        buildMap {
+            queue.forEach { (url, s) ->
+                put(
+                    url,
+                    when (s) {
+                        is DownloadState.Queued -> MediaSaveStatus.QUEUED
+                        is DownloadState.Downloading -> MediaSaveStatus.DOWNLOADING
+                        is DownloadState.Failed -> MediaSaveStatus.FAILED
+                    },
+                )
+            }
+            saved.forEach { put(it, MediaSaveStatus.SAVED) }
+        }
+    }
+
+    private val spoilerState = combine(revealedSpoilers, revealedImageSpoilers, ::SpoilerState)
+    private val searchInput = combine(searchQuery, searchIndex, ::SearchInput)
+    private val overlayState = combine(previewStack, pendingExternalUrl, ::OverlayState)
+    private val refreshState = combine(newPostsAfter, archivedNotice, autoRefreshUserOverride, ::RefreshState)
+    private val metaState = combine(boardInfo, bookmarked, mediaSaveStatuses, ::MetaState)
+    private val sessionState = combine(spoilerState, searchInput, overlayState, refreshState, ::SessionState)
+
+    val uiState: StateFlow<UiState<ThreadContent>> = combine(
+        result, settingsRepository.settings, metaState, sessionState,
+    ) { res, settings, meta, session ->
+        when (res) {
+            null -> UiState.Loading
+            is DataResult.Failure -> UiState.Error(res.error)
+            is DataResult.Success -> {
+                val details = res.value
+                val matches = searchMatches(details.posts, session.search.query)
+                val byNo = details.posts.associateBy { it.no }
+                UiState.Success(
+                    ThreadContent(
+                        details = details,
+                        board = meta.board,
+                        bookmarked = meta.bookmarked,
+                        revealAllSpoilers = settings.revealAllSpoilers,
+                        revealedSpoilers = session.spoilers.revealedText,
+                        revealedImageSpoilers = session.spoilers.revealedImages,
+                        newPostsAfter = session.refresh.newPostsAfter?.first,
+                        newPostsCount = session.refresh.newPostsAfter?.second ?: 0,
+                        autoRefreshEnabled = session.refresh.autoRefreshOverride ?: settings.autoRefreshEnabled,
+                        archivedNotice = session.refresh.archived || details.archived,
+                        searchQuery = session.search.query,
+                        searchMatches = matches,
+                        searchIndex = if (matches.isEmpty()) 0 else session.search.index.coerceIn(0, matches.size - 1),
+                        previewStack = session.overlays.previewPostNos
+                            .map { group -> group.mapNotNull { byNo[it] } }
+                            .filter { it.isNotEmpty() },
+                        pendingExternalUrl = session.overlays.pendingExternalUrl,
+                        confirmBeforeOpeningLinks = settings.confirmBeforeOpeningLinks,
+                        trustedDomains = settings.trustedDomains,
+                        mediaSaveStatuses = meta.mediaSaveStatuses,
+                    )
+                )
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
+
+    /** One-shot: the screen scrolls to it, then calls [onScrollTargetConsumed]. */
+    val scrollTarget: StateFlow<ScrollTarget?> = scrollTargetFlow
+
     init {
         load()
+        viewModelScope.launch { boardInfo.value = boardRepository.board(board) }
+        viewModelScope.launch {
+            topVisiblePostNo.filterNotNull().distinctUntilChanged().collectLatest { postNo ->
+                delay(500)
+                historyRepository.updateScrollPosition(board, threadNo, postNo)
+            }
+        }
+        viewModelScope.launch {
+            bottomVisiblePostNo.filterNotNull().distinctUntilChanged().collect(::raiseReadMark)
+        }
     }
+
+    private fun loadedPosts(): List<ThreadPost>? = (result.value as? DataResult.Success)?.value?.posts
 
     fun load(forceRefresh: Boolean = false) {
         viewModelScope.launch {
@@ -105,7 +185,7 @@ class ThreadViewModel @AssistedInject constructor(
                 if (lastKnownPostNo != 0L && newest > lastKnownPostNo) {
                     val newOnes = r.value.posts.count { it.no > lastKnownPostNo }
                     newPostsAfter.value = lastKnownPostNo to newOnes
-                    backoffIndex = 0
+                    poller.resetBackoff()
                 }
                 lastKnownPostNo = newest
                 recordHistory(r.value)
@@ -113,14 +193,39 @@ class ThreadViewModel @AssistedInject constructor(
                 if (newest > 0) {
                     bookmarkRepository.markSeen(board, threadNo, newest, r.value.posts.size - 1)
                 }
+                resolveScrollTarget(r.value)
             }
             if (r is DataResult.Failure && r.error == NetworkError.NotFound) {
                 archivedNotice.value = true
-                stopPolling()
+                poller.stop()
                 if (result.value is DataResult.Success) return@launch // keep showing content
             }
             result.value = r
         }
+    }
+
+    /**
+     * Restore priority: explicit target (quote/history tap) > media last viewed in the
+     * full-screen viewer > reading position saved on scroll. Re-runs on each successful
+     * load and on return to the screen, so a viewer session lands on its last item.
+     */
+    private suspend fun resolveScrollTarget(details: ThreadDetails) {
+        val mediaTarget = mediaSessionStore.consumeLastViewed(board, threadNo)
+        if (restoredScroll && mediaTarget == null) return
+        val target = when {
+            !restoredScroll && initialPostNo != null -> initialPostNo
+            mediaTarget != null -> mediaTarget
+            !restoredScroll -> historyRepository.lastScrollPosition(board, threadNo)
+            else -> null
+        }
+        restoredScroll = true
+        if (target != null && details.posts.any { it.no == target }) {
+            scrollTargetFlow.value = ScrollTarget(target, animate = false)
+        }
+    }
+
+    fun onScrollTargetConsumed() {
+        scrollTargetFlow.value = null
     }
 
     private suspend fun recordHistory(details: ThreadDetails) {
@@ -140,106 +245,32 @@ class ThreadViewModel @AssistedInject constructor(
         )
     }
 
-    val uiState: StateFlow<UiState<ThreadContent>> = combine(
-        result, boardInfo, bookmarked, settingsRepository.settings,
-        revealedSpoilers, revealedImageSpoilers, newPostsAfter, archivedNotice,
-        searchQuery, searchIndex, previewStack, pendingExternalUrl, autoRefreshUserOverride,
-        mediaSaveStatuses,
-    ) { values ->
-        val res = values[0] as DataResult<*>?
-        val info = values[1] as Board?
-        val isBookmarked = values[2] as Boolean
-        val settings = values[3] as dev.stan.yotsuba.domain.model.Settings
-        @Suppress("UNCHECKED_CAST")
-        val spoilers = values[4] as Set<Pair<Long, Int>>
-        @Suppress("UNCHECKED_CAST")
-        val imageSpoilers = values[5] as Set<Long>
-        val newAfter = values[6] as Pair<Long, Int>?
-        val archived = values[7] as Boolean
-        val query = values[8] as String?
-        val index = values[9] as Int
-        @Suppress("UNCHECKED_CAST")
-        val stack = values[10] as List<List<Long>>
-        val pendingUrl = values[11] as String?
-        val autoOverride = values[12] as Boolean?
-        @Suppress("UNCHECKED_CAST")
-        val saveStatuses = values[13] as Map<String, MediaSaveStatus>
-        when (res) {
-            null -> UiState.Loading
-            is DataResult.Failure -> UiState.Error(res.error)
-            is DataResult.Success -> {
-                val details = res.value as ThreadDetails
-                val matches = if (query.isNullOrBlank()) emptyList() else details.posts.filter {
-                    it.body.plainText.contains(query, true) || it.subject?.contains(query, true) == true
-                }.map { it.no }
-                val byNo = details.posts.associateBy { it.no }
-                UiState.Success(ThreadContent(
-                    details = details,
-                    board = info,
-                    bookmarked = isBookmarked,
-                    revealAllSpoilers = settings.revealAllSpoilers,
-                    revealedSpoilers = spoilers,
-                    revealedImageSpoilers = imageSpoilers,
-                    newPostsAfter = newAfter?.first,
-                    newPostsCount = newAfter?.second ?: 0,
-                    autoRefreshEnabled = autoOverride ?: settings.autoRefreshEnabled,
-                    archivedNotice = archived || details.archived,
-                    searchQuery = query,
-                    searchMatches = matches,
-                    searchIndex = if (matches.isEmpty()) 0 else index.coerceIn(0, matches.size - 1),
-                    previewStack = stack.map { group -> group.mapNotNull { byNo[it] } }.filter { it.isNotEmpty() },
-                    pendingExternalUrl = pendingUrl,
-                    confirmBeforeOpeningLinks = settings.confirmBeforeOpeningLinks,
-                    trustedDomains = settings.trustedDomains,
-                    mediaSaveStatuses = saveStatuses,
-                ))
-            }
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
-
-    init {
-        viewModelScope.launch { boardInfo.value = boardRepository.board(board) }
-    }
-
     /** Poll only while the thread is on screen (D17); the screen drives visibility. */
     fun onScreenVisibilityChanged(visible: Boolean) {
-        if (visible) maybeStartPolling() else stopPolling()
-    }
-
-    private fun maybeStartPolling() {
-        if (pollJob?.isActive == true) return
-        pollJob = viewModelScope.launch {
-            while (true) {
-                val enabled = autoRefreshUserOverride.value
-                    ?: settingsRepository.settings.first().autoRefreshEnabled
-                if (!enabled || archivedNotice.value) { delay(5_000); continue }
-                delay(backoffMs[backoffIndex])
-                backoffIndex = (backoffIndex + 1).coerceAtMost(backoffMs.size - 1)
-                load(forceRefresh = true)
+        if (visible) {
+            poller.start(viewModelScope)
+            // Returning from the media viewer: pick up its last-viewed item.
+            (result.value as? DataResult.Success)?.let {
+                viewModelScope.launch { resolveScrollTarget(it.value) }
             }
+        } else {
+            poller.stop()
         }
     }
 
-    private fun stopPolling() {
-        pollJob?.cancel()
-        pollJob = null
-    }
-
-    fun onToggleAutoRefresh() {
-        val current = autoRefreshUserOverride.value
-        viewModelScope.launch {
-            val effective = current ?: settingsRepository.settings.first().autoRefreshEnabled
-            autoRefreshUserOverride.value = !effective
-            backoffIndex = 0
-        }
+    fun onToggleAutoRefresh() = viewModelScope.launch {
+        val effective = autoRefreshUserOverride.value
+            ?: settingsRepository.settings.first().autoRefreshEnabled
+        autoRefreshUserOverride.value = !effective
+        poller.resetBackoff()
     }
 
     fun onToggleBookmark() = viewModelScope.launch {
-        val state = (uiState.value as? UiState.Success)?.data ?: return@launch
-        if (state.bookmarked) {
+        val posts = loadedPosts() ?: return@launch
+        if (bookmarked.first()) {
             bookmarkRepository.remove(board, threadNo)
         } else {
-            val op = state.details.posts.firstOrNull() ?: return@launch
+            val op = posts.firstOrNull() ?: return@launch
             bookmarkRepository.add(
                 Bookmark(
                     board = board,
@@ -247,11 +278,11 @@ class ThreadViewModel @AssistedInject constructor(
                     subject = op.subject,
                     opExcerpt = op.body.plainText.take(200),
                     thumbnailUrl = op.media?.thumbnailUrl,
-                    replyCount = state.details.posts.size - 1,
-                    imageCount = state.details.posts.count { it.media != null },
+                    replyCount = posts.size - 1,
+                    imageCount = posts.count { it.media != null },
                     bookmarkedAt = System.currentTimeMillis(),
                     lastCheckedAt = System.currentTimeMillis(),
-                    lastSeenPostNo = state.details.posts.maxOfOrNull { it.no },
+                    lastSeenPostNo = posts.maxOfOrNull { it.no },
                     state = BookmarkState.ALIVE,
                 )
             )
@@ -271,8 +302,8 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onOpenBacklinks(postNo: Long) {
-        val s = (uiState.value as? UiState.Success)?.data ?: return
-        val links = s.details.backlinks[postNo].orEmpty()
+        val details = (result.value as? DataResult.Success)?.value ?: return
+        val links = details.backlinks[postNo].orEmpty()
         if (links.isNotEmpty()) previewStack.value = previewStack.value + listOf(links)
     }
 
@@ -286,16 +317,18 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onSearchStep(delta: Int) {
-        val s = (uiState.value as? UiState.Success)?.data ?: return
-        if (s.searchMatches.isEmpty()) return
-        searchIndex.value = (searchIndex.value + delta).mod(s.searchMatches.size)
+        val matches = searchMatches(loadedPosts() ?: return, searchQuery.value)
+        if (matches.isEmpty()) return
+        val next = (searchIndex.value + delta).mod(matches.size)
+        searchIndex.value = next
+        scrollTargetFlow.value = ScrollTarget(matches[next], animate = true)
     }
 
     /** External-link tap: trusted domains skip the dialog (D26). */
     fun onExternalLink(url: String): Boolean {
-        val s = (uiState.value as? UiState.Success)?.data ?: return false
+        val settings = settingsState.value
         val domain = Urls.domainOf(url)
-        return if (!s.confirmBeforeOpeningLinks || (domain != null && domain in s.trustedDomains)) {
+        return if (!settings.confirmBeforeOpeningLinks || (domain != null && domain in settings.trustedDomains)) {
             true // open immediately
         } else {
             pendingExternalUrl.value = url
@@ -311,22 +344,35 @@ class ThreadViewModel @AssistedInject constructor(
         pendingExternalUrl.value = null
     }
 
-    fun onScrolledTo(postNo: Long) = viewModelScope.launch {
-        historyRepository.updateScrollPosition(board, threadNo, postNo)
+    /** The screen reports the visible index range; the VM owns what it means. */
+    fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
+        val posts = loadedPosts() ?: return
+        // Top-of-screen post: the reading position restored when the thread is reopened.
+        posts.getOrNull(firstIndex)?.let { topVisiblePostNo.value = it.no }
+        // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
+        if (lastIndex != null) posts.getOrNull(lastIndex)?.let { bottomVisiblePostNo.value = it.no }
     }
 
     /**
-     * The bottom-most post currently on screen: raises the "read up to" high-water mark and
-     * live-updates the bookmark's unread pill ([unreadRemaining] = loaded posts below it),
+     * Raises the "read up to" high-water mark and live-updates the bookmark's unread pill,
      * so counts are correct the moment the user returns to the bookmarks tab.
      */
-    fun onReadUpTo(postNo: Long, unreadRemaining: Int) = viewModelScope.launch {
+    private suspend fun raiseReadMark(postNo: Long) {
         // Scrolling back up must not inflate the count — the mark only ever rises.
         val current = historyRepository.readUpTo(board, threadNo)
-        if (current != null && postNo < current) return@launch
+        if (current != null && postNo < current) return
         historyRepository.updateReadUpTo(board, threadNo, postNo)
-        bookmarkRepository.updateUnread(board, threadNo, unreadRemaining)
+        val remaining = loadedPosts()?.count { it.no > postNo } ?: return
+        bookmarkRepository.updateUnread(board, threadNo, remaining)
     }
 
     fun onDismissNewPostsDivider() { newPostsAfter.value = null }
+
+    private companion object {
+        fun searchMatches(posts: List<ThreadPost>, query: String?): List<Long> =
+            if (query.isNullOrBlank()) emptyList()
+            else posts.filter {
+                it.body.plainText.contains(query, true) || it.subject?.contains(query, true) == true
+            }.map { it.no }
+    }
 }

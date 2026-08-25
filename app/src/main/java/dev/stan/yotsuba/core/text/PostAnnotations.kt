@@ -27,11 +27,17 @@ sealed interface PostAnnotation {
     data class Spoiler(val id: Int) : PostAnnotation
 }
 
-/** One run of text with uniform styling and at most one annotation. */
+/**
+ * One run of text with uniform styling and at most one annotation.
+ *
+ * [spoilerId] is set for every segment inside an `<s>` run, even when a nested link's
+ * annotation wins [annotation] — the reveal state must not leak spoilered link text.
+ */
 data class PostSegment(
     val text: String,
     val styles: Set<PostStyle> = emptySet(),
     val annotation: PostAnnotation? = null,
+    val spoilerId: Int? = null,
 )
 
 /** The parsed body of a post: raw markup never survives into [segments] (D10). */

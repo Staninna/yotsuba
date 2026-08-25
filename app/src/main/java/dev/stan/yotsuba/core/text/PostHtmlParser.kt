@@ -24,6 +24,7 @@ object PostHtmlParser {
                     text.toString(),
                     stack.mapNotNull { it.style }.toSet(),
                     stack.lastOrNull { it.annotation != null }?.annotation,
+                    stack.firstNotNullOfOrNull { (it.annotation as? PostAnnotation.Spoiler)?.id },
                 )
                 text.clear()
             }

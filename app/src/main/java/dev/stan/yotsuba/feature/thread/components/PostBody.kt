@@ -40,7 +40,7 @@ fun PostBody(
     val scheme = MaterialTheme.colorScheme
     val annotated = buildAnnotatedString {
         body.segments.forEachIndexed { index, seg ->
-            val spoilerId = (seg.annotation as? PostAnnotation.Spoiler)?.id
+            val spoilerId = seg.spoilerId
             val hiddenSpoiler = spoilerId != null && !revealAll && spoilerId !in revealedSpoilerIds
             var style = SpanStyle()
             if (PostStyle.GREENTEXT in seg.styles) style = style.copy(color = colors.greentext)
@@ -85,9 +85,14 @@ fun PostBody(
             val segIndex = display.getStringAnnotations(TAG, offset, offset)
                 .firstOrNull()?.item?.toIntOrNull() ?: return@ClickableText
             val seg = body.segments.getOrNull(segIndex) ?: return@ClickableText
+            val spoilerId = seg.spoilerId
+            if (spoilerId != null && !revealAll && spoilerId !in revealedSpoilerIds) {
+                // A hidden spoiler reveals first, even when it wraps a link or quotelink.
+                onTap(BodyTap.Spoiler(spoilerId))
+                return@ClickableText
+            }
             when (val a = seg.annotation) {
-                is PostAnnotation.Spoiler ->
-                    if (!revealAll && a.id !in revealedSpoilerIds) onTap(BodyTap.Spoiler(a.id))
+                is PostAnnotation.Spoiler -> {} // already revealed
                 is PostAnnotation.QuotelinkSameThread -> onTap(BodyTap.SameThreadQuote(a.postNo))
                 is PostAnnotation.QuotelinkCrossThread ->
                     onTap(BodyTap.CrossThreadQuote(a.board, a.threadNo, a.postNo))
