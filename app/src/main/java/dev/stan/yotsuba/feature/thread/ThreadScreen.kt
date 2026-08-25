@@ -145,7 +145,7 @@ fun ThreadScreen(
                         post = post,
                         board = s.board,
                         backlinkCount = if (inPreview) 0 else s.details.backlinks[post.no]?.size ?: 0,
-                        saveStatus = post.media?.fullUrl?.let { s.mediaSaveStatuses[it] },
+                        saveStatus = post.presentMedia?.fullUrl?.let { s.mediaSaveStatuses[it] },
                         revealedSpoilerIds = s.revealedSpoilers
                             .filter { it.first == post.no }.map { it.second }.toSet(),
                         revealAll = s.revealAllSpoilers,
@@ -162,7 +162,7 @@ fun ThreadScreen(
                             }
                         },
                         onThumbnailTap = onThumbnailTap@{
-                            val media = post.media ?: return@onThumbnailTap
+                            val media = post.presentMedia ?: return@onThumbnailTap
                             if (!inPreview && media.spoiler && !s.revealAllSpoilers &&
                                 post.no !in s.revealedImageSpoilers
                             ) {

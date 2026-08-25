@@ -238,7 +238,7 @@ class ThreadViewModel @AssistedInject constructor(
                 threadNo = threadNo,
                 subject = op.subject,
                 opExcerpt = op.body.plainText.take(200),
-                thumbnailUrl = op.media?.thumbnailUrl,
+                thumbnailUrl = op.presentMedia?.thumbnailUrl,
                 viewedAt = System.currentTimeMillis(),
                 lastScrollPostNo = historyRepository.lastScrollPosition(board, threadNo),
             )
@@ -277,7 +277,7 @@ class ThreadViewModel @AssistedInject constructor(
                     threadNo = threadNo,
                     subject = op.subject,
                     opExcerpt = op.body.plainText.take(200),
-                    thumbnailUrl = op.media?.thumbnailUrl,
+                    thumbnailUrl = op.presentMedia?.thumbnailUrl,
                     replyCount = posts.size - 1,
                     imageCount = posts.count { it.media != null },
                     bookmarkedAt = System.currentTimeMillis(),

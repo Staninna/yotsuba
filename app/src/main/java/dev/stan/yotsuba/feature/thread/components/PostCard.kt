@@ -39,6 +39,7 @@ import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
+import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadPost
 
 /** Deterministic chip colour from the poster-ID hash, harmonised into the scheme (D21). */
@@ -133,43 +134,45 @@ fun PostCard(
                 Spacer(Modifier.height(spacing.xs))
                 Text(it, style = MaterialTheme.typography.titleMedium)
             }
-            post.media?.let { media ->
+            post.media?.let { attachment ->
                 Spacer(Modifier.height(spacing.sm))
-                if (media.deleted) {
-                    Text(
-                        stringResource(R.string.thread_file_deleted, media.displayName),
+                when (attachment) {
+                    is PostMedia.Deleted -> Text(
+                        stringResource(R.string.thread_file_deleted, attachment.displayName),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                } else {
-                    Row {
-                        Box {
-                            MediaThumbnail(
-                                url = media.thumbnailUrl,
-                                contentDescription = stringResource(
-                                    R.string.media_image_description,
-                                    media.displayName, media.width, media.height,
-                                ),
-                                spoilered = media.spoiler && !revealAll && !imageSpoilerRevealed,
-                                modifier = Modifier
-                                    .size(if (post.isOp) 140.dp else 100.dp)
-                                    .clickable(onClick = onThumbnailTap),
-                            )
-                            saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
-                        }
-                        Spacer(Modifier.width(spacing.md))
-                        Column {
-                            Text(
-                                media.displayName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                            )
-                            Text(
-                                "${FileSize.format(media.sizeBytes)} · ${media.width}×${media.height}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                    is PostMedia.Present -> {
+                        val media = attachment.item
+                        Row {
+                            Box {
+                                MediaThumbnail(
+                                    url = media.thumbnailUrl,
+                                    contentDescription = stringResource(
+                                        R.string.media_image_description,
+                                        media.displayName, media.width, media.height,
+                                    ),
+                                    spoilered = media.spoiler && !revealAll && !imageSpoilerRevealed,
+                                    modifier = Modifier
+                                        .size(if (post.isOp) 140.dp else 100.dp)
+                                        .clickable(onClick = onThumbnailTap),
+                                )
+                                saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
+                            }
+                            Spacer(Modifier.width(spacing.md))
+                            Column {
+                                Text(
+                                    media.displayName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                                Text(
+                                    "${FileSize.format(media.sizeBytes)} · ${media.width}×${media.height}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }

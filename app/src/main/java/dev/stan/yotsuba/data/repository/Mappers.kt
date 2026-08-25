@@ -13,6 +13,7 @@ import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 
@@ -61,34 +62,31 @@ fun PostDto.toThreadPost(board: String): ThreadPost {
         timeSeconds = time,
         subject = sub?.let { PostHtmlParser.parse(it).plainText.ifBlank { null } },
         body = body,
-        media = toMediaItem(board),
+        media = toPostMedia(board),
         quotedPostNos = body.segments.mapNotNull {
             (it.annotation as? PostAnnotation.QuotelinkSameThread)?.postNo
         }.distinct(),
     )
 }
 
-fun PostDto.toMediaItem(board: String): MediaItem? {
+fun PostDto.toPostMedia(board: String): PostMedia? {
     if (filedeleted == 1) {
-        return MediaItem(
-            postNo = no, filename = filename ?: "deleted", ext = ext ?: "",
-            sizeBytes = 0, width = 0, height = 0,
-            thumbnailUrl = "", fullUrl = "", spoiler = false, deleted = true,
-        )
+        return PostMedia.Deleted(displayName = "${filename ?: "deleted"}${ext ?: ""}")
     }
     val t = tim ?: return null
     val e = ext ?: return null
-    return MediaItem(
-        postNo = no,
-        filename = filename ?: t.toString(),
-        ext = e,
-        sizeBytes = fsize ?: 0,
-        width = w ?: 0,
-        height = h ?: 0,
-        thumbnailUrl = Urls.thumbnail(board, t),
-        fullUrl = Urls.fullMedia(board, t, e),
-        spoiler = spoiler == 1,
-        deleted = false,
+    return PostMedia.Present(
+        MediaItem(
+            postNo = no,
+            filename = filename ?: t.toString(),
+            ext = e,
+            sizeBytes = fsize ?: 0,
+            width = w ?: 0,
+            height = h ?: 0,
+            thumbnailUrl = Urls.thumbnail(board, t),
+            fullUrl = Urls.fullMedia(board, t, e),
+            spoiler = spoiler == 1,
+        )
     )
 }
 

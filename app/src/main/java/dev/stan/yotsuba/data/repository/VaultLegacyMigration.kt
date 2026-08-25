@@ -59,9 +59,9 @@ class VaultLegacyMigration @Inject constructor(
             // MediaStore dedupes as "name (1).jpg" — strip that before matching.
             val baseName = file.name.replace(Regex(""" \(\d+\)(\.\w+)$"""), "$1")
             val match = byDisplayName[baseName]
-            val savedAt = legacyUrls[match?.post?.media?.fullUrl]?.downloadedAt ?: file.lastModified()
+            val savedAt = legacyUrls[match?.post?.presentMedia?.fullUrl]?.downloadedAt ?: file.lastModified()
 
-            val migrated = if (match?.post?.media != null) {
+            val migrated = if (match?.post?.presentMedia != null) {
                 migrateMatched(file, match, savedAt)
             } else {
                 migrateUnsorted(file, savedAt)
@@ -94,7 +94,7 @@ class VaultLegacyMigration @Inject constructor(
         for ((board, threadNo, subject) in candidates) {
             val details = (threadRepository.thread(board, threadNo) as? DataResult.Success)?.value ?: continue
             details.posts.forEach { post ->
-                val media = post.media ?: return@forEach
+                val media = post.presentMedia ?: return@forEach
                 byDisplayName.putIfAbsent(media.displayName, Match(board, threadNo, subject, post))
             }
         }
@@ -102,7 +102,7 @@ class VaultLegacyMigration @Inject constructor(
     }
 
     private suspend fun migrateMatched(file: File, match: Match, savedAt: Long): Boolean {
-        val item = match.post.media!!
+        val item = match.post.presentMedia!!
         val dir = File(
             File(store.root, VaultPaths.sanitizeSegment(match.board)),
             VaultPaths.threadDirName(match.threadNo, match.subject),

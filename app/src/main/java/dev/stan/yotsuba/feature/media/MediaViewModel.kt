@@ -121,7 +121,7 @@ class MediaViewModel @AssistedInject constructor(
     val uiState: StateFlow<MediaUiState> = combine(
         details, boardInfo, settingsRepository.settings, networkMonitor.status, saveInfo,
     ) { d, info, settings, status, saves ->
-        val list = d?.posts.orEmpty().mapNotNull { it.media }.filter { !it.deleted }
+        val list = d?.posts.orEmpty().mapNotNull { it.presentMedia }
         MediaUiState(
             items = list,
             posts = d?.posts.orEmpty().associateBy { it.no },

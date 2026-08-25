@@ -15,10 +15,13 @@ data class ThreadPost(
     val timeSeconds: Long,
     val subject: String?,
     val body: PostText,
-    val media: MediaItem?,
+    val media: PostMedia?,
     /** Post numbers this post quotes, for the reverse backlink index (D11). */
     val quotedPostNos: List<Long>,
-)
+) {
+    /** The attachment's real fields, or null when there is no file or it was deleted. */
+    val presentMedia: MediaItem? get() = (media as? PostMedia.Present)?.item
+}
 
 data class ThreadDetails(
     val board: String,
