@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -79,6 +80,33 @@ fun EmptyState(
             action()
         }
     }
+}
+
+/** The shared "no matches for your query" empty state. */
+@Composable
+fun NoSearchResults(query: String, modifier: Modifier = Modifier) {
+    EmptyState(
+        title = stringResource(R.string.search_no_results_title),
+        explanation = stringResource(R.string.search_no_results_explanation, query),
+        modifier = modifier,
+    )
+}
+
+/** The shared single-line inline search field. */
+@Composable
+fun SearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    hintRes: Int,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = { Text(stringResource(hintRes)) },
+        singleLine = true,
+        modifier = modifier,
+    )
 }
 
 @Composable

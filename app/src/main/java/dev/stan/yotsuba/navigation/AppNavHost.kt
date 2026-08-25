@@ -116,17 +116,26 @@ fun AppNavHost() {
         }
     }
 
+    // One items builder for both chrome variants; only the item composable differs.
+    val navItems: @Composable (
+        item: @Composable (Boolean, () -> Unit, @Composable () -> Unit, @Composable () -> Unit) -> Unit,
+    ) -> Unit = { item ->
+        TopLevelDestination.entries.forEach { dest ->
+            val selected = currentDestination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true
+            item(
+                selected,
+                { navigateTopLevel(dest) },
+                { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
+                { Text(stringResource(dest.labelRes)) },
+            )
+        }
+    }
+
     if (expanded && showChrome) {
         Row(Modifier.fillMaxSize()) {
             NavigationRail {
-                TopLevelDestination.entries.forEach { dest ->
-                    val selected = currentDestination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true
-                    NavigationRailItem(
-                        selected = selected,
-                        onClick = { navigateTopLevel(dest) },
-                        icon = { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
-                        label = { Text(stringResource(dest.labelRes)) },
-                    )
+                navItems { selected, onClick, icon, label ->
+                    NavigationRailItem(selected = selected, onClick = onClick, icon = icon, label = label)
                 }
             }
             navHost(Modifier.weight(1f))
@@ -136,14 +145,8 @@ fun AppNavHost() {
             bottomBar = {
                 if (showChrome) {
                     NavigationBar {
-                        TopLevelDestination.entries.forEach { dest ->
-                            val selected = currentDestination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = { navigateTopLevel(dest) },
-                                icon = { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
-                                label = { Text(stringResource(dest.labelRes)) },
-                            )
+                        navItems { selected, onClick, icon, label ->
+                            NavigationBarItem(selected = selected, onClick = onClick, icon = icon, label = label)
                         }
                     }
                 }

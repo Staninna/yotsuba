@@ -38,6 +38,14 @@ class UrlsTest {
         assertEquals(InternalLink.Catalog("po"), Urls.parseInternal("https://boards.4channel.org/po/"))
     }
 
+    @Test fun `board link without trailing slash routes to catalog`() {
+        assertEquals(InternalLink.Catalog("g"), Urls.parseInternal("https://boards.4chan.org/g"))
+    }
+
+    @Test fun `multi-segment board path stays external`() {
+        assertNull(Urls.parseInternal("https://boards.4chan.org/g/archive"))
+    }
+
     @Test fun `other hosts are external`() {
         assertNull(Urls.parseInternal("https://example.com/g/thread/1"))
         assertNull(Urls.parseInternal("https://i.4cdn.org/g/123.jpg"))

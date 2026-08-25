@@ -31,11 +31,9 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -56,7 +54,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
+import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
+import dev.stan.yotsuba.core.designsystem.component.showUndo
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
 import dev.stan.yotsuba.core.designsystem.component.OfflineBanner
@@ -135,11 +136,10 @@ fun CatalogScreen(
                     OfflineBanner(cachedAtLabel = null, onRetry = { viewModel.load(forceRefresh = true) })
                 }
                 if (searchVisible) {
-                    OutlinedTextField(
+                    SearchField(
                         value = s.searchQuery,
                         onValueChange = viewModel::onSearchChange,
-                        placeholder = { Text(stringResource(R.string.catalog_search_hint)) },
-                        singleLine = true,
+                        hintRes = R.string.catalog_search_hint,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = spacing.lg, vertical = spacing.sm),
@@ -147,12 +147,7 @@ fun CatalogScreen(
                 }
                 if (s.threads.isEmpty()) {
                     if (s.searchQuery.isNotBlank()) {
-                        EmptyState(
-                            title = stringResource(R.string.search_no_results_title),
-                            explanation = stringResource(
-                                R.string.search_no_results_explanation, s.searchQuery,
-                            ),
-                        )
+                        NoSearchResults(s.searchQuery)
                     } else {
                         EmptyState(
                             title = stringResource(R.string.catalog_empty_title),
@@ -185,8 +180,7 @@ fun CatalogScreen(
                                     onLongClick = {
                                         viewModel.onHideThread(thread.no)
                                         scope.launch {
-                                            val r = snackbar.showSnackbar(hiddenMessage, actionLabel = undoLabel)
-                                            if (r == SnackbarResult.ActionPerformed) viewModel.onUndoHide(thread.no)
+                                            snackbar.showUndo(hiddenMessage, undoLabel) { viewModel.onUndoHide(thread.no) }
                                         }
                                     },
                                 )
@@ -285,7 +279,7 @@ private fun TitleAndBadges(thread: CatalogThread, maxLines: Int = 1) {
             )
         }
         Text(
-            thread.subject ?: thread.excerpt.plainText.take(60).ifBlank { "#${thread.no}" },
+            thread.displayTitle,
             style = MaterialTheme.typography.titleMedium,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,

@@ -20,7 +20,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -36,6 +35,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
+import dev.stan.yotsuba.core.designsystem.component.SearchField
+import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
@@ -77,11 +79,10 @@ fun BoardsScreen(
             } else {
                 LazyColumn(Modifier.fillMaxSize().padding(padding)) {
                     item {
-                        OutlinedTextField(
+                        SearchField(
                             value = s.searchQuery,
                             onValueChange = viewModel::onSearchChange,
-                            placeholder = { Text(stringResource(R.string.boards_search_hint)) },
-                            singleLine = true,
+                            hintRes = R.string.boards_search_hint,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = spacing.lg, vertical = spacing.sm),
@@ -105,13 +106,7 @@ fun BoardsScreen(
                     }
                     if (s.searchQuery.isNotBlank() && s.favourites.isEmpty() && s.sections.isEmpty()) {
                         item(key = "no_results") {
-                            EmptyState(
-                                title = stringResource(R.string.search_no_results_title),
-                                explanation = stringResource(
-                                    R.string.search_no_results_explanation, s.searchQuery,
-                                ),
-                                modifier = Modifier.fillParentMaxHeight(0.7f),
-                            )
+                            NoSearchResults(s.searchQuery, Modifier.fillParentMaxHeight(0.7f))
                         }
                     }
                     s.sections.forEach { section ->
@@ -154,17 +149,6 @@ fun BoardsScreen(
             }
         }
     }
-}
-
-@Composable
-fun SectionHeader(title: String, modifier: Modifier = Modifier) {
-    val spacing = LocalSpacing.current
-    Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.padding(horizontal = spacing.lg, vertical = spacing.md),
-    )
 }
 
 @Composable

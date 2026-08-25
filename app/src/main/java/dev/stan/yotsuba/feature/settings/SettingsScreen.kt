@@ -40,7 +40,7 @@ import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.ThemeMode
-import dev.stan.yotsuba.feature.boards.SectionHeader
+import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,15 +71,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             SectionHeader(stringResource(R.string.settings_appearance))
             ChipRow(
                 label = stringResource(R.string.settings_theme),
-                options = ThemeMode.entries.map {
-                    it to stringResource(
-                        when (it) {
-                            ThemeMode.SYSTEM -> R.string.settings_theme_system
-                            ThemeMode.LIGHT -> R.string.settings_theme_light
-                            ThemeMode.DARK -> R.string.settings_theme_dark
-                        }
-                    )
-                },
+                options = ThemeMode.entries,
+                labelOf = { it.labelRes },
                 selected = s.themeMode,
                 onSelect = { mode -> viewModel.update { it.copy(themeMode = mode) } },
             )
@@ -91,15 +84,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             )
             ChipRow(
                 label = stringResource(R.string.settings_catalog_layout),
-                options = CatalogLayout.entries.map {
-                    it to stringResource(
-                        when (it) {
-                            CatalogLayout.COMFORTABLE -> R.string.settings_layout_comfortable
-                            CatalogLayout.COMPACT -> R.string.settings_layout_compact
-                            CatalogLayout.LIST -> R.string.settings_layout_list
-                        }
-                    )
-                },
+                options = CatalogLayout.entries,
+                labelOf = { it.labelRes },
                 selected = s.catalogLayout,
                 onSelect = { layout -> viewModel.update { it.copy(catalogLayout = layout) } },
             )
@@ -129,15 +115,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             )
             ChipRow(
                 label = stringResource(R.string.settings_media_autoplay),
-                options = MediaAutoplay.entries.map {
-                    it to stringResource(
-                        when (it) {
-                            MediaAutoplay.ALWAYS -> R.string.settings_autoplay_always
-                            MediaAutoplay.UNMETERED_ONLY -> R.string.settings_autoplay_unmetered
-                            MediaAutoplay.NEVER -> R.string.settings_autoplay_never
-                        }
-                    )
-                },
+                options = MediaAutoplay.entries,
+                labelOf = { it.labelRes },
                 selected = s.mediaAutoplay,
                 onSelect = { v -> viewModel.update { it.copy(mediaAutoplay = v) } },
             )
@@ -149,15 +128,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             )
             ChipRow(
                 label = stringResource(R.string.settings_history_retention),
-                options = HistoryRetention.entries.map {
-                    it to stringResource(
-                        when (it) {
-                            HistoryRetention.FOREVER -> R.string.settings_retention_forever
-                            HistoryRetention.DAYS_30 -> R.string.settings_retention_30d
-                            HistoryRetention.DAYS_7 -> R.string.settings_retention_7d
-                        }
-                    )
-                },
+                options = HistoryRetention.entries,
+                labelOf = { it.labelRes },
                 selected = s.historyRetention,
                 onSelect = { v -> viewModel.update { it.copy(historyRetention = v) } },
             )
@@ -230,62 +202,63 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     }
 
     if (showTrusted) {
-        AlertDialog(
-            onDismissRequest = { showTrusted = false },
-            title = { Text(stringResource(R.string.settings_trusted_domains, s.trustedDomains.size)) },
-            text = {
-                if (s.trustedDomains.isEmpty()) {
-                    Text(stringResource(R.string.settings_list_empty))
-                } else {
-                    val domains = s.trustedDomains.sorted()
-                    LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                        items(domains.size, key = { domains[it] }) { i ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(domains[i], Modifier.weight(1f))
-                                TextButton(onClick = { viewModel.onRevokeTrustedDomain(domains[i]) }) {
-                                    Text(stringResource(R.string.action_remove))
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showTrusted = false }) { Text(stringResource(R.string.action_done)) }
-            },
+        ManagedListDialog(
+            title = stringResource(R.string.settings_trusted_domains, s.trustedDomains.size),
+            items = s.trustedDomains.sorted(),
+            key = { it },
+            itemLabel = { it },
+            removeLabel = stringResource(R.string.action_remove),
+            onRemove = viewModel::onRevokeTrustedDomain,
+            onDismiss = { showTrusted = false },
         )
     }
 
     if (showHidden) {
-        AlertDialog(
-            onDismissRequest = { showHidden = false },
-            title = { Text(stringResource(R.string.settings_hidden_threads, state.hiddenThreads.size)) },
-            text = {
-                if (state.hiddenThreads.isEmpty()) {
-                    Text(stringResource(R.string.settings_list_empty))
-                } else {
-                    val hiddenThreads = state.hiddenThreads
-                    LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                        items(
-                            hiddenThreads.size,
-                            key = { hiddenThreads[it].board + "/" + hiddenThreads[it].threadNo },
-                        ) { i ->
-                            val hidden = hiddenThreads[i]
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("/${hidden.board}/${hidden.threadNo}", Modifier.weight(1f))
-                                TextButton(onClick = { viewModel.onUnhideThread(hidden) }) {
-                                    Text(stringResource(R.string.settings_unhide))
-                                }
+        ManagedListDialog(
+            title = stringResource(R.string.settings_hidden_threads, state.hiddenThreads.size),
+            items = state.hiddenThreads,
+            key = { it.board + "/" + it.threadNo },
+            itemLabel = { "/${it.board}/${it.threadNo}" },
+            removeLabel = stringResource(R.string.settings_unhide),
+            onRemove = viewModel::onUnhideThread,
+            onDismiss = { showHidden = false },
+        )
+    }
+}
+
+@Composable
+private fun <T> ManagedListDialog(
+    title: String,
+    items: List<T>,
+    key: (T) -> Any,
+    itemLabel: (T) -> String,
+    removeLabel: String,
+    onRemove: (T) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            if (items.isEmpty()) {
+                Text(stringResource(R.string.settings_list_empty))
+            } else {
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(items.size, key = { key(items[it]) }) { i ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(itemLabel(items[i]), Modifier.weight(1f))
+                            TextButton(onClick = { onRemove(items[i]) }) {
+                                Text(removeLabel)
                             }
                         }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showHidden = false }) { Text(stringResource(R.string.action_done)) }
-            },
-        )
-    }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_done)) }
+        },
+    )
 }
 
 @Composable
@@ -327,7 +300,8 @@ private fun TextRow(title: String, summary: String? = null, onClick: () -> Unit)
 @Composable
 private fun <T> ChipRow(
     label: String,
-    options: List<Pair<T, String>>,
+    options: List<T>,
+    labelOf: (T) -> Int,
     selected: T,
     onSelect: (T) -> Unit,
 ) {
@@ -335,14 +309,42 @@ private fun <T> ChipRow(
     Column(Modifier.padding(horizontal = spacing.lg, vertical = spacing.xs)) {
         Text(label, style = MaterialTheme.typography.bodyLarge)
         androidx.compose.foundation.layout.FlowRow {
-            options.forEach { (value, text) ->
+            options.forEach { value ->
                 FilterChip(
                     selected = value == selected,
                     onClick = { onSelect(value) },
-                    label = { Text(text) },
+                    label = { Text(stringResource(labelOf(value))) },
                     modifier = Modifier.padding(end = spacing.sm),
                 )
             }
         }
     }
 }
+
+private val ThemeMode.labelRes: Int
+    get() = when (this) {
+        ThemeMode.SYSTEM -> R.string.settings_theme_system
+        ThemeMode.LIGHT -> R.string.settings_theme_light
+        ThemeMode.DARK -> R.string.settings_theme_dark
+    }
+
+private val CatalogLayout.labelRes: Int
+    get() = when (this) {
+        CatalogLayout.COMFORTABLE -> R.string.settings_layout_comfortable
+        CatalogLayout.COMPACT -> R.string.settings_layout_compact
+        CatalogLayout.LIST -> R.string.settings_layout_list
+    }
+
+private val MediaAutoplay.labelRes: Int
+    get() = when (this) {
+        MediaAutoplay.ALWAYS -> R.string.settings_autoplay_always
+        MediaAutoplay.UNMETERED_ONLY -> R.string.settings_autoplay_unmetered
+        MediaAutoplay.NEVER -> R.string.settings_autoplay_never
+    }
+
+private val HistoryRetention.labelRes: Int
+    get() = when (this) {
+        HistoryRetention.FOREVER -> R.string.settings_retention_forever
+        HistoryRetention.DAYS_30 -> R.string.settings_retention_30d
+        HistoryRetention.DAYS_7 -> R.string.settings_retention_7d
+    }

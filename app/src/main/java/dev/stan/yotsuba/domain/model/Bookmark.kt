@@ -18,4 +18,7 @@ data class Bookmark(
     val newReplies: Int = 0,
     /** Posts after the saved reading position — everything not actually read yet. */
     val unreadCount: Int = 0,
-)
+) {
+    val displayTitle: String
+        get() = subject ?: opExcerpt.take(60).ifBlank { "/$board/$threadNo" }
+}

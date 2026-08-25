@@ -13,4 +13,7 @@ data class CatalogThread(
     val lastModified: Long,
     val sticky: Boolean,
     val closed: Boolean,
-)
+) {
+    val displayTitle: String
+        get() = subject ?: excerpt.plainText.take(60).ifBlank { "#$no" }
+}

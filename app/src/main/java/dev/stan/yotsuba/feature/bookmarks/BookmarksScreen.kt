@@ -4,13 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -22,12 +18,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -38,14 +31,15 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
-import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
-import dev.stan.yotsuba.core.designsystem.component.SwipeDeleteBackground
+import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
+import dev.stan.yotsuba.core.designsystem.component.SwipeToDeleteRow
+import dev.stan.yotsuba.core.designsystem.component.ThreadSummaryRow
+import dev.stan.yotsuba.core.designsystem.component.showUndo
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
@@ -66,14 +60,7 @@ fun BookmarksScreen(
 
     // Auto-refresh whenever the tab comes back on screen (throttled in the ViewModel),
     // so the pills update without a manual pull.
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.onScreenVisible()
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
+    OnResumeEffect(viewModel::onScreenVisible)
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -115,22 +102,12 @@ fun BookmarksScreen(
                         key = { state.bookmarks[it].board + "/" + state.bookmarks[it].threadNo },
                     ) { i ->
                         val bookmark = state.bookmarks[i]
-                        // Committing takes a drag to 75% of the width; onDismiss only fires
-                        // after the finger lifts and the row settles off-screen.
-                        val dismissState = rememberSwipeToDismissBoxState(
-                            positionalThreshold = { totalDistance -> totalDistance * 0.75f },
-                        )
-                        SwipeToDismissBox(
-                            state = dismissState,
-                            backgroundContent = { SwipeDeleteBackground(dismissState) },
-                            onDismiss = {
-                                viewModel.onRemove(bookmark)
-                                scope.launch {
-                                    val r = snackbar.showSnackbar(removedMessage, actionLabel = undoLabel)
-                                    if (r == SnackbarResult.ActionPerformed) viewModel.onUndoRemove(bookmark)
-                                }
-                            },
-                        ) {
+                        SwipeToDeleteRow(onDelete = {
+                            viewModel.onRemove(bookmark)
+                            scope.launch {
+                                snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
+                            }
+                        }) {
                             BookmarkCard(bookmark, onClick = { onOpenThread(bookmark.board, bookmark.threadNo) })
                         }
                     }
@@ -145,38 +122,17 @@ private fun BookmarkCard(bookmark: Bookmark, onClick: () -> Unit) {
     val spacing = LocalSpacing.current
     val dead = bookmark.state == BookmarkState.DEAD
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Row(Modifier.padding(spacing.md), verticalAlignment = Alignment.CenterVertically) {
-            MediaThumbnail(
-                url = bookmark.thumbnailUrl,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-            )
-            Spacer(Modifier.width(spacing.md))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    bookmark.subject ?: bookmark.opExcerpt.take(60).ifBlank { "/${bookmark.board}/${bookmark.threadNo}" },
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = if (dead) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    bookmark.opExcerpt,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    listOf(
-                        "/${bookmark.board}/",
-                        pluralStringResource(R.plurals.replies_count, bookmark.replyCount, bookmark.replyCount),
-                        pluralStringResource(R.plurals.images_count, bookmark.imageCount, bookmark.imageCount),
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        ThreadSummaryRow(
+            thumbnailUrl = bookmark.thumbnailUrl,
+            title = bookmark.displayTitle,
+            excerpt = bookmark.opExcerpt,
+            metadata = listOf(
+                "/${bookmark.board}/",
+                pluralStringResource(R.plurals.replies_count, bookmark.replyCount, bookmark.replyCount),
+                pluralStringResource(R.plurals.images_count, bookmark.imageCount, bookmark.imageCount),
+            ).joinToString(" · "),
+            titleColor = if (dead) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.onSurface,
+        ) {
             if (!dead && (bookmark.newReplies > 0 || bookmark.unreadCount > 0)) {
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (bookmark.newReplies > 0) {

@@ -5,28 +5,25 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import dev.stan.yotsuba.core.database.dao.BookmarkDao
-import dev.stan.yotsuba.core.database.dao.HiddenThreadDao
-import dev.stan.yotsuba.core.database.entity.HiddenThreadEntity
 import dev.stan.yotsuba.core.util.DataResult
+import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
+import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
+import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import java.io.File
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
 
 data class SettingsUiState(
     val settings: Settings = Settings(),
-    val hiddenThreads: List<HiddenThreadEntity> = emptyList(),
+    val hiddenThreads: List<HiddenThread> = emptyList(),
     val versionName: String = "",
 )
 
@@ -35,14 +32,14 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val historyRepository: HistoryRepository,
-    private val bookmarkDao: BookmarkDao,
-    private val hiddenThreadDao: HiddenThreadDao,
+    private val bookmarkRepository: BookmarkRepository,
+    private val hiddenThreadsRepository: HiddenThreadsRepository,
     private val boardRepository: BoardRepository,
-    private val okHttpClient: OkHttpClient,
+    private val maintenanceRepository: MaintenanceRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<SettingsUiState> = combine(
-        settingsRepository.settings, hiddenThreadDao.all(),
+        settingsRepository.settings, hiddenThreadsRepository.all,
     ) { settings, hidden ->
         SettingsUiState(
             settings = settings,
@@ -64,18 +61,12 @@ class SettingsViewModel @Inject constructor(
         settingsRepository.update { it.copy(hiddenBoards = it.hiddenBoards + nsfw) }
     }
 
-    fun onClearCache() = viewModelScope.launch {
-        withContext(Dispatchers.IO) {
-            runCatching { okHttpClient.cache?.evictAll() }
-            File(context.cacheDir, "image_cache").deleteRecursively()
-        }
-    }
-
+    fun onClearCache() = viewModelScope.launch { maintenanceRepository.clearCaches() }
     fun onClearHistory() = viewModelScope.launch { historyRepository.clearAll() }
-    fun onClearBookmarks() = viewModelScope.launch { bookmarkDao.clearAll() }
+    fun onClearBookmarks() = viewModelScope.launch { bookmarkRepository.clearAll() }
     fun onClearTrustedDomains() = update { it.copy(trustedDomains = emptySet()) }
     fun onRevokeTrustedDomain(domain: String) = update { it.copy(trustedDomains = it.trustedDomains - domain) }
-    fun onUnhideThread(entity: HiddenThreadEntity) = viewModelScope.launch {
-        hiddenThreadDao.unhide(entity.board, entity.threadNo)
+    fun onUnhideThread(hidden: HiddenThread) = viewModelScope.launch {
+        hiddenThreadsRepository.unhide(hidden.board, hidden.threadNo)
     }
 }

@@ -30,13 +30,17 @@ import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.data.repository.BoardRepositoryImpl
 import dev.stan.yotsuba.data.repository.BookmarkRepositoryImpl
 import dev.stan.yotsuba.data.repository.CatalogRepositoryImpl
+import dev.stan.yotsuba.data.repository.HiddenThreadsRepositoryImpl
 import dev.stan.yotsuba.data.repository.HistoryRepositoryImpl
+import dev.stan.yotsuba.data.repository.MaintenanceRepositoryImpl
 import dev.stan.yotsuba.data.repository.MediaVaultRepositoryImpl
 import dev.stan.yotsuba.data.repository.ThreadRepositoryImpl
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
+import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
+import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
@@ -122,4 +126,6 @@ abstract class RepositoryModule {
     @Binds abstract fun historyRepository(impl: HistoryRepositoryImpl): HistoryRepository
     @Binds abstract fun settingsRepository(impl: SettingsDataStore): SettingsRepository
     @Binds abstract fun mediaVaultRepository(impl: MediaVaultRepositoryImpl): MediaVaultRepository
+    @Binds abstract fun hiddenThreadsRepository(impl: HiddenThreadsRepositoryImpl): HiddenThreadsRepository
+    @Binds abstract fun maintenanceRepository(impl: MaintenanceRepositoryImpl): MaintenanceRepository
 }

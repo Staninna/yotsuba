@@ -17,6 +17,7 @@ class BoardRepositoryImpl @Inject constructor(
 
     private val mutex = Mutex()
     private var cached: List<Board>? = null
+    private var byCode: Map<String, Board> = emptyMap()
 
     override suspend fun boards(forceRefresh: Boolean): DataResult<List<Board>> =
         mutex.withLock {
@@ -26,10 +27,11 @@ class BoardRepositoryImpl @Inject constructor(
                 // The single place /f/ is excluded (D13): nothing can play .swf.
                 val boards = dto.boards.filter { it.board != "f" }.map { it.toDomain() }
                 cached = boards
+                byCode = boards.associateBy { it.code }
                 boards
             }
         }
 
     override suspend fun board(code: String): Board? =
-        (boards() as? DataResult.Success)?.value?.firstOrNull { it.code == code }
+        if (boards() is DataResult.Success) byCode[code] else null
 }

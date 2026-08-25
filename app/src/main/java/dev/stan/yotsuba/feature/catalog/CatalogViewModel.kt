@@ -3,8 +3,6 @@ package dev.stan.yotsuba.feature.catalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.stan.yotsuba.core.database.dao.HiddenThreadDao
-import dev.stan.yotsuba.core.database.entity.HiddenThreadEntity
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.util.DataResult
@@ -13,7 +11,9 @@ import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.repository.BoardRepository
+import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.repository.CatalogRepository
+import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.model.Board
 import javax.inject.Inject
@@ -31,7 +31,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     private val catalogRepository: CatalogRepository,
     private val boardRepository: BoardRepository,
     private val settingsRepository: SettingsRepository,
-    private val hiddenThreadDao: HiddenThreadDao,
+    private val hiddenThreadsRepository: HiddenThreadsRepository,
     networkMonitor: NetworkMonitor,
 ) : ViewModel() {
 
@@ -62,7 +62,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
 
     val uiState: StateFlow<UiState<CatalogContent>> = combine(
         result.flow, boardInfo, settingsRepository.settings, searchQuery, refreshing,
-        hiddenThreadDao.forBoard(board), networkStatus,
+        hiddenThreadsRepository.forBoard(board), networkStatus,
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val res = values[0] as DataResult<List<CatalogThread>>?
@@ -70,7 +70,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
         val settings = values[2] as dev.stan.yotsuba.domain.model.Settings
         val query = values[3] as String
         val isRefreshing = values[4] as Boolean
-        val hidden = (values[5] as List<HiddenThreadEntity>).map { it.threadNo }.toSet()
+        val hidden = (values[5] as List<HiddenThread>).map { it.threadNo }.toSet()
         val status = values[6] as NetworkStatus
         when (res) {
             null -> UiState.Loading
@@ -105,10 +105,10 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     }
 
     fun onHideThread(threadNo: Long) = viewModelScope.launch {
-        hiddenThreadDao.hide(HiddenThreadEntity(board, threadNo, System.currentTimeMillis()))
+        hiddenThreadsRepository.hide(board, threadNo)
     }
 
     fun onUndoHide(threadNo: Long) = viewModelScope.launch {
-        hiddenThreadDao.unhide(board, threadNo)
+        hiddenThreadsRepository.unhide(board, threadNo)
     }
 }

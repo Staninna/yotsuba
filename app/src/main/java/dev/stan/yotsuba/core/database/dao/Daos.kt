@@ -131,11 +131,9 @@ interface HiddenThreadDao {
     suspend fun unhide(board: String, threadNo: Long)
 }
 
+/** Legacy table superseded by [SavedMediaDao]; read-only so nothing can write it anymore. */
 @Dao
 interface DownloadedMediaDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(entity: DownloadedMediaEntity)
-
     @Query("SELECT * FROM downloaded_media")
     suspend fun allOnce(): List<DownloadedMediaEntity>
 }

@@ -15,7 +15,7 @@ object Urls {
     }
 
     private val INTERNAL_HOSTS = setOf("boards.4chan.org", "boards.4channel.org")
-    private val BOARD_PATH = Regex("""/(\w+)/(?:catalog)?""")
+    private val BOARD_PATH = Regex("""/(\w+)""")
     private val THREAD_PATH = Regex("""/(\w+)/thread/(\d+)(?:/[^#]*)?""")
 
     /** Returns the in-app destination for a 4chan board link, or null → external path. */
@@ -33,7 +33,7 @@ object Urls {
             val search = uri.fragment?.removePrefix("s=")?.replace('_', ' ')
             if (board.isNotEmpty()) return InternalLink.Catalog(board, search)
         }
-        BOARD_PATH.matchEntire("$path/")?.let { m ->
+        BOARD_PATH.matchEntire(path)?.let { m ->
             return InternalLink.Catalog(m.groupValues[1])
         }
         return null

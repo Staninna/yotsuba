@@ -22,7 +22,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -47,6 +46,7 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.UiState
@@ -256,11 +256,10 @@ private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(horizontal = spacing.md),
     ) {
-        OutlinedTextField(
+        SearchField(
             value = s.searchQuery.orEmpty(),
             onValueChange = { viewModel.onSearchChange(it) },
-            placeholder = { Text(stringResource(R.string.thread_search_in_thread)) },
-            singleLine = true,
+            hintRes = R.string.thread_search_in_thread,
             modifier = Modifier.weight(1f),
         )
         Text(

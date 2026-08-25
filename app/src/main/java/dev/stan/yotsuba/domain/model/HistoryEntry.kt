@@ -8,4 +8,7 @@ data class HistoryEntry(
     val thumbnailUrl: String?,
     val viewedAt: Long,
     val lastScrollPostNo: Long?,
-)
+) {
+    val displayTitle: String
+        get() = subject ?: opExcerpt.take(60).ifBlank { "/$board/$threadNo" }
+}

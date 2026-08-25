@@ -4,6 +4,7 @@ import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.Settings
@@ -39,6 +40,19 @@ interface BookmarkRepository {
 
     /** Live update from the open thread: how many loaded posts are still below the read mark. */
     suspend fun updateUnread(board: String, threadNo: Long, unread: Int)
+    suspend fun clearAll()
+}
+
+interface HiddenThreadsRepository {
+    val all: Flow<List<HiddenThread>>
+    fun forBoard(board: String): Flow<List<HiddenThread>>
+    suspend fun hide(board: String, threadNo: Long)
+    suspend fun unhide(board: String, threadNo: Long)
+}
+
+interface MaintenanceRepository {
+    /** Evicts the OkHttp API cache and deletes the Coil image cache directory. */
+    suspend fun clearCaches()
 }
 
 interface HistoryRepository {

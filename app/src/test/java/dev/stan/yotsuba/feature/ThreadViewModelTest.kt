@@ -64,6 +64,7 @@ class ThreadViewModelTest {
         override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
         var unread: Int? = null
         override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) { this.unread = unread }
+        override suspend fun clearAll() {}
     }
 
     private class FakeHistoryRepository(var savedScrollPostNo: Long? = null) : HistoryRepository {

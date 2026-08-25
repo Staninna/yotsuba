@@ -73,4 +73,6 @@ class BookmarkRepositoryImpl @Inject constructor(
 
     override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) =
         dao.updateUnread(board, threadNo, unread)
+
+    override suspend fun clearAll() = dao.clearAll()
 }

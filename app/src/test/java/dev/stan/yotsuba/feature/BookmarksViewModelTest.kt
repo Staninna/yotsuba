@@ -58,6 +58,7 @@ class BookmarksViewModelTest {
                 if (it.board == board && it.threadNo == threadNo) it.copy(unreadCount = unread) else it
             }
         }
+        override suspend fun clearAll() { state.value = emptyList() }
     }
 
     @Test fun `refresh-all walks every bookmark sequentially`() = runTest(dispatcher.scheduler) {
