@@ -2,8 +2,8 @@
 
 ## 0. Testing
 
-- [ ] 100% unit test coverage (production code, tests excluded from the 500-line file rule)
-- [ ] 100% e2e test coverage (instrumented/Compose UI tests covering every screen and flow)
+- [ ] 100% unit test coverage — not met; honest state as of 2026-08-25: 20.1% line / 18.2% instruction overall (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`, up from 11.3% / 10.8%). 176 JVM tests pass. Near-100% where JVM-testable: core/vault 100%, domain/model 99%, core/text 98%, network DTOs 96%, core/util 78%. The remainder is mostly Compose UI (designsystem, screens, navigation ~2.5k lines) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource) whose sandbox classloader bypasses JaCoCo's instrumented classes, so their coverage records as 0%. Media/Vault viewer VMs depend on Context/ExoPlayer and remain untested on JVM
+- [ ] 100% e2e test coverage — 8 instrumented Compose tests in `app/src/androidTest/` cover every screen's primary flow (boards → catalog → thread → media viewer, bookmark add/remove, history, vault, settings toggle) with Hilt `@TestInstallIn` fake repositories, no network. They compile (`:app:compileDebugAndroidTestKotlin`) but need a device: `./gradlew :app:connectedDebugAndroidTest`. Not yet executed on hardware, and secondary flows (search, spoilers, PiP, downloads) are uncovered
 
 ## 1. Code quality — blockers
 
