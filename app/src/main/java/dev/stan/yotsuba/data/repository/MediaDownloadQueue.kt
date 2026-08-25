@@ -1,8 +1,9 @@
 package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.domain.model.MediaItem
-import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
+import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -14,7 +15,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-enum class DownloadState { QUEUED, DOWNLOADING, FAILED }
+sealed interface DownloadState {
+    data object Queued : DownloadState
+    data object Downloading : DownloadState
+    data class Failed(val error: VaultError) : DownloadState
+}
 
 /**
  * App-wide save queue: enqueueing is instant, one background worker walks the queue
@@ -37,11 +42,12 @@ class MediaDownloadQueue @Inject constructor(
         scope.launch {
             for ((item, ctx) in channel) {
                 // A cancelled entry was removed from the map — skip its stale channel element.
-                if (_statuses.value[item.fullUrl] != DownloadState.QUEUED) continue
-                _statuses.update { it + (item.fullUrl to DownloadState.DOWNLOADING) }
-                val ok = runCatching { vault.save(item, ctx) }.getOrDefault(false)
+                if (_statuses.value[item.fullUrl] != DownloadState.Queued) continue
+                _statuses.update { it + (item.fullUrl to DownloadState.Downloading) }
+                val error = vault.save(item, ctx)
                 _statuses.update {
-                    if (ok) it - item.fullUrl else it + (item.fullUrl to DownloadState.FAILED)
+                    if (error == null) it - item.fullUrl
+                    else it + (item.fullUrl to DownloadState.Failed(error))
                 }
             }
         }
@@ -50,18 +56,18 @@ class MediaDownloadQueue @Inject constructor(
     /** No-op while the same URL is already queued or downloading; a FAILED entry retries. */
     fun enqueue(item: MediaItem, context: VaultSaveContext) {
         val current = _statuses.value[item.fullUrl]
-        if (current == DownloadState.QUEUED || current == DownloadState.DOWNLOADING) return
-        _statuses.update { it + (item.fullUrl to DownloadState.QUEUED) }
+        if (current == DownloadState.Queued || current == DownloadState.Downloading) return
+        _statuses.update { it + (item.fullUrl to DownloadState.Queued) }
         channel.trySend(item to context)
     }
 
     /** Removes a still-QUEUED entry; a download already in flight can't be cancelled. */
     fun cancel(url: String) {
-        _statuses.update { if (it[url] == DownloadState.QUEUED) it - url else it }
+        _statuses.update { if (it[url] == DownloadState.Queued) it - url else it }
     }
 
     /** Clears a FAILED marker without retrying. */
     fun dismissFailed(url: String) {
-        _statuses.update { if (it[url] == DownloadState.FAILED) it - url else it }
+        _statuses.update { if (it[url] is DownloadState.Failed) it - url else it }
     }
 }

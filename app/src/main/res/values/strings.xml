@@ -95,6 +95,8 @@
     <string name="media_play">Play</string>
     <string name="media_pause">Pause</string>
     <string name="media_pip">Picture-in-picture</string>
+    <string name="media_pip_previous">Previous</string>
+    <string name="media_pip_next">Next</string>
     <string name="media_back">Back</string>
     <string name="media_downloaded">Saved</string>
     <string name="media_queued">Queued for download</string>
@@ -210,6 +212,9 @@
     <string name="vault_delete_body">%1$s will be removed from the vault.</string>
     <string name="vault_deleted">Deleted</string>
     <string name="vault_cancel">Cancel</string>
+    <string name="vault_error_no_access">No storage access</string>
+    <string name="vault_error_not_found">Not in the vault</string>
+    <string name="vault_error_io">Couldn\'t write file</string>
     <string name="vault_open_external">Open externally</string>
     <string name="vault_shuffle">Shuffle play</string>
     <string name="vault_shuffle_everything">Everything</string>

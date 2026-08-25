@@ -41,20 +41,20 @@ class ThreadViewModel @AssistedInject constructor(
     private val historyRepository: HistoryRepository,
     private val settingsRepository: SettingsRepository,
     private val mediaSessionStore: dev.stan.yotsuba.feature.media.MediaSessionStore,
-    savedMediaDao: dev.stan.yotsuba.core.database.dao.SavedMediaDao,
+    mediaVault: dev.stan.yotsuba.domain.repository.MediaVaultRepository,
     downloadQueue: dev.stan.yotsuba.data.repository.MediaDownloadQueue,
 ) : ViewModel() {
 
     /** URL → vault status for the thumbnail badges; saved wins over any queue state. */
-    private val mediaSaveStatuses = combine(savedMediaDao.urls(), downloadQueue.statuses) { saved, queue ->
+    private val mediaSaveStatuses = combine(mediaVault.savedUrls(), downloadQueue.statuses) { saved, queue ->
         buildMap {
             queue.forEach { (url, s) ->
                 put(
                     url,
                     when (s) {
-                        dev.stan.yotsuba.data.repository.DownloadState.QUEUED -> MediaSaveStatus.QUEUED
-                        dev.stan.yotsuba.data.repository.DownloadState.DOWNLOADING -> MediaSaveStatus.DOWNLOADING
-                        dev.stan.yotsuba.data.repository.DownloadState.FAILED -> MediaSaveStatus.FAILED
+                        is dev.stan.yotsuba.data.repository.DownloadState.Queued -> MediaSaveStatus.QUEUED
+                        is dev.stan.yotsuba.data.repository.DownloadState.Downloading -> MediaSaveStatus.DOWNLOADING
+                        is dev.stan.yotsuba.data.repository.DownloadState.Failed -> MediaSaveStatus.FAILED
                     },
                 )
             }

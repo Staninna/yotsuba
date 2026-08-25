@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Icon
@@ -80,6 +81,18 @@ fun ViewerTopChrome(
                 actions()
             }
         }
+    }
+}
+
+/** Enter picture-in-picture, identical in both viewers. */
+@Composable
+fun PipButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(
+            Icons.Filled.PictureInPictureAlt,
+            stringResource(R.string.media_pip),
+            tint = Color.White,
+        )
     }
 }
 

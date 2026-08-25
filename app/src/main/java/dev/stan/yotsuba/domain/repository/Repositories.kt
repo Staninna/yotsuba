@@ -8,6 +8,8 @@ import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.VaultEntry
+import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import kotlinx.coroutines.flow.Flow
 
@@ -57,11 +59,20 @@ interface MediaVaultRepository {
     /** True when the app may read/write the vault directory. */
     fun hasStorageAccess(): Boolean
 
+    /** Entries with a real file on disk, newest first. */
+    fun entries(): Flow<List<VaultEntry>>
+
+    /** Every saved URL, including legacy rows whose file was never located. */
+    fun savedUrls(): Flow<Set<String>>
+
+    /** URL → absolute path on disk, for buffer-free playback of already-saved media. */
+    fun savedPaths(): Flow<Map<String, String>>
+
     /** Streams the media to its structured vault location, updates meta.json and the DB. */
-    suspend fun save(item: MediaItem, context: VaultSaveContext): Boolean
+    suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError?
 
     /** Deletes the file, its meta entry, and the DB row; prunes emptied thread directories. */
-    suspend fun delete(url: String): Boolean
+    suspend fun delete(url: String): VaultError?
 
     /** Rebuilds the saved-media DB purely from the meta.json sidecars on disk. */
     suspend fun rescan()
