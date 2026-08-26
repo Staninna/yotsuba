@@ -36,6 +36,12 @@ android {
 
     buildTypes {
         debug {
+            // Its own package id, so the dev build sits beside the release one
+            // instead of replacing it -- and gets its own data, so pushing a
+            // dev build can never disturb the copy in daily use.
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+
             // Unit-test coverage (JaCoCo): ./gradlew :app:createDebugUnitTestCoverageReport
             // Report: app/build/reports/coverage/test/debug/index.html
             enableUnitTestCoverage = true
