@@ -8,15 +8,22 @@ import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
+import dev.stan.yotsuba.core.backup.BackupManager
 import dev.stan.yotsuba.core.update.GithubReleases
 import dev.stan.yotsuba.core.update.Updater
+import dev.stan.yotsuba.data.repository.VaultStore
+import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.model.VaultEntry
+import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
+import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.settings.SettingsUiState
 import dev.stan.yotsuba.feature.settings.SettingsViewModel
@@ -102,6 +109,18 @@ class SettingsViewModelTest {
         override suspend fun board(code: String) = list.firstOrNull { it.code == code }
     }
 
+    /** Storage is "unavailable", so backup calls report a failure without touching disk. */
+    private class FakeVaultRepository : MediaVaultRepository {
+        override fun hasStorageAccess() = false
+        override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
+        override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
+        override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
+        override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
+        override suspend fun delete(url: String): VaultError? = null
+        override suspend fun rescan() = Unit
+        override suspend fun migrateLegacyIfNeeded() = Unit
+    }
+
     private class FakeMaintenanceRepository : MaintenanceRepository {
         var clearCalls = 0
         override suspend fun clearCaches() { clearCalls++ }
@@ -131,6 +150,7 @@ class SettingsViewModelTest {
             boardRepository = FakeBoardRepository(boards),
             maintenanceRepository = maintenance,
             updater = Updater(ApplicationProvider.getApplicationContext(), GithubReleases()),
+            backups = BackupManager(settings, bookmarks, history, hidden, FakeVaultRepository(), VaultStore()),
         )
     }
 

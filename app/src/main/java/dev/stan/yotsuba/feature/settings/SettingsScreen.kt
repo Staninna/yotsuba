@@ -48,6 +48,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val backupResult by viewModel.backupResult.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
     val spacing = LocalSpacing.current
     val snackbar = remember { SnackbarHostState() }
@@ -169,6 +170,12 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             TextRow(stringResource(R.string.settings_hidden_threads, state.hiddenThreads.size)) {
                 showHidden = true
             }
+
+            BackupSection(
+                result = backupResult,
+                onExport = viewModel::onExportBackup,
+                onImport = viewModel::onImportBackup,
+            )
 
             UpdatesSection(
                 state = updateState,

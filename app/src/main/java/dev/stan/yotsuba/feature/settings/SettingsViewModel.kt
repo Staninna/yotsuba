@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.stan.yotsuba.core.backup.BackupManager
 import dev.stan.yotsuba.core.update.Release
 import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.core.util.DataResult
@@ -17,6 +18,7 @@ import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -40,7 +42,19 @@ class SettingsViewModel @Inject constructor(
     private val boardRepository: BoardRepository,
     private val maintenanceRepository: MaintenanceRepository,
     private val updater: Updater,
+    private val backups: BackupManager,
 ) : ViewModel() {
+
+    private val _backupResult = MutableStateFlow<BackupManager.Result?>(null)
+    val backupResult: StateFlow<BackupManager.Result?> = _backupResult
+
+    fun onExportBackup() = viewModelScope.launch {
+        _backupResult.value = backups.export(updater.currentVersion)
+    }
+
+    fun onImportBackup() = viewModelScope.launch {
+        _backupResult.value = backups.import()
+    }
 
     val updateState: StateFlow<Updater.State> = updater.state
     val updaterVersion: String get() = updater.currentVersion
