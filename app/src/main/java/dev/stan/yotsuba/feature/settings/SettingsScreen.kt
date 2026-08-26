@@ -172,11 +172,8 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
             UpdatesSection(
                 state = updateState,
-                settings = s,
-                version = state.versionName,
                 onCheck = viewModel::onCheckForUpdates,
                 onInstall = viewModel::onInstallUpdate,
-                onTokenChange = { value -> viewModel.update { it.copy(updateToken = value) } },
                 canInstallPackages = viewModel::canInstallPackages,
                 onRequestInstallPermission = { context.startActivity(viewModel.unknownSourcesIntent()) },
             )

@@ -63,10 +63,10 @@ class Updater @Inject constructor(
         _state.value = State.Idle
     }
 
-    suspend fun check(token: String) {
+    suspend fun check() {
         _state.value = State.Checking
         _state.value = try {
-            val release = releases.latest(token)
+            val release = releases.latest()
             if (Version.isNewer(release.tag, currentVersion)) State.Available(release)
             else State.UpToDate(currentVersion)
         } catch (e: ReleaseException) {
@@ -76,9 +76,9 @@ class Updater @Inject constructor(
         }
     }
 
-    suspend fun downloadAndInstall(release: Release, token: String) {
+    suspend fun downloadAndInstall(release: Release) {
         val apk = try {
-            download(release, token)
+            download(release)
         } catch (e: Exception) {
             _state.value = State.Failed("Download failed: ${e.message ?: "unknown error"}")
             return
@@ -91,14 +91,14 @@ class Updater @Inject constructor(
         }
     }
 
-    private suspend fun download(release: Release, token: String): File = withContext(Dispatchers.IO) {
+    private suspend fun download(release: Release): File = withContext(Dispatchers.IO) {
         // One APK at a time: a half-written file from a failed run must never
         // be the thing we install.
         val dir = File(context.cacheDir, "updates").apply { deleteRecursively(); mkdirs() }
         val target = File(dir, "yotsuba-${release.tag}.apk")
         _state.value = State.Downloading(0, release.sizeBytes)
 
-        releases.openApk(release, token).use { resp ->
+        releases.openApk(release).use { resp ->
             if (!resp.isSuccessful) throw ReleaseException("GitHub said ${resp.code}")
             val body = resp.body ?: throw ReleaseException("empty response")
             val total = body.contentLength().takeIf { it > 0 } ?: release.sizeBytes

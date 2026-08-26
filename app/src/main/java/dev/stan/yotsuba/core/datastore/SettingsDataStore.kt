@@ -40,7 +40,6 @@ class SettingsDataStore @Inject constructor(
         val favouriteBoards = stringSetPreferencesKey("favouriteBoards")
         val hiddenBoards = stringSetPreferencesKey("hiddenBoards")
         val hiddenCategories = stringSetPreferencesKey("hiddenCategories")
-        val updateToken = stringPreferencesKey("updateToken")
     }
 
     override val settings: Flow<Settings> = dataStore.data.map(::snapshot)
@@ -64,7 +63,6 @@ class SettingsDataStore @Inject constructor(
             p[Keys.favouriteBoards] = next.favouriteBoards
             p[Keys.hiddenBoards] = next.hiddenBoards
             p[Keys.hiddenCategories] = next.hiddenCategories
-            p[Keys.updateToken] = next.updateToken
         }
     }
 
@@ -86,7 +84,6 @@ class SettingsDataStore @Inject constructor(
             favouriteBoards = p[Keys.favouriteBoards] ?: d.favouriteBoards,
             hiddenBoards = p[Keys.hiddenBoards] ?: d.hiddenBoards,
             hiddenCategories = p[Keys.hiddenCategories] ?: d.hiddenCategories,
-            updateToken = p[Keys.updateToken] ?: d.updateToken,
         )
     }
 

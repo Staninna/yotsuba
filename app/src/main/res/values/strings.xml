@@ -187,9 +187,6 @@
     <string name="settings_update_downloading_unknown">Downloading… %1$s MB</string>
     <string name="settings_update_installing">Handing it to Android. Yotsuba will restart on its own.</string>
     <string name="settings_update_permission">Android needs your permission first: allow Yotsuba to install apps, then tap Download &amp; install again.</string>
-    <string name="settings_update_token">GitHub token (private repo only)</string>
-    <string name="settings_update_token_summary">A read-only token, needed only while the repo is private. Stays on this phone.</string>
-    <string name="settings_update_token_save">Save token</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %s</string>
     <string name="settings_attribution">This app uses the 4chan API. 4chan is a registered trademark of 4chan LLC.</string>

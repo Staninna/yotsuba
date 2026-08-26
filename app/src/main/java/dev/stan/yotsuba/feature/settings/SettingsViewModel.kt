@@ -20,7 +20,6 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -49,12 +48,10 @@ class SettingsViewModel @Inject constructor(
     fun unknownSourcesIntent() = updater.unknownSourcesIntent()
     fun onDismissUpdate() = updater.dismiss()
 
-    fun onCheckForUpdates() = viewModelScope.launch {
-        updater.check(settingsRepository.settings.first().updateToken)
-    }
+    fun onCheckForUpdates() = viewModelScope.launch { updater.check() }
 
     fun onInstallUpdate(release: Release) = viewModelScope.launch {
-        updater.downloadAndInstall(release, settingsRepository.settings.first().updateToken)
+        updater.downloadAndInstall(release)
     }
 
     val uiState: StateFlow<SettingsUiState> = combine(

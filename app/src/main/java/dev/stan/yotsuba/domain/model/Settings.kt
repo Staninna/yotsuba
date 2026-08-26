@@ -23,9 +23,4 @@ data class Settings(
     val favouriteBoards: Set<String> = emptySet(),
     val hiddenBoards: Set<String> = emptySet(),
     val hiddenCategories: Set<String> = emptySet(),
-    /**
-     * Read-only GitHub token for the in-app update check. Only needed while the
-     * repo is private; a public repo checks fine with this blank.
-     */
-    val updateToken: String = "",
 )

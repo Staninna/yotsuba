@@ -3,7 +3,6 @@ package dev.stan.yotsuba.update
 import dev.stan.yotsuba.core.update.GithubReleases
 import dev.stan.yotsuba.core.update.ReleaseException
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -30,40 +29,32 @@ class GithubReleasesTest {
     """.trimIndent()
 
     @Test
-    fun `a public repo downloads from the browser url`() {
-        val release = GithubReleases.parse(payload, private = false)
+    fun `it reads the tag, notes and apk asset`() {
+        val release = GithubReleases.parse(payload)
         assertEquals("v1.1.0", release.tag)
         assertEquals(14680064L, release.sizeBytes)
         assertEquals(
             "https://github.com/Staninna/yotsuba/releases/download/v1.1.0/yotsuba-v1.1.0.apk",
             release.apkUrl,
         )
-        assertFalse(release.viaApi)
         assertEquals("## What's Changed\n* In-app updates", release.notes)
     }
 
     @Test
-    fun `a private repo downloads from the asset api`() {
-        val release = GithubReleases.parse(payload, private = true)
-        assertEquals("https://api.github.com/repos/Staninna/yotsuba/releases/assets/2", release.apkUrl)
-        assertTrue(release.viaApi)
-    }
-
-    @Test
     fun `the apk asset is picked over other attachments`() {
-        val release = GithubReleases.parse(payload, private = false)
+        val release = GithubReleases.parse(payload)
         assertTrue(release.apkUrl.endsWith(".apk"))
     }
 
     @Test
     fun `a release with no apk is an error, not a silent no-op`() {
         val noApk = """{"tag_name": "v1.1.0", "body": "", "assets": []}"""
-        val e = assertThrows(ReleaseException::class.java) { GithubReleases.parse(noApk, private = false) }
+        val e = assertThrows(ReleaseException::class.java) { GithubReleases.parse(noApk) }
         assertEquals("Release v1.1.0 has no APK attached.", e.message)
     }
 
     @Test
     fun `garbage is an error`() {
-        assertThrows(ReleaseException::class.java) { GithubReleases.parse("not json", private = false) }
+        assertThrows(ReleaseException::class.java) { GithubReleases.parse("not json") }
     }
 }
