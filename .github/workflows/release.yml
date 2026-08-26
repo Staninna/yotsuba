@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The in-app updater compares the release tag against the APK's
+      # versionName. If they disagree the app offers an update it already is,
+      # so a mismatch fails the release instead of shipping the confusion.
+      - name: Tag must match versionName
+        run: |
+          version=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match versionName $version — bump app/build.gradle.kts"
+            exit 1
+          fi
+          echo "tag $GITHUB_REF_NAME matches versionName $version"
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/release.p12"
+
+      - name: Build signed release APK
+        env:
+          RELEASE_KEYSTORE: ${{ runner.temp }}/release.p12
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease
+
+      # A debug-signed APK would install for nobody who already has a CI build.
+      - name: Verify the APK is release-signed
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          # Runners carry several build-tools versions; pick the newest, once.
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify --print-certs "$apk" | tee certs.txt
+          if grep -qi "CN=Android Debug" certs.txt; then
+            echo "::error::release APK is signed with the debug key"
+            exit 1
+          fi
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk "yotsuba-${GITHUB_REF_NAME}.apk"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: yotsuba-*.apk
+          generate_release_notes: true
