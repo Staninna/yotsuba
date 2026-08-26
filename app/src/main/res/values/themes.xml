@@ -1,5 +1,3 @@
 <resources>
-    <style name="Theme.Yotsuba" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
-    </style>
+    <style name="Theme.Yotsuba" parent="android:Theme.Material.NoActionBar" />
 </resources>

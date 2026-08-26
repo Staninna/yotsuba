@@ -1,0 +1,7 @@
+<resources>
+    <!-- Display-cutout handling only exists from API 27; the base theme stays
+         attribute-free so lint doesn't have to be told to look away. -->
+    <style name="Theme.Yotsuba" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>
