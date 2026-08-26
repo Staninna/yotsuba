@@ -64,7 +64,7 @@ fun ThreadTopBar(
                 Icon(Icons.Filled.Refresh, stringResource(R.string.action_refresh))
             }
             IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.MoreVert, null)
+                Icon(Icons.Filled.MoreVert, stringResource(R.string.action_more))
             }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 val webUrl = Urls.threadWebUrl(board, threadNo)

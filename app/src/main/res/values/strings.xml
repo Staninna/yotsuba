@@ -18,6 +18,7 @@
     <string name="action_clear_all">Clear all</string>
     <string name="action_remove">Remove</string>
     <string name="action_confirm">Confirm</string>
+    <string name="action_more">More options</string>
     <string name="action_done">Done</string>
     <string name="search_no_results_title">No matches</string>
     <string name="search_no_results_explanation">Nothing matches \"%s\".</string>

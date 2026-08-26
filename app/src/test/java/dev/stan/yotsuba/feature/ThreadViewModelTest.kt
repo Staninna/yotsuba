@@ -3,6 +3,8 @@ package dev.stan.yotsuba.feature
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.util.DataResult
+import dev.stan.yotsuba.core.util.NetworkError
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
@@ -21,19 +23,23 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
+import dev.stan.yotsuba.feature.thread.ThreadContent
 import dev.stan.yotsuba.feature.thread.ThreadViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -45,9 +51,9 @@ class ThreadViewModelTest {
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    private class FakeThreadRepository(var details: ThreadDetails) : ThreadRepository {
-        override suspend fun thread(board: String, no: Long, forceRefresh: Boolean) =
-            DataResult.Success(details)
+    private class FakeThreadRepository(details: ThreadDetails) : ThreadRepository {
+        var result: DataResult<ThreadDetails> = DataResult.Success(details)
+        override suspend fun thread(board: String, no: Long, forceRefresh: Boolean) = result
     }
 
     private object FakeBoardRepository : BoardRepository {
@@ -56,10 +62,19 @@ class ThreadViewModelTest {
     }
 
     private class FakeBookmarkRepository : BookmarkRepository {
+        val bookmarkedFlow = MutableStateFlow(false)
+        var added: Bookmark? = null
+        var removedCount = 0
         override val bookmarks: Flow<List<Bookmark>> = flowOf(emptyList())
-        override suspend fun add(bookmark: Bookmark) {}
-        override suspend fun remove(board: String, threadNo: Long) {}
-        override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
+        override suspend fun add(bookmark: Bookmark) {
+            added = bookmark
+            bookmarkedFlow.value = true
+        }
+        override suspend fun remove(board: String, threadNo: Long) {
+            removedCount++
+            bookmarkedFlow.value = false
+        }
+        override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> = bookmarkedFlow
         override suspend fun refreshOne(bookmark: Bookmark) = bookmark
         override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
         var unread: Int? = null
@@ -103,13 +118,18 @@ class ThreadViewModelTest {
 
     private class Env(
         posts: List<ThreadPost> = (100L..104L).map { post(it) },
+        backlinks: Map<Long, List<Long>> = emptyMap(),
         val history: FakeHistoryRepository = FakeHistoryRepository(),
         val sessionStore: MediaSessionStore = MediaSessionStore(),
         val bookmarks: FakeBookmarkRepository = FakeBookmarkRepository(),
+        val settings: FakeSettingsRepository = FakeSettingsRepository(),
     ) {
         val threads = FakeThreadRepository(
-            ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = emptyMap())
+            ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks)
         )
+
+        fun details(posts: List<ThreadPost>) =
+            ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = emptyMap())
 
         fun vm(initialPostNo: Long? = null) = ThreadViewModel(
             board = "g", threadNo = 100, initialPostNo = initialPostNo,
@@ -117,14 +137,14 @@ class ThreadViewModelTest {
             boardRepository = FakeBoardRepository,
             bookmarkRepository = bookmarks,
             historyRepository = history,
-            settingsRepository = FakeSettingsRepository(),
+            settingsRepository = settings,
             mediaSessionStore = sessionStore,
             mediaVault = FakeVault,
             downloadQueue = MediaDownloadQueue(FakeVault),
         )
 
         companion object {
-            private fun post(no: Long) = ThreadPost(
+            fun post(no: Long) = ThreadPost(
                 board = "g", no = no, isOp = false, name = "Anonymous", tripcode = null,
                 capcode = null, posterId = null, countryCode = null, countryName = null,
                 timeSeconds = 0, subject = null,
@@ -210,5 +230,110 @@ class ThreadViewModelTest {
             dispatcher.scheduler.runCurrent()
             assertEquals(103L, env.history.readMark)
             assertEquals(1, env.bookmarks.unread)
+        }
+
+    private fun content(vm: ThreadViewModel): ThreadContent =
+        (vm.uiState.value as UiState.Success).data
+
+    @Test fun `bookmarking captures a snapshot of the loaded thread and toggles off again`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+
+            vm.onToggleBookmark()
+            dispatcher.scheduler.advanceUntilIdle()
+            val added = env.bookmarks.added!!
+            assertEquals("g", added.board)
+            assertEquals(100L, added.threadNo)
+            assertEquals(4, added.replyCount) // 5 posts minus the OP
+            assertEquals(0, added.imageCount)
+            assertEquals(104L, added.lastSeenPostNo)
+            assertEquals("match 100", added.opExcerpt)
+
+            vm.onToggleBookmark()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(1, env.bookmarks.removedCount)
+        }
+
+    @Test fun `refresh with new posts raises the divider at the old newest post`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            env.threads.result = DataResult.Success(env.details((100L..106L).map { Env.post(it) }))
+            vm.load(forceRefresh = true)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(104L, content(vm).newPostsAfter)
+            assertEquals(2, content(vm).newPostsCount)
+
+            vm.onDismissNewPostsDivider()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertNull(content(vm).newPostsAfter)
+        }
+
+    @Test fun `404 during refresh keeps the loaded posts and shows the archived notice`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            env.threads.result = DataResult.Failure(NetworkError.NotFound)
+            vm.load(forceRefresh = true)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertTrue(vm.uiState.value is UiState.Success)
+            assertEquals(5, content(vm).details.posts.size)
+            assertTrue(content(vm).archivedNotice)
+        }
+
+    @Test fun `untrusted links are intercepted until their domain is trusted`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertFalse(vm.onExternalLink("https://example.com/page"))
+            vm.onTrustDomain("https://example.com/page")
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertTrue("example.com" in env.settings.state.value.trustedDomains)
+            assertTrue(vm.onExternalLink("https://example.com/other"))
+        }
+
+    @Test fun `link confirmation off opens links immediately`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.settings.state.value = Settings(confirmBeforeOpeningLinks = false)
+        val vm = env.vm()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertTrue(vm.onExternalLink("https://example.com/page"))
+    }
+
+    @Test fun `backlink previews push and pop, and empty backlinks push nothing`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(backlinks = mapOf(101L to listOf(103L)))
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            vm.onOpenBacklinks(100) // no backlinks recorded for the OP
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(0, content(vm).previewStack.size)
+
+            vm.onOpenBacklinks(101)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf(103L), content(vm).previewStack.single().map { it.no })
+
+            vm.onOpenPreview(102)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(2, content(vm).previewStack.size)
+
+            vm.onClosePreview()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(1, content(vm).previewStack.size)
         }
 }

@@ -62,7 +62,8 @@ class VaultViewModelTest {
             state.value = state.value.filterNot { it.url == url }
             return null
         }
-        override suspend fun rescan() { rescans++ }
+        var rescanGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+        override suspend fun rescan() { rescanGate?.await(); rescans++ }
         override suspend fun migrateLegacyIfNeeded() { migrations++ }
     }
 
@@ -162,6 +163,48 @@ class VaultViewModelTest {
             assertEquals(viewer.entries.first().url, viewer.current.url)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test fun `paging the viewer moves the index without reordering`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
+        val vm = VaultViewModel(vault)
+        vm.openBoard(VaultBoardKey.Board("g"))
+        vm.openThread(threadG)
+        vm.openViewer("g/1.jpg")
+        vm.uiState.test {
+            assertEquals(0, latest().viewer?.index)
+            vm.onViewerPage("g/2.jpg")
+            val paged = latest().viewer!!
+            assertEquals(1, paged.index)
+            assertEquals(listOf("g/1.jpg", "g/2.jpg"), paged.entries.map { it.url })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `viewer opened outside any thread plays just that entry`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
+            val vm = VaultViewModel(vault)
+            vm.openViewer("a/1.jpg") // no thread selected — the thread filter matches nothing
+            vm.uiState.test {
+                val viewer = latest().viewer!!
+                assertEquals(listOf("a/1.jpg"), viewer.entries.map { it.url })
+                assertEquals(0, viewer.index)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test fun `rescan ignores presses while one is already running`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        vault.rescanGate = gate
+        val vm = VaultViewModel(vault)
+        vm.rescan()
+        dispatcher.scheduler.advanceUntilIdle() // first rescan is now suspended on the gate
+        vm.rescan() // busy flag must gate this press
+        gate.complete(Unit)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vault.rescans)
     }
 
     @Test fun `rescan migrates legacy files then rebuilds the index`() = runTest(dispatcher.scheduler) {

@@ -23,6 +23,7 @@ import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
@@ -49,6 +50,8 @@ object TestSeed {
     const val OP_TEXT = "This is the seeded OP post body"
     const val REPLY_TEXT = "This is the seeded reply with an image"
     const val MEDIA_FILENAME = "seeded_image"
+    const val SPOILER_REPLY_TEXT = "Reply hiding a surprise picture"
+    const val SPOILER_FILENAME = "spoiler_image"
 
     private fun text(s: String) = PostText(listOf(PostSegment(s)))
 
@@ -94,6 +97,18 @@ object TestSeed {
         spoiler = false,
     )
 
+    val spoilerMediaItem = MediaItem(
+        postNo = THREAD_NO + 2,
+        filename = SPOILER_FILENAME,
+        ext = ".png",
+        sizeBytes = 6_789L,
+        width = 640,
+        height = 480,
+        thumbnailUrl = "https://example.invalid/spoiler_thumb.jpg",
+        fullUrl = "https://example.invalid/spoiler_full.png",
+        spoiler = true,
+    )
+
     private fun post(
         no: Long,
         isOp: Boolean,
@@ -123,6 +138,7 @@ object TestSeed {
         posts = listOf(
             post(THREAD_NO, isOp = true, subject = THREAD_SUBJECT, body = OP_TEXT, media = null),
             post(THREAD_NO + 1, isOp = false, subject = null, body = REPLY_TEXT, media = PostMedia.Present(mediaItem)),
+            post(THREAD_NO + 2, isOp = false, subject = null, body = SPOILER_REPLY_TEXT, media = PostMedia.Present(spoilerMediaItem)),
         ),
         archived = false,
         closed = false,
@@ -263,7 +279,24 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
     override fun savedPaths(): Flow<Map<String, String>> =
         state.map { list -> list.associate { it.url to it.absolutePath } }
 
-    override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
+    /** Mirrors production: a successful save lands in the entries flow, so badges flip to SAVED. */
+    override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
+        val entry = VaultEntry(
+            url = item.fullUrl,
+            location = VaultLocation.Thread(context.board, context.threadNo, context.threadSubject),
+            postNo = item.postNo,
+            displayName = item.displayName,
+            absolutePath = "/fake-vault/${item.displayName}",
+            ext = item.ext,
+            sizeBytes = item.sizeBytes,
+            width = item.width,
+            height = item.height,
+            thumbnailUrl = item.thumbnailUrl,
+            savedAt = 1_700_000_200L,
+        )
+        state.update { list -> list.filterNot { it.url == entry.url } + entry }
+        return null
+    }
     override suspend fun delete(url: String): VaultError? {
         state.update { list -> list.filterNot { it.url == url } }
         return null
