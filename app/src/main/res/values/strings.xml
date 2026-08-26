@@ -176,6 +176,7 @@
     <string name="settings_hidden_threads">Hidden threads (%d)</string>
     <string name="settings_unhide">Unhide</string>
     <string name="settings_updates">Updates</string>
+    <string name="settings_update_dev_build">Dev build %1$s — installed from the laptop, not from a release. Updates are delivered to the release build, which is installed alongside this one.</string>
     <string name="settings_update_check">Check for updates</string>
     <string name="settings_update_checking">Checking…</string>
     <string name="settings_update_none">Nothing new — %1$s is the latest.</string>

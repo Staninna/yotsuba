@@ -16,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import dev.stan.yotsuba.BuildConfig
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
@@ -38,6 +39,22 @@ fun UpdatesSection(
     var needsPermission by remember { mutableStateOf(false) }
 
     SectionHeader(stringResource(R.string.settings_updates))
+
+    // A dev build cannot update itself: the release APK has a different
+    // package id, so installing it would add a second app rather than replace
+    // this one. Saying "you're up to date" here would be true only by accident
+    // -- Version.parse rejects the "-dev" suffix, so the check always returns
+    // UpToDate regardless of what has been released.
+    if (BuildConfig.DEBUG) {
+        Column(Modifier.padding(horizontal = spacing.lg, vertical = spacing.xs)) {
+            Text(
+                stringResource(R.string.settings_update_dev_build, BuildConfig.VERSION_NAME),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
 
     val busy = state is Updater.State.Checking ||
         state is Updater.State.Downloading ||
