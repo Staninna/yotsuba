@@ -175,12 +175,6 @@
     <string name="settings_clear_trusted">Clear trusted domains</string>
     <string name="settings_hidden_threads">Hidden threads (%d)</string>
     <string name="settings_unhide">Unhide</string>
-    <string name="settings_backup">Backup</string>
-    <string name="settings_backup_summary">Bookmarks, history, hidden threads and settings, written beside the media vault on shared storage — the one place that survives uninstalling the app. Saved media needs no backup; it already lives there.</string>
-    <string name="settings_backup_export">Export</string>
-    <string name="settings_backup_import">Import</string>
-    <string name="settings_backup_exported">Saved to %1$s — %2$d bookmarks, %3$d history entries, %4$d hidden threads.</string>
-    <string name="settings_backup_imported">Restored %1$d bookmarks, %2$d history entries, %3$d hidden threads.</string>
     <string name="settings_updates">Updates</string>
     <string name="settings_update_check">Check for updates</string>
     <string name="settings_update_checking">Checking…</string>
