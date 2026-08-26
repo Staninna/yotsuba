@@ -8,6 +8,8 @@ import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
+import dev.stan.yotsuba.core.update.GithubReleases
+import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.domain.repository.BoardRepository
@@ -128,6 +130,7 @@ class SettingsViewModelTest {
             hiddenThreadsRepository = hidden,
             boardRepository = FakeBoardRepository(boards),
             maintenanceRepository = maintenance,
+            updater = Updater(ApplicationProvider.getApplicationContext(), GithubReleases()),
         )
     }
 

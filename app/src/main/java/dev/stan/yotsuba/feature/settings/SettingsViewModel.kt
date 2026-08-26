@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.stan.yotsuba.core.update.Release
+import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.Settings
@@ -18,6 +20,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -36,7 +39,23 @@ class SettingsViewModel @Inject constructor(
     private val hiddenThreadsRepository: HiddenThreadsRepository,
     private val boardRepository: BoardRepository,
     private val maintenanceRepository: MaintenanceRepository,
+    private val updater: Updater,
 ) : ViewModel() {
+
+    val updateState: StateFlow<Updater.State> = updater.state
+    val updaterVersion: String get() = updater.currentVersion
+
+    fun canInstallPackages(): Boolean = updater.canInstallPackages()
+    fun unknownSourcesIntent() = updater.unknownSourcesIntent()
+    fun onDismissUpdate() = updater.dismiss()
+
+    fun onCheckForUpdates() = viewModelScope.launch {
+        updater.check(settingsRepository.settings.first().updateToken)
+    }
+
+    fun onInstallUpdate(release: Release) = viewModelScope.launch {
+        updater.downloadAndInstall(release, settingsRepository.settings.first().updateToken)
+    }
 
     val uiState: StateFlow<SettingsUiState> = combine(
         settingsRepository.settings, hiddenThreadsRepository.all,

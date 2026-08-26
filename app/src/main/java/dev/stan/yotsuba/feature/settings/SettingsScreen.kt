@@ -47,6 +47,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val spacing = LocalSpacing.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -167,6 +169,17 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
             TextRow(stringResource(R.string.settings_hidden_threads, state.hiddenThreads.size)) {
                 showHidden = true
             }
+
+            UpdatesSection(
+                state = updateState,
+                settings = s,
+                version = state.versionName,
+                onCheck = viewModel::onCheckForUpdates,
+                onInstall = viewModel::onInstallUpdate,
+                onTokenChange = { value -> viewModel.update { it.copy(updateToken = value) } },
+                canInstallPackages = viewModel::canInstallPackages,
+                onRequestInstallPermission = { context.startActivity(viewModel.unknownSourcesIntent()) },
+            )
 
             SectionHeader(stringResource(R.string.settings_about))
             Text(
