@@ -3,10 +3,19 @@ package dev.stan.yotsuba.feature
 import app.cash.turbine.test
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
+import dev.stan.yotsuba.domain.model.ImportSource
+import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.VaultEntry
+import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.VaultSaveContext
+import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.feature.bookmarks.BookmarkSortOrder
 import dev.stan.yotsuba.feature.bookmarks.BookmarksViewModel
+import dev.stan.yotsuba.feature.bookmarks.SnapshotResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -19,6 +28,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -73,10 +83,65 @@ class BookmarksViewModelTest {
         override suspend fun clearAll() { state.value = emptyList() }
     }
 
+    private class FakeVault : MediaVaultRepository {
+        val snapshots = mutableListOf<Pair<String, Long>>()
+        var snapshotError: VaultError? = null
+        var gate: CompletableDeferred<Unit>? = null
+        override fun hasStorageAccess() = true
+        override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
+        override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
+        override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
+        override suspend fun delete(url: String): VaultError? = null
+        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
+        override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
+        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
+        override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? {
+            snapshots += board to threadNo
+            gate?.await()
+            return snapshotError
+        }
+        override suspend fun rescan() {}
+        override suspend fun migrateLegacyIfNeeded() {}
+    }
+
+    private fun vm(repo: BookmarkRepository, vault: MediaVaultRepository = FakeVault()) =
+        BookmarksViewModel(repo, vault)
+
+    @Test fun `snapshot calls the vault and reports success`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault().apply { gate = CompletableDeferred() }
+        val vm = vm(FakeRepo(listOf(bookmark(1))), vault)
+        vm.snapshotResult.test {
+            vm.uiState.test {
+                awaitItem()
+                vm.snapshot("g", 1)
+                dispatcher.scheduler.advanceUntilIdle()
+                assertTrue(expectMostRecentItem().snapshotting.contains("g/1"))
+                vault.gate!!.complete(Unit)
+                dispatcher.scheduler.advanceUntilIdle()
+                assertTrue(expectMostRecentItem().snapshotting.isEmpty())
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(SnapshotResult.Saved, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(listOf("g" to 1L), vault.snapshots)
+    }
+
+    @Test fun `snapshot surfaces the vault error`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault().apply { snapshotError = VaultError.NoAccess }
+        val vm = vm(FakeRepo(listOf(bookmark(1))), vault)
+        vm.snapshotResult.test {
+            vm.snapshot("g", 1)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(SnapshotResult.Failed(VaultError.NoAccess), awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test fun `refresh-all runs one board-grouped pass and the spinner follows it`() = runTest(dispatcher.scheduler) {
         val repo = FakeRepo(listOf(bookmark(1)))
         repo.gate = CompletableDeferred()
-        val vm = BookmarksViewModel(repo)
+        val vm = vm(repo)
         vm.uiState.test {
             awaitItem()
             vm.onRefreshAll()
@@ -98,7 +163,7 @@ class BookmarksViewModelTest {
                 bookmark(3, unread = 2, activity = 20),
             ),
         )
-        val vm = BookmarksViewModel(repo)
+        val vm = vm(repo)
         vm.uiState.test {
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(listOf(2L, 1L, 3L), expectMostRecentItem().bookmarks.map { it.threadNo })
@@ -114,7 +179,7 @@ class BookmarksViewModelTest {
 
     @Test fun `remove dead is offered only when a pruned row exists`() = runTest(dispatcher.scheduler) {
         val repo = FakeRepo(listOf(bookmark(1), bookmark(2, state = BookmarkState.DEAD)))
-        val vm = BookmarksViewModel(repo)
+        val vm = vm(repo)
         vm.uiState.test {
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(true, expectMostRecentItem().hasDead)
@@ -127,7 +192,7 @@ class BookmarksViewModelTest {
 
     @Test fun `remove and undo restore the bookmark`() = runTest(dispatcher.scheduler) {
         val repo = FakeRepo(listOf(bookmark(1)))
-        val vm = BookmarksViewModel(repo)
+        val vm = vm(repo)
         vm.onRemove(bookmark(1))
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(0, repo.state.value.size)

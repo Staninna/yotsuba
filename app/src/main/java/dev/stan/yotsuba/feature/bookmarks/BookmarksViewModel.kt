@@ -4,9 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import javax.inject.Inject
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,12 +21,20 @@ import kotlinx.coroutines.launch
 
 enum class BookmarkSortOrder { UNREAD_FIRST, LAST_ACTIVITY, BOOKMARKED }
 
+/** One-shot outcome of [BookmarksViewModel.snapshot], meant for a snackbar. */
+sealed interface SnapshotResult {
+    data object Saved : SnapshotResult
+    data class Failed(val error: VaultError) : SnapshotResult
+}
+
 data class BookmarksUiState(
     val bookmarks: List<Bookmark> = emptyList(),
     /** Non-null while a refresh pass is running: boards done / boards total. */
     val checking: Pair<Int, Int>? = null,
     val sortOrder: BookmarkSortOrder = BookmarkSortOrder.UNREAD_FIRST,
     val loaded: Boolean = false,
+    /** "board/threadNo" keys whose vault snapshot is still being written. */
+    val snapshotting: Set<String> = emptySet(),
 ) {
     val hasDead: Boolean get() = bookmarks.any { it.isDead }
 }
@@ -29,21 +42,30 @@ data class BookmarksUiState(
 @HiltViewModel
 class BookmarksViewModel @Inject constructor(
     private val repository: BookmarkRepository,
+    private val vault: MediaVaultRepository,
 ) : ViewModel() {
 
     private val checking = MutableStateFlow<Pair<Int, Int>?>(null)
     private val sortOrder = MutableStateFlow(BookmarkSortOrder.UNREAD_FIRST)
+    private val snapshotting = MutableStateFlow<Set<String>>(emptySet())
+    private val snapshotResults = MutableSharedFlow<SnapshotResult>(
+        extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    /** Fires once per finished [snapshot]; collect it to show a snackbar. */
+    val snapshotResult: Flow<SnapshotResult> = snapshotResults
     private var refreshJob: Job? = null
     private var lastAutoRefreshAt = 0L
 
     val uiState: StateFlow<BookmarksUiState> = combine(
-        repository.bookmarks, checking, sortOrder,
-    ) { bookmarks, progress, order ->
+        repository.bookmarks, checking, sortOrder, snapshotting,
+    ) { bookmarks, progress, order, snapping ->
         BookmarksUiState(
             bookmarks = sort(bookmarks, order),
             checking = progress,
             sortOrder = order,
             loaded = true,
+            snapshotting = snapping,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BookmarksUiState())
 
@@ -81,6 +103,24 @@ class BookmarksViewModel @Inject constructor(
 
     fun onRemoveDead() = viewModelScope.launch { repository.removeDead() }
 
+    /**
+     * Writes the thread's posts into the vault as a sidecar (no media), so the text outlives
+     * the thread. A second tap on a row that's already snapshotting is ignored.
+     */
+    fun snapshot(board: String, threadNo: Long) {
+        val key = snapshotKey(board, threadNo)
+        if (key in snapshotting.value) return
+        viewModelScope.launch {
+            snapshotting.value = snapshotting.value + key
+            try {
+                val error = vault.snapshotThread(board, threadNo)
+                snapshotResults.tryEmit(if (error == null) SnapshotResult.Saved else SnapshotResult.Failed(error))
+            } finally {
+                snapshotting.value = snapshotting.value - key
+            }
+        }
+    }
+
     fun onRemove(bookmark: Bookmark) = viewModelScope.launch {
         repository.remove(bookmark.board, bookmark.threadNo)
     }
@@ -93,9 +133,11 @@ class BookmarksViewModel @Inject constructor(
         refreshJob?.cancel()
     }
 
-    private companion object {
+    companion object {
+        fun snapshotKey(board: String, threadNo: Long) = "$board/$threadNo"
+
         /** Pinned rows always lead; within each group the chosen order applies. */
-        fun sort(list: List<Bookmark>, order: BookmarkSortOrder): List<Bookmark> {
+        private fun sort(list: List<Bookmark>, order: BookmarkSortOrder): List<Bookmark> {
             val activity = { b: Bookmark -> b.lastActivityAt ?: b.bookmarkedAt }
             val comparator: Comparator<Bookmark> = when (order) {
                 BookmarkSortOrder.UNREAD_FIRST ->
