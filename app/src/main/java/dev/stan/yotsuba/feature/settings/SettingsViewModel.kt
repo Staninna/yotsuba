@@ -80,8 +80,6 @@ class SettingsViewModel @Inject constructor(
     fun onClearCache() = viewModelScope.launch { maintenanceRepository.clearCaches() }
     fun onClearHistory() = viewModelScope.launch { historyRepository.clearAll() }
     fun onClearBookmarks() = viewModelScope.launch { bookmarkRepository.clearAll() }
-    fun onClearTrustedDomains() = update { it.copy(trustedDomains = emptySet()) }
-    fun onRevokeTrustedDomain(domain: String) = update { it.copy(trustedDomains = it.trustedDomains - domain) }
     fun onUnhideThread(hidden: HiddenThread) = viewModelScope.launch {
         hiddenThreadsRepository.unhide(hidden.board, hidden.threadNo)
     }

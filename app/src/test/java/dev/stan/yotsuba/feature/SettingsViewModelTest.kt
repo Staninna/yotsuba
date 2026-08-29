@@ -191,16 +191,4 @@ class SettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(HiddenThread("g", 2)), env.hidden.state.value)
     }
-
-    @Test fun `trusted domains revoke one or clear all`() = runTest(dispatcher.scheduler) {
-        val env = Env(settings = FakeSettingsRepository(
-            Settings(trustedDomains = setOf("a.com", "b.com"))
-        ))
-        env.vm.onRevokeTrustedDomain("a.com")
-        dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(setOf("b.com"), env.settings.state.value.trustedDomains)
-        env.vm.onClearTrustedDomains()
-        dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(emptySet<String>(), env.settings.state.value.trustedDomains)
-    }
 }

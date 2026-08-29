@@ -8,14 +8,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.TextRow
+import dev.stan.yotsuba.domain.model.HiddenThread
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.ManagedListDialog
-import dev.stan.yotsuba.feature.settings.SettingsUiState
-import dev.stan.yotsuba.feature.settings.SettingsViewModel
 
 @Composable
 fun StorageSection(
-    state: SettingsUiState,
-    viewModel: SettingsViewModel,
+    settings: Settings,
+    update: ((Settings) -> Settings) -> Unit,
+    hiddenThreads: List<HiddenThread>,
+    onClearCache: () -> Unit,
+    onClearHistory: () -> Unit,
+    onClearBookmarks: () -> Unit,
+    onUnhideThread: (HiddenThread) -> Unit,
     confirmThen: (Int, () -> Unit) -> Unit,
     showMessage: (String) -> Unit,
 ) {
@@ -28,29 +33,29 @@ fun StorageSection(
     }
 
     TextRow(stringResource(R.string.settings_clear_cache)) {
-        clear(R.string.settings_confirm_clear_cache_body, viewModel::onClearCache)
+        clear(R.string.settings_confirm_clear_cache_body, onClearCache)
     }
     TextRow(stringResource(R.string.settings_clear_history)) {
-        clear(R.string.settings_confirm_clear_history_body, viewModel::onClearHistory)
+        clear(R.string.settings_confirm_clear_history_body, onClearHistory)
     }
     TextRow(stringResource(R.string.settings_clear_bookmarks)) {
-        clear(R.string.settings_confirm_clear_bookmarks_body, viewModel::onClearBookmarks)
+        clear(R.string.settings_confirm_clear_bookmarks_body, onClearBookmarks)
     }
     TextRow(stringResource(R.string.settings_clear_trusted)) {
-        clear(R.string.settings_confirm_clear_trusted_body, viewModel::onClearTrustedDomains)
+        clear(R.string.settings_confirm_clear_trusted_body) { update { it.copy(trustedDomains = emptySet()) } }
     }
-    TextRow(stringResource(R.string.settings_hidden_threads, state.hiddenThreads.size)) {
+    TextRow(stringResource(R.string.settings_hidden_threads, hiddenThreads.size)) {
         showHidden = true
     }
 
     if (showHidden) {
         ManagedListDialog(
-            title = stringResource(R.string.settings_hidden_threads, state.hiddenThreads.size),
-            items = state.hiddenThreads,
+            title = stringResource(R.string.settings_hidden_threads, hiddenThreads.size),
+            items = hiddenThreads,
             key = { it.board + "/" + it.threadNo },
             itemLabel = { "/${it.board}/${it.threadNo}" },
             removeLabel = stringResource(R.string.settings_unhide),
-            onRemove = viewModel::onUnhideThread,
+            onRemove = onUnhideThread,
             onDismiss = { showHidden = false },
         )
     }

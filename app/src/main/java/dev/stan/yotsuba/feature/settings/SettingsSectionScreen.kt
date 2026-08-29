@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.sections.AboutSection
 import dev.stan.yotsuba.feature.settings.sections.AppearanceSection
 import dev.stan.yotsuba.feature.settings.sections.BoardsSection
@@ -79,13 +80,25 @@ fun SettingsSectionScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
+            val settings = state.settings
+            val update: ((Settings) -> Settings) -> Unit = { viewModel.update(it) }
             when (section) {
-                SettingsSectionId.APPEARANCE -> AppearanceSection(state, viewModel)
-                SettingsSectionId.READING -> ReadingSection(state, viewModel)
-                SettingsSectionId.MEDIA -> MediaSection(state, viewModel)
-                SettingsSectionId.BOARDS -> BoardsSection(viewModel, confirmThen)
-                SettingsSectionId.LINKS -> LinksSection(state, viewModel)
-                SettingsSectionId.STORAGE -> StorageSection(state, viewModel, confirmThen, showMessage)
+                SettingsSectionId.APPEARANCE -> AppearanceSection(settings, update)
+                SettingsSectionId.READING -> ReadingSection(settings, update)
+                SettingsSectionId.MEDIA -> MediaSection(settings, update)
+                SettingsSectionId.BOARDS -> BoardsSection(viewModel::onHideNsfwBoards, confirmThen)
+                SettingsSectionId.LINKS -> LinksSection(settings, update)
+                SettingsSectionId.STORAGE -> StorageSection(
+                    settings = settings,
+                    update = update,
+                    hiddenThreads = state.hiddenThreads,
+                    onClearCache = viewModel::onClearCache,
+                    onClearHistory = viewModel::onClearHistory,
+                    onClearBookmarks = viewModel::onClearBookmarks,
+                    onUnhideThread = viewModel::onUnhideThread,
+                    confirmThen = confirmThen,
+                    showMessage = showMessage,
+                )
                 SettingsSectionId.UPDATES -> UpdatesSection(
                     state = updateState,
                     onCheck = viewModel::onCheckForUpdates,
@@ -93,7 +106,7 @@ fun SettingsSectionScreen(
                     canInstallPackages = viewModel::canInstallPackages,
                     onRequestInstallPermission = { context.startActivity(viewModel.unknownSourcesIntent()) },
                 )
-                SettingsSectionId.ABOUT -> AboutSection(state)
+                SettingsSectionId.ABOUT -> AboutSection(state.versionName)
             }
         }
     }

@@ -8,13 +8,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
-import dev.stan.yotsuba.feature.settings.SettingsUiState
 
 @Composable
-fun AboutSection(state: SettingsUiState) {
+fun AboutSection(versionName: String) {
     val spacing = LocalSpacing.current
     Text(
-        stringResource(R.string.settings_version, state.versionName),
+        stringResource(R.string.settings_version, versionName),
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.padding(horizontal = spacing.lg, vertical = spacing.xs),
     )
