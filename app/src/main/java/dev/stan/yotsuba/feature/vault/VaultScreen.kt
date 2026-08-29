@@ -127,7 +127,10 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
 
 
     OnResumeEffect(viewModel::refreshStorageAccess)
-    BackHandler(enabled = state.selection.board != null) { viewModel.navigateUp() }
+    // Back peels layers in order: the viewer's own reply panel (its BackHandler is composed
+    // later, so it wins while enabled), then the viewer, then the drill-down.
+    BackHandler(enabled = state.selection.board != null && state.viewer == null) { viewModel.navigateUp() }
+    BackHandler(enabled = state.viewer != null) { viewModel.closeViewer() }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
