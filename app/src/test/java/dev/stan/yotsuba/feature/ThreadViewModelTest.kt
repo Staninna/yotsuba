@@ -27,7 +27,9 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
+import dev.stan.yotsuba.feature.thread.LinkAction
 import dev.stan.yotsuba.feature.thread.Session
+import dev.stan.yotsuba.feature.thread.ThreadRow
 import dev.stan.yotsuba.feature.thread.ThreadContent
 import dev.stan.yotsuba.feature.thread.ThreadViewModel
 import kotlinx.coroutines.Dispatchers
@@ -238,6 +240,48 @@ class ThreadViewModelTest {
             assertEquals(listOf("match", "other"), seen.map { it.searchQuery })
         }
 
+    @Test fun `a spoilered thumbnail reveals on the first tap and opens on the second`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+            val spoilered = Env.postWithMedia(100).let {
+                it.copy(media = PostMedia.Present((it.media as PostMedia.Present).item.copy(spoiler = true)))
+            }
+            vm.onThumbnailTap(spoilered)
+            assertNull(vm.mediaToOpen.value)
+            assertTrue(100L in vm.session.value.revealedImages)
+            vm.onThumbnailTap(spoilered)
+            assertEquals(100L, vm.mediaToOpen.value)
+            vm.onMediaOpened()
+            assertNull(vm.mediaToOpen.value)
+        }
+
+    @Test fun `hold to save is gated by the setting and by having media`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue(vm.onThumbnailLongPress(Env.postWithMedia(100)))
+            assertFalse(vm.onThumbnailLongPress(Env.post(101)))
+            env.settings.state.value = Settings(holdToSave = false)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertFalse(vm.onThumbnailLongPress(Env.postWithMedia(100)))
+        }
+
+    @Test fun `links route to the app, straight out, or to the confirmation dialog`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue(vm.onLinkTap("https://boards.4chan.org/g/thread/100") is LinkAction.Internal)
+            assertEquals(LinkAction.Confirm, vm.onLinkTap("https://example.com/page"))
+            assertEquals("https://example.com/page", vm.session.value.pendingExternalUrl)
+            vm.onTrustDomain("https://example.com/page")
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(LinkAction.External("https://example.com/other"), vm.onLinkTap("https://example.com/other"))
+        }
+
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = Env().vm()
         dispatcher.scheduler.advanceUntilIdle()
@@ -334,12 +378,15 @@ class ThreadViewModelTest {
             vm.load(forceRefresh = true)
             dispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals(104L, content(vm).newPostsAfter)
-            assertEquals(2, content(vm).newPostsCount)
+            val rows = content(vm).rows
+            assertEquals(8, rows.size)
+            assertEquals(ThreadRow.Post(Env.post(104)), rows[4])
+            assertEquals(ThreadRow.NewPostsDivider(2), rows[5])
+            assertEquals(ThreadRow.Post(Env.post(105)), rows[6])
 
             vm.onDismissNewPostsDivider()
             dispatcher.scheduler.advanceUntilIdle()
-            assertNull(content(vm).newPostsAfter)
+            assertTrue(content(vm).rows.none { it is ThreadRow.NewPostsDivider })
         }
 
     @Test fun `404 during refresh keeps the loaded posts and shows the archived notice`() =

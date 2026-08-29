@@ -74,6 +74,7 @@ class ThreadViewModel @AssistedInject constructor(
     val session = MutableStateFlow(Session())
 
     private val scrollTargetFlow = MutableStateFlow<ScrollTarget?>(null)
+    private val mediaToOpenFlow = MutableStateFlow<Long?>(null)
     private val topVisiblePostNo = MutableStateFlow<Long?>(null)
     private val bottomVisiblePostNo = MutableStateFlow<Long?>(null)
 
@@ -124,8 +125,7 @@ class ThreadViewModel @AssistedInject constructor(
                         revealAllSpoilers = settings.revealAllSpoilers,
                         revealedSpoilers = session.revealedText,
                         revealedImageSpoilers = session.revealedImages,
-                        newPostsAfter = session.newPostsAfter?.first,
-                        newPostsCount = session.newPostsAfter?.second ?: 0,
+                        rows = rows(details.posts, session.newPostsAfter),
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
                         refreshError = session.refreshError,
@@ -149,6 +149,9 @@ class ThreadViewModel @AssistedInject constructor(
 
     /** One-shot: the screen scrolls to it, then calls [onScrollTargetConsumed]. */
     val scrollTarget: StateFlow<ScrollTarget?> = scrollTargetFlow
+
+    /** One-shot: the post whose media the viewer should open; the screen calls [onMediaOpened]. */
+    val mediaToOpen: StateFlow<Long?> = mediaToOpenFlow
 
     init {
         load()
@@ -305,6 +308,20 @@ class ThreadViewModel @AssistedInject constructor(
     fun onRevealImageSpoiler(postNo: Long) =
         session.update { it.copy(revealedImages = it.revealedImages + postNo) }
 
+    /** A spoilered thumbnail reveals on the first tap and opens on the next. */
+    fun onThumbnailTap(post: ThreadPost) {
+        val media = post.presentMedia ?: return
+        val hidden = media.spoiler && !settingsState.value.revealAllSpoilers &&
+            post.no !in session.value.revealedImages
+        if (hidden) onRevealImageSpoiler(post.no) else mediaToOpenFlow.value = post.no
+    }
+
+    fun onMediaOpened() { mediaToOpenFlow.value = null }
+
+    /** True when the screen should save the attachment: the hold-to-save setting gates it. */
+    fun onThumbnailLongPress(post: ThreadPost): Boolean =
+        settingsState.value.holdToSave && post.presentMedia != null
+
     fun onOpenPreview(postNo: Long) =
         session.update { it.copy(previewPostNos = it.previewPostNos + listOf(listOf(postNo))) }
 
@@ -325,6 +342,16 @@ class ThreadViewModel @AssistedInject constructor(
         val next = (session.value.searchIndex + delta).mod(matches.size)
         session.update { it.copy(searchIndex = next) }
         scrollTargetFlow.value = ScrollTarget(matches[next], animate = true)
+    }
+
+    /** Routes a tapped link: 4chan links stay in the app, others go through [onExternalLink]. */
+    fun onLinkTap(url: String): LinkAction {
+        val internal = Urls.parseInternal(url)
+        return when {
+            internal != null -> LinkAction.Internal(internal)
+            onExternalLink(url) -> LinkAction.External(url)
+            else -> LinkAction.Confirm
+        }
     }
 
     /** External-link tap: trusted domains skip the dialog (D26). */
@@ -371,13 +398,13 @@ class ThreadViewModel @AssistedInject constructor(
         session.update { it.copy(pendingExternalUrl = null) }
     }
 
-    /** The screen reports the visible index range; the VM owns what it means. */
+    /** The screen reports the visible row range; the VM owns what it means. */
     fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
-        val posts = loadedPosts() ?: return
+        val rows = rows(loadedPosts() ?: return, session.value.newPostsAfter)
         // Top-of-screen post: the reading position restored when the thread is reopened.
-        posts.getOrNull(firstIndex)?.let { topVisiblePostNo.value = it.no }
+        rows.postAt(firstIndex)?.let { topVisiblePostNo.value = it.no }
         // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
-        if (lastIndex != null) posts.getOrNull(lastIndex)?.let { bottomVisiblePostNo.value = it.no }
+        if (lastIndex != null) rows.postAt(lastIndex)?.let { bottomVisiblePostNo.value = it.no }
     }
 
     /**
@@ -397,6 +424,21 @@ class ThreadViewModel @AssistedInject constructor(
     fun onDismissNewPostsDivider() = session.update { it.copy(newPostsAfter = null) }
 
     private companion object {
+        /** Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post. */
+        fun rows(posts: List<ThreadPost>, newPostsAfter: Pair<Long, Int>?): List<ThreadRow> =
+            buildList {
+                posts.forEach { post ->
+                    add(ThreadRow.Post(post))
+                    if (newPostsAfter != null && post.no == newPostsAfter.first) {
+                        add(ThreadRow.NewPostsDivider(newPostsAfter.second))
+                    }
+                }
+            }
+
+        /** The post at a row index, or the nearest post above a divider. */
+        fun List<ThreadRow>.postAt(index: Int): ThreadPost? =
+            (0..index).reversed().firstNotNullOfOrNull { (getOrNull(it) as? ThreadRow.Post)?.post }
+
         /** The user's in-thread toggle wins over the setting. */
         fun autoRefreshOn(session: Session, settings: Settings): Boolean =
             session.autoRefreshOverride ?: settings.autoRefreshEnabled

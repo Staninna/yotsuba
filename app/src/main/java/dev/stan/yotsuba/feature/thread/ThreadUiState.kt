@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.thread
 
 import dev.stan.yotsuba.core.util.NetworkError
+import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -14,9 +15,8 @@ data class ThreadContent(
     /** Post numbers revealed by tapping their spoiler. Key: postNo to spoiler id. */
     val revealedSpoilers: Set<Pair<Long, Int>>,
     val revealedImageSpoilers: Set<Long>,
-    /** First post number after the "N new posts" divider; null = no divider. */
-    val newPostsAfter: Long?,
-    val newPostsCount: Int,
+    /** What the list shows, top to bottom: posts with the "N new posts" divider in place. */
+    val rows: List<ThreadRow>,
     val autoRefreshEnabled: Boolean,
     val archivedNotice: Boolean,
     /** A refresh failed while a thread was already on screen; shown once, then cleared. */
@@ -36,6 +36,23 @@ data class ThreadContent(
     /** Long-pressing a thumbnail saves it to the vault. */
     val holdToSave: Boolean = true,
 )
+
+/** One list item on the thread screen; the VM decides the order, the screen only draws. */
+sealed interface ThreadRow {
+    data class Post(val post: ThreadPost) : ThreadRow
+
+    /** Sits before the first post that arrived in a refresh; tapping it dismisses it. */
+    data class NewPostsDivider(val count: Int) : ThreadRow
+}
+
+/** Where a tapped link goes; the VM applies the trusted-domain policy (D26). */
+sealed interface LinkAction {
+    data class Internal(val link: Urls.InternalLink) : LinkAction
+    data class External(val url: String) : LinkAction
+
+    /** The confirmation dialog is now pending in the session; nothing to open yet. */
+    data object Confirm : LinkAction
+}
 
 /** One-shot scroll request resolved by the ViewModel; the screen obeys and reports back. */
 data class ScrollTarget(val postNo: Long, val animate: Boolean)

@@ -80,6 +80,7 @@ fun ThreadScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollTarget by viewModel.scrollTarget.collectAsStateWithLifecycle()
+    val mediaToOpen by viewModel.mediaToOpen.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -102,11 +103,10 @@ fun ThreadScreen(
     }
 
     fun handleLink(url: String) {
-        val internal = Urls.parseInternal(url)
-        if (internal != null) {
-            onOpenInternal(internal)
-        } else if (viewModel.onExternalLink(url)) {
-            openExternal(url)
+        when (val action = viewModel.onLinkTap(url)) {
+            is LinkAction.Internal -> onOpenInternal(action.link)
+            is LinkAction.External -> openExternal(action.url)
+            LinkAction.Confirm -> {} // the dialog shows from state
         }
     }
 
@@ -119,12 +119,19 @@ fun ThreadScreen(
     // The VM resolves where to scroll (restore priority, search steps); the screen obeys.
     LaunchedEffect(scrollTarget, state) {
         val target = scrollTarget ?: return@LaunchedEffect
-        val posts = (state as? UiState.Success)?.data?.details?.posts ?: return@LaunchedEffect
-        val index = posts.indexOfFirst { it.no == target.postNo }
+        val rows = (state as? UiState.Success)?.data?.rows ?: return@LaunchedEffect
+        val index = rows.indexOfFirst { (it as? ThreadRow.Post)?.post?.no == target.postNo }
         if (index >= 0) {
             if (target.animate) listState.animateScrollToItem(index) else listState.scrollToItem(index)
         }
         viewModel.onScrollTargetConsumed()
+    }
+
+    // The VM decided a thumbnail tap opens the viewer (rather than revealing a spoiler).
+    LaunchedEffect(mediaToOpen) {
+        val postNo = mediaToOpen ?: return@LaunchedEffect
+        viewModel.onMediaOpened()
+        onOpenMedia(postNo)
     }
 
     // A failed refresh leaves the thread up and says so once.
@@ -175,16 +182,9 @@ fun ThreadScreen(
                             is BodyTap.Link -> handleLink(tap.url)
                         }
                     },
-                    onThumbnailTap = onThumbnailTap@{
-                        val media = post.presentMedia ?: return@onThumbnailTap
-                        if (media.spoiler && !s.revealAllSpoilers && post.no !in s.revealedImageSpoilers) {
-                            viewModel.onRevealImageSpoiler(post.no)
-                        } else {
-                            onOpenMedia(post.no)
-                        }
-                    },
+                    onThumbnailTap = { viewModel.onThumbnailTap(post) },
                     onThumbnailLongPress = {
-                        if (s.holdToSave && post.presentMedia != null) {
+                        if (viewModel.onThumbnailLongPress(post)) {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             saveToVault(
                                 context = context,
@@ -245,17 +245,22 @@ fun ThreadScreen(
                             verticalArrangement = Arrangement.spacedBy(spacing.md),
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            items(s.details.posts.size, key = { s.details.posts[it].no }) { i ->
-                                val post = s.details.posts[i]
-                                if (s.newPostsAfter != null && i > 0 &&
-                                    s.details.posts[i - 1].no == s.newPostsAfter
-                                ) {
-                                    NewPostsDivider(
-                                        count = s.newPostsCount,
-                                        onTap = { viewModel.onDismissNewPostsDivider() },
+                            items(
+                                count = s.rows.size,
+                                key = { i ->
+                                    when (val row = s.rows[i]) {
+                                        is ThreadRow.Post -> row.post.no
+                                        is ThreadRow.NewPostsDivider -> "new-posts"
+                                    }
+                                },
+                            ) { i ->
+                                when (val row = s.rows[i]) {
+                                    is ThreadRow.Post -> postCard(row.post, false)
+                                    is ThreadRow.NewPostsDivider -> NewPostsDivider(
+                                        count = row.count,
+                                        onTap = viewModel::onDismissNewPostsDivider,
                                     )
                                 }
-                                postCard(post, false)
                             }
                         }
                     }
