@@ -7,10 +7,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.domain.model.ImportSource
+import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
@@ -46,6 +48,13 @@ data class VaultBoardSection(
     val threads: List<VaultThreadSection>,
     val entries: List<VaultEntry>,
 )
+
+/**
+ * How the viewer starts a video, from the same settings the live viewer reads. Playback is
+ * from disk, so "autoplay on unmetered networks only" means autoplay: no network is used.
+ * Sound follows the board: a webm from a board without audio starts muted, as it would live.
+ */
+data class VaultPlayback(val muted: Boolean = true, val playing: Boolean = true)
 
 /** Entries-in-order plus the index of the one on screen. */
 data class VaultViewerState(val entries: List<VaultEntry>, val index: Int) {
@@ -99,6 +108,7 @@ data class VaultUiState(
 class VaultViewModel @Inject constructor(
     private val mediaVault: MediaVaultRepository,
     settingsRepository: SettingsRepository,
+    private val boardRepository: BoardRepository,
 ) : ViewModel() {
 
     /** Playback preferences for the full-screen viewer. Saving does not apply here. */
@@ -211,10 +221,22 @@ class VaultViewModel @Inject constructor(
     }
         .distinctUntilChanged()
         .mapLatest { location ->
-            if (location == null || location.isUnsorted) ViewerThread()
-            else ViewerThread.of(mediaVault.savedThread(location.board, location.threadNo))
+            when {
+                location == null || location.isUnsorted -> ViewerThread()
+                else -> ViewerThread.of(
+                    mediaVault.savedThread(location.board, location.threadNo),
+                    board = if (location.isRemote) boardRepository.board(location.board) else null,
+                )
+            }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ViewerThread())
+
+    val playback: StateFlow<VaultPlayback> = combine(settingsRepository.settings, viewerThread) { settings, thread ->
+        VaultPlayback(
+            muted = thread.board?.webmAudio != true,
+            playing = settings.mediaAutoplay != MediaAutoplay.NEVER,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultPlayback())
 
     fun openViewer(url: String) {
         viewingUrl.value = url

@@ -69,6 +69,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val viewerThread by viewModel.viewerThread.collectAsStateWithLifecycle()
+    val playback by viewModel.playback.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -222,6 +223,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                 viewer = viewer,
                 thread = viewerThread,
                 behaviour = behaviour,
+                playback = playback,
                 autoAdvance = viewModel.autoAdvance,
                 onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
                 onPageViewed = { viewModel.onViewerPage(it.url) },
@@ -254,6 +256,7 @@ private fun VaultViewer(
     viewer: VaultViewerState,
     thread: ViewerThread,
     behaviour: ViewerBehaviour,
+    playback: VaultPlayback,
     autoAdvance: Boolean,
     onToggleAutoAdvance: () -> Unit,
     onPageViewed: (VaultEntry) -> Unit,
@@ -267,8 +270,8 @@ private fun VaultViewer(
         thread = thread,
         behaviour = behaviour,
         initialIndex = viewer.index,
-        muted = false,
-        playing = true,
+        muted = playback.muted,
+        playing = playback.playing,
         autoAdvance = autoAdvance,
         onToggleAutoAdvance = onToggleAutoAdvance,
         postNoAt = { page -> entries.getOrNull(page)?.postNo },
