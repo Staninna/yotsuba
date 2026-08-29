@@ -1,17 +1,15 @@
 package dev.stan.yotsuba.core.designsystem.component
 
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import dev.stan.yotsuba.core.designsystem.rememberReducedMotion
 
 /**
  * The [SharedTransitionScope] of the enclosing `SharedTransitionLayout` (the NavHost's),
@@ -37,11 +35,7 @@ val LocalAnimatedVisibilityScope = compositionLocalOf<AnimatedVisibilityScope?> 
 fun Modifier.sharedMedia(key: String, shape: Shape = RectangleShape): Modifier {
     val shared = LocalSharedTransitionScope.current
     val visibility = LocalAnimatedVisibilityScope.current
-    val context = LocalContext.current
-    val reducedMotion = remember(context) {
-        Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
-    }
-    if (reducedMotion) return this
+    if (rememberReducedMotion()) return this
     return sharedMedia(key, shared, visibility, shape)
 }
 
