@@ -2,8 +2,8 @@
 
 ## 0. Testing
 
-- [ ] 100% unit test coverage — not met; honest state as of 2026-08-25: 20.1% line / 18.2% instruction overall (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`, up from 11.3% / 10.8%). 176 JVM tests pass. Near-100% where JVM-testable: core/vault 100%, domain/model 99%, core/text 98%, network DTOs 96%, core/util 78%. The remainder is mostly Compose UI (designsystem, screens, navigation ~2.5k lines) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource) whose sandbox classloader bypasses JaCoCo's instrumented classes, so their coverage records as 0%. Media/Vault viewer VMs depend on Context/ExoPlayer and remain untested on JVM
-- [ ] 100% e2e test coverage — 8 instrumented Compose tests in `app/src/androidTest/` cover every screen's primary flow (boards → catalog → thread → media viewer, bookmark add/remove, history, vault, settings toggle) with Hilt `@TestInstallIn` fake repositories, no network. They compile (`:app:compileDebugAndroidTestKotlin`) but need a device: `./gradlew :app:connectedDebugAndroidTest`. Not yet executed on hardware, and secondary flows (search, spoilers, PiP, downloads) are uncovered
+- [ ] 100% unit test coverage — not met; honest state as of 2026-08-29: 22.8% line / 20.1% instruction / 21.8% branch (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`, up from 20.1% line on 2026-08-25). 269 JVM tests pass, up from 176. Near-100% where JVM-testable: domain/model 99.4%, core/text 98.5%, core/vault 97.6%, core/util 97.1%, network DTOs 96.1%. `feature/thread` 55.9%, `data/repository` 43.9%. The remainder is mostly Compose UI (designsystem, screens, navigation) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource, SettingsDataStore) whose sandbox classloader bypasses JaCoCo, so they record 0% despite passing — `core/datastore` reads 0% for that reason alone. `feature/media` is 4.7%: the viewer VMs depend on Context/ExoPlayer, though `ViewerBehaviour` and `PostGraph` are now pure and fully covered
+- [ ] 100% e2e test coverage — 8 instrumented Compose tests in `app/src/androidTest/` cover every screen's primary flow (boards → catalog → thread → media viewer, bookmark add/remove, history, vault, settings toggle) with Hilt `@TestInstallIn` fake repositories, no network. They compile (`:app:compileDebugAndroidTestKotlin`) but need a device: `./gradlew :app:connectedDebugAndroidTest`. Attempted on hardware 2026-08-29 and did not run: the test APK failed to link against the installed app APK (`NoSuchMethodError: kotlinx.coroutines.BuildersKt.runBlockingK`), a stale-artifact mismatch rather than a test failure — unresolved. Secondary flows (search, spoilers, PiP, downloads, hold-to-save, edge-seek) are uncovered, and the gesture work in particular cannot be trusted without a device
 
 ## 1. Code quality — blockers
 
@@ -38,6 +38,11 @@
 
 - [x] Read-position/scroll-restore logic out of `ThreadScreen` composable into the VM (`scrollTarget` flow); extract `QuotePreviewOverlay.kt`, `ExternalLinkDialog.kt`; dedupe the double `PostCard` invocation
 - [x] Settings enum-label when-ladders → `labelRes` per enum; extract `ManagedListDialog` (trusted domains / hidden threads clones)
+- [x] Settings index + subscreens: one flat 360-line scroll → an 8-row index (`SettingsScreen.kt`) plus `SettingsSectionScreen` and seven section files, none over 75 lines; `SwitchRow`/`TextRow`/`ChipRow`/`NavigationRow` lifted into `core/designsystem`. `ChipRow` takes a composable label producer so a chip can format its own value
+- [x] Delete `Settings.thumbnailSize` and `Settings.density`: persisted, round-tripped, and read by nothing. A setting nobody can reach is a lie in the data model
+- [x] `backlinksOf` + `PostGraph` into `domain/model`: the transitive reply walk lived in `MediaUiState`, a UI class, and the backlink build was inline in `Mappers`. Both are now pure and JVM-tested, and the vault reader needs the same walk
+- [x] `rememberPipController(feed, lastIndex)`: both viewers wired the same three transport callbacks by hand
+- [ ] ~~Collapse `MediaItem.toViewerPage` and `VaultEntry.toViewerPage` into one~~ — **rejected on inspection 2026-08-29.** They share a shape, not logic: one resolves remote-vs-local sources and counts pending saves, the other is always local with nullable dimensions and a thread subject. Merging needs exactly the optional flags that make control flow worse. The shared part was already extracted as `MediaFeedViewer`/`PipController`
 - [x] `AppNavHost` nav-item loop written twice → one shared items builder
 - [x] Move `SectionHeader` from `feature.boards` to `core/designsystem`
 - [x] Entity mappers into `Mappers.kt` with named args (positional 7-arg `HistoryEntity` mapping is a silent-corruption risk)
@@ -58,12 +63,16 @@
 - [ ] Thread watcher diff view — collapse above `maxReadPostNo`, background refresh + new-reply notifications
 
 ### Media
+- [x] Hold to save — long-press a thumbnail in a thread or an open image/video in the viewer. Uses telephoto's `onLongClick`, no gesture overlay. The catalogue is deliberately excluded: long-press there already hides a thread
+- [x] Double-tap the edges of a video to skip, with a configurable step. Implemented as a `DoubleClickToZoomListener`, so the middle third keeps zoom and the pager's drag is untouched. The jump is capped at a quarter of the running time, so a 10 s step does not overshoot a 2 s webm
+- [x] Keep the screen on while a video plays — one owner in `MediaFeedViewer` via `View.keepScreenOn`; the window flag is not refcounted and several `VideoPage`s are composed at once
+- [x] Import local files or a folder as an offline thread, filed under a reserved `_local` board. Files are copied, never referenced: a SAF grant can be revoked. `rescan()` needed no change — imports key on `file://<path>` like unsorted migration leftovers already did
 - [ ] Vault dedup by MD5 (API provides it); mark already-saved media in threads
 - [ ] Gallery prefetch + one-tap "save whole thread's media" batch
 - [ ] Sound-post support (`[sound=...]`)
 
 ### Archival (the killer read-only feature)
-- [ ] Full offline thread snapshots — bookmarked threads persist posts + thumbnails (optionally full media); 404'd threads stay readable
+- [~] Full offline thread snapshots — **mostly done.** Saving media writes `posts.json` beside it with the saved post's transitive parents and replies, as parsed segments so greentext, quotelinks and spoilers survive. The vault's Sync button then walks every saved thread, fetches the live one and merges its **whole** comment section in — while the thread still exists, that is the only chance to take it. `MediaVaultRepository.savedThread()` rebuilds a `ThreadDetails` from the sidecar, and the media viewer falls back to it when the live fetch fails, so a 404'd thread stays readable. Sync is rate-limited to ~1 thread/second by `RateLimitInterceptor` and reports a `done / total` counter; a `RateLimited` response stops the pass rather than hammering. Still missing: bookmarked threads snapshotting without a save, thumbnails for unsaved posts, background/periodic sync rather than a manual tap, and any pruning story for a sidecar that only grows
 - [ ] Archive fallthrough — desuarchive/warosu/b4k per board when a thread 404s
 
 ### Filtering & comfort
