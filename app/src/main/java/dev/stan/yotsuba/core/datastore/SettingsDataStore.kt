@@ -7,12 +7,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import dev.stan.yotsuba.domain.model.CatalogLayout
-import dev.stan.yotsuba.domain.model.Density
 import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
-import dev.stan.yotsuba.domain.model.ThumbnailSize
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,8 +26,6 @@ class SettingsDataStore @Inject constructor(
         val themeMode = stringPreferencesKey("themeMode")
         val dynamicColor = booleanPreferencesKey("dynamicColor")
         val catalogLayout = stringPreferencesKey("catalogLayout")
-        val thumbnailSize = stringPreferencesKey("thumbnailSize")
-        val density = stringPreferencesKey("density")
         val revealAllSpoilers = booleanPreferencesKey("revealAllSpoilers")
         val autoRefreshEnabled = booleanPreferencesKey("autoRefreshEnabled")
         val confirmBeforeOpeningLinks = booleanPreferencesKey("confirmBeforeOpeningLinks")
@@ -51,8 +47,6 @@ class SettingsDataStore @Inject constructor(
             p[Keys.themeMode] = next.themeMode.name
             p[Keys.dynamicColor] = next.dynamicColor
             p[Keys.catalogLayout] = next.catalogLayout.name
-            p[Keys.thumbnailSize] = next.thumbnailSize.name
-            p[Keys.density] = next.density.name
             p[Keys.revealAllSpoilers] = next.revealAllSpoilers
             p[Keys.autoRefreshEnabled] = next.autoRefreshEnabled
             p[Keys.confirmBeforeOpeningLinks] = next.confirmBeforeOpeningLinks
@@ -72,8 +66,6 @@ class SettingsDataStore @Inject constructor(
             themeMode = p[Keys.themeMode]?.let { enumOr(it, d.themeMode) } ?: d.themeMode,
             dynamicColor = p[Keys.dynamicColor] ?: d.dynamicColor,
             catalogLayout = p[Keys.catalogLayout]?.let { enumOr(it, d.catalogLayout) } ?: d.catalogLayout,
-            thumbnailSize = p[Keys.thumbnailSize]?.let { enumOr(it, d.thumbnailSize) } ?: d.thumbnailSize,
-            density = p[Keys.density]?.let { enumOr(it, d.density) } ?: d.density,
             revealAllSpoilers = p[Keys.revealAllSpoilers] ?: d.revealAllSpoilers,
             autoRefreshEnabled = p[Keys.autoRefreshEnabled] ?: d.autoRefreshEnabled,
             confirmBeforeOpeningLinks = p[Keys.confirmBeforeOpeningLinks] ?: d.confirmBeforeOpeningLinks,

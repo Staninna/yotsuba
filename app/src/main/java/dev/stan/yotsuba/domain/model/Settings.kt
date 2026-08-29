@@ -2,8 +2,6 @@ package dev.stan.yotsuba.domain.model
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class CatalogLayout { COMFORTABLE, COMPACT, LIST }
-enum class ThumbnailSize { SMALL, MEDIUM, LARGE }
-enum class Density { COMFORTABLE, COMPACT }
 enum class MediaAutoplay { ALWAYS, UNMETERED_ONLY, NEVER }
 enum class HistoryRetention { FOREVER, DAYS_30, DAYS_7 }
 
@@ -11,8 +9,6 @@ data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val catalogLayout: CatalogLayout = CatalogLayout.COMFORTABLE,
-    val thumbnailSize: ThumbnailSize = ThumbnailSize.MEDIUM,
-    val density: Density = Density.COMFORTABLE,
     val revealAllSpoilers: Boolean = false,
     val autoRefreshEnabled: Boolean = false,
     val confirmBeforeOpeningLinks: Boolean = true,
