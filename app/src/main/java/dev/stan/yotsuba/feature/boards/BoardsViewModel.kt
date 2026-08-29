@@ -43,9 +43,7 @@ class BoardsViewModel @Inject constructor(
             is DataResult.Failure -> UiState.Error(result.error)
             is DataResult.Success -> {
                 val all = result.value
-                val matching = if (query.isBlank()) all else all.filter {
-                    it.code.contains(query, true) || it.title.contains(query, true)
-                }
+                val matching = search(all, query)
                 val visible = matching.filter { editing || settings.isVisible(it) }
                 val sections = BoardCategory.entries.mapNotNull { cat ->
                     val inCat = visible.filter { it.category == cat }
@@ -123,6 +121,26 @@ class BoardsViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * Code matches outrank title matches, and an exact code outranks a prefix, so "g" puts /g/
+     * first instead of every title with a g in it. Slashes are stripped so "/g/" matches too.
+     */
+    private fun search(all: List<Board>, rawQuery: String): List<Board> {
+        val query = rawQuery.trim().trim('/').trim()
+        if (query.isBlank()) return all
+        fun rank(board: Board): Int = when {
+            board.code.equals(query, ignoreCase = true) -> 0
+            board.code.startsWith(query, ignoreCase = true) -> 1
+            board.code.contains(query, ignoreCase = true) -> 2
+            board.title.contains(query, ignoreCase = true) -> 3
+            else -> -1
+        }
+        return all.map { it to rank(it) }
+            .filter { (_, r) -> r >= 0 }
+            .sortedBy { (_, r) -> r }
+            .map { (board, _) -> board }
     }
 
     private fun loadedBoards(): List<Board> =

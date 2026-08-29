@@ -115,6 +115,30 @@ class BoardsViewModelTest {
             }
         }
 
+    @Test fun `search ranks code matches above title matches and ignores slashes`() =
+        runTest(dispatcher.scheduler) {
+            val repo = FakeBoardRepository(DataResult.Success(listOf(
+                board("a", title = "Anime & Manga"),
+                board("gif", title = "Adult GIF"),
+                board("g", title = "Technology"),
+                board("vg", title = "Video Game Generals"),
+            )))
+            val vm = vm(repo)
+            vm.uiState.test {
+                latest()
+                vm.onSearchChange("g")
+                val ranked = (latest() as UiState.Success).data
+                assertEquals(
+                    listOf("g", "gif", "vg", "a"),
+                    ranked.sections.flatMap { it.boards }.map { it.board.code },
+                )
+                vm.onSearchChange("/g/")
+                val slashed = (latest() as UiState.Success).data
+                assertEquals("g", slashed.sections.flatMap { it.boards }.first().board.code)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `hidden boards are filtered out unless edit mode is on`() =
         runTest(dispatcher.scheduler) {
             val repo = FakeBoardRepository(DataResult.Success(listOf(board("g"), board("v"))))
