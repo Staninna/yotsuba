@@ -122,25 +122,23 @@ fun BoardsScreen(
                                             false -> ToggleableState.Off
                                             null -> ToggleableState.Indeterminate
                                         },
-                                        onClick = {
-                                            viewModel.onToggleCategoryVisible(section.category, section.allVisible)
-                                        },
+                                        onClick = { viewModel.onToggleCategoryVisible(section.category) },
                                         modifier = Modifier.padding(end = spacing.lg),
                                     )
                                 }
                             }
                         }
-                        items(section.boards.size, key = { section.boards[it].code }) { i ->
-                            val board = section.boards[i]
+                        items(section.boards.size, key = { section.boards[it].board.code }) { i ->
+                            val row = section.boards[i]
+                            val code = row.board.code
                             BoardRow(
-                                board = board,
-                                favourite = board.code in s.favouriteBoardCodes,
+                                board = row.board,
+                                favourite = row.favourite,
                                 editMode = s.editMode,
-                                visible = board.code !in s.hiddenBoards &&
-                                    board.category.name !in s.hiddenCategories,
-                                onClick = { if (!s.editMode) onOpenBoard(board.code) },
-                                onToggleFavourite = { viewModel.onToggleFavourite(board.code) },
-                                onToggleVisible = { viewModel.onToggleBoardVisible(board.code) },
+                                visible = row.visible,
+                                onClick = { if (!s.editMode) onOpenBoard(code) },
+                                onToggleFavourite = { viewModel.onToggleFavourite(code) },
+                                onToggleVisible = { viewModel.onToggleBoardVisible(code) },
                             )
                         }
                     }

@@ -81,7 +81,7 @@ class BoardsViewModelTest {
                     listOf(BoardCategory.JAPANESE_CULTURE, BoardCategory.VIDEO_GAMES, BoardCategory.INTERESTS),
                     content.sections.map { it.category },
                 )
-                assertEquals(listOf("a", "m"), content.sections[0].boards.map { it.code })
+                assertEquals(listOf("a", "m"), content.sections[0].boards.map { it.board.code })
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -107,10 +107,10 @@ class BoardsViewModelTest {
                 latest()
                 vm.onSearchChange("TECH")
                 val byTitle = (latest() as UiState.Success).data
-                assertEquals(listOf("g"), byTitle.sections.flatMap { it.boards }.map { it.code })
+                assertEquals(listOf("g"), byTitle.sections.flatMap { it.boards }.map { it.board.code })
                 vm.onSearchChange("tv")
                 val byCode = (latest() as UiState.Success).data
-                assertEquals(listOf("tv"), byCode.sections.flatMap { it.boards }.map { it.code })
+                assertEquals(listOf("tv"), byCode.sections.flatMap { it.boards }.map { it.board.code })
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -121,10 +121,10 @@ class BoardsViewModelTest {
             val vm = vm(repo, FakeSettingsRepository(Settings(hiddenBoards = setOf("v"))))
             vm.uiState.test {
                 val visible = (latest() as UiState.Success).data
-                assertEquals(listOf("g"), visible.sections.flatMap { it.boards }.map { it.code })
+                assertEquals(listOf("g"), visible.sections.flatMap { it.boards }.map { it.board.code })
                 vm.onToggleEditMode()
                 val editing = (latest() as UiState.Success).data
-                assertEquals(listOf("g", "v"), editing.sections.flatMap { it.boards }.map { it.code })
+                assertEquals(listOf("g", "v"), editing.sections.flatMap { it.boards }.map { it.board.code })
                 assertTrue(editing.editMode)
                 cancelAndIgnoreRemainingEvents()
             }
@@ -140,10 +140,15 @@ class BoardsViewModelTest {
                 assertEquals(listOf("g"), content.favourites.map { it.code })
                 vm.onToggleFavourite("v")
                 val added = (latest() as UiState.Success).data
-                assertEquals(setOf("g", "v"), added.favouriteBoardCodes)
+                assertEquals(listOf("g", "v"), added.favourites.map { it.code })
+                assertTrue(added.sections.flatMap { it.boards }.all { it.favourite })
                 vm.onToggleFavourite("g")
                 val removed = (latest() as UiState.Success).data
-                assertEquals(setOf("v"), removed.favouriteBoardCodes)
+                assertEquals(listOf("v"), removed.favourites.map { it.code })
+                assertEquals(
+                    listOf(false, true),
+                    removed.sections.flatMap { it.boards }.map { it.favourite },
+                )
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -182,7 +187,7 @@ class BoardsViewModelTest {
             val vm = vm(repo, settings)
             vm.uiState.test {
                 latest()
-                vm.onToggleCategoryVisible(BoardCategory.JAPANESE_CULTURE, currentlyAllVisible = false)
+                vm.onToggleCategoryVisible(BoardCategory.JAPANESE_CULTURE)
                 dispatcher.scheduler.advanceUntilIdle()
                 assertEquals(emptySet<String>(), settings.state.value.hiddenCategories)
                 assertEquals(emptySet<String>(), settings.state.value.hiddenBoards)
