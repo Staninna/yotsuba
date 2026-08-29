@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultLocation
+import java.text.DateFormat
+import java.util.Date
 
 /** A full-height sheet reading [stats]. Tapping a thread hands its location to [onOpenThread]. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +69,8 @@ internal fun VaultStatsSheet(
             items(stats.biggestThreads, key = { it.location }) { ThreadRow(it) { onOpenThread(it.location) } }
             item { SectionTitle(stringResource(R.string.vault_stats_per_week)) }
             item { WeeklyBars(stats.savedPerWeek) }
+            item { SectionTitle(stringResource(R.string.vault_stats_dates)) }
+            item { SaveDates(stats) }
             item { Spacer(Modifier.height(32.dp)) }
         }
     }
@@ -204,6 +208,28 @@ private fun WeeklyBars(counts: List<Int>) {
         Spacer(Modifier.height(4.dp))
         Text(
             stringResource(R.string.vault_stats_per_week_range, counts.size),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private val dateFormat: DateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM)
+
+@Composable
+private fun SaveDates(stats: VaultStats) {
+    Row(Modifier.fillMaxWidth()) {
+        DateCell(R.string.vault_stats_oldest, stats.oldestSave, Modifier.weight(1f))
+        DateCell(R.string.vault_stats_newest, stats.newestSave, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun DateCell(labelRes: Int, at: Long?, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(at?.let { dateFormat.format(Date(it)) } ?: "\u2014", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            stringResource(labelRes),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
