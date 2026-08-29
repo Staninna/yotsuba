@@ -141,7 +141,7 @@ fun CatalogScreen(
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            UiStateContent(state, onRetry = { viewModel.load() }) { s ->
+            UiStateContent(state, onRetry = viewModel::retry) { s ->
                 if (s.offline) {
                     OfflineBanner(cachedAtLabel = null, onRetry = { viewModel.load(forceRefresh = true) })
                 }

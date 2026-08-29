@@ -156,6 +156,21 @@ class CatalogViewModelTest {
         }
     }
 
+    @Test fun `retry after an error forces the fetch`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.catalog.result = DataResult.Failure(NetworkError.NotFound)
+        val vm = env.vm()
+        vm.uiState.test {
+            latest()
+            env.catalog.result = DataResult.Success(listOf(Env.thread(9)))
+            vm.retry()
+            val content = (latest() as UiState.Success).data
+            assertEquals(listOf(9L), content.threads.map { it.no })
+            assertEquals(true, env.catalog.forceFlags.last())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test fun `hidden threads are filtered and hide-undo round-trips`() = runTest(dispatcher.scheduler) {
         val env = Env()
         val vm = env.vm()

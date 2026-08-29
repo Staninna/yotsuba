@@ -66,6 +66,9 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
         return job
     }
 
+    /** Error-state retry: bypass the cache like pull-to-refresh, but show the loading shell. */
+    fun retry(): Job = result.load(forceRefresh = true, showLoading = true)
+
     private val layout = settingsRepository.settings.map { it.catalogLayout }
     private val offline = networkStatus.map { it == NetworkStatus.Offline }
 
