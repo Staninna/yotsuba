@@ -94,6 +94,20 @@ interface MediaVaultRepository {
      */
     suspend fun syncSavedThreads(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): VaultSyncSummary
 
+    /**
+     * Gives an imported thread a new subject: the sidecar and the directory name both
+     * change. Only local threads can be renamed; a saved 4chan thread keeps its own.
+     */
+    suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? = VaultError.Io("not supported")
+
+    /**
+     * Moves every file and its sidecar entry from one thread into another, then drops the
+     * emptied directory and rebuilds the index. The two must share a board.
+     */
+    suspend fun mergeThreads(
+        fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long,
+    ): VaultError? = VaultError.Io("not supported")
+
     /** Rebuilds the saved-media DB purely from the meta.json sidecars on disk. */
     suspend fun rescan()
 

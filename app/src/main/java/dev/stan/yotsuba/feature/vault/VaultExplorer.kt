@@ -17,7 +17,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CallMerge
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Circle
@@ -82,6 +84,8 @@ internal fun VaultExplorer(
     onToggleSelected: (Collection<String>) -> Unit,
     onDeleteThread: (VaultLocation) -> Unit,
     onDeleteBoard: (String) -> Unit,
+    onRenameThread: (VaultLocation) -> Unit,
+    onMergeThread: (VaultLocation) -> Unit,
     onSort: (VaultSort) -> Unit,
     onFilter: (VaultFilter) -> Unit,
     onMode: (VaultMode) -> Unit,
@@ -158,6 +162,8 @@ internal fun VaultExplorer(
                 onOpen = onOpenThread,
                 onToggleSelected = onToggleSelected,
                 onDelete = onDeleteThread,
+                onRename = onRenameThread,
+                onMerge = onMergeThread,
             )
 
             else -> Column(Modifier.fillMaxSize()) {
@@ -216,6 +222,8 @@ private fun ThreadList(
     onOpen: (VaultLocation) -> Unit,
     onToggleSelected: (Collection<String>) -> Unit,
     onDelete: (VaultLocation) -> Unit,
+    onRename: (VaultLocation) -> Unit,
+    onMerge: (VaultLocation) -> Unit,
 ) {
     val selecting = selected.isNotEmpty()
     LazyColumn(Modifier.fillMaxSize()) {
@@ -247,6 +255,20 @@ private fun ThreadList(
                                 leadingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = null) },
                                 onClick = { it(); onToggleSelected(urls) },
                             )
+                            if (section.location.isLocal) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.vault_rename_thread)) },
+                                    leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                                    onClick = { it(); onRename(section.location) },
+                                )
+                            }
+                            if (!section.location.isUnsorted && threads.size > 1) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.vault_merge_thread)) },
+                                    leadingIcon = { Icon(Icons.Filled.CallMerge, contentDescription = null) },
+                                    onClick = { it(); onMerge(section.location) },
+                                )
+                            }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.vault_delete_thread)) },
                                 leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },

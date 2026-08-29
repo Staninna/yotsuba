@@ -429,6 +429,59 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     private data class SavedThreadDir(val dir: File, val board: String, val threadNo: Long)
 
+    override suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? =
+        withContext(Dispatchers.IO) {
+            if (!hasStorageAccess()) return@withContext VaultError.NoAccess
+            if (!VaultLocation(board, threadNo).isLocal) return@withContext VaultError.Io("only imported threads can be renamed")
+            val dir = store.threadDir(board, threadNo) ?: return@withContext VaultError.NotFound
+            val trimmed = name.trim().ifEmpty { return@withContext VaultError.Io("empty name") }
+            attempt {
+                store.lock.withLock {
+                    store.updateMeta(dir) { it.copy(subject = trimmed) }
+                    store.updatePosts(
+                        dir, board, threadNo,
+                        // Only the OP carries the subject; a merge into an empty posts.json is a no-op.
+                        store.readPosts(dir)?.posts?.filter { it.isOp }?.map { it.copy(subject = trimmed) }.orEmpty(),
+                    )
+                    val target = File(dir.parentFile, VaultPaths.threadDirName(threadNo, trimmed))
+                    if (target != dir && !dir.renameTo(target)) throw java.io.IOException("Couldn't rename ${dir.name}")
+                }
+                rescan()
+            }
+        }
+
+    override suspend fun mergeThreads(
+        fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long,
+    ): VaultError? = withContext(Dispatchers.IO) {
+        if (!hasStorageAccess()) return@withContext VaultError.NoAccess
+        if (fromBoard == intoBoard && fromThreadNo == intoThreadNo) return@withContext null
+        val from = store.threadDir(fromBoard, fromThreadNo) ?: return@withContext VaultError.NotFound
+        val into = store.threadDir(intoBoard, intoThreadNo) ?: return@withContext VaultError.NotFound
+        attempt {
+            store.lock.withLock {
+                val fromMeta = store.updateMeta(from) { it }
+                for (f in fromMeta.files) {
+                    val source = File(from, f.fileName)
+                    if (!source.isFile) continue
+                    val target = store.uniqueFile(into, f.fileName)
+                    if (!store.moveFile(source, target)) throw java.io.IOException("Couldn't move ${f.fileName}")
+                    val still = VideoStills.stillFor(source)
+                    if (still.isFile) {
+                        VideoStills.stillFor(target).let { it.parentFile?.mkdirs(); store.moveFile(still, it) }
+                    }
+                    store.updateMeta(into) { it.upsert(f.copy(fileName = target.name)) }
+                    store.updateMeta(from) { it.remove(f.fileName) }
+                }
+                store.readPosts(from)?.let { posts ->
+                    store.updatePosts(into, intoBoard, intoThreadNo, posts.posts)
+                }
+                from.deleteRecursively()
+                from.parentFile?.takeIf { it != store.root && it.listFiles()?.isEmpty() == true }?.delete()
+            }
+            rescan()
+        }
+    }
+
     override suspend fun rescan() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext
         val rebuilt = store.lock.withLock {

@@ -68,6 +68,9 @@ import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
+import dev.stan.yotsuba.domain.model.VaultLocation
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.ListItem
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.feature.media.ThreadMediaViewer
@@ -105,6 +108,9 @@ fun VaultScreen(
             is VaultNotice.DeleteFailed ->
                 stringResource(R.string.vault_delete_failed, notice.entry.displayName)
             VaultNotice.Restored -> stringResource(R.string.vault_restored)
+            VaultNotice.Renamed -> stringResource(R.string.vault_renamed)
+            VaultNotice.Merged -> stringResource(R.string.vault_merged)
+            is VaultNotice.EditFailed -> stringResource(R.string.vault_edit_failed)
             is VaultNotice.SavedToGallery -> buildString {
                 append(pluralStringResource(R.plurals.vault_saved_to_gallery, notice.count, notice.count))
                 if (notice.failed > 0) append(" · ").append(stringResource(R.string.vault_saved_to_gallery_failed, notice.failed))
@@ -294,6 +300,8 @@ fun VaultScreen(
                     onToggleSelected = viewModel::toggleSelected,
                     onDeleteThread = viewModel::deleteThread,
                     onDeleteBoard = viewModel::deleteBoard,
+                    onRenameThread = viewModel::requestRename,
+                    onMergeThread = viewModel::requestMerge,
                     onSort = viewModel::setSort,
                     onFilter = viewModel::setFilter,
                     onMode = viewModel::setMode,
@@ -332,6 +340,20 @@ fun VaultScreen(
         )
     }
 
+    when (val edit = state.threadEdit) {
+        is VaultThreadEdit.Rename -> RenameDialog(
+            current = state.openBoard?.threads?.firstOrNull { it.location == edit.location }?.subject.orEmpty(),
+            onConfirm = viewModel::rename,
+            onCancel = viewModel::cancelThreadEdit,
+        )
+        is VaultThreadEdit.Merge -> MergeDialog(
+            targets = state.mergeTargets,
+            onConfirm = viewModel::merge,
+            onCancel = viewModel::cancelThreadEdit,
+        )
+        null -> Unit
+    }
+
     state.deleting?.let { request ->
         VaultDeleteDialog(
             request = request,
@@ -339,6 +361,58 @@ fun VaultScreen(
             onCancel = viewModel::cancelDelete,
         )
     }
+}
+
+@Composable
+private fun RenameDialog(current: String, onConfirm: (String) -> Unit, onCancel: () -> Unit) {
+    var name by remember { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.vault_rename_thread)) },
+        text = {
+            TextField(value = name, onValueChange = { name = it }, singleLine = true)
+        },
+        confirmButton = {
+            TextButton(enabled = name.isNotBlank(), onClick = { onConfirm(name) }) {
+                Text(stringResource(R.string.vault_rename))
+            }
+        },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.vault_cancel)) } },
+    )
+}
+
+/** Picks the thread the queued one is folded into. */
+@Composable
+private fun MergeDialog(
+    targets: List<VaultThreadSection>,
+    onConfirm: (VaultLocation) -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.vault_merge_into)) },
+        text = {
+            if (targets.isEmpty()) {
+                Text(stringResource(R.string.vault_merge_none))
+            } else {
+                LazyColumn {
+                    items(targets.size, key = { targets[it].location.threadNo }) { i ->
+                        val section = targets[i]
+                        ListItem(
+                            headlineContent = { Text(threadTitle(section.location, section.subject), maxLines = 1) },
+                            supportingContent = {
+                                val count = section.entries.size
+                                Text(pluralStringResource(R.plurals.vault_items, count, count))
+                            },
+                            modifier = Modifier.clickable { onConfirm(section.location) },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.vault_cancel)) } },
+    )
 }
 
 /** The top bar as a search field; the query lives in the VM so rotation keeps it. */

@@ -43,4 +43,12 @@
     <string name="vault_search_hint">File name or thread subject</string>
     <string name="vault_search_clear">Clear</string>
     <string name="vault_search_empty">Nothing matches</string>
+    <string name="vault_rename_thread">Rename</string>
+    <string name="vault_rename">Rename</string>
+    <string name="vault_renamed">Renamed</string>
+    <string name="vault_merge_thread">Merge into…</string>
+    <string name="vault_merge_into">Merge into</string>
+    <string name="vault_merge_none">No other thread on this board to merge into.</string>
+    <string name="vault_merged">Merged</string>
+    <string name="vault_edit_failed">Couldn\'t change the thread</string>
 </resources>

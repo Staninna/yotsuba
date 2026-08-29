@@ -130,6 +130,17 @@ sealed interface VaultNotice {
     data class DeleteFailed(val entry: VaultEntry, val error: VaultError) : VaultNotice
     data object Restored : VaultNotice
     data class SavedToGallery(val count: Int, val failed: Int) : VaultNotice
+    data object Renamed : VaultNotice
+    data object Merged : VaultNotice
+    data class EditFailed(val error: VaultError) : VaultNotice
+}
+
+/** A thread-level edit awaiting its dialog: a new name, or a merge target. */
+sealed interface VaultThreadEdit {
+    val location: VaultLocation
+
+    data class Rename(override val location: VaultLocation) : VaultThreadEdit
+    data class Merge(override val location: VaultLocation) : VaultThreadEdit
 }
 
 /** Entries queued for deletion and whether the grid's undo window applies to them. */
@@ -174,7 +185,16 @@ data class VaultUiState(
     val selected: Set<String> = emptySet(),
     /** The entry whose long-press sheet is open. */
     val inspecting: VaultEntry? = null,
+    /** The rename or merge dialog on screen, if any. */
+    val threadEdit: VaultThreadEdit? = null,
 ) {
+    /** Threads a merge could go into: the same board, minus the one being merged. */
+    val mergeTargets: List<VaultThreadSection>
+        get() = threadEdit?.let { edit ->
+            boards.firstOrNull { it.board == edit.location.board }?.threads
+                ?.filterNot { it.location == edit.location || it.location.isUnsorted }
+        }.orEmpty()
+
     val selecting: Boolean get() = selected.isNotEmpty()
     val selectedEntries: List<VaultEntry> get() = entries.filter { it.url in selected }
 
@@ -243,6 +263,7 @@ class VaultViewModel @Inject constructor(
     private val undo = MutableStateFlow<List<VaultEntry>?>(null)
     private val selected = MutableStateFlow<Set<String>>(emptySet())
     private val inspectingUrl = MutableStateFlow<String?>(null)
+    private val threadEdit = MutableStateFlow<VaultThreadEdit?>(null)
     private var undoWindow: Job? = null
 
     /**
@@ -292,6 +313,7 @@ class VaultViewModel @Inject constructor(
         val selected: Set<String>,
         val inspecting: String?,
         val view: View,
+        val threadEdit: VaultThreadEdit?,
     )
 
     /** How the entries are arranged on screen. */
@@ -317,7 +339,45 @@ class VaultViewModel @Inject constructor(
         this.query.value = query
     }
 
-    private val editing = combine(selected, inspectingUrl, view) { s, i, v -> Editing(s, i, v) }
+    private val editing = combine(selected, inspectingUrl, view, threadEdit) { s, i, v, t -> Editing(s, i, v, t) }
+
+    fun requestRename(location: VaultLocation) {
+        if (location.isLocal) threadEdit.value = VaultThreadEdit.Rename(location)
+    }
+
+    fun requestMerge(location: VaultLocation) {
+        threadEdit.value = VaultThreadEdit.Merge(location)
+    }
+
+    fun cancelThreadEdit() {
+        threadEdit.value = null
+    }
+
+    /** Applies the queued rename with [name]; the sidecar and directory follow. */
+    fun rename(name: String) {
+        val edit = threadEdit.value as? VaultThreadEdit.Rename ?: return
+        threadEdit.value = null
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            notice.value = when (val error = mediaVault.renameThread(edit.location.board, edit.location.threadNo, name)) {
+                null -> VaultNotice.Renamed
+                else -> VaultNotice.EditFailed(error)
+            }
+        }
+    }
+
+    /** Moves the queued thread's files into [into]. Leaves the drill-down at the board. */
+    fun merge(into: VaultLocation) {
+        val edit = threadEdit.value as? VaultThreadEdit.Merge ?: return
+        threadEdit.value = null
+        viewModelScope.launch {
+            val error = mediaVault.mergeThreads(
+                edit.location.board, edit.location.threadNo, into.board, into.threadNo,
+            )
+            notice.value = if (error == null) VaultNotice.Merged else VaultNotice.EditFailed(error)
+            if (error == null) selection.update { if (it.thread == edit.location) it.copy(thread = null) else it }
+        }
+    }
 
     fun setMode(mode: VaultMode) {
         selected.value = emptySet()
@@ -370,6 +430,7 @@ class VaultViewModel @Inject constructor(
             // Selection follows the entries: a deleted or rescanned-away file drops out.
             selected = editing.selected.filterTo(mutableSetOf()) { url -> entries.any { it.url == url } },
             inspecting = editing.inspecting?.let { url -> entries.firstOrNull { it.url == url } },
+            threadEdit = editing.threadEdit,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
