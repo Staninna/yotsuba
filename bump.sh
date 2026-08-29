@@ -9,6 +9,7 @@
 #   ./bump.sh major        next major (1.1.2 -> 2.0.0)
 #   ./bump.sh 2.0.0        that exact version
 #   ./bump.sh --no-push    stop after the commit; you push and tag by hand
+#   ./bump.sh --just-push  the bump is already committed; only push and tag
 #   ./bump.sh --watch      follow the release run to the end
 set -euo pipefail
 
@@ -24,6 +25,7 @@ BUMP=patch
 for arg in "$@"; do
   case "$arg" in
     --no-push) PUSH=no ;;
+    --just-push) BUMP=none ;;
     --watch) WATCH=yes ;;
     patch|minor|major) BUMP=$arg ;;
     [0-9]*.[0-9]*.[0-9]*) BUMP=exact; VERSION=$arg ;;
@@ -34,6 +36,7 @@ done
 die() { echo "bump: $*" >&2; exit 1; }
 
 [ -f "$GRADLE" ] || die "no $GRADLE — run this from the repo root"
+if [ "$BUMP" = none ] && [ "$PUSH" = no ]; then die "--just-push and --no-push cancel out"; fi
 if [ -n "$(git status --porcelain)" ]; then die "working tree is dirty; commit or stash first"; fi
 [ "$BRANCH" = main ] || die "on '$BRANCH', not main"
 
@@ -46,27 +49,36 @@ case "$BUMP" in
   patch) VERSION="$MAJOR.$MINOR.$((PATCH + 1))" ;;
   minor) VERSION="$MAJOR.$((MINOR + 1)).0" ;;
   major) VERSION="$((MAJOR + 1)).0.0" ;;
+  none)  VERSION="$NAME" ;;
 esac
 TAG="v$VERSION"
 NEXT_CODE=$((CODE + 1))
 
 if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "$TAG already exists"; fi
-
-echo "==> $APP $NAME (code $CODE) -> $VERSION (code $NEXT_CODE)"
-
-# Both fields, one edit, so they can never move apart.
-sed -i "s/^\( *versionCode = \)$CODE\$/\1$NEXT_CODE/; s/^\( *versionName = \)\"$NAME\"\$/\1\"$VERSION\"/" "$GRADLE"
-grep -q "versionCode = $NEXT_CODE" "$GRADLE" || die "versionCode rewrite failed"
-grep -q "versionName = \"$VERSION\"" "$GRADLE" || die "versionName rewrite failed"
-
-echo "==> tests and lint"
-if ! ./gradlew testDebugUnitTest lintDebug compileDebugAndroidTestKotlin; then
-  git checkout -- "$GRADLE"
-  die "build failed; version left untouched"
+if git ls-remote --exit-code --tags origin "$TAG" >/dev/null 2>&1; then
+  die "$TAG is already on the remote"
 fi
 
-git commit -qam "Bump to $VERSION"
-echo "==> committed $(git rev-parse --short HEAD)"
+if [ "$BUMP" = none ]; then
+  # The bump is already a commit; this is the half that did not happen.
+  echo "==> $APP $VERSION (code $CODE) already committed, pushing and tagging only"
+else
+  echo "==> $APP $NAME (code $CODE) -> $VERSION (code $NEXT_CODE)"
+
+  # Both fields, one edit, so they can never move apart.
+  sed -i "s/^\( *versionCode = \)$CODE\$/\1$NEXT_CODE/; s/^\( *versionName = \)\"$NAME\"\$/\1\"$VERSION\"/" "$GRADLE"
+  grep -q "versionCode = $NEXT_CODE" "$GRADLE" || die "versionCode rewrite failed"
+  grep -q "versionName = \"$VERSION\"" "$GRADLE" || die "versionName rewrite failed"
+
+  echo "==> tests and lint"
+  if ! ./gradlew testDebugUnitTest lintDebug compileDebugAndroidTestKotlin; then
+    git checkout -- "$GRADLE"
+    die "build failed; version left untouched"
+  fi
+
+  git commit -qam "Bump to $VERSION"
+  echo "==> committed $(git rev-parse --short HEAD)"
+fi
 
 if [ "$PUSH" = no ]; then
   echo "==> not pushing. When you are ready:"
