@@ -17,6 +17,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.FiberNew
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.HorizontalDivider
@@ -25,11 +28,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -152,8 +157,22 @@ fun ThreadScreen(
         }.collect { (first, last) -> viewModel.onVisiblePostsChanged(first, last) }
     }
 
+    // Jump buttons show once the list has moved, like the catalog's scroll-to-top.
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    val rows = (state as? UiState.Success)?.data?.rows.orEmpty()
+    val firstNewIndex = rows.indexOfFirst { it is ThreadRow.NewPostsDivider }.takeIf { it >= 0 }?.plus(1)
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
+        floatingActionButton = {
+            if (scrolled || firstNewIndex != null) {
+                JumpButtons(
+                    onTop = { scope.launch { listState.animateScrollToItem(0) } },
+                    onFirstNew = firstNewIndex?.let { index -> { scope.launch { listState.animateScrollToItem(index) } } },
+                    onBottom = { scope.launch { listState.animateScrollToItem(rows.lastIndex.coerceAtLeast(0)) } },
+                )
+            }
+        },
         topBar = {
             val s = (state as? UiState.Success)?.data
             ThreadTopBar(
@@ -384,6 +403,28 @@ private fun refreshErrorMessage(error: NetworkError): String = stringResource(
         is NetworkError.Unknown -> stringResource(R.string.error_unknown)
     },
 )
+
+/** Jump to top / first new post / bottom. */
+@Composable
+private fun JumpButtons(onTop: () -> Unit, onFirstNew: (() -> Unit)?, onBottom: () -> Unit) {
+    val spacing = LocalSpacing.current
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.sm), horizontalAlignment = Alignment.End) {
+        SmallFloatingActionButton(onClick = onTop) {
+            Icon(Icons.Filled.VerticalAlignTop, stringResource(R.string.thread_jump_top))
+        }
+        if (onFirstNew != null) {
+            SmallFloatingActionButton(
+                onClick = onFirstNew,
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+            ) {
+                Icon(Icons.Filled.FiberNew, stringResource(R.string.thread_jump_first_new))
+            }
+        }
+        SmallFloatingActionButton(onClick = onBottom) {
+            Icon(Icons.Filled.VerticalAlignBottom, stringResource(R.string.thread_jump_bottom))
+        }
+    }
+}
 
 @Composable
 private fun NewPostsDivider(count: Int, onTap: () -> Unit) {

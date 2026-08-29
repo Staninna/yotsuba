@@ -29,4 +29,7 @@
     </plurals>
     <string name="thread_gallery_save_all">Save all</string>
     <string name="thread_gallery_save_all_queued">Saving every file in this thread</string>
+    <string name="thread_jump_top">Jump to top</string>
+    <string name="thread_jump_first_new">Jump to first new post</string>
+    <string name="thread_jump_bottom">Jump to bottom</string>
 </resources>
