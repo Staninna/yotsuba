@@ -34,8 +34,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
@@ -58,6 +63,9 @@ fun ReorderableTabRow(
     modifier: Modifier = Modifier,
 ) {
     val haptics = rememberHaptics()
+    val moveLeft = stringResource(R.string.home_move_left)
+    val moveRight = stringResource(R.string.home_move_right)
+    val removeLabel = stringResource(R.string.home_remove_zone)
     val motion = LocalMotion.current
     val density = LocalDensity.current
     val scrollState = rememberScrollState()
@@ -142,6 +150,16 @@ fun ReorderableTabRow(
                     onClick = { onSelect(index) },
                     modifier = Modifier
                         .zIndex(if (lifted) 1f else 0f)
+                        .semantics {
+                            // The drag is out of reach for a screen reader; offer the same moves as actions.
+                            customActions = buildList {
+                                if (index > 0) add(CustomAccessibilityAction(moveLeft) { onMove(index, index - 1); true })
+                                if (index < boards.lastIndex) {
+                                    add(CustomAccessibilityAction(moveRight) { onMove(index, index + 1); true })
+                                }
+                                add(CustomAccessibilityAction(removeLabel) { onRemove(index); true })
+                            }
+                        }
                         .onSizeChanged { widths[index] = it.width }
                         .graphicsLayer {
                             translationX = if (lifted) dragOffset else slide

@@ -8,4 +8,6 @@
     <string name="home_board_removed">Removed /%1$s/ from favourites</string>
     <string name="home_settings">Settings</string>
     <string name="home_remove_zone">Remove from Home</string>
+    <string name="home_move_left">Move left</string>
+    <string name="home_move_right">Move right</string>
 </resources>
