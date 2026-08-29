@@ -23,4 +23,26 @@ class HomeViewModel @Inject constructor(
     val boards: StateFlow<List<String>?> = settingsRepository.settings
         .map { it.favouriteBoards.toList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /**
+     * Drops [board] from the favourites and returns an undo that puts it back in its old
+     * position rather than at the end.
+     */
+    fun removeFavourite(board: String): () -> Unit {
+        var before: Set<String> = emptySet()
+        viewModelScope.launch {
+            settingsRepository.update { s ->
+                before = s.favouriteBoards
+                s.copy(favouriteBoards = s.favouriteBoards - board)
+            }
+        }
+        return {
+            viewModelScope.launch {
+                settingsRepository.update { s ->
+                    // Keep anything favourited in the meantime, but restore the old order.
+                    s.copy(favouriteBoards = before + (s.favouriteBoards - before))
+                }
+            }
+        }
+    }
 }

@@ -74,6 +74,8 @@ fun HomeScreen(
     LaunchedEffect(pagerState.currentPage) { savedPage = pagerState.currentPage }
     val current = boards?.getOrNull(pagerState.currentPage)
     val currentViewModel = current?.let { catalogViewModel(it) }
+    val removedTemplate = stringResource(R.string.home_board_removed)
+    val undoLabel = stringResource(R.string.action_undo)
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -112,12 +114,24 @@ fun HomeScreen(
                     edgePadding = 0.dp,
                 ) {
                     list.forEachIndexed { index, board ->
-                        Tab(
+                        // Not a Tab: its own click handling would swallow the long press.
+                        BoardTab(
+                            board = board,
                             selected = index == pagerState.currentPage,
                             onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                            text = { Text("/$board/", style = MaterialTheme.typography.titleSmall) },
+                            onLongClick = {
+                                val undo = viewModel.removeFavourite(board)
+                                scope.launch {
+                                    snackbar.showUndo(removedTemplate.format(board), undoLabel, undo)
+                                }
+                            },
                         )
                     }
+                    Tab(
+                        selected = false,
+                        onClick = onOpenBoards,
+                        icon = { Icon(Icons.Filled.Add, stringResource(R.string.home_add_board)) },
+                    )
                 }
                 HorizontalPager(
                     state = pagerState,
@@ -135,5 +149,23 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun BoardTab(board: String, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .height(48.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 16.dp),
+    ) {
+        Text(
+            "/$board/",
+            style = MaterialTheme.typography.titleSmall,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

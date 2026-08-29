@@ -4,5 +4,7 @@
     <string name="home_empty_title">No favourite boards yet</string>
     <string name="home_empty_explanation">Star a board and it shows up here as a tab.</string>
     <string name="home_pick_boards">Pick boards</string>
+    <string name="home_add_board">Add a board</string>
+    <string name="home_board_removed">Removed /%1$s/ from favourites</string>
     <string name="home_settings">Settings</string>
 </resources>

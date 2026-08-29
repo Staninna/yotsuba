@@ -34,4 +34,15 @@ class HomeViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test fun `removing a favourite and undoing it keeps the old position`() = runTest(dispatcher.scheduler) {
+        val settings = FakeSettings(Settings(favouriteBoards = linkedSetOf("g", "a", "v")))
+        val vm = HomeViewModel(settings)
+        val undo = vm.removeFavourite("a")
+        advanceUntilIdle()
+        assertEquals(listOf("g", "v"), settings.state.value.favouriteBoards.toList())
+        undo()
+        advanceUntilIdle()
+        assertEquals(listOf("g", "a", "v"), settings.state.value.favouriteBoards.toList())
+    }
 }
