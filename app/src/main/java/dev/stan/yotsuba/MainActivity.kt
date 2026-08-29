@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
-            YotsubaTheme(darkTheme = dark, dynamicColor = settings.dynamicColor) {
+            YotsubaTheme(darkTheme = dark, dynamicColor = settings.dynamicColor, reduceMotion = settings.reduceMotion) {
                 NotificationPermissionPrompt()
                 AppNavHost(shell = shell)
             }
