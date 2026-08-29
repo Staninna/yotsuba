@@ -62,6 +62,8 @@ data class Settings(
     val bookmarkNotifications: Boolean = true,
     /** Prefer thumbnails and skip prefetching full media until it is opened. */
     val dataSaver: Boolean = false,
+    /** Turn off transitions and list animations regardless of the system animator scale. */
+    val reduceMotion: Boolean = false,
     val favouriteBoards: Set<String> = emptySet(),
     val hiddenBoards: Set<String> = emptySet(),
     val hiddenCategories: Set<String> = emptySet(),
