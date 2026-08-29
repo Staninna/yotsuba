@@ -22,6 +22,7 @@ import dev.stan.yotsuba.core.database.MIGRATION_7_8
 import dev.stan.yotsuba.core.database.MIGRATION_8_9
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
+import dev.stan.yotsuba.core.network.ArchiveApi
 import dev.stan.yotsuba.core.network.CachePolicyInterceptor
 import dev.stan.yotsuba.core.network.FourChanApi
 import dev.stan.yotsuba.core.network.InMemoryCookieJar
@@ -38,6 +39,7 @@ import dev.stan.yotsuba.data.repository.ClaimedPostRepositoryImpl
 import dev.stan.yotsuba.data.repository.HiddenThreadsRepositoryImpl
 import dev.stan.yotsuba.data.repository.HistoryRepositoryImpl
 import dev.stan.yotsuba.data.repository.MaintenanceRepositoryImpl
+import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.data.repository.MediaVaultRepositoryImpl
 import dev.stan.yotsuba.data.repository.ThreadRepositoryImpl
 import dev.stan.yotsuba.domain.repository.BackupRepository
@@ -48,6 +50,7 @@ import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
+import dev.stan.yotsuba.domain.repository.MediaSaveQueue
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
@@ -95,6 +98,20 @@ object NetworkModule {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
         .create(FourChanApi::class.java)
+
+    /**
+     * Same client as [api] (ADR-0003): the rate limiter only fires for a.4cdn.org, and the
+     * cache policy's `no-cache` for thread paths is what an archive lookup wants anyway.
+     * The base URL is a placeholder; every call carries its own absolute URL.
+     */
+    @Provides
+    @Singleton
+    fun archiveApi(client: OkHttpClient, json: Json): ArchiveApi = Retrofit.Builder()
+        .baseUrl("https://desuarchive.org/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+        .create(ArchiveApi::class.java)
 }
 
 @Module
@@ -138,4 +155,5 @@ abstract class RepositoryModule {
     @Binds abstract fun maintenanceRepository(impl: MaintenanceRepositoryImpl): MaintenanceRepository
     @Binds abstract fun backupRepository(impl: BackupRepositoryImpl): BackupRepository
     @Binds abstract fun claimedPostRepository(impl: ClaimedPostRepositoryImpl): ClaimedPostRepository
+    @Binds abstract fun mediaSaveQueue(impl: MediaDownloadQueue): MediaSaveQueue
 }

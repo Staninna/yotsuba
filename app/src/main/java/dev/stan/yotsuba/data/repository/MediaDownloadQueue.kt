@@ -1,8 +1,9 @@
 package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.domain.model.MediaItem
-import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.VaultSaveContext
+import dev.stan.yotsuba.domain.repository.MediaSaveQueue
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -10,64 +11,73 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-sealed interface DownloadState {
-    data object Queued : DownloadState
-    data object Downloading : DownloadState
-    data class Failed(val error: VaultError) : DownloadState
-}
 
 /**
  * App-wide save queue: enqueueing is instant, one background worker walks the queue
  * sequentially (the vault write streams from cache or network — no point fanning out
- * against the 1 s API courtesy). Statuses drive the per-item download icons; successful
- * saves simply disappear from here because the saved-media table takes over.
+ * against the 1 s API courtesy). A successful save simply drops out of the queue's own
+ * map; the vault's saved table takes over and [statuses] reads it as saved.
  */
 @Singleton
 class MediaDownloadQueue @Inject constructor(
     private val vault: MediaVaultRepository,
-) {
+) : MediaSaveQueue {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channel = Channel<Pair<MediaItem, VaultSaveContext>>(Channel.UNLIMITED)
 
-    private val _statuses = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
-    /** Full CDN URL → current state; absent = not in the queue (saved or never requested). */
-    val statuses: StateFlow<Map<String, DownloadState>> = _statuses
+    /** Queue-side state only: queued, downloading, failed. */
+    private val queued = MutableStateFlow<Map<String, MediaSaveStatus>>(emptyMap())
+
+    /** What a failed URL was asked to save, so [retry] can ask again. */
+    private val failedRequests = MutableStateFlow<Map<String, Pair<MediaItem, VaultSaveContext>>>(emptyMap())
+
+    override val statuses: Flow<Map<String, MediaSaveStatus>> = combine(vault.saved(), queued) { saved, queue ->
+        buildMap {
+            putAll(queue)
+            saved.keys.forEach { put(it, MediaSaveStatus.Saved) }
+        }
+    }
 
     init {
         scope.launch {
             for ((item, ctx) in channel) {
                 // A cancelled entry was removed from the map — skip its stale channel element.
-                if (_statuses.value[item.fullUrl] != DownloadState.Queued) continue
-                _statuses.update { it + (item.fullUrl to DownloadState.Downloading) }
+                if (queued.value[item.fullUrl] != MediaSaveStatus.Queued) continue
+                queued.update { it + (item.fullUrl to MediaSaveStatus.Downloading) }
                 val error = vault.save(item, ctx)
-                _statuses.update {
-                    if (error == null) it - item.fullUrl
-                    else it + (item.fullUrl to DownloadState.Failed(error))
+                if (error == null) {
+                    queued.update { it - item.fullUrl }
+                } else {
+                    failedRequests.update { it + (item.fullUrl to (item to ctx)) }
+                    queued.update { it + (item.fullUrl to MediaSaveStatus.Failed(error)) }
                 }
             }
         }
     }
 
-    /** No-op while the same URL is already queued or downloading; a FAILED entry retries. */
-    fun enqueue(item: MediaItem, context: VaultSaveContext) {
-        val current = _statuses.value[item.fullUrl]
-        if (current == DownloadState.Queued || current == DownloadState.Downloading) return
-        _statuses.update { it + (item.fullUrl to DownloadState.Queued) }
+    override fun enqueue(item: MediaItem, context: VaultSaveContext) {
+        if (queued.value[item.fullUrl]?.inProgress == true) return
+        failedRequests.update { it - item.fullUrl }
+        queued.update { it + (item.fullUrl to MediaSaveStatus.Queued) }
         channel.trySend(item to context)
     }
 
-    /** Removes a still-QUEUED entry; a download already in flight can't be cancelled. */
-    fun cancel(url: String) {
-        _statuses.update { if (it[url] == DownloadState.Queued) it - url else it }
+    override fun cancel(url: String) {
+        queued.update { if (it[url] == MediaSaveStatus.Queued) it - url else it }
     }
 
-    /** Clears a FAILED marker without retrying. */
-    fun dismissFailed(url: String) {
-        _statuses.update { if (it[url] is DownloadState.Failed) it - url else it }
+    override fun retry(url: String) {
+        val (item, ctx) = failedRequests.value[url] ?: return
+        enqueue(item, ctx)
+    }
+
+    override fun dismiss(url: String) {
+        failedRequests.update { it - url }
+        queued.update { if (it[url] is MediaSaveStatus.Failed) it - url else it }
     }
 }

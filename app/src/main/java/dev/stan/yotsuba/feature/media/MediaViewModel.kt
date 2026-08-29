@@ -13,16 +13,16 @@ import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
-import dev.stan.yotsuba.data.repository.DownloadState
-import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
+import dev.stan.yotsuba.domain.repository.MediaSaveQueue
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
@@ -51,8 +51,8 @@ data class MediaUiState(
     val items: List<MediaItem> = emptyList(),
     /** The conversation behind the media, live or rebuilt from the vault sidecar. */
     val thread: ViewerThread = ViewerThread(),
-    /** URL → queue state for saves in flight. */
-    val downloadStates: Map<String, DownloadState> = emptyMap(),
+    /** URL → vault status: saved, waiting, in flight or failed; absent means never asked for. */
+    val saveStatuses: Map<String, MediaSaveStatus> = emptyMap(),
     /**
      * URL → absolute path in the vault, or null for a legacy row whose file was never
      * located. Membership is "already saved"; a path plays the file from disk without
@@ -76,7 +76,7 @@ data class MediaUiState(
     /** The vault file for [url], when it is saved and its file is known. */
     fun savedPath(url: String): String? = saved[url]
 
-    val posts: Map<Long, ThreadPost> get() = thread.posts
+    val posts: Map<Long, ThreadPost> get() = thread.byNo
     val backlinks: Map<Long, List<Long>> get() = thread.backlinks
     val board: Board? get() = thread.board
 
@@ -95,7 +95,7 @@ class MediaViewModel @AssistedInject constructor(
     private val settingsRepository: SettingsRepository,
     networkMonitor: NetworkMonitor,
     private val mediaVault: MediaVaultRepository,
-    private val downloadQueue: MediaDownloadQueue,
+    private val downloadQueue: MediaSaveQueue,
     private val byteSource: MediaByteSource,
     private val sessionStore: MediaSessionStore,
 ) : ViewModel() {
@@ -159,7 +159,7 @@ class MediaViewModel @AssistedInject constructor(
             },
             items = list,
             thread = ViewerThread.of(d, info),
-            downloadStates = states,
+            saveStatuses = states,
             saved = if (access) saved else emptyMap(),
             hasStorageAccess = access,
             saveReplies = settings.saveRepliesWithMedia,
@@ -228,7 +228,9 @@ class MediaViewModel @AssistedInject constructor(
 
     fun cancelQueued(url: String) = downloadQueue.cancel(url)
 
-    fun dismissFailed(url: String) = downloadQueue.dismissFailed(url)
+    fun retryFailed(url: String) = downloadQueue.retry(url)
+
+    fun dismissFailed(url: String) = downloadQueue.dismiss(url)
 
     /**
      * The file to hand to the share sheet: the vault copy when there is one, otherwise a

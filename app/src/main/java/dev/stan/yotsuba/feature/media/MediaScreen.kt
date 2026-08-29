@@ -45,7 +45,6 @@ import coil3.request.crossfade
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.util.NetworkError
-import dev.stan.yotsuba.data.repository.DownloadState
 import dev.stan.yotsuba.domain.model.MediaItem
 import java.io.File
 import kotlinx.coroutines.launch
@@ -110,7 +109,7 @@ fun MediaScreen(
 
     val haptics = LocalHapticFeedback.current
     // Queued + running saves. Failed ones are not "in progress"; they wait on the icon.
-    val pending = state.downloadStates.count { (_, s) -> s !is DownloadState.Failed }
+    val pending = state.saveStatuses.count { (_, s) -> s.inProgress }
 
     ThreadMediaViewer(
         pages = state.items.map { it.toViewerPage(context, state) },
@@ -146,10 +145,7 @@ fun MediaScreen(
     ) { page, _ ->
         val item = state.items.getOrNull(page)
         DownloadAction(
-            status = saveStatusOf(
-                downloaded = item != null && state.isSaved(item.fullUrl),
-                queueState = item?.let { state.downloadStates[it.fullUrl] },
-            ),
+            status = item?.let { state.saveStatuses[it.fullUrl] },
             interceptClick = {
                 when {
                     item == null -> true
@@ -165,6 +161,7 @@ fun MediaScreen(
             onRemove = { item?.let { viewModel.removeDownload(it.fullUrl) } },
             onRedownload = { item?.let { viewModel.redownload(it) } },
             onCancel = { item?.let { viewModel.cancelQueued(it.fullUrl) } },
+            onRetry = { item?.let { viewModel.retryFailed(it.fullUrl) } },
             onDismissFailed = { item?.let { viewModel.dismissFailed(it.fullUrl) } },
         )
         IconButton(

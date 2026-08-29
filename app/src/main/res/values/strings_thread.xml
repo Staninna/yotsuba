@@ -42,4 +42,15 @@
         <item quantity="one">%d more reply</item>
         <item quantity="other">%d more replies</item>
     </plurals>
+    <!-- %1$s is the archive host, e.g. desuarchive.org. -->
+    <string name="thread_archived_from">Archived copy from %1$s</string>
+    <!-- %1$s is the filter pattern that caught the post. -->
+    <string name="thread_filtered_stub">Filtered: %1$s</string>
+    <plurals name="thread_filtered_count">
+        <item quantity="one">%d post filtered</item>
+        <item quantity="other">%d posts filtered</item>
+    </plurals>
+    <!-- %1$s is a formatted date. -->
+    <string name="thread_offline_copy_from">Offline copy from %1$s</string>
+    <string name="thread_offline_copy">Offline copy</string>
 </resources>

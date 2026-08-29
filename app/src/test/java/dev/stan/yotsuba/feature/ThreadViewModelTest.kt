@@ -7,9 +7,12 @@ import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.domain.model.ArchiveSource
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.Filter
+import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostMedia
@@ -62,7 +65,17 @@ class ThreadViewModelTest {
 
     private class FakeThreadRepository(details: ThreadDetails) : ThreadRepository {
         var result: DataResult<ThreadDetails> = DataResult.Success(details)
-        override suspend fun thread(board: String, no: Long, forceRefresh: Boolean) = result
+        var archived: DataResult<ThreadDetails> = DataResult.Failure(NetworkError.NotFound)
+        /** Every source asked, in order, so a test can assert the fallback order. */
+        val asked = mutableListOf<String>()
+        override suspend fun thread(board: String, no: Long, forceRefresh: Boolean): DataResult<ThreadDetails> {
+            asked += "live"
+            return result
+        }
+        override suspend fun archivedThread(board: String, no: Long): DataResult<ThreadDetails> {
+            asked += "archive"
+            return archived
+        }
     }
 
     private object FakeBoardRepository : BoardRepository {
@@ -130,8 +143,7 @@ class ThreadViewModelTest {
         private val savedUrls = java.util.concurrent.CopyOnWriteArrayList<String>()
         override fun hasStorageAccess() = false
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-        override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
-        override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
+        override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             firstSave.complete(item to context)
             savedUrls += item.fullUrl
@@ -141,11 +153,11 @@ class ThreadViewModelTest {
         override suspend fun delete(url: String): VaultError? = null
         override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
         override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
-        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
+        var snapshot: ThreadDetails? = null
+        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
         override suspend fun rescan() {}
         override suspend fun migrateLegacyIfNeeded() {}
     }
-
 
     private class FakeClaimedPosts : ClaimedPostRepository {
         val state = MutableStateFlow<Set<Long>>(emptySet())
@@ -612,5 +624,112 @@ class ThreadViewModelTest {
             vm.onClosePreview()
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(1, content(vm).previewStack.size)
+        }
+
+    @Test fun `a 404 falls through to the archive and the copy names its source`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.threads.result = DataResult.Failure(NetworkError.NotFound)
+            env.threads.archived = DataResult.Success(
+                env.details(listOf(Env.post(100), Env.post(101))).copy(archived = true, archive = ArchiveSource.DESU),
+            )
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            val content = (vm.uiState.value as UiState.Success<ThreadContent>).data
+            assertEquals(listOf("live", "archive"), env.threads.asked)
+            assertEquals(2, content.details.posts.size)
+            assertTrue(content.archivedNotice)
+            assertEquals("https://desuarchive.org/g/thread/100", content.archiveUrl)
+        }
+
+    @Test fun `a 404 with no archive copy stays a 404`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.threads.result = DataResult.Failure(NetworkError.NotFound)
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(UiState.Error(NetworkError.NotFound), vm.uiState.value)
+            assertEquals(listOf("live", "archive"), env.threads.asked)
+        }
+
+    @Test fun `a HIDE filter drops the post and a STUB filter collapses it until tapped`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(posts = listOf(Env.post(100).copy(isOp = true)) + (101L..104L).map(Env::post))
+            env.settings.state.value = Settings(
+                filters = listOf(
+                    Filter(id = "h", pattern = "match 102", action = FilterAction.HIDE),
+                    Filter(id = "s", pattern = "other 103", action = FilterAction.STUB),
+                ),
+            )
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            fun content() = (vm.uiState.value as UiState.Success<ThreadContent>).data
+            assertEquals(
+                listOf(ThreadRow.Post(Env.post(100).copy(isOp = true)), ThreadRow.Post(Env.post(101)),
+                    ThreadRow.Filtered(103, "other 103"), ThreadRow.Post(Env.post(104))),
+                content().rows,
+            )
+            assertEquals(2, content().filteredCount)
+
+            vm.onExpandFiltered(103)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(ThreadRow.Post(Env.post(103)), content().rows[2])
+            assertEquals(2, content().filteredCount)
+        }
+
+    @Test fun `the OP is never filtered and an empty filter list changes nothing`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(posts = listOf(Env.post(100).copy(isOp = true), Env.post(101)))
+            env.settings.state.value = Settings(
+                filters = listOf(Filter(id = "h", pattern = "match 100", action = FilterAction.HIDE)),
+            )
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            val content = (vm.uiState.value as UiState.Success<ThreadContent>).data
+            assertEquals(listOf(100L, 101L), content.rows.map { (it as ThreadRow.Post).post.no })
+            assertEquals(0, content.filteredCount)
+        }
+
+    @Test fun `the vault copy comes before the archive and reads as offline`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.threads.result = DataResult.Failure(NetworkError.NotFound)
+            env.threads.archived = DataResult.Success(env.details((100L..104L).map(Env::post)))
+            env.vault.snapshot = env.details(listOf(Env.post(100).copy(timeSeconds = 1_700_000_000L)))
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            val content = (vm.uiState.value as UiState.Success<ThreadContent>).data
+            assertEquals(listOf("live"), env.threads.asked)
+            assertTrue(content.details.offlineCopy)
+            assertEquals(1, content.details.posts.size)
+            assertEquals(1_700_000_000_000L, content.offlineCopyAt)
+            assertFalse(content.archivedNotice)
+        }
+
+    @Test fun `an offline error shows the vault copy but never asks the archive`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.threads.result = DataResult.Failure(NetworkError.Offline)
+            env.vault.snapshot = env.details(listOf(Env.post(100)))
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue((vm.uiState.value as UiState.Success<ThreadContent>).data.details.offlineCopy)
+
+            env.vault.snapshot = null
+            env.threads.asked.clear()
+            val vm2 = env.vm()
+            backgroundScope.launch { vm2.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(UiState.Error(NetworkError.Offline), vm2.uiState.value)
+            assertEquals(listOf("live"), env.threads.asked)
         }
 }

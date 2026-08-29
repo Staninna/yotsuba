@@ -90,14 +90,6 @@ class MediaVaultRepositoryImpl @Inject constructor(
         rows.associate { it.url to it.absolutePath.ifEmpty { null } }
     }
 
-    @Deprecated("Use saved().keys", ReplaceWith("saved().map { it.keys }"))
-    override fun savedUrls(): Flow<Set<String>> = saved().map { it.keys }
-
-    @Deprecated("Use saved() and drop the null paths", ReplaceWith("saved().map { it.filterValues { p -> p != null } }"))
-    @Suppress("UNCHECKED_CAST")
-    override fun savedPaths(): Flow<Map<String, String>> =
-        saved().map { it.filterValues { path -> path != null } as Map<String, String> }
-
     override suspend fun save(item: MediaItem, saveContext: VaultSaveContext): VaultError? =
         withContext(Dispatchers.IO) {
             if (!hasStorageAccess()) return@withContext VaultError.NoAccess

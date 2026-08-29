@@ -18,6 +18,10 @@ data class ThreadContent(
     val rows: List<ThreadRow>,
     val autoRefreshEnabled: Boolean,
     val archivedNotice: Boolean,
+    /** Where this copy lives when it came from a third-party archive; "Open in browser" goes there. */
+    val archiveUrl: String? = null,
+    /** Set when the posts are the vault's copy; epoch millis of when it was taken, if known. */
+    val offlineCopyAt: Long? = null,
     /** A refresh failed while a thread was already on screen; shown once, then cleared. */
     val refreshError: NetworkError? = null,
     /** A manual or pull refresh is in flight; the thread stays on screen meanwhile. */
@@ -41,6 +45,8 @@ data class ThreadContent(
     /** The post whose long-press sheet is up. */
     val postSheet: ThreadPost? = null,
     val treeView: Boolean = false,
+    /** Posts a content filter hid or stubbed; the top bar shows it when non-zero. */
+    val filteredCount: Int = 0,
     /** Posts with a present attachment, in thread order. */
     val mediaPosts: List<ThreadPost> = emptyList(),
 )
@@ -78,6 +84,9 @@ sealed interface ThreadRow {
 
     /** Tree view: [count] replies nested deeper than the cap under [parentNo]; tap expands them. */
     data class MoreReplies(val parentNo: Long, val count: Int) : ThreadRow
+
+    /** A post a STUB filter caught: one line naming [pattern]; tap opens the post in place. */
+    data class Filtered(val postNo: Long, val pattern: String, val depth: Int = 0) : ThreadRow
 }
 
 /** Where a tapped link goes; the VM applies the trusted-domain policy (D26). */
@@ -121,6 +130,10 @@ data class Session(
     val treeView: Boolean = false,
     /** Depth-capped subtrees the user expanded, by the post at the cap. */
     val expandedTails: Set<Long> = emptySet(),
+    /** Stubbed posts the user opened. */
+    val expandedFiltered: Set<Long> = emptySet(),
     val refreshError: NetworkError? = null,
     val refreshing: Boolean = false,
+    /** When the vault copy on screen was taken; null until one is shown. */
+    val offlineCopyAt: Long? = null,
 )

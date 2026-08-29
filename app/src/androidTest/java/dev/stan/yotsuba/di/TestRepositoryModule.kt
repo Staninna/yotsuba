@@ -2,6 +2,7 @@ package dev.stan.yotsuba.di
 
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.testing.TestInstallIn
 import dev.stan.yotsuba.core.di.RepositoryModule
@@ -19,6 +20,7 @@ import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -27,7 +29,10 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.VaultSaveContext
+import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BoardRepository
+import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
+import dev.stan.yotsuba.domain.repository.MediaSaveQueue
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
@@ -40,6 +45,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
@@ -277,8 +283,7 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
 
     override fun hasStorageAccess(): Boolean = true
     override fun entries(): Flow<List<VaultEntry>> = state
-    override fun savedUrls(): Flow<Set<String>> = state.map { list -> list.map { it.url }.toSet() }
-    override fun savedPaths(): Flow<Map<String, String>> =
+    override fun saved(): Flow<Map<String, String?>> =
         state.map { list -> list.associate { it.url to it.absolutePath } }
 
     /** Mirrors production: a successful save lands in the entries flow, so badges flip to SAVED. */
@@ -330,6 +335,47 @@ class FakeMaintenanceRepository @Inject constructor() : MaintenanceRepository {
     override suspend fun clearCaches() = Unit
 }
 
+@Singleton
+class FakeClaimedPostRepository @Inject constructor() : ClaimedPostRepository {
+    private val state = MutableStateFlow<Set<Triple<String, Long, Long>>>(emptySet())
+
+    override fun claimed(board: String, threadNo: Long): Flow<Set<Long>> = state.map { all ->
+        all.filter { it.first == board && it.second == threadNo }.map { it.third }.toSet()
+    }
+
+    override suspend fun claim(board: String, threadNo: Long, postNo: Long) {
+        state.update { it + Triple(board, threadNo, postNo) }
+    }
+
+    override suspend fun unclaim(board: String, threadNo: Long, postNo: Long) {
+        state.update { it - Triple(board, threadNo, postNo) }
+    }
+}
+
+/**
+ * Saves straight through to the vault fake on the caller's thread, so a badge flips to
+ * SAVED before the test's next assertion without any waiting.
+ */
+@Singleton
+class FakeMediaSaveQueue @Inject constructor(
+    private val vault: FakeMediaVaultRepository,
+) : MediaSaveQueue {
+    private val failed = MutableStateFlow<Map<String, MediaSaveStatus>>(emptyMap())
+
+    override val statuses: Flow<Map<String, MediaSaveStatus>> = combine(vault.saved(), failed) { saved, failed ->
+        failed + saved.keys.associateWith { MediaSaveStatus.Saved }
+    }
+
+    override fun enqueue(item: MediaItem, context: VaultSaveContext) {
+        val error = kotlinx.coroutines.runBlocking { vault.save(item, context) }
+        failed.update { if (error == null) it - item.fullUrl else it + (item.fullUrl to MediaSaveStatus.Failed(error)) }
+    }
+
+    override fun cancel(url: String) = Unit
+    override fun retry(url: String) = Unit
+    override fun dismiss(url: String) = failed.update { it - url }
+}
+
 /** Replaces every production repository binding with in-memory fakes for instrumented tests. */
 @Module
 @TestInstallIn(components = [SingletonComponent::class], replaces = [RepositoryModule::class])
@@ -343,4 +389,13 @@ abstract class TestRepositoryModule {
     @Binds abstract fun mediaVaultRepository(impl: FakeMediaVaultRepository): MediaVaultRepository
     @Binds abstract fun hiddenThreadsRepository(impl: FakeHiddenThreadsRepository): HiddenThreadsRepository
     @Binds abstract fun maintenanceRepository(impl: FakeMaintenanceRepository): MaintenanceRepository
+    @Binds abstract fun claimedPostRepository(impl: FakeClaimedPostRepository): ClaimedPostRepository
+    @Binds abstract fun mediaSaveQueue(impl: FakeMediaSaveQueue): MediaSaveQueue
+
+    companion object {
+        /** No vault to write to in a UI test, so nothing is ever exported or found. */
+        @Provides
+        @Singleton
+        fun backupRepository(): BackupRepository = BackupRepository.None
+    }
 }

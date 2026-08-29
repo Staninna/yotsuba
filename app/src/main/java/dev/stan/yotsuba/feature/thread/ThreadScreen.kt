@@ -4,6 +4,10 @@ import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.Card
+import java.text.DateFormat
+import java.util.Date
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -186,6 +190,7 @@ fun ThreadScreen(
                 bookmarked = s?.bookmarked == true,
                 autoRefreshEnabled = s?.autoRefreshEnabled == true,
                 repliesToMe = s?.repliesToMe ?: 0,
+                filteredCount = s?.filteredCount ?: 0,
                 filterPosterId = s?.filterPosterId,
                 onClearFilter = { viewModel.onFilterPosterId(null) },
                 onBack = onBack,
@@ -197,6 +202,7 @@ fun ThreadScreen(
                 onToggleTreeView = viewModel::onToggleTreeView,
                 onToggleAutoRefresh = viewModel::onToggleAutoRefresh,
                 onOpenExternal = ::openExternal,
+                archiveUrl = s?.archiveUrl,
             )
         },
     ) { padding ->
@@ -270,9 +276,24 @@ fun ThreadScreen(
                 }
 
                 Column {
-                    if (s.archivedNotice) {
+                    if (s.details.offlineCopy) {
+                        val date = remember(s.offlineCopyAt) {
+                            s.offlineCopyAt?.let { DateFormat.getDateInstance().format(Date(it)) }
+                        }
                         Text(
-                            stringResource(R.string.thread_archived),
+                            if (date != null) stringResource(R.string.thread_offline_copy_from, date)
+                            else stringResource(R.string.thread_offline_copy),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(spacing.sm),
+                        )
+                    } else if (s.archivedNotice) {
+                        Text(
+                            s.details.archive?.let { stringResource(R.string.thread_archived_from, it.label) }
+                                ?: stringResource(R.string.thread_archived),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
@@ -301,6 +322,7 @@ fun ThreadScreen(
                                         is ThreadRow.Post -> row.post.no
                                         is ThreadRow.NewPostsDivider -> "new-posts"
                                         is ThreadRow.MoreReplies -> "more-${'$'}{row.parentNo}"
+                                        is ThreadRow.Filtered -> "filtered-${'$'}{row.postNo}"
                                     }
                                 },
                             ) { i ->
@@ -316,6 +338,11 @@ fun ThreadScreen(
                                         count = row.count,
                                         modifier = Modifier.padding(start = treeIndent * ThreadViewModel.MAX_TREE_DEPTH),
                                         onTap = { viewModel.onExpandTail(row.parentNo) },
+                                    )
+                                    is ThreadRow.Filtered -> FilteredRow(
+                                        pattern = row.pattern,
+                                        modifier = Modifier.padding(start = treeIndent * row.depth),
+                                        onTap = { viewModel.onExpandFiltered(row.postNo) },
                                     )
                                 }
                             }
@@ -489,6 +516,22 @@ private fun MoreRepliesRow(count: Int, modifier: Modifier, onTap: () -> Unit) {
         color = MaterialTheme.colorScheme.primary,
         modifier = modifier.fillMaxWidth().clickable(onClick = onTap).padding(spacing.sm),
     )
+}
+
+/** One-line stand-in for a post a STUB filter caught; tapping it opens the post. */
+@Composable
+private fun FilteredRow(pattern: String, modifier: Modifier, onTap: () -> Unit) {
+    val spacing = LocalSpacing.current
+    Card(modifier = modifier.fillMaxWidth().clickable(onClick = onTap)) {
+        Text(
+            stringResource(R.string.thread_filtered_stub, pattern),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(spacing.sm),
+        )
+    }
 }
 
 @Composable

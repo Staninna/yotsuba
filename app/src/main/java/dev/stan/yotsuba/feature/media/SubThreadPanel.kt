@@ -33,8 +33,10 @@ import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.feature.thread.PostUiState
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.PostCard
+import dev.stan.yotsuba.feature.thread.components.PostCardActions
 
 /**
  * A post and everything that replies to it (transitively), as a flat sub-thread.
@@ -52,7 +54,7 @@ internal fun SubThreadPanel(
 ) {
     val spacing = LocalSpacing.current
     val darkTheme = isSystemInDarkTheme()
-    val root = thread.posts[rootPostNo]
+    val root = thread.byNo[rootPostNo]
     val replies = thread.graph.descendantsOf(rootPostNo)
     var revealedSpoilers by remember { mutableStateOf(setOf<Int>()) }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
@@ -137,21 +139,28 @@ private fun SubThreadPost(
     PostCard(
         post = post,
         board = thread.board,
-        backlinkCount = thread.backlinks[post.no].orEmpty().size,
-        revealedSpoilerIds = revealedSpoilers,
+        ui = PostUiState(
+            revealedSpoilerIds = revealedSpoilers,
+            imageSpoilerRevealed = true,
+            backlinks = thread.backlinks[post.no].orEmpty(),
+        ),
         revealAll = false,
-        imageSpoilerRevealed = true,
         darkTheme = darkTheme,
-        onBodyTap = { tap ->
-            when (tap) {
-                is BodyTap.Spoiler -> onRevealSpoiler(tap.id)
-                is BodyTap.SameThreadQuote -> onOpenSubThread(tap.postNo)
-                else -> if (clickableBody) onOpenSubThread(post.no)
-            }
-        },
-        onThumbnailTap = { post.media?.let { onJumpToMedia(post.no) } },
-        onBacklinksTap = { onOpenSubThread(post.no) },
-        onCopyPostNo = { if (clickableBody) onOpenSubThread(post.no) },
+        actions = PostCardActions(
+            onBodyTap = { tap ->
+                when (tap) {
+                    is BodyTap.Spoiler -> onRevealSpoiler(tap.id)
+                    is BodyTap.SameThreadQuote -> onOpenSubThread(tap.postNo)
+                    else -> if (clickableBody) onOpenSubThread(post.no)
+                }
+            },
+            onThumbnailTap = { post.media?.let { onJumpToMedia(post.no) } },
+            onThumbnailLongPress = null,
+            // The count chip, not the per-number row: the panel drills into the sub-thread instead.
+            onBacklinkTap = null,
+            onBacklinksTap = { onOpenSubThread(post.no) },
+            onCopyPostNo = { if (clickableBody) onOpenSubThread(post.no) },
+        ),
         modifier = if (clickableBody) {
             Modifier.clickable(
                 interactionSource = remember { MutableInteractionSource() },

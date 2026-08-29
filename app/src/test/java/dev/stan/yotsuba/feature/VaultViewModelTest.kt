@@ -77,8 +77,7 @@ class VaultViewModelTest {
         override fun hasStorageAccess() = access.value
         override val storageAccess: Flow<Boolean> = access
         override fun entries(): Flow<List<VaultEntry>> = state
-        override fun savedUrls(): Flow<Set<String>> = state.map { list -> list.map { it.url }.toSet() }
-        override fun savedPaths(): Flow<Map<String, String>> =
+        override fun saved(): Flow<Map<String, String?>> =
             state.map { list -> list.associate { it.url to it.absolutePath } }
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
         var deleteError: VaultError? = null
@@ -273,14 +272,14 @@ class VaultViewModelTest {
                 // Shuffle's first page must get its panel too: nothing was "opened" first.
                 vm.startShuffle(listOf("g/1.jpg"))
                 dispatcher.scheduler.advanceUntilIdle()
-                assertEquals(setOf(100L, 101L), expectMostRecentItem().posts.keys)
+                assertEquals(setOf(100L, 101L), expectMostRecentItem().byNo.keys)
                 vm.onViewerPage("a/1.jpg")
                 dispatcher.scheduler.advanceUntilIdle()
-                assertEquals(setOf(200L), expectMostRecentItem().posts.keys)
+                assertEquals(setOf(200L), expectMostRecentItem().byNo.keys)
                 vm.onViewerPage("g/2.jpg")
                 vm.onViewerPage("g/1.jpg") // same thread: no re-read
                 dispatcher.scheduler.advanceUntilIdle()
-                assertEquals(setOf(100L, 101L), expectMostRecentItem().posts.keys)
+                assertEquals(setOf(100L, 101L), expectMostRecentItem().byNo.keys)
                 assertEquals(listOf(threadG, threadA, threadG), vault.threadReads)
                 vm.closeViewer()
                 dispatcher.scheduler.advanceUntilIdle()
