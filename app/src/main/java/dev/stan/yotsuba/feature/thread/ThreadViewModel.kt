@@ -13,8 +13,6 @@ import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
-import dev.stan.yotsuba.data.repository.DownloadState
-import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.Board
@@ -31,6 +29,7 @@ import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
+import dev.stan.yotsuba.domain.repository.MediaSaveQueue
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
@@ -62,7 +61,7 @@ class ThreadViewModel @AssistedInject constructor(
     private val settingsRepository: SettingsRepository,
     private val mediaSessionStore: MediaSessionStore,
     private val mediaVault: MediaVaultRepository,
-    private val downloadQueue: MediaDownloadQueue,
+    private val downloadQueue: MediaSaveQueue,
     private val claimedPosts: ClaimedPostRepository,
 ) : ViewModel() {
 
@@ -108,27 +107,10 @@ class ThreadViewModel @AssistedInject constructor(
 
     private val bookmarked = bookmarkRepository.isBookmarked(board, threadNo)
 
-    /** URL → vault status for the thumbnail badges; saved wins over any queue state. */
-    private val mediaSaveStatuses = combine(mediaVault.savedUrls(), downloadQueue.statuses) { saved, queue ->
-        buildMap {
-            queue.forEach { (url, s) ->
-                put(
-                    url,
-                    when (s) {
-                        is DownloadState.Queued -> MediaSaveStatus.QUEUED
-                        is DownloadState.Downloading -> MediaSaveStatus.DOWNLOADING
-                        is DownloadState.Failed -> MediaSaveStatus.FAILED
-                    },
-                )
-            }
-            saved.forEach { put(it, MediaSaveStatus.SAVED) }
-        }
-    }
-
     private val claimed = claimedPosts.claimed(board, threadNo)
 
     /** Slow-changing companions of the thread, folded so the top-level combine stays typed. */
-    private val meta = combine(boardInfo, bookmarked, mediaSaveStatuses, claimed, ::Meta)
+    private val meta = combine(boardInfo, bookmarked, downloadQueue.statuses, claimed, ::Meta)
     private data class Meta(
         val board: Board?,
         val bookmarked: Boolean,

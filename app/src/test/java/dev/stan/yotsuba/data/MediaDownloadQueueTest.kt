@@ -1,11 +1,11 @@
 package dev.stan.yotsuba.data
 
-import dev.stan.yotsuba.data.repository.DownloadState
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
@@ -40,7 +40,7 @@ class MediaDownloadQueueTest {
     private val ctx = VaultSaveContext(board = "g", threadNo = 100, threadSubject = null, opExcerpt = null, post = null)
 
     /** Each save suspends until the test releases its gate, then returns the scripted result. */
-    private class GatedVault : MediaVaultRepository {
+    private open class GatedVault : MediaVaultRepository {
         val gates = MutableStateFlow<Map<String, CompletableDeferred<VaultError?>>>(emptyMap())
         private val lock = Mutex()
         val saveCalls = mutableListOf<String>()
@@ -50,6 +50,7 @@ class MediaDownloadQueueTest {
 
         override fun hasStorageAccess() = true
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
+        override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
         override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
         override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
@@ -66,7 +67,7 @@ class MediaDownloadQueueTest {
         override suspend fun migrateLegacyIfNeeded() {}
     }
 
-    private suspend fun MediaDownloadQueue.awaitStatus(url: String, expected: DownloadState?) =
+    private suspend fun MediaDownloadQueue.awaitStatus(url: String, expected: MediaSaveStatus?) =
         withTimeout(5_000) { statuses.first { it[url] == expected } }
 
     @Test fun `enqueue walks queued to downloading and disappears on success`() = runBlocking<Unit> {
@@ -74,7 +75,7 @@ class MediaDownloadQueueTest {
         val queue = MediaDownloadQueue(vault)
         val a = item("a")
         queue.enqueue(a, ctx)
-        queue.awaitStatus(a.fullUrl, DownloadState.Downloading)
+        queue.awaitStatus(a.fullUrl, MediaSaveStatus.Downloading)
         vault.awaitSaveStarted(a.fullUrl).complete(null)
         queue.awaitStatus(a.fullUrl, null) // success: entry vanishes, saved table takes over
         assertEquals(listOf(a.fullUrl), vault.saveCalls)
@@ -86,8 +87,8 @@ class MediaDownloadQueueTest {
         val a = item("a")
         queue.enqueue(a, ctx)
         vault.awaitSaveStarted(a.fullUrl).complete(VaultError.NoAccess)
-        val statuses = queue.awaitStatus(a.fullUrl, DownloadState.Failed(VaultError.NoAccess))
-        assertEquals(DownloadState.Failed(VaultError.NoAccess), statuses[a.fullUrl])
+        val statuses = queue.awaitStatus(a.fullUrl, MediaSaveStatus.Failed(VaultError.NoAccess))
+        assertEquals(MediaSaveStatus.Failed(VaultError.NoAccess), statuses[a.fullUrl])
     }
 
     @Test fun `second item waits queued behind the one downloading`() = runBlocking<Unit> {
@@ -98,9 +99,9 @@ class MediaDownloadQueueTest {
         queue.enqueue(a, ctx)
         vault.awaitSaveStarted(a.fullUrl)
         queue.enqueue(b, ctx)
-        assertEquals(DownloadState.Queued, queue.statuses.value[b.fullUrl])
+        assertEquals(MediaSaveStatus.Queued, queue.statuses.first()[b.fullUrl])
         vault.awaitSaveStarted(a.fullUrl).complete(null)
-        queue.awaitStatus(b.fullUrl, DownloadState.Downloading)
+        queue.awaitStatus(b.fullUrl, MediaSaveStatus.Downloading)
         vault.awaitSaveStarted(b.fullUrl).complete(null)
         queue.awaitStatus(b.fullUrl, null)
         assertEquals(listOf(a.fullUrl, b.fullUrl), vault.saveCalls)
@@ -116,7 +117,7 @@ class MediaDownloadQueueTest {
         queue.enqueue(a, ctx)
         queue.enqueue(a, ctx) // duplicate while queued: no-op
         vault.awaitSaveStarted(blocker.fullUrl).complete(null)
-        queue.awaitStatus(a.fullUrl, DownloadState.Downloading)
+        queue.awaitStatus(a.fullUrl, MediaSaveStatus.Downloading)
         queue.enqueue(a, ctx) // duplicate while downloading: no-op
         vault.awaitSaveStarted(a.fullUrl).complete(null)
         queue.awaitStatus(a.fullUrl, null)
@@ -133,7 +134,7 @@ class MediaDownloadQueueTest {
         vault.awaitSaveStarted(a.fullUrl)
         queue.enqueue(b, ctx)
         queue.cancel(b.fullUrl)
-        assertNull(queue.statuses.value[b.fullUrl])
+        assertNull(queue.statuses.first()[b.fullUrl])
         queue.enqueue(c, ctx)
         vault.awaitSaveStarted(a.fullUrl).complete(null)
         vault.awaitSaveStarted(c.fullUrl).complete(null)
@@ -146,9 +147,9 @@ class MediaDownloadQueueTest {
         val queue = MediaDownloadQueue(vault)
         val a = item("a")
         queue.enqueue(a, ctx)
-        queue.awaitStatus(a.fullUrl, DownloadState.Downloading)
+        queue.awaitStatus(a.fullUrl, MediaSaveStatus.Downloading)
         queue.cancel(a.fullUrl)
-        assertEquals(DownloadState.Downloading, queue.statuses.value[a.fullUrl])
+        assertEquals(MediaSaveStatus.Downloading, queue.statuses.first()[a.fullUrl])
         vault.awaitSaveStarted(a.fullUrl).complete(null)
         queue.awaitStatus(a.fullUrl, null)
     }
@@ -159,10 +160,33 @@ class MediaDownloadQueueTest {
         val a = item("a")
         queue.enqueue(a, ctx)
         vault.awaitSaveStarted(a.fullUrl).complete(VaultError.Io("boom"))
-        queue.awaitStatus(a.fullUrl, DownloadState.Failed(VaultError.Io("boom")))
-        queue.dismissFailed(a.fullUrl)
-        assertNull(queue.statuses.value[a.fullUrl])
+        queue.awaitStatus(a.fullUrl, MediaSaveStatus.Failed(VaultError.Io("boom")))
+        queue.dismiss(a.fullUrl)
+        assertNull(queue.statuses.first()[a.fullUrl])
         assertEquals(listOf(a.fullUrl), vault.saveCalls)
+    }
+
+    @Test fun `retry re-queues a failed entry with its original context`() = runBlocking<Unit> {
+        val vault = GatedVault()
+        val queue = MediaDownloadQueue(vault)
+        val a = item("a")
+        queue.enqueue(a, ctx)
+        vault.awaitSaveStarted(a.fullUrl).complete(VaultError.Io("boom"))
+        queue.awaitStatus(a.fullUrl, MediaSaveStatus.Failed(VaultError.Io("boom")))
+        vault.gates.value = emptyMap()
+        queue.retry("https://cdn/never-asked.jpg") // unknown: nothing happens
+        queue.retry(a.fullUrl)
+        vault.awaitSaveStarted(a.fullUrl).complete(null)
+        queue.awaitStatus(a.fullUrl, null)
+        assertEquals(listOf(a.fullUrl, a.fullUrl), vault.saveCalls)
+    }
+
+    @Test fun `a url the vault already holds reads as saved`() = runBlocking<Unit> {
+        val vault = object : GatedVault() {
+            override fun saved(): Flow<Map<String, String?>> = flowOf(mapOf("https://cdn/a.jpg" to "/v/a.jpg"))
+        }
+        val queue = MediaDownloadQueue(vault)
+        assertEquals(MediaSaveStatus.Saved, queue.statuses.first()["https://cdn/a.jpg"])
     }
 
     @Test fun `a failed entry can be re-enqueued to retry`() = runBlocking<Unit> {
@@ -171,13 +195,13 @@ class MediaDownloadQueueTest {
         val a = item("a")
         queue.enqueue(a, ctx)
         vault.awaitSaveStarted(a.fullUrl).complete(VaultError.Io("boom"))
-        queue.awaitStatus(a.fullUrl, DownloadState.Failed(VaultError.Io("boom")))
+        queue.awaitStatus(a.fullUrl, MediaSaveStatus.Failed(VaultError.Io("boom")))
         // Reset the gate map so the retry's save registers a fresh gate.
         vault.gates.value = emptyMap()
         queue.enqueue(a, ctx)
         vault.awaitSaveStarted(a.fullUrl).complete(null)
         queue.awaitStatus(a.fullUrl, null)
         assertEquals(listOf(a.fullUrl, a.fullUrl), vault.saveCalls)
-        assertTrue(queue.statuses.value.isEmpty())
+        assertTrue(queue.statuses.first().isEmpty())
     }
 }

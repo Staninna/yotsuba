@@ -361,18 +361,18 @@ private fun SaveStatusBadge(status: MediaSaveStatus, modifier: Modifier = Modifi
         contentAlignment = Alignment.Center,
     ) {
         when (status) {
-            MediaSaveStatus.SAVED -> Icon(
+            MediaSaveStatus.Saved -> Icon(
                 Icons.Filled.DownloadDone, stringResource(R.string.media_downloaded),
                 tint = Color(0xFF81C784), modifier = Modifier.size(13.dp),
             )
-            MediaSaveStatus.QUEUED -> Icon(
+            MediaSaveStatus.Queued -> Icon(
                 Icons.Filled.Schedule, stringResource(R.string.media_queued),
                 tint = Color.White, modifier = Modifier.size(13.dp),
             )
-            MediaSaveStatus.DOWNLOADING -> CircularProgressIndicator(
+            MediaSaveStatus.Downloading -> CircularProgressIndicator(
                 modifier = Modifier.size(11.dp), color = Color.White, strokeWidth = 1.5.dp,
             )
-            MediaSaveStatus.FAILED -> Icon(
+            is MediaSaveStatus.Failed -> Icon(
                 Icons.Filled.ErrorOutline, stringResource(R.string.media_save_failed),
                 tint = Color(0xFFE57373), modifier = Modifier.size(13.dp),
             )

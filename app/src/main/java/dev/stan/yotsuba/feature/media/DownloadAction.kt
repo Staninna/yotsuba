@@ -22,39 +22,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.data.repository.DownloadState
+import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.VaultError
-
-/** Vault status of the current viewer item, computed once from (downloaded, queue state). */
-sealed interface SaveStatus {
-    data object NotSaved : SaveStatus
-    data object Queued : SaveStatus
-    data object Downloading : SaveStatus
-    data class Failed(val error: VaultError) : SaveStatus
-    data object Saved : SaveStatus
-}
-
-fun saveStatusOf(downloaded: Boolean, queueState: DownloadState?): SaveStatus = when {
-    downloaded -> SaveStatus.Saved
-    queueState is DownloadState.Downloading -> SaveStatus.Downloading
-    queueState is DownloadState.Queued -> SaveStatus.Queued
-    queueState is DownloadState.Failed -> SaveStatus.Failed(queueState.error)
-    else -> SaveStatus.NotSaved
-}
 
 /**
  * The viewer's save button: status icon plus the manage menu (remove/redownload/cancel/
- * retry/dismiss) for anything with an existing state. A plain tap on [SaveStatus.NotSaved]
+ * retry/dismiss) for anything with an existing state. A plain tap with no [status]
  * saves; [interceptClick] runs first and consumes the tap when it returns true (storage gate).
  */
 @Composable
 internal fun DownloadAction(
-    status: SaveStatus,
+    status: MediaSaveStatus?,
     interceptClick: () -> Boolean,
     onSave: () -> Unit,
     onRemove: () -> Unit,
     onRedownload: () -> Unit,
     onCancel: () -> Unit,
+    onRetry: () -> Unit,
     onDismissFailed: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -62,7 +46,7 @@ internal fun DownloadAction(
         IconButton(onClick = {
             when {
                 interceptClick() -> Unit
-                status is SaveStatus.NotSaved -> onSave()
+                status == null -> onSave()
                 else -> menuOpen = true
             }
         }) {
@@ -71,20 +55,20 @@ internal fun DownloadAction(
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             val close = { menuOpen = false }
             when (status) {
-                is SaveStatus.Saved -> {
+                MediaSaveStatus.Saved -> {
                     MenuItem(R.string.media_remove_download) { close(); onRemove() }
                     MenuItem(R.string.media_redownload) { close(); onRedownload() }
                 }
-                is SaveStatus.Queued ->
+                MediaSaveStatus.Queued ->
                     MenuItem(R.string.media_cancel_download) { close(); onCancel() }
-                is SaveStatus.Downloading ->
+                MediaSaveStatus.Downloading ->
                     MenuItem(R.string.media_downloading, enabled = false) {}
-                is SaveStatus.Failed -> {
+                is MediaSaveStatus.Failed -> {
                     MenuItem(errorLabel(status.error), enabled = false) {}
-                    MenuItem(R.string.media_retry_download) { close(); onSave() }
+                    MenuItem(R.string.media_retry_download) { close(); onRetry() }
                     MenuItem(R.string.media_dismiss_failed) { close(); onDismissFailed() }
                 }
-                is SaveStatus.NotSaved -> Unit
+                null -> Unit
             }
         }
     }
@@ -100,29 +84,29 @@ private fun MenuItem(labelRes: Int, enabled: Boolean = true, onClick: () -> Unit
 }
 
 @Composable
-private fun SaveStatusIcon(status: SaveStatus) {
+private fun SaveStatusIcon(status: MediaSaveStatus?) {
     when (status) {
-        is SaveStatus.Saved -> Icon(
+        MediaSaveStatus.Saved -> Icon(
             Icons.Filled.DownloadDone,
             stringResource(R.string.media_downloaded),
             tint = Color(0xFF81C784),
         )
-        is SaveStatus.Downloading -> CircularProgressIndicator(
+        MediaSaveStatus.Downloading -> CircularProgressIndicator(
             modifier = Modifier.size(20.dp),
             color = Color.White,
             strokeWidth = 2.dp,
         )
-        is SaveStatus.Queued -> Icon(
+        MediaSaveStatus.Queued -> Icon(
             Icons.Filled.Schedule,
             stringResource(R.string.media_queued),
             tint = Color.White.copy(alpha = 0.7f),
         )
-        is SaveStatus.Failed -> Icon(
+        is MediaSaveStatus.Failed -> Icon(
             Icons.Filled.Download,
             stringResource(R.string.media_save_failed),
             tint = Color(0xFFE57373),
         )
-        is SaveStatus.NotSaved -> Icon(
+        null -> Icon(
             Icons.Filled.Download,
             stringResource(R.string.media_save),
             tint = Color.White,
