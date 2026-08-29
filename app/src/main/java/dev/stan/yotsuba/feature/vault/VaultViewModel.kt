@@ -79,6 +79,8 @@ data class VaultUiState(
     /** True while an import is copying, so the screen blocks a second one. */
     val importing: Boolean = false,
     val notice: VaultNotice? = null,
+    /** The entry whose delete confirmation is on screen; here so rotation keeps the dialog. */
+    val deleting: VaultEntry? = null,
 ) {
     val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.board == selection.board }
     val openThread: VaultThreadSection?
@@ -129,6 +131,7 @@ class VaultViewModel @Inject constructor(
 
     private val importing = MutableStateFlow(false)
     private val notice = MutableStateFlow<VaultNotice?>(null)
+    private val deleting = MutableStateFlow<VaultEntry?>(null)
 
     /**
      * Copies the picked files into a new local thread. The explorer refreshes itself: the
@@ -160,9 +163,16 @@ class VaultViewModel @Inject constructor(
     private val viewing = combine(viewingUrl, shuffleOrder) { url, shuffle -> Viewing(url, shuffle) }
 
     /** Transient screen-level flags, folded for the same reason. */
-    private data class Activity(val importing: Boolean, val notice: VaultNotice?, val access: Boolean)
+    private data class Activity(
+        val importing: Boolean,
+        val notice: VaultNotice?,
+        val access: Boolean,
+        val deleting: VaultEntry?,
+    )
 
-    private val activity = combine(importing, notice, mediaVault.storageAccess) { i, n, a -> Activity(i, n, a) }
+    private val activity = combine(importing, notice, mediaVault.storageAccess, deleting) { i, n, a, d ->
+        Activity(i, n, a, d)
+    }
 
     val uiState: StateFlow<VaultUiState> = combine(
         mediaVault.entries(), syncState, selection, viewing, activity,
@@ -176,6 +186,7 @@ class VaultViewModel @Inject constructor(
             hasStorageAccess = activity.access,
             importing = activity.importing,
             notice = activity.notice,
+            deleting = activity.deleting,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
@@ -249,7 +260,22 @@ class VaultViewModel @Inject constructor(
         }
     }
 
-    fun delete(entry: VaultEntry) {
+    fun requestDelete(entry: VaultEntry) {
+        deleting.value = entry
+    }
+
+    fun cancelDelete() {
+        deleting.value = null
+    }
+
+    /** Deletes whatever [requestDelete] queued and dismisses the dialog. */
+    fun confirmDelete() {
+        val entry = deleting.value ?: return
+        deleting.value = null
+        delete(entry)
+    }
+
+    private fun delete(entry: VaultEntry) {
         viewModelScope.launch {
             notice.value = when (val error = mediaVault.delete(entry.url)) {
                 null -> VaultNotice.Deleted

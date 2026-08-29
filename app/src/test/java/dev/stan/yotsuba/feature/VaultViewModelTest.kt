@@ -186,8 +186,11 @@ class VaultViewModelTest {
         vm.openViewer("g/1.jpg")
         vm.uiState.test {
             assertEquals("g/1.jpg", latest().viewer?.current?.url)
-            vm.delete(entry("g/1.jpg", threadG))
+            vm.requestDelete(entry("g/1.jpg", threadG))
+            assertEquals("g/1.jpg", latest().deleting?.url)
+            vm.confirmDelete()
             val after = latest()
+            assertNull(after.deleting)
             assertNull(after.viewer)
             assertEquals(VaultNotice.Deleted, after.notice)
             assertEquals(listOf("g/1.jpg"), vault.deleted)
@@ -238,12 +241,28 @@ class VaultViewModelTest {
             }
         }
 
+    @Test fun `cancelling the delete dialog deletes nothing`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
+        val vm = VaultViewModel(vault, FakeSettings())
+        vm.uiState.test {
+            vm.requestDelete(entry("g/1.jpg", threadG))
+            assertTrue(latest().deleting != null)
+            vm.cancelDelete()
+            assertNull(latest().deleting)
+            vm.confirmDelete() // nothing queued: a no-op
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue(vault.deleted.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test fun `a failed delete keeps the entry and says so`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
         vault.deleteError = VaultError.Io("disk")
         val vm = VaultViewModel(vault, FakeSettings())
         vm.uiState.test {
-            vm.delete(entry("g/1.jpg", threadG))
+            vm.requestDelete(entry("g/1.jpg", threadG))
+            vm.confirmDelete()
             val after = latest()
             assertEquals(1, after.entries.size)
             assertEquals(VaultNotice.DeleteFailed(entry("g/1.jpg", threadG), VaultError.Io("disk")), after.notice)

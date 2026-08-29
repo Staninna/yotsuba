@@ -73,7 +73,6 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val resources = context.resources
-    var deleting by remember { mutableStateOf<VaultEntry?>(null) }
     var importMenuOpen by remember { mutableStateOf(false) }
 
     state.notice?.let { notice ->
@@ -213,7 +212,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                     onOpenBoard = viewModel::openBoard,
                     onOpenThread = viewModel::openThread,
                     onOpenEntry = { viewModel.openViewer(it.url) },
-                    onLongPressEntry = { deleting = it },
+                    onLongPressEntry = viewModel::requestDelete,
                 )
             }
         }
@@ -231,19 +230,16 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
         }
     }
 
-    deleting?.let { entry ->
+    state.deleting?.let { entry ->
         AlertDialog(
-            onDismissRequest = { deleting = null },
+            onDismissRequest = viewModel::cancelDelete,
             title = { Text(stringResource(R.string.vault_delete_title)) },
             text = { Text(stringResource(R.string.vault_delete_body, entry.displayName)) },
             confirmButton = {
-                TextButton(onClick = {
-                    deleting = null
-                    viewModel.delete(entry)
-                }) { Text(stringResource(R.string.vault_delete)) }
+                TextButton(onClick = viewModel::confirmDelete) { Text(stringResource(R.string.vault_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.vault_cancel)) }
+                TextButton(onClick = viewModel::cancelDelete) { Text(stringResource(R.string.vault_cancel)) }
             },
         )
     }
