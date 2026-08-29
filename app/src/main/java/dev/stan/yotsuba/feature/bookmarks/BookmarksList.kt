@@ -18,8 +18,15 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,6 +38,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -53,6 +62,7 @@ import dev.stan.yotsuba.core.designsystem.component.showUndo
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
+import dev.stan.yotsuba.domain.model.VaultError
 import kotlinx.coroutines.launch
 
 /**
@@ -72,6 +82,26 @@ fun BookmarksList(
     val scope = rememberCoroutineScope()
     val removedMessage = stringResource(R.string.bookmarks_removed)
     val undoLabel = stringResource(R.string.action_undo)
+    val snapshotSaved = stringResource(R.string.bookmarks_snapshot_saved)
+    val noAccess = stringResource(R.string.vault_error_no_access)
+    val notFound = stringResource(R.string.vault_error_not_found)
+    val ioError = stringResource(R.string.vault_error_io)
+    var sheetFor by remember { mutableStateOf<Bookmark?>(null) }
+
+    LaunchedEffect(viewModel) {
+        viewModel.snapshotResult.collect { result ->
+            snackbar.showSnackbar(
+                when (result) {
+                    SnapshotResult.Saved -> snapshotSaved
+                    is SnapshotResult.Failed -> when (result.error) {
+                        VaultError.NoAccess -> noAccess
+                        VaultError.NotFound -> notFound
+                        is VaultError.Io -> ioError
+                    }
+                },
+            )
+        }
+    }
 
     // Auto-refresh whenever the tab comes back on screen (throttled in the ViewModel),
     // so the pills update without a manual pull.
@@ -109,13 +139,93 @@ fun BookmarksList(
                         BookmarkCard(
                             bookmark,
                             onClick = { onOpenThread(bookmark.board, bookmark.threadNo) },
-                            onTogglePinned = { viewModel.onTogglePinned(bookmark) },
+                            snapshotting = BookmarksViewModel.snapshotKey(bookmark.board, bookmark.threadNo) in
+                                state.snapshotting,
+                            onLongClick = { sheetFor = bookmark },
                         )
                     }
                 }
             }
         }
     }
+
+    sheetFor?.let { bookmark ->
+        val snapshotting = BookmarksViewModel.snapshotKey(bookmark.board, bookmark.threadNo) in state.snapshotting
+        BookmarkActionSheet(
+            bookmark = bookmark,
+            snapshotting = snapshotting,
+            onDismiss = { sheetFor = null },
+            onOpen = { sheetFor = null; onOpenThread(bookmark.board, bookmark.threadNo) },
+            onTogglePinned = { sheetFor = null; viewModel.onTogglePinned(bookmark) },
+            onSnapshot = { sheetFor = null; viewModel.snapshot(bookmark.board, bookmark.threadNo) },
+            onRemove = {
+                sheetFor = null
+                viewModel.onRemove(bookmark)
+                scope.launch {
+                    snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
+                }
+            },
+        )
+    }
+}
+
+/** Long-press sheet for one row. Snapshot is greyed out on dead rows: only the vault copy remains. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BookmarkActionSheet(
+    bookmark: Bookmark,
+    snapshotting: Boolean,
+    onDismiss: () -> Unit,
+    onOpen: () -> Unit,
+    onTogglePinned: () -> Unit,
+    onSnapshot: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(bottom = 24.dp)) {
+            Text(
+                bookmark.displayTitle,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            )
+            SheetAction(stringResource(R.string.bookmarks_open), Icons.Filled.OpenInNew, onOpen)
+            SheetAction(
+                stringResource(if (bookmark.pinned) R.string.bookmarks_unpin else R.string.bookmarks_pin),
+                if (bookmark.pinned) Icons.Outlined.PushPin else Icons.Filled.PushPin,
+                onTogglePinned,
+            )
+            SheetAction(
+                stringResource(R.string.bookmarks_snapshot),
+                Icons.Filled.Inventory2,
+                onSnapshot,
+                enabled = bookmark.isLive && !snapshotting,
+                supporting = when {
+                    !bookmark.isLive -> stringResource(R.string.bookmarks_snapshot_dead_hint)
+                    snapshotting -> stringResource(R.string.bookmarks_snapshotting)
+                    else -> null
+                },
+            )
+            SheetAction(stringResource(R.string.bookmarks_remove), Icons.Filled.Delete, onRemove)
+        }
+    }
+}
+
+@Composable
+private fun SheetAction(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    supporting: String? = null,
+) {
+    val tint = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+    ListItem(
+        headlineContent = { Text(label, color = tint) },
+        supportingContent = supporting?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
+        leadingContent = { Icon(icon, contentDescription = null, tint = tint) },
+        modifier = Modifier.combinedClickable(enabled = enabled, onClick = onClick),
+    )
 }
 
 /** "Checking 3/12" under the title while a refresh runs; nothing otherwise. */
@@ -183,14 +293,19 @@ private fun SortItem(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun BookmarkCard(bookmark: Bookmark, onClick: () -> Unit, onTogglePinned: () -> Unit) {
+private fun BookmarkCard(
+    bookmark: Bookmark,
+    onClick: () -> Unit,
+    snapshotting: Boolean,
+    onLongClick: () -> Unit,
+) {
     val spacing = LocalSpacing.current
     val live = bookmark.isLive
-    val pinLabel = stringResource(if (bookmark.pinned) R.string.bookmarks_unpin else R.string.bookmarks_pin)
+    val menuLabel = stringResource(R.string.bookmarks_row_menu)
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onTogglePinned, onLongClickLabel = pinLabel),
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick, onLongClickLabel = menuLabel),
     ) {
         ThreadSummaryRow(
             thumbnailUrl = bookmark.thumbnailUrl,
@@ -204,6 +319,13 @@ private fun BookmarkCard(bookmark: Bookmark, onClick: () -> Unit, onTogglePinned
             titleColor = if (live) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
         ) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (snapshotting) {
+                    val a11y = stringResource(R.string.bookmarks_snapshotting)
+                    CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(16.dp).semantics { contentDescription = a11y },
+                    )
+                }
                 if (bookmark.pinned) {
                     Icon(
                         Icons.Filled.PushPin,

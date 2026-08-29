@@ -15,6 +15,13 @@
     <string name="bookmarks_pin">Pin</string>
     <string name="bookmarks_unpin">Unpin</string>
     <string name="bookmarks_pinned_a11y">Pinned</string>
+    <string name="bookmarks_row_menu">Bookmark actions</string>
+    <string name="bookmarks_open">Open</string>
+    <string name="bookmarks_remove">Remove</string>
+    <string name="bookmarks_snapshot">Snapshot to vault</string>
+    <string name="bookmarks_snapshotting">Snapshotting…</string>
+    <string name="bookmarks_snapshot_saved">Snapshot saved</string>
+    <string name="bookmarks_snapshot_dead_hint">Thread is gone; the vault copy is what remains</string>
     <string name="bookmarks_notification_channel">Bookmarked threads</string>
     <string name="bookmarks_notification_title">New replies</string>
     <plurals name="bookmarks_notification_replies">
