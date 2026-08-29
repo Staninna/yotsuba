@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.vault
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -58,6 +61,8 @@ internal fun VaultStatsSheet(
             item { Totals(stats) }
             item { SectionTitle(stringResource(R.string.vault_stats_per_board)) }
             items(stats.perBoard, key = { it.board }) { BoardBar(it, stats.perBoard.first().bytes) }
+            item { SectionTitle(stringResource(R.string.vault_stats_biggest_threads)) }
+            items(stats.biggestThreads, key = { it.location }) { ThreadRow(it) { onOpenThread(it.location) } }
             item { Spacer(Modifier.height(32.dp)) }
         }
     }
@@ -134,4 +139,25 @@ private fun WeightedBar(fraction: Float, modifier: Modifier = Modifier) {
         if (filled > 0f) Box(Modifier.weight(filled).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
         if (filled < 1f) Box(Modifier.weight(1f - filled))
     }
+}
+
+@Composable
+private fun ThreadRow(stat: ThreadStat, onClick: () -> Unit) {
+    ListItem(
+        headlineContent = {
+            Text(stat.subject?.takeIf { it.isNotBlank() } ?: stringResource(R.string.vault_stats_untitled), maxLines = 1)
+        },
+        supportingContent = {
+            Text(
+                stringResource(
+                    R.string.vault_stats_thread_detail,
+                    stat.location.board,
+                    stat.files,
+                    FileSize.format(stat.bytes),
+                ),
+            )
+        },
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.clickable(onClick = onClick),
+    )
 }
