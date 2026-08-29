@@ -239,7 +239,7 @@ private fun HistoryCard(entry: HistoryEntry, onClick: () -> Unit) {
         ThreadSummaryRow(
             thumbnailUrl = entry.thumbnailUrl,
             title = entry.displayTitle,
-            metadata = "/${entry.board}/ · " + TimeFormat.relative(entry.viewedAt / 1000),
+            metadata = "/${entry.board}/ · " + TimeFormat.relativeMillis(entry.viewedAt),
             thumbnailSize = 48.dp,
         )
     }
