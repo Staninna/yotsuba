@@ -95,6 +95,18 @@ internal data class PipLabels(
     val pause: String,
 )
 
+/**
+ * A controller whose transport buttons drive [feed]. Every viewer wants exactly this
+ * wiring, so it lives here rather than being spelled out again at each call site.
+ */
+@Composable
+fun rememberPipController(feed: MediaFeedState, lastIndex: () -> Int): PipController =
+    rememberPipController(
+        onPrev = { feed.previous() },
+        onNext = { feed.next(lastIndex()) },
+        onTogglePlayPause = { feed.playbackOn = !feed.playbackOn },
+    )
+
 @Composable
 fun rememberPipController(
     onPrev: () -> Unit,

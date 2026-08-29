@@ -79,11 +79,7 @@ fun MediaScreen(
     LaunchedEffect(state.autoplay) { feed.playbackOn = state.autoplay }
 
     val stack = rememberViewerStack(state.initialIndex, feed::scrollTo)
-    val pip = rememberPipController(
-        onPrev = { feed.previous() },
-        onNext = { feed.next(state.items.lastIndex) },
-        onTogglePlayPause = { feed.playbackOn = !feed.playbackOn },
-    )
+    val pip = rememberPipController(feed) { state.items.lastIndex }
 
     BackHandler(enabled = stack.size > 1) { stack.pop() }
 
@@ -113,29 +109,6 @@ fun MediaScreen(
         onDismiss = onClose,
         feedActive = stack.onMedia,
         behaviour = state.behaviour,
-        // Horizontal navigation: left = open replies of the current post, right = back.
-        modifier = Modifier.pointerInput(pip.inPipMode) {
-            if (pip.inPipMode) return@pointerInput
-            var dragTotal = 0f
-            detectHorizontalDragGestures(
-                onDragStart = { dragTotal = 0f },
-                onHorizontalDrag = { _, delta -> dragTotal += delta },
-                onDragEnd = {
-                    when {
-                        dragTotal < -SWIPE_COMMIT_PX -> {
-                            val t = stack.top
-                            if (t is ViewerEntry.Media) {
-                                state.items.getOrNull(t.index)
-                                    ?.let { stack.push(ViewerEntry.Panel(it.postNo)) }
-                            }
-                        }
-                        // At the bottom of the stack, back-swipe leaves the viewer.
-                        dragTotal > SWIPE_COMMIT_PX ->
-                            if (stack.size > 1) stack.pop() else onClose()
-                    }
-                },
-            )
-        },
         onLongPressPage = { page ->
             val item = state.items.getOrNull(page)
             if (state.behaviour.holdToSave && item != null) {
