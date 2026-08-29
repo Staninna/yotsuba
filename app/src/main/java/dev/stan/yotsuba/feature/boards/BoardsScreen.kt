@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.boards
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +15,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -184,7 +184,14 @@ private fun BoardRow(
             }
         }
         if (!board.worksafe) {
-            AssistChip(onClick = {}, label = { Text(stringResource(R.string.boards_nsfw)) })
+            Text(
+                stringResource(R.string.boards_nsfw),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.extraSmall)
+                    .padding(horizontal = spacing.sm, vertical = spacing.xs),
+            )
             Spacer(Modifier.width(spacing.sm))
         }
         if (!editMode) {
