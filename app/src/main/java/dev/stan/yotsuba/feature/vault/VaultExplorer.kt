@@ -1,53 +1,54 @@
 package dev.stan.yotsuba.feature.vault
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CallMerge
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.outlined.Circle
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.IconButton
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -64,8 +65,13 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.animatedGridItem
+import dev.stan.yotsuba.core.designsystem.animatedListItem
+import dev.stan.yotsuba.core.designsystem.component.sharedMedia
+import dev.stan.yotsuba.core.designsystem.rememberHaptics
+import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.vault.VaultPaths
@@ -229,6 +235,7 @@ private fun ThreadList(
     onMerge: (VaultLocation) -> Unit,
 ) {
     val selecting = selected.isNotEmpty()
+    val haptics = rememberHaptics()
     LazyColumn(Modifier.fillMaxSize()) {
         items(threads.size, key = { threads[it].location.threadNo }) { i ->
             val section = threads[i]
@@ -281,13 +288,16 @@ private fun ThreadList(
                         }
                     }
                 },
-                modifier = Modifier
+                modifier = animatedListItem()
                     .background(
                         if (checked) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                     )
                     .combinedClickable(
                         onClick = { if (selecting) onToggleSelected(urls) else onOpen(section.location) },
-                        onLongClick = { onToggleSelected(urls) },
+                        onLongClick = {
+                            if (!selecting) haptics.confirm()
+                            onToggleSelected(urls)
+                        },
                     ),
             )
         }
@@ -402,6 +412,7 @@ private fun MediaGrid(
     onToggleSelected: (VaultEntry) -> Unit,
 ) {
     val selecting = selected.isNotEmpty()
+    val haptics = rememberHaptics()
     LazyVerticalGrid(
         columns = GridCells.Adaptive(110.dp),
         modifier = Modifier.fillMaxSize(),
@@ -411,11 +422,14 @@ private fun MediaGrid(
         items(entries, key = { it.url }) { entry ->
             val checked = entry.url in selected
             Box(
-                Modifier
+                animatedGridItem()
                     .aspectRatio(1f)
                     .combinedClickable(
                         onClick = { if (selecting) onToggleSelected(entry) else onOpen(entry) },
-                        onLongClick = { onLongPress(entry) },
+                        onLongClick = {
+                            if (!selecting) haptics.confirm()
+                            onLongPress(entry)
+                        },
                     ),
             ) {
                 MediaThumb(

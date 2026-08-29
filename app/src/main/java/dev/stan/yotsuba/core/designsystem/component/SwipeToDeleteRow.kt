@@ -7,6 +7,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import dev.stan.yotsuba.core.designsystem.rememberHaptics
 
 /** Swipe-to-dismiss row with the shared red delete background. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -18,13 +19,14 @@ fun SwipeToDeleteRow(
 ) {
     // Committing takes a drag to 75% of the width; onDismiss only fires
     // after the finger lifts and the row settles off-screen.
+    val haptics = rememberHaptics()
     val dismissState = rememberSwipeToDismissBoxState(
         positionalThreshold = { totalDistance -> totalDistance * 0.75f },
     )
     SwipeToDismissBox(
         state = dismissState,
         backgroundContent = { SwipeDeleteBackground(dismissState) },
-        onDismiss = { onDelete() },
+        onDismiss = { haptics.confirm(); onDelete() },
         modifier = modifier,
     ) {
         content()

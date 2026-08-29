@@ -32,9 +32,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
 import dev.stan.yotsuba.core.designsystem.component.SearchField
@@ -42,8 +43,9 @@ import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import dev.stan.yotsuba.core.designsystem.component.TabChrome
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
-import dev.stan.yotsuba.core.util.UiState
+import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,6 +58,7 @@ fun BoardsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
+    val haptics = rememberHaptics()
     TabChrome(
         slots = slots,
         topBar = {
@@ -102,15 +105,20 @@ fun BoardsScreen(
                             SectionHeader(stringResource(R.string.boards_favourites))
                         }
                         items(s.favourites.size, key = { "fav_" + s.favourites[it].code }) { i ->
-                            BoardRow(
-                                board = s.favourites[i],
-                                favourite = true,
-                                editMode = false,
-                                visible = true,
-                                onClick = { onOpenBoard(s.favourites[i].code) },
-                                onToggleFavourite = { viewModel.onToggleFavourite(s.favourites[i].code) },
-                                onToggleVisible = {},
-                            )
+                            Box(animatedListItem()) {
+                                BoardRow(
+                                    board = s.favourites[i],
+                                    favourite = true,
+                                    editMode = false,
+                                    visible = true,
+                                    onClick = { onOpenBoard(s.favourites[i].code) },
+                                    onToggleFavourite = {
+                                        haptics.tick()
+                                        viewModel.onToggleFavourite(s.favourites[i].code)
+                                    },
+                                    onToggleVisible = {},
+                                )
+                            }
                         }
                     }
                     if (s.searchQuery.isNotBlank() && s.favourites.isEmpty() && s.sections.isEmpty()) {
@@ -141,15 +149,17 @@ fun BoardsScreen(
                         items(section.boards.size, key = { section.boards[it].board.code }) { i ->
                             val row = section.boards[i]
                             val code = row.board.code
-                            BoardRow(
-                                board = row.board,
-                                favourite = row.favourite,
-                                editMode = s.editMode,
-                                visible = row.visible,
-                                onClick = { if (!s.editMode) onOpenBoard(code) },
-                                onToggleFavourite = { viewModel.onToggleFavourite(code) },
-                                onToggleVisible = { viewModel.onToggleBoardVisible(code) },
-                            )
+                            Box(animatedListItem()) {
+                                BoardRow(
+                                    board = row.board,
+                                    favourite = row.favourite,
+                                    editMode = s.editMode,
+                                    visible = row.visible,
+                                    onClick = { if (!s.editMode) onOpenBoard(code) },
+                                    onToggleFavourite = { haptics.tick(); viewModel.onToggleFavourite(code) },
+                                    onToggleVisible = { viewModel.onToggleBoardVisible(code) },
+                                )
+                            }
                         }
                     }
                 }

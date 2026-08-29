@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.catalog
 
 import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -17,11 +18,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.FilterAlt
@@ -60,14 +61,18 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.animatedGridItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
-import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
 import dev.stan.yotsuba.core.designsystem.component.OfflineBanner
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
+import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.component.showUndo
+import dev.stan.yotsuba.core.designsystem.motionEnter
+import dev.stan.yotsuba.core.designsystem.motionExit
+import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.core.util.UiState
@@ -107,6 +112,7 @@ fun CatalogPane(
     val spacing = LocalSpacing.current
     val scope = rememberCoroutineScope()
     val gridState = rememberLazyGridState()
+    val haptics = rememberHaptics()
     val showScrollTop by remember {
         derivedStateOf { gridState.firstVisibleItemIndex > 8 }
     }
@@ -161,7 +167,7 @@ fun CatalogPane(
                 }
                 PullToRefreshBox(
                     isRefreshing = s.refreshing,
-                    onRefresh = { viewModel.load(forceRefresh = true) },
+                    onRefresh = { haptics.tick(); viewModel.load(forceRefresh = true) },
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     when {
@@ -180,15 +186,17 @@ fun CatalogPane(
                             items(s.threads.size, key = { s.threads[it].no }) { i ->
                                 val thread = s.threads[i]
                                 val stub = s.stubs[thread.no]
-                                if (stub != null && thread.no !in expandedStubs) {
-                                    FilteredStub(stub, onClick = { expandedStubs = expandedStubs + thread.no })
-                                } else {
-                                    ThreadCard(
-                                        thread = thread,
-                                        layout = s.layout,
-                                        onClick = { onOpenThread(thread.no) },
-                                        onLongClick = { sheetThread = thread },
-                                    )
+                                Box(animatedGridItem()) {
+                                    if (stub != null && thread.no !in expandedStubs) {
+                                        FilteredStub(stub, onClick = { expandedStubs = expandedStubs + thread.no })
+                                    } else {
+                                        ThreadCard(
+                                            thread = thread,
+                                            layout = s.layout,
+                                            onClick = { onOpenThread(thread.no) },
+                                            onLongClick = { haptics.longPress(); sheetThread = thread },
+                                        )
+                                    }
                                 }
                             }
                         }
