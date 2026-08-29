@@ -2,12 +2,10 @@ package dev.stan.yotsuba.feature.thread
 
 import android.content.Intent
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.material3.Card
-import java.text.DateFormat
-import java.util.Date
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,17 +20,18 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FiberNew
-import androidx.compose.material.icons.filled.VerticalAlignBottom
-import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
+import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -48,25 +47,28 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.feature.media.saveToVault
+import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
+import dev.stan.yotsuba.core.designsystem.motionEnter
+import dev.stan.yotsuba.core.designsystem.motionExit
+import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.feature.media.saveToVault
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
 import dev.stan.yotsuba.feature.thread.components.PostActionSheet
@@ -75,6 +77,8 @@ import dev.stan.yotsuba.feature.thread.components.PostCardActions
 import dev.stan.yotsuba.feature.thread.components.QuotePreviewOverlay
 import dev.stan.yotsuba.feature.thread.components.ThreadGallerySheet
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
+import java.text.DateFormat
+import java.util.Date
 import kotlinx.coroutines.launch
 
 @Composable
@@ -105,7 +109,7 @@ fun ThreadScreen(
     val saveAllMessage = stringResource(R.string.thread_gallery_save_all_queued)
     val textCopiedMessage = stringResource(R.string.thread_text_copied)
     val imageUrlCopiedMessage = stringResource(R.string.thread_image_url_copied)
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberHaptics()
     val treeIndent = spacing.lg
 
     fun closeSearch() {
@@ -137,7 +141,12 @@ fun ThreadScreen(
         val rows = (state as? UiState.Success)?.data?.rows ?: return@LaunchedEffect
         val index = rows.indexOfFirst { (it as? ThreadRow.Post)?.post?.no == target.postNo }
         if (index >= 0) {
-            if (target.animate) listState.animateScrollToItem(index) else listState.scrollToItem(index)
+            if (target.animate) {
+                listState.animateScrollToItem(index)
+                haptics.tick()
+            } else {
+                listState.scrollToItem(index)
+            }
         }
         viewModel.onScrollTargetConsumed()
     }
@@ -173,7 +182,11 @@ fun ThreadScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
-            if (scrolled || firstNewIndex != null) {
+            AnimatedVisibility(
+                visible = scrolled || firstNewIndex != null,
+                enter = motionEnter(),
+                exit = motionExit(),
+            ) {
                 JumpButtons(
                     onTop = { scope.launch { listState.animateScrollToItem(0) } },
                     onFirstNew = firstNewIndex?.let { index -> { scope.launch { listState.animateScrollToItem(index) } } },
@@ -211,7 +224,10 @@ fun ThreadScreen(
                 fun actionsFor(post: ThreadPost) = PostCardActions(
                     onBodyTap = { tap ->
                         when (tap) {
-                            is BodyTap.Spoiler -> viewModel.onRevealSpoiler(post.no, tap.id)
+                            is BodyTap.Spoiler -> {
+                                haptics.tick()
+                                viewModel.onRevealSpoiler(post.no, tap.id)
+                            }
                             is BodyTap.SameThreadQuote -> viewModel.onJumpToPost(tap.postNo)
                             is BodyTap.CrossThreadQuote -> onOpenInternal(
                                 Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
@@ -221,14 +237,14 @@ fun ThreadScreen(
                     },
                     onBodyLongPress = { tap ->
                         if (tap is BodyTap.SameThreadQuote) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            haptics.longPress()
                             viewModel.onOpenPreview(tap.postNo)
                         }
                     },
                     onThumbnailTap = { viewModel.onThumbnailTap(post) },
                     onThumbnailLongPress = {
                         if (viewModel.onThumbnailLongPress(post)) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            haptics.longPress()
                             saveToVault(
                                 context = context,
                                 hasAccess = viewModel.hasStorageAccess(),
@@ -242,7 +258,7 @@ fun ThreadScreen(
                     onBacklinkTap = viewModel::onJumpToPost,
                     onPosterIdTap = { viewModel.onFilterPosterId(post.posterId) },
                     onLongPress = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        haptics.longPress()
                         viewModel.onOpenPostSheet(post.no)
                     },
                     onCopyPostNo = {
@@ -307,7 +323,7 @@ fun ThreadScreen(
                     }
                     PullToRefreshBox(
                         isRefreshing = s.refreshing,
-                        onRefresh = { viewModel.load(forceRefresh = true) },
+                        onRefresh = { haptics.tick(); viewModel.load(forceRefresh = true) },
                     ) {
                         LazyColumn(
                             state = listState,
@@ -326,6 +342,7 @@ fun ThreadScreen(
                                     }
                                 },
                             ) { i ->
+                                Box(animatedListItem()) {
                                 when (val row = s.rows[i]) {
                                     is ThreadRow.Post -> Box(Modifier.padding(start = treeIndent * row.depth)) {
                                         postCard(row.post, false)
@@ -344,6 +361,7 @@ fun ThreadScreen(
                                         modifier = Modifier.padding(start = treeIndent * row.depth),
                                         onTap = { viewModel.onExpandFiltered(row.postNo) },
                                     )
+                                }
                                 }
                             }
                         }
@@ -537,6 +555,9 @@ private fun FilteredRow(pattern: String, modifier: Modifier, onTap: () -> Unit) 
 @Composable
 private fun NewPostsDivider(count: Int, onTap: () -> Unit) {
     val spacing = LocalSpacing.current
+    // Grows in when the row first lands; the list's item animation handles its removal.
+    val shown = remember { MutableTransitionState(false).apply { targetState = true } }
+    AnimatedVisibility(visibleState = shown, enter = motionEnter(), exit = motionExit()) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onTap).padding(vertical = spacing.xs),
@@ -549,5 +570,6 @@ private fun NewPostsDivider(count: Int, onTap: () -> Unit) {
             modifier = Modifier.padding(horizontal = spacing.md),
         )
         HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.primary)
+    }
     }
 }

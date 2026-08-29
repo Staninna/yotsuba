@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.bookmarks
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -42,8 +43,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -54,11 +55,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.designsystem.component.SwipeToDeleteRow
 import dev.stan.yotsuba.core.designsystem.component.ThreadSummaryRow
 import dev.stan.yotsuba.core.designsystem.component.showUndo
+import dev.stan.yotsuba.core.designsystem.rememberCountTransition
+import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
@@ -79,6 +83,7 @@ fun BookmarksList(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
+    val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     val removedMessage = stringResource(R.string.bookmarks_removed)
     val undoLabel = stringResource(R.string.action_undo)
@@ -117,7 +122,7 @@ fun BookmarksList(
     } else {
         PullToRefreshBox(
             isRefreshing = state.checking != null,
-            onRefresh = viewModel::onRefreshAll,
+            onRefresh = { haptics.tick(); viewModel.onRefreshAll() },
             modifier = modifier,
         ) {
             LazyColumn(
@@ -130,7 +135,7 @@ fun BookmarksList(
                     key = { state.bookmarks[it].board + "/" + state.bookmarks[it].threadNo },
                 ) { i ->
                     val bookmark = state.bookmarks[i]
-                    SwipeToDeleteRow(onDelete = {
+                    SwipeToDeleteRow(modifier = animatedListItem(), onDelete = {
                         viewModel.onRemove(bookmark)
                         scope.launch {
                             snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
@@ -141,7 +146,7 @@ fun BookmarksList(
                             onClick = { onOpenThread(bookmark.board, bookmark.threadNo) },
                             snapshotting = BookmarksViewModel.snapshotKey(bookmark.board, bookmark.threadNo) in
                                 state.snapshotting,
-                            onLongClick = { sheetFor = bookmark },
+                            onLongClick = { haptics.longPress(); sheetFor = bookmark },
                         )
                     }
                 }
@@ -336,15 +341,21 @@ private fun BookmarkCard(
                 }
                 if (bookmark.unread > 0) {
                     val a11y = pluralStringResource(R.plurals.bookmarks_unread_a11y, bookmark.unread, bookmark.unread)
-                    Text(
-                        stringResource(R.string.bookmarks_unread_pill, bookmark.unread),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimary,
+                    AnimatedContent(
+                        targetState = bookmark.unread,
+                        transitionSpec = rememberCountTransition(),
+                        label = "unread",
                         modifier = Modifier
                             .semantics { contentDescription = a11y }
                             .background(MaterialTheme.colorScheme.primary, CircleShape)
                             .padding(horizontal = spacing.sm, vertical = 2.dp),
-                    )
+                    ) { unread ->
+                        Text(
+                            stringResource(R.string.bookmarks_unread_pill, unread),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
                 }
                 when (bookmark.state) {
                     BookmarkState.ARCHIVED -> StateBadge(stringResource(R.string.bookmarks_badge_archived))
