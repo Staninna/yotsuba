@@ -26,17 +26,24 @@ interface BookmarkDao {
     @Query("SELECT COUNT(*) > 0 FROM bookmarks WHERE board = :board AND threadNo = :threadNo")
     fun isBookmarked(board: String, threadNo: Long): Flow<Boolean>
 
+    /**
+     * The one write to the read mark; it only ever rises, so a stale caller can't push it
+     * back. Nothing else is touched.
+     */
     @Query(
-        "UPDATE bookmarks SET lastSeenPostNo = :lastSeenPostNo, newReplies = 0, " +
-            "replyCount = :replyCount WHERE board = :board AND threadNo = :threadNo"
+        "UPDATE bookmarks SET readUpTo = MAX(COALESCE(readUpTo, 0), :postNo) " +
+            "WHERE board = :board AND threadNo = :threadNo"
     )
-    suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int)
+    suspend fun markSeen(board: String, threadNo: Long, postNo: Long)
 
-    /** Refresh writes only the columns it owns; concurrent markSeen/delete are never clobbered. */
+    /**
+     * Refresh writes only the columns it owns (counts, state, activity, post list). readUpTo
+     * and pinned are never in this statement, so a concurrent markSeen/setPinned survives.
+     */
     @Query(
         "UPDATE bookmarks SET replyCount = :replyCount, imageCount = :imageCount, state = :state, " +
-            "lastCheckedAt = :lastCheckedAt, newReplies = :newReplies, unreadCount = :unreadCount " +
-            "WHERE board = :board AND threadNo = :threadNo"
+            "lastCheckedAt = :lastCheckedAt, lastActivityAt = :lastActivityAt, " +
+            "postNos = :postNos WHERE board = :board AND threadNo = :threadNo"
     )
     suspend fun updateRefresh(
         board: String,
@@ -45,12 +52,34 @@ interface BookmarkDao {
         imageCount: Int,
         state: String,
         lastCheckedAt: Long?,
-        newReplies: Int,
-        unreadCount: Int,
+        lastActivityAt: Long?,
+        postNos: String,
     )
 
-    @Query("UPDATE bookmarks SET unreadCount = :unread WHERE board = :board AND threadNo = :threadNo")
-    suspend fun updateUnread(board: String, threadNo: Long, unread: Int)
+    /** Catalog-only refresh: counts and activity moved, but the post list wasn't fetched. */
+    @Query(
+        "UPDATE bookmarks SET replyCount = :replyCount, imageCount = :imageCount, state = :state, " +
+            "lastCheckedAt = :lastCheckedAt, lastActivityAt = :lastActivityAt " +
+            "WHERE board = :board AND threadNo = :threadNo"
+    )
+    suspend fun updateCounts(
+        board: String,
+        threadNo: Long,
+        replyCount: Int,
+        imageCount: Int,
+        state: String,
+        lastCheckedAt: Long?,
+        lastActivityAt: Long?,
+    )
+
+    @Query("UPDATE bookmarks SET state = :state, lastCheckedAt = :lastCheckedAt WHERE board = :board AND threadNo = :threadNo")
+    suspend fun updateState(board: String, threadNo: Long, state: String, lastCheckedAt: Long?)
+
+    @Query("UPDATE bookmarks SET pinned = :pinned WHERE board = :board AND threadNo = :threadNo")
+    suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean)
+
+    @Query("DELETE FROM bookmarks WHERE state = 'DEAD'")
+    suspend fun deleteDead()
 
     @Query("DELETE FROM bookmarks")
     suspend fun clearAll()

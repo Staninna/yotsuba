@@ -120,8 +120,10 @@ fun BookmarkEntity.toDomain() = Bookmark(
     lastCheckedAt = lastCheckedAt,
     lastSeenPostNo = lastSeenPostNo,
     state = runCatching { BookmarkState.valueOf(state) }.getOrDefault(BookmarkState.UNKNOWN),
-    newReplies = newReplies,
-    unreadCount = unreadCount,
+    readUpTo = readUpTo,
+    postNos = decodePostNos(postNos),
+    pinned = pinned,
+    lastActivityAt = lastActivityAt,
 )
 
 fun Bookmark.toEntity() = BookmarkEntity(
@@ -136,9 +138,16 @@ fun Bookmark.toEntity() = BookmarkEntity(
     lastCheckedAt = lastCheckedAt,
     lastSeenPostNo = lastSeenPostNo,
     state = state.name,
-    newReplies = newReplies,
-    unreadCount = unreadCount,
+    readUpTo = readUpTo,
+    postNos = encodePostNos(postNos),
+    pinned = pinned,
+    lastActivityAt = lastActivityAt,
 )
+
+fun encodePostNos(nos: List<Long>): String = nos.joinToString(",")
+
+fun decodePostNos(raw: String): List<Long> =
+    if (raw.isEmpty()) emptyList() else raw.split(',').mapNotNull { it.toLongOrNull() }
 
 fun HistoryEntity.toDomain() = HistoryEntry(
     board = board,
