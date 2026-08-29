@@ -57,8 +57,9 @@ class VaultViewModelTest {
         val deleted = mutableListOf<String>()
         var rescans = 0
         var migrations = 0
-        var access = true
-        override fun hasStorageAccess() = access
+        val access = MutableStateFlow(true)
+        override fun hasStorageAccess() = access.value
+        override val storageAccess: Flow<Boolean> = access
         override fun entries(): Flow<List<VaultEntry>> = state
         override fun savedUrls(): Flow<Set<String>> = state.map { list -> list.map { it.url }.toSet() }
         override fun savedPaths(): Flow<Map<String, String>> =
@@ -358,8 +359,15 @@ class VaultViewModelTest {
         assertEquals(1, vault.migrations)
         assertEquals(1, vault.rescans)
         assertEquals(1, vault.syncs)
-        assertTrue(vm.hasStorageAccess())
-        vault.access = false
-        assertEquals(false, vm.hasStorageAccess())
+    }
+
+    @Test fun `storage access is part of the ui state`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        VaultViewModel(vault, FakeSettings()).uiState.test {
+            assertTrue(latest().hasStorageAccess)
+            vault.access.value = false
+            assertEquals(false, latest().hasStorageAccess)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }

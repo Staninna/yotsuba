@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.ImportSource
@@ -123,6 +124,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     }
 
 
+    OnResumeEffect(viewModel::refreshStorageAccess)
     BackHandler(enabled = state.selection.board != null) { viewModel.navigateUp() }
 
     Box(Modifier.fillMaxSize()) {
@@ -139,7 +141,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                         }
                     },
                     actions = {
-                        if (viewModel.hasStorageAccess()) {
+                        if (state.hasStorageAccess) {
                             Box {
                                 IconButton(
                                     enabled = !viewModel.importing,
@@ -195,7 +197,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                 )
             },
             floatingActionButton = {
-                if (state.scopeEntries.isNotEmpty() && viewModel.hasStorageAccess()) {
+                if (state.scopeEntries.isNotEmpty() && state.hasStorageAccess) {
                     VaultShuffleFab(state.scopeEntries) { viewModel.startShuffle(it) }
                 }
             },
@@ -203,7 +205,6 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
             Box(Modifier.fillMaxSize().padding(padding)) {
                 VaultExplorer(
                     state = state,
-                    hasStorageAccess = viewModel.hasStorageAccess(),
                     onOpenBoard = viewModel::openBoard,
                     onOpenThread = viewModel::openThread,
                     onOpenEntry = { viewModel.openViewer(it.url) },

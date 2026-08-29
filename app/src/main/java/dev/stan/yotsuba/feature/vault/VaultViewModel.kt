@@ -66,6 +66,8 @@ data class VaultUiState(
     val selection: VaultSelection = VaultSelection(),
     val viewer: VaultViewerState? = null,
     val sync: VaultSyncState = VaultSyncState(),
+    /** False until "All files access" is granted; the explorer shows the grant prompt instead. */
+    val hasStorageAccess: Boolean = false,
 ) {
     val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.board == selection.board }
     val openThread: VaultThreadSection?
@@ -132,15 +134,21 @@ class VaultViewModel @Inject constructor(
         }
     }
 
+    /** The viewer's inputs, folded into one so the outer combine stays within five flows. */
+    private data class Viewing(val url: String?, val shuffle: List<String>?)
+
+    private val viewing = combine(viewingUrl, shuffleOrder) { url, shuffle -> Viewing(url, shuffle) }
+
     val uiState: StateFlow<VaultUiState> = combine(
-        mediaVault.entries(), syncState, selection, viewingUrl, shuffleOrder,
-    ) { entries, sync, sel, url, shuffle ->
+        mediaVault.entries(), syncState, selection, viewing, mediaVault.storageAccess,
+    ) { entries, sync, sel, viewing, access ->
         VaultUiState(
             entries = entries,
             boards = groupByBoard(entries),
             selection = sel,
-            viewer = viewerState(entries, sel, url, shuffle),
+            viewer = viewerState(entries, sel, viewing.url, viewing.shuffle),
             sync = sync,
+            hasStorageAccess = access,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
@@ -192,7 +200,8 @@ class VaultViewModel @Inject constructor(
         viewingUrl.value = order.first()
     }
 
-    fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
+    /** The grant happens off in system settings, so re-check whenever the screen comes back. */
+    fun refreshStorageAccess() = mediaVault.refreshStorageAccess()
 
     /**
      * Brings the vault up to date: rebuild the local index, then refresh every saved

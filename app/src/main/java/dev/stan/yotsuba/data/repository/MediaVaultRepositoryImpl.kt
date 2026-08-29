@@ -39,6 +39,7 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.withLock
@@ -65,6 +66,13 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
+
+    private val storageAccessState = MutableStateFlow(hasStorageAccess())
+    override val storageAccess: Flow<Boolean> = storageAccessState
+
+    override fun refreshStorageAccess() {
+        storageAccessState.value = hasStorageAccess()
+    }
 
     override fun entries(): Flow<List<VaultEntry>> = savedMediaDao.all().map { rows ->
         rows.filter { it.absolutePath.isNotEmpty() }.map { it.toVaultEntry() }

@@ -9,10 +9,20 @@ import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 
 interface MediaVaultRepository {
     /** True when the app may read/write the vault directory. */
     fun hasStorageAccess(): Boolean
+
+    /**
+     * [hasStorageAccess] as something a screen can observe. The grant happens in a system
+     * settings page the app never sees, so the value is re-read on [refreshStorageAccess],
+     * which a screen calls when it resumes.
+     */
+    val storageAccess: Flow<Boolean> get() = flow { emit(hasStorageAccess()) }
+
+    fun refreshStorageAccess() {}
 
     /** Entries with a real file on disk, newest first. */
     fun entries(): Flow<List<VaultEntry>>

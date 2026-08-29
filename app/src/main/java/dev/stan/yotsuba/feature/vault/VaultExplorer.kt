@@ -56,7 +56,6 @@ import java.io.File
 @Composable
 internal fun VaultExplorer(
     state: VaultUiState,
-    hasStorageAccess: Boolean,
     onOpenBoard: (String) -> Unit,
     onOpenThread: (VaultLocation) -> Unit,
     onOpenEntry: (VaultEntry) -> Unit,
@@ -66,7 +65,7 @@ internal fun VaultExplorer(
     val context = LocalContext.current
     Box(Modifier.fillMaxSize()) {
         when {
-            !hasStorageAccess -> Column(
+            !state.hasStorageAccess -> Column(
                 Modifier.align(Alignment.Center).padding(spacing.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(spacing.md),
