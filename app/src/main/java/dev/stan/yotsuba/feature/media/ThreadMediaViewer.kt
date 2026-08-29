@@ -44,6 +44,7 @@ fun ThreadMediaViewer(
     onPageViewed: (Int) -> Unit,
     onDismiss: () -> Unit,
     onLongPressPage: (Int) -> Unit = {},
+    activeDownloads: Int = 0,
     overlay: @Composable BoxScope.() -> Unit = {},
     topBarActions: @Composable RowScope.(page: Int, openReplies: (Long) -> Unit) -> Unit = { _, _ -> },
 ) {
@@ -96,6 +97,7 @@ fun ThreadMediaViewer(
         feedActive = stack.onMedia,
         behaviour = behaviour,
         onLongPressPage = onLongPressPage,
+        activeDownloads = activeDownloads,
         // Horizontal navigation: left opens the current post's replies, right goes back.
         modifier = Modifier.pointerInput(pip.inPipMode) {
             if (pip.inPipMode) return@pointerInput

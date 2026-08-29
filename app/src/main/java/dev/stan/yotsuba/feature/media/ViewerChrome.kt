@@ -14,12 +14,15 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -29,7 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
@@ -107,6 +114,40 @@ fun AutoAdvanceButton(autoAdvance: Boolean, onToggle: () -> Unit) {
             ),
             tint = Color.White,
         )
+    }
+}
+
+/**
+ * The badge that survives the chrome fading out: while saves are still running, a small
+ * pill keeps the count on screen. The top bar carries the same number in its subtitle, so
+ * this only shows once that bar is gone -- a download in flight never goes silent.
+ */
+@Composable
+fun DownloadIndicator(count: Int, visible: Boolean, modifier: Modifier = Modifier) {
+    val spacing = LocalSpacing.current
+    val label = pluralStringResource(R.plurals.media_downloading, count, count)
+    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(spacing.md)
+                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                .padding(horizontal = spacing.sm, vertical = spacing.xs)
+                .semantics { contentDescription = label },
+        ) {
+            CircularProgressIndicator(
+                Modifier.size(14.dp),
+                color = Color.White,
+                strokeWidth = 2.dp,
+            )
+            Text(
+                count.toString(),
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(start = spacing.xs),
+            )
+        }
     }
 }
 

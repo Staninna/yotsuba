@@ -103,6 +103,10 @@
     <string name="media_queued">Queued for download</string>
     <string name="media_remove_download">Remove download</string>
     <string name="media_redownload">Download again</string>
+    <plurals name="media_downloading">
+        <item quantity="one">%d download in progress</item>
+        <item quantity="other">%d downloads in progress</item>
+    </plurals>
     <string name="media_cancel_download">Cancel download</string>
     <string name="media_retry_download">Retry download</string>
     <string name="media_dismiss_failed">Dismiss</string>

@@ -58,9 +58,11 @@ fun MediaScreen(
     var sharing by remember { mutableStateOf(false) }
 
     val haptics = LocalHapticFeedback.current
+    // Queued + running saves. Failed ones are not "in progress"; they wait on the icon.
+    val pending = state.downloadStates.count { (_, s) -> s !is DownloadState.Failed }
 
     ThreadMediaViewer(
-        pages = state.items.map { it.toViewerPage(context, state) },
+        pages = state.items.map { it.toViewerPage(context, state, pending) },
         thread = state.thread,
         behaviour = state.behaviour,
         initialIndex = state.initialIndex,
@@ -74,6 +76,7 @@ fun MediaScreen(
             state.items.getOrNull(page)?.let { viewModel.onMediaViewed(it.postNo) }
         },
         onDismiss = onClose,
+        activeDownloads = pending,
         onLongPressPage = { page ->
             val item = state.items.getOrNull(page)
             if (state.behaviour.holdToSave && item != null) {
@@ -143,11 +146,11 @@ fun MediaScreen(
 private fun MediaItem.toViewerPage(
     context: android.content.Context,
     state: MediaUiState,
+    /** Saves in flight app-wide; surfaces in the chrome subtitle as "↓n". */
+    pending: Int,
 ): ViewerPage {
     // Already-saved media plays straight from the vault file — no buffering.
     val localPath = state.savedPaths[fullUrl]
-    // Pending saves (queued + downloading) surface in the chrome subtitle as "↓n".
-    val pending = state.downloadStates.count { (_, s) -> s !is DownloadState.Failed }
     return ViewerPage(
         isVideo = isVideo,
         videoUri = localPath?.let { Uri.fromFile(File(it)).toString() } ?: fullUrl,

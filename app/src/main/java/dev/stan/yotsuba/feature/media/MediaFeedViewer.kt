@@ -101,6 +101,8 @@ fun MediaFeedViewer(
     behaviour: ViewerBehaviour = ViewerBehaviour(),
     /** Long-press on the page at this index; no-op where saving does not apply. */
     onLongPressPage: (Int) -> Unit = {},
+    /** Saves still queued or running; kept on screen after the chrome hides. */
+    activeDownloads: Int = 0,
     topBarActions: @Composable RowScope.() -> Unit = {},
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
@@ -182,5 +184,11 @@ fun MediaFeedViewer(
             PipButton { pip.enter(current?.pipInfo, feed.playbackOn) }
             topBarActions()
         }
+
+        DownloadIndicator(
+            count = activeDownloads,
+            visible = activeDownloads > 0 && !chromeShown && !pip.inPipMode,
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
     }
 }
