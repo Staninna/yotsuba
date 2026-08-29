@@ -56,9 +56,9 @@ fun SettingsSectionScreen(
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var confirmAction by remember { mutableStateOf<Pair<Int, () -> Unit>?>(null) }
+    var confirmAction by remember { mutableStateOf<ConfirmAction?>(null) }
 
-    val confirmThen: (Int, () -> Unit) -> Unit = { body, action -> confirmAction = body to action }
+    val confirmThen: (Int, () -> Unit) -> Unit = { body, action -> confirmAction = ConfirmAction(body, action) }
     val showMessage: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
 
     Scaffold(
@@ -111,13 +111,13 @@ fun SettingsSectionScreen(
         }
     }
 
-    confirmAction?.let { (bodyRes, action) ->
+    confirmAction?.let { pending ->
         AlertDialog(
             onDismissRequest = { confirmAction = null },
             title = { Text(stringResource(R.string.settings_confirm_title)) },
-            text = { Text(stringResource(bodyRes)) },
+            text = { Text(stringResource(pending.bodyRes)) },
             confirmButton = {
-                TextButton(onClick = { action(); confirmAction = null }) {
+                TextButton(onClick = { pending.action(); confirmAction = null }) {
                     Text(stringResource(R.string.action_confirm))
                 }
             },
@@ -129,3 +129,6 @@ fun SettingsSectionScreen(
         )
     }
 }
+
+/** A destructive action waiting behind the "are you sure?" dialog. */
+private class ConfirmAction(val bodyRes: Int, val action: () -> Unit)
