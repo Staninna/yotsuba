@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,7 +30,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,8 +47,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem as ExoMediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.compose.PlayerSurface
@@ -101,6 +103,8 @@ fun VideoPage(
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var firstFrameRendered by remember(videoUri) { mutableStateOf(false) }
+    // Assumed until the tracks arrive, so the mute button does not flicker into disabled.
+    var hasAudio by remember(videoUri) { mutableStateOf(true) }
     var aspect by remember(videoUri) {
         mutableFloatStateOf(
             if (initialWidth > 0 && initialHeight > 0) initialWidth.toFloat() / initialHeight else 16f / 9f,
@@ -154,8 +158,14 @@ fun VideoPage(
             override fun onRenderedFirstFrame() {
                 firstFrameRendered = true
             }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                tracks.audioPresence()?.let { hasAudio = it }
+            }
         }
         player.addListener(listener)
+        // The player may have prepared before this effect ran.
+        player.currentTracks.audioPresence()?.let { hasAudio = it }
         onDispose {
             player.removeListener(listener)
             player.release()
@@ -288,17 +298,37 @@ fun VideoPage(
                     color = Color.White,
                     style = MaterialTheme.typography.labelSmall,
                 )
-                IconButton(onClick = onToggleMute) {
+                // A silent video has nothing to unmute: the button goes dead and says so,
+                // rather than leaving a live-looking control that does nothing.
+                IconButton(onClick = onToggleMute, enabled = hasAudio) {
                     Icon(
-                        if (muted) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                        stringResource(if (muted) R.string.media_unmute else R.string.media_mute),
-                        tint = Color.White,
+                        when {
+                            !hasAudio -> Icons.Filled.VolumeMute
+                            muted -> Icons.Filled.VolumeOff
+                            else -> Icons.Filled.VolumeUp
+                        },
+                        stringResource(
+                            when {
+                                !hasAudio -> R.string.media_no_audio
+                                muted -> R.string.media_unmute
+                                else -> R.string.media_mute
+                            },
+                        ),
+                        tint = Color.White.copy(alpha = if (hasAudio) 1f else 0.4f),
                     )
                 }
             }
         }
     }
 }
+
+/**
+ * Whether the file carries audio at all, playable or not — null while the player has not
+ * read any tracks yet, which is not the same answer as "no audio" and must not disable
+ * the button.
+ */
+private fun Tracks.audioPresence(): Boolean? =
+    if (groups.isEmpty()) null else groups.any { it.type == C.TRACK_TYPE_AUDIO }
 
 private fun formatMs(ms: Long): String {
     val totalSec = ms / 1000

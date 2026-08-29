@@ -92,6 +92,7 @@
     <string name="media_share_failed">Couldn\'t share</string>
     <string name="media_mute">Mute</string>
     <string name="media_unmute">Unmute</string>
+    <string name="media_no_audio">This video has no audio</string>
     <string name="media_close">Close viewer</string>
     <string name="media_play">Play</string>
     <string name="media_pause">Pause</string>
