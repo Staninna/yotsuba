@@ -50,4 +50,7 @@
         <item quantity="one">%d post filtered</item>
         <item quantity="other">%d posts filtered</item>
     </plurals>
+    <!-- %1$s is a formatted date. -->
+    <string name="thread_offline_copy_from">Offline copy from %1$s</string>
+    <string name="thread_offline_copy">Offline copy</string>
 </resources>

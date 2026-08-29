@@ -20,6 +20,8 @@ data class ThreadContent(
     val archivedNotice: Boolean,
     /** Where this copy lives when it came from a third-party archive; "Open in browser" goes there. */
     val archiveUrl: String? = null,
+    /** Set when the posts are the vault's copy; epoch millis of when it was taken, if known. */
+    val offlineCopyAt: Long? = null,
     /** A refresh failed while a thread was already on screen; shown once, then cleared. */
     val refreshError: NetworkError? = null,
     /** A manual or pull refresh is in flight; the thread stays on screen meanwhile. */
@@ -132,4 +134,6 @@ data class Session(
     val expandedFiltered: Set<Long> = emptySet(),
     val refreshError: NetworkError? = null,
     val refreshing: Boolean = false,
+    /** When the vault copy on screen was taken; null until one is shown. */
+    val offlineCopyAt: Long? = null,
 )

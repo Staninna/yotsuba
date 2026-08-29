@@ -100,6 +100,7 @@ class ThreadViewModel @AssistedInject constructor(
         isEnabled = {
             val details = (result.value as? DataResult.Success)?.value
             !session.value.archived && details?.closed != true && details?.archived != true &&
+                details?.offlineCopy != true &&
                 autoRefreshOn(session.value, settingsState.value)
         },
         poll = { load(forceRefresh = true, quiet = true) },
@@ -159,6 +160,7 @@ class ThreadViewModel @AssistedInject constructor(
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
                         archiveUrl = details.archive?.let { ArchiveHosts.threadUrl(it, this@ThreadViewModel.board, threadNo) },
+                        offlineCopyAt = session.offlineCopyAt.takeIf { details.offlineCopy },
                         refreshError = session.refreshError,
                         refreshing = session.refreshing,
                         searchQuery = session.searchQuery,
@@ -213,9 +215,7 @@ class ThreadViewModel @AssistedInject constructor(
         viewModelScope.launch {
             if (!forceRefresh) result.value = null else if (!quiet) session.update { it.copy(refreshing = true) }
             var r = threadRepository.thread(board, threadNo, forceRefresh)
-            if (r is DataResult.Failure && r.error == NetworkError.NotFound && result.value !is DataResult.Success) {
-                r = fallback(r)
-            }
+            if (r is DataResult.Failure && result.value !is DataResult.Success) r = fallback(r)
             session.update { it.copy(refreshing = false) }
             when (r) {
                 is DataResult.Success -> {
@@ -239,13 +239,26 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     /**
-     * What to show once 4chan says the thread is gone: an archive's copy, or the 404
-     * itself when no archive has it. Archived copies never poll.
+     * What to show when 4chan did not answer: the vault's own copy first (it works offline
+     * and is what the user chose to keep), then, once 4chan says the thread is gone, an
+     * archive's copy. Otherwise the failure itself. Neither copy ever polls.
      */
-    private suspend fun fallback(notFound: DataResult.Failure): DataResult<ThreadDetails> {
+    private suspend fun fallback(failure: DataResult.Failure): DataResult<ThreadDetails> {
+        mediaVault.savedThread(board, threadNo)?.let { saved ->
+            session.update { it.copy(offlineCopyAt = savedAt(saved)) }
+            return DataResult.Success(saved.copy(offlineCopy = true))
+        }
+        if (failure.error != NetworkError.NotFound) return failure
         val archived = threadRepository.archivedThread(board, threadNo)
-        return if (archived is DataResult.Success) archived else notFound
+        return if (archived is DataResult.Success) archived else failure
     }
+
+    /** When the offline copy was taken: the newest save in the thread, else its newest post. */
+    private suspend fun savedAt(saved: ThreadDetails): Long? =
+        mediaVault.entries().first()
+            .filter { it.location.board == board && it.location.threadNo == threadNo }
+            .maxOfOrNull { it.savedAt }
+            ?: saved.posts.maxOfOrNull { it.timeSeconds * 1000 }
 
     private suspend fun onLoaded(details: ThreadDetails) {
         // Runs before [result] is replaced, so this is still the previous load's newest post.

@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Card
+import java.text.DateFormat
+import java.util.Date
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -274,7 +276,21 @@ fun ThreadScreen(
                 }
 
                 Column {
-                    if (s.archivedNotice) {
+                    if (s.details.offlineCopy) {
+                        val date = remember(s.offlineCopyAt) {
+                            s.offlineCopyAt?.let { DateFormat.getDateInstance().format(Date(it)) }
+                        }
+                        Text(
+                            if (date != null) stringResource(R.string.thread_offline_copy_from, date)
+                            else stringResource(R.string.thread_offline_copy),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(spacing.sm),
+                        )
+                    } else if (s.archivedNotice) {
                         Text(
                             s.details.archive?.let { stringResource(R.string.thread_archived_from, it.label) }
                                 ?: stringResource(R.string.thread_archived),

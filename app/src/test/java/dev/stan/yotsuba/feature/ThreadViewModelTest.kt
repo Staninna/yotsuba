@@ -154,11 +154,11 @@ class ThreadViewModelTest {
         override suspend fun delete(url: String): VaultError? = null
         override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
         override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
-        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
+        var snapshot: ThreadDetails? = null
+        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
         override suspend fun rescan() {}
         override suspend fun migrateLegacyIfNeeded() {}
     }
-
 
     private class FakeClaimedPosts : ClaimedPostRepository {
         val state = MutableStateFlow<Set<Long>>(emptySet())
@@ -695,5 +695,42 @@ class ThreadViewModelTest {
             val content = (vm.uiState.value as UiState.Success<ThreadContent>).data
             assertEquals(listOf(100L, 101L), content.rows.map { (it as ThreadRow.Post).post.no })
             assertEquals(0, content.filteredCount)
+        }
+
+    @Test fun `the vault copy comes before the archive and reads as offline`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.threads.result = DataResult.Failure(NetworkError.NotFound)
+            env.threads.archived = DataResult.Success(env.details((100L..104L).map(Env::post)))
+            env.vault.snapshot = env.details(listOf(Env.post(100).copy(timeSeconds = 1_700_000_000L)))
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            val content = (vm.uiState.value as UiState.Success<ThreadContent>).data
+            assertEquals(listOf("live"), env.threads.asked)
+            assertTrue(content.details.offlineCopy)
+            assertEquals(1, content.details.posts.size)
+            assertEquals(1_700_000_000_000L, content.offlineCopyAt)
+            assertFalse(content.archivedNotice)
+        }
+
+    @Test fun `an offline error shows the vault copy but never asks the archive`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.threads.result = DataResult.Failure(NetworkError.Offline)
+            env.vault.snapshot = env.details(listOf(Env.post(100)))
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue((vm.uiState.value as UiState.Success<ThreadContent>).data.details.offlineCopy)
+
+            env.vault.snapshot = null
+            env.threads.asked.clear()
+            val vm2 = env.vm()
+            backgroundScope.launch { vm2.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(UiState.Error(NetworkError.Offline), vm2.uiState.value)
+            assertEquals(listOf("live"), env.threads.asked)
         }
 }
