@@ -4,21 +4,26 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.LocalContext
+import androidx.glance.LocalSize
 import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
+import androidx.glance.appwidget.lazy.LazyColumn
+import androidx.glance.appwidget.lazy.items
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
@@ -61,6 +66,8 @@ class WatchedThreadsWidget : GlanceAppWidget() {
     interface Deps {
         fun bookmarkRepository(): BookmarkRepository
     }
+
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(SMALL, MEDIUM, LARGE))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repository = EntryPointAccessors.fromApplication(context, Deps::class.java).bookmarkRepository()
@@ -110,10 +117,17 @@ class RefreshBookmarksAction : ActionCallback {
 private val boardKey = ActionParameters.Key<String>(WidgetDeepLink.EXTRA_BOARD)
 private val threadKey = ActionParameters.Key<Long>(WidgetDeepLink.EXTRA_THREAD_NO)
 
+private fun sizeBucket(size: DpSize): WidgetSizeBucket = when {
+    size.height >= WatchedThreadsWidget.LARGE.height -> WidgetSizeBucket.LARGE
+    size.width >= WatchedThreadsWidget.MEDIUM.width -> WidgetSizeBucket.MEDIUM
+    else -> WidgetSizeBucket.SMALL
+}
+
 @Composable
 private fun WidgetContent(rows: List<WidgetRow>, refreshing: Boolean) {
     val context = LocalContext.current
-    val visible = rows.take(6)
+    val limit = rowLimitFor(sizeBucket(LocalSize.current))
+    val visible = if (limit == null) rows else rows.take(limit)
     val unreadTotal = rows.sumOf { it.unread }
 
     Column(
@@ -124,7 +138,13 @@ private fun WidgetContent(rows: List<WidgetRow>, refreshing: Boolean) {
             .padding(12.dp),
     ) {
         Header(context, unreadTotal, refreshing)
-        visible.forEach { ThreadRow(context, it) }
+        if (limit == null) {
+            LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
+                items(visible, itemId = { it.threadNo }) { ThreadRow(context, it) }
+            }
+        } else {
+            visible.forEach { ThreadRow(context, it) }
+        }
     }
 }
 

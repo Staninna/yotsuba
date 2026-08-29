@@ -3,6 +3,7 @@ package dev.stan.yotsuba.core.widget
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -61,4 +62,10 @@ class WidgetRowsTest {
         assertEquals("g", row.board)
     }
 
+    @Test
+    fun `row limits per size bucket`() {
+        assertEquals(3, rowLimitFor(WidgetSizeBucket.SMALL))
+        assertEquals(6, rowLimitFor(WidgetSizeBucket.MEDIUM))
+        assertNull(rowLimitFor(WidgetSizeBucket.LARGE))
+    }
 }

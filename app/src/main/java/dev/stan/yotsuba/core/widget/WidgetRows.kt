@@ -29,3 +29,11 @@ fun orderForWidget(bookmarks: List<Bookmark>): List<WidgetRow> =
         )
         .map { WidgetRow(it.board, it.threadNo, it.displayTitle, it.unread, it.isDead) }
 
+/** Rows visible at a given widget size; `null` means "all of them, scrolling". */
+fun rowLimitFor(size: WidgetSizeBucket): Int? = when (size) {
+    WidgetSizeBucket.SMALL -> 3
+    WidgetSizeBucket.MEDIUM -> 6
+    WidgetSizeBucket.LARGE -> null
+}
+
+enum class WidgetSizeBucket { SMALL, MEDIUM, LARGE }
