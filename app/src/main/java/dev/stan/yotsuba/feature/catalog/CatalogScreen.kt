@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -144,21 +146,13 @@ fun CatalogScreen(
                             .padding(horizontal = spacing.lg, vertical = spacing.sm),
                     )
                 }
-                if (s.threads.isEmpty()) {
-                    if (!s.searchQuery.isNullOrBlank()) {
-                        NoSearchResults(s.searchQuery)
-                    } else {
-                        EmptyState(
-                            title = stringResource(R.string.catalog_empty_title),
-                            explanation = stringResource(R.string.catalog_empty_explanation),
-                        )
-                    }
-                } else {
-                    PullToRefreshBox(
-                        isRefreshing = s.refreshing,
-                        onRefresh = { viewModel.load(forceRefresh = true) },
-                    ) {
-                        LazyVerticalGrid(
+                PullToRefreshBox(
+                    isRefreshing = s.refreshing,
+                    onRefresh = { viewModel.load(forceRefresh = true) },
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    when {
+                        s.threads.isNotEmpty() -> LazyVerticalGrid(
                             state = gridState,
                             columns = when (s.layout) {
                                 CatalogLayout.COMFORTABLE -> GridCells.Adaptive(260.dp)
@@ -185,6 +179,15 @@ fun CatalogScreen(
                                 )
                             }
                         }
+                        !s.searchQuery.isNullOrBlank() -> NoSearchResults(
+                            s.searchQuery,
+                            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        )
+                        else -> EmptyState(
+                            title = stringResource(R.string.catalog_empty_title),
+                            explanation = stringResource(R.string.catalog_empty_explanation),
+                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                        )
                     }
                 }
             }
