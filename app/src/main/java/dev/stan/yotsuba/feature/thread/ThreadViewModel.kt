@@ -72,6 +72,7 @@ class ThreadViewModel @AssistedInject constructor(
     private val newPostsAfter = MutableStateFlow<Pair<Long, Int>?>(null)
     private val archivedNotice = MutableStateFlow(false)
     private val refreshError = MutableStateFlow<NetworkError?>(null)
+    private val refreshing = MutableStateFlow(false)
     private val searchQuery = MutableStateFlow<String?>(null)
     private val searchIndex = MutableStateFlow(0)
     private val previewStack = MutableStateFlow<List<List<Long>>>(emptyList())
@@ -90,7 +91,7 @@ class ThreadViewModel @AssistedInject constructor(
             !archivedNotice.value &&
                 (autoRefreshUserOverride.value ?: settingsRepository.settings.first().autoRefreshEnabled)
         },
-        poll = { load(forceRefresh = true) },
+        poll = { load(forceRefresh = true, quiet = true) },
     )
 
     private val bookmarked = bookmarkRepository.isBookmarked(board, threadNo)
@@ -118,7 +119,7 @@ class ThreadViewModel @AssistedInject constructor(
     private val spoilerState = combine(revealedSpoilers, revealedImageSpoilers, ::SpoilerState)
     private val searchInput = combine(searchQuery, searchIndex, ::SearchInput)
     private val overlayState = combine(previewStack, pendingExternalUrl, ::OverlayState)
-    private val refreshState = combine(newPostsAfter, archivedNotice, autoRefreshUserOverride, refreshError, ::RefreshState)
+    private val refreshState = combine(newPostsAfter, archivedNotice, autoRefreshUserOverride, refreshError, refreshing, ::RefreshState)
     private val metaState = combine(boardInfo, bookmarked, mediaSaveStatuses, ::MetaState)
     private val sessionState = combine(spoilerState, searchInput, overlayState, refreshState, ::SessionState)
 
@@ -145,6 +146,7 @@ class ThreadViewModel @AssistedInject constructor(
                         autoRefreshEnabled = session.refresh.autoRefreshOverride ?: settings.autoRefreshEnabled,
                         archivedNotice = session.refresh.archived || details.archived,
                         refreshError = session.refresh.error,
+                        refreshing = session.refresh.refreshing,
                         searchQuery = session.search.query,
                         searchMatches = matches,
                         searchIndex = if (matches.isEmpty()) 0 else session.search.index.coerceIn(0, matches.size - 1),
@@ -181,10 +183,13 @@ class ThreadViewModel @AssistedInject constructor(
 
     private fun loadedPosts(): List<ThreadPost>? = (result.value as? DataResult.Success)?.value?.posts
 
-    fun load(forceRefresh: Boolean = false) {
+    /** [quiet] refreshes without the spinner: auto-polls should not flicker the indicator. */
+    fun load(forceRefresh: Boolean = false, quiet: Boolean = false) {
         viewModelScope.launch {
-            if (!forceRefresh) result.value = null
-            when (val r = threadRepository.thread(board, threadNo, forceRefresh)) {
+            if (!forceRefresh) result.value = null else if (!quiet) refreshing.value = true
+            val r = threadRepository.thread(board, threadNo, forceRefresh)
+            refreshing.value = false
+            when (r) {
                 is DataResult.Success -> {
                     refreshError.value = null
                     onLoaded(r.value)

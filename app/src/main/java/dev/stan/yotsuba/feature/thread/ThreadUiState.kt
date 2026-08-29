@@ -21,6 +21,8 @@ data class ThreadContent(
     val archivedNotice: Boolean,
     /** A refresh failed while a thread was already on screen; shown once, then cleared. */
     val refreshError: NetworkError? = null,
+    /** A manual or pull refresh is in flight; the thread stays on screen meanwhile. */
+    val refreshing: Boolean = false,
     val searchQuery: String?,
     val searchMatches: List<Long>,
     val searchIndex: Int,
@@ -59,6 +61,7 @@ data class RefreshState(
     val archived: Boolean,
     val autoRefreshOverride: Boolean?,
     val error: NetworkError?,
+    val refreshing: Boolean,
 )
 
 /** Slow-changing companions of the thread itself. */

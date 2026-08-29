@@ -27,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -232,23 +233,28 @@ fun ThreadScreen(
                     if (searchOpen) {
                         SearchBar(s, viewModel, onClose = ::closeSearch)
                     }
-                    LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(spacing.md),
-                        modifier = Modifier.fillMaxSize(),
+                    PullToRefreshBox(
+                        isRefreshing = s.refreshing,
+                        onRefresh = { viewModel.load(forceRefresh = true) },
                     ) {
-                        items(s.details.posts.size, key = { s.details.posts[it].no }) { i ->
-                            val post = s.details.posts[i]
-                            if (s.newPostsAfter != null && i > 0 &&
-                                s.details.posts[i - 1].no == s.newPostsAfter
-                            ) {
-                                NewPostsDivider(
-                                    count = s.newPostsCount,
-                                    onTap = { viewModel.onDismissNewPostsDivider() },
-                                )
+                        LazyColumn(
+                            state = listState,
+                            contentPadding = PaddingValues(spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(spacing.md),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            items(s.details.posts.size, key = { s.details.posts[it].no }) { i ->
+                                val post = s.details.posts[i]
+                                if (s.newPostsAfter != null && i > 0 &&
+                                    s.details.posts[i - 1].no == s.newPostsAfter
+                                ) {
+                                    NewPostsDivider(
+                                        count = s.newPostsCount,
+                                        onTap = { viewModel.onDismissNewPostsDivider() },
+                                    )
+                                }
+                                postCard(post, false)
                             }
-                            postCard(post, false)
                         }
                     }
                 }
