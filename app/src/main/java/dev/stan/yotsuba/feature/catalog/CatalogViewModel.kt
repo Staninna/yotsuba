@@ -40,7 +40,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     }
 
     private val result = LoadableFlow(viewModelScope) { catalogRepository.catalog(board, it) }
-    private val searchQuery = MutableStateFlow(initialSearch.orEmpty())
+    /** null = search closed; the list is unfiltered. */
+    private val searchQuery = MutableStateFlow(initialSearch?.takeIf { it.isNotBlank() })
     private val refreshing = MutableStateFlow(false)
     private val hiddenNos = hiddenThreadsRepository.forBoard(board)
         .map { list -> list.map { it.threadNo }.toSet() }
@@ -78,7 +79,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                 val filtered = res.value
                     .filter { it.no !in hidden }
                     .filter {
-                        query.isBlank() ||
+                        query.isNullOrBlank() ||
                             it.subject?.contains(query, true) == true ||
                             it.excerpt.plainText.contains(query, true)
                     }
@@ -94,6 +95,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun onSearchChange(query: String) { searchQuery.value = query }
+    fun onOpenSearch() { if (searchQuery.value == null) searchQuery.value = "" }
+    fun onCloseSearch() { searchQuery.value = null }
 
     fun onCycleLayout() = viewModelScope.launch {
         settingsRepository.update { s ->

@@ -197,6 +197,22 @@ class CatalogViewModelTest {
         }
     }
 
+    @Test fun `closing search drops the filter, not just the field`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        val vm = env.vm()
+        vm.uiState.test {
+            latest()
+            vm.onOpenSearch()
+            vm.onSearchChange("Alpha")
+            assertEquals(listOf(1L), (latest() as UiState.Success).data.threads.map { it.no })
+            vm.onCloseSearch()
+            val closed = (latest() as UiState.Success).data
+            assertEquals(null, closed.searchQuery)
+            assertEquals(listOf(1L, 2L, 3L), closed.threads.map { it.no })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test fun `initial search from navigation is applied immediately`() = runTest(dispatcher.scheduler) {
         val env = Env()
         env.vm(initialSearch = "Alpha").uiState.test {

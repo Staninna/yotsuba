@@ -40,10 +40,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
@@ -58,6 +56,7 @@ import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.designsystem.component.showUndo
+import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
 import dev.stan.yotsuba.core.designsystem.component.OfflineBanner
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
@@ -82,7 +81,6 @@ fun CatalogScreen(
     val spacing = LocalSpacing.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var searchVisible by remember { mutableStateOf(!initialSearch.isNullOrBlank()) }
     val gridState = rememberLazyGridState()
     val showScrollTop by remember {
         derivedStateOf { gridState.firstVisibleItemIndex > 8 }
@@ -110,9 +108,10 @@ fun CatalogScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { searchVisible = !searchVisible }) {
+                    val searchOpen = (state as? UiState.Success)?.data?.searchQuery != null
+                    IconButton(onClick = { if (searchOpen) viewModel.onCloseSearch() else viewModel.onOpenSearch() }) {
                         Icon(
-                            if (searchVisible) Icons.Filled.Close else Icons.Filled.Search,
+                            if (searchOpen) Icons.Filled.Close else Icons.Filled.Search,
                             stringResource(R.string.action_search),
                         )
                     }
@@ -135,7 +134,7 @@ fun CatalogScreen(
                 if (s.offline) {
                     OfflineBanner(cachedAtLabel = null, onRetry = { viewModel.load(forceRefresh = true) })
                 }
-                if (searchVisible) {
+                if (s.searchQuery != null) {
                     SearchField(
                         value = s.searchQuery,
                         onValueChange = viewModel::onSearchChange,
@@ -146,7 +145,7 @@ fun CatalogScreen(
                     )
                 }
                 if (s.threads.isEmpty()) {
-                    if (s.searchQuery.isNotBlank()) {
+                    if (!s.searchQuery.isNullOrBlank()) {
                         NoSearchResults(s.searchQuery)
                     } else {
                         EmptyState(
