@@ -8,6 +8,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 
 /**
@@ -39,10 +40,19 @@ fun TabChrome(
     floatingActionButton: @Composable () -> Unit = {},
 ) {
     val token = remember { Any() }
+    // The slot holds one stable lambda per caller that reads the latest content through
+    // rememberUpdatedState; assigning a fresh lambda on every recomposition would invalidate
+    // the outer Scaffold's top bar each time anything in the tab recomposed.
+    val currentTopBar by rememberUpdatedState(topBar)
+    val currentFab by rememberUpdatedState(floatingActionButton)
+    val stableTopBar = remember<@Composable () -> Unit> { { currentTopBar() } }
+    val stableFab = remember<@Composable () -> Unit> { { currentFab() } }
     SideEffect {
-        slots.owner = token
-        slots.topBar = topBar
-        slots.floatingActionButton = floatingActionButton
+        if (slots.owner !== token) {
+            slots.owner = token
+            slots.topBar = stableTopBar
+            slots.floatingActionButton = stableFab
+        }
     }
     DisposableEffect(slots, token) {
         onDispose {
