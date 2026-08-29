@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
@@ -135,7 +136,10 @@ private fun BoardList(
                 headlineContent = { Text(boardTitle(section.board)) },
                 supportingContent = {
                     val count = section.entries.size
-                    Text(pluralStringResource(R.plurals.vault_items, count, count))
+                    Text(
+                        pluralStringResource(R.plurals.vault_items, count, count) +
+                            " · " + FileSize.format(section.sizeBytes),
+                    )
                 },
                 leadingContent = { Icon(Icons.Filled.Folder, contentDescription = null) },
                 trailingContent = {
@@ -172,7 +176,10 @@ private fun ThreadList(
                 headlineContent = { Text(threadTitle(section.location, section.subject), maxLines = 1) },
                 supportingContent = {
                     val count = section.entries.size
-                    Text(pluralStringResource(R.plurals.vault_items, count, count))
+                    Text(
+                        pluralStringResource(R.plurals.vault_items, count, count) +
+                            " · " + FileSize.format(section.sizeBytes),
+                    )
                 },
                 leadingContent = {
                     if (selecting) {

@@ -15,6 +15,7 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
@@ -54,10 +55,12 @@ class VaultViewModelTest {
         location: VaultLocation = VaultLocation("g", 100),
         savedAt: Long = 0,
         subject: String? = null,
+        sizeBytes: Long? = 1,
+        postNo: Long? = null,
     ) = VaultEntry(
-        url = url, location = location, subject = subject, postNo = null, displayName = url.substringAfterLast('/'),
-        absolutePath = "/vault/$url", ext = ".jpg", sizeBytes = 1, width = 1, height = 1,
-        thumbnailUrl = null, savedAt = savedAt,
+        url = url, location = location, subject = subject, postNo = postNo, displayName = url.substringAfterLast('/'),
+        absolutePath = "/vault/$url", ext = VaultPaths.extensionOf(url).ifEmpty { ".jpg" }, sizeBytes = sizeBytes,
+        width = 1, height = 1, thumbnailUrl = null, savedAt = savedAt,
     )
 
     private class FakeVault(initial: List<VaultEntry>) : MediaVaultRepository {
@@ -366,6 +369,24 @@ class VaultViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test fun `storage totals add up per thread, per board and overall`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(
+            entry("g/1.jpg", threadG, sizeBytes = 100),
+            entry("g/2.jpg", threadG, sizeBytes = 50),
+            entry("g/3.jpg", VaultLocation("g", 101), sizeBytes = 25),
+            entry("a/1.jpg", threadA, sizeBytes = null), // unknown size counts as nothing
+        ))
+        VaultViewModel(vault, FakeSettings(), boards).uiState.test {
+            val state = latest()
+            val g = state.boards.first { it.board == "g" }
+            assertEquals(150L, g.threads.first { it.location == threadG }.sizeBytes)
+            assertEquals(175L, g.sizeBytes)
+            assertEquals(0L, state.boards.first { it.board == "a" }.sizeBytes)
+            assertEquals(175L, state.totalBytes)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 
     @Test fun `playback follows the autoplay setting and the board's webm audio`() =
         runTest(dispatcher.scheduler) {

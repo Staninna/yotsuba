@@ -180,7 +180,19 @@ fun VaultScreen(
                         onDelete = viewModel::deleteSelected,
                     )
                 } else TopAppBar(
-                    title = { Text(vaultTitle(state), maxLines = 1) },
+                    title = {
+                        Column {
+                            Text(vaultTitle(state), maxLines = 1)
+                            if (state.hasStorageAccess && state.entries.isNotEmpty()) {
+                                Text(
+                                    vaultSubtitle(state),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
+                    },
                     navigationIcon = {
                         if (state.selection.board != null) {
                             IconButton(onClick = { viewModel.navigateUp() }) {
@@ -457,6 +469,14 @@ private fun vaultTitle(state: VaultUiState): String = when {
     state.selection.board == null -> stringResource(R.string.vault_title)
     state.selection.thread == null -> boardTitle(state.selection.board!!)
     else -> threadTitle(state.selection.thread!!, state.openThread?.subject)
+}
+
+/** Item count and disk use of whatever level is on screen. */
+@Composable
+private fun vaultSubtitle(state: VaultUiState): String {
+    val entries = state.scopeEntries
+    return pluralStringResource(R.plurals.vault_items, entries.size, entries.size) +
+        " · " + FileSize.format(entries.totalBytes)
 }
 
 /** Fallback thread name when the picker gives files but no folder to name them after. */

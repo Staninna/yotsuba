@@ -47,13 +47,20 @@ data class VaultThreadSection(
     val location: VaultLocation,
     val subject: String?,
     val entries: List<VaultEntry>,
-)
+) {
+    val sizeBytes: Long get() = entries.totalBytes
+}
 
 data class VaultBoardSection(
     val board: String,
     val threads: List<VaultThreadSection>,
     val entries: List<VaultEntry>,
-)
+) {
+    val sizeBytes: Long get() = entries.totalBytes
+}
+
+/** Disk taken by these files, as far as their rows know; a row without a size counts as 0. */
+val List<VaultEntry>.totalBytes: Long get() = sumOf { it.sizeBytes ?: 0L }
 
 /**
  * How the viewer starts a video, from the same settings the live viewer reads. Playback is
@@ -116,6 +123,9 @@ data class VaultUiState(
     val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.board == selection.board }
     val openThread: VaultThreadSection?
         get() = openBoard?.threads?.firstOrNull { it.location == selection.thread }
+
+    /** Disk taken by the whole vault. */
+    val totalBytes: Long get() = entries.totalBytes
 
     /** Whatever level is on screen: everything, one board, or one thread. */
     val scopeEntries: List<VaultEntry>
