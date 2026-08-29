@@ -15,6 +15,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -44,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -83,10 +90,26 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
             VaultNotice.Deleted -> stringResource(R.string.vault_deleted)
             is VaultNotice.DeleteFailed ->
                 stringResource(R.string.vault_delete_failed, notice.entry.displayName)
+            VaultNotice.Restored -> stringResource(R.string.vault_restored)
         }
         LaunchedEffect(notice) {
             snackbar.showSnackbar(message)
             viewModel.noticeShown()
+        }
+    }
+
+    // The undo snackbar lives as long as the trash window: the VM closes it by clearing
+    // `undo`, which cancels this effect and dismisses the snackbar with it.
+    state.undo?.let { trashed ->
+        val message = resources.getQuantityString(R.plurals.vault_trashed, trashed.size, trashed.size)
+        val undoLabel = stringResource(R.string.vault_undo)
+        LaunchedEffect(trashed) {
+            try {
+                val result = snackbar.showSnackbar(message, undoLabel, duration = SnackbarDuration.Indefinite)
+                if (result == SnackbarResult.ActionPerformed) viewModel.undoDelete()
+            } finally {
+                snackbar.currentSnackbarData?.dismiss()
+            }
         }
     }
 
@@ -213,7 +236,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                     onOpenBoard = viewModel::openBoard,
                     onOpenThread = viewModel::openThread,
                     onOpenEntry = { viewModel.openViewer(it.url) },
-                    onLongPressEntry = viewModel::requestDelete,
+                    onLongPressEntry = { viewModel.requestDelete(it, undoable = true) },
                 )
             }
         }
@@ -228,23 +251,54 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                 onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
                 onPageViewed = { viewModel.onViewerPage(it.url) },
                 onDismiss = { viewModel.closeViewer() },
+                onDelete = { viewModel.requestDelete(it, undoable = false) },
             )
         }
     }
 
-    state.deleting?.let { entry ->
-        AlertDialog(
-            onDismissRequest = viewModel::cancelDelete,
-            title = { Text(stringResource(R.string.vault_delete_title)) },
-            text = { Text(stringResource(R.string.vault_delete_body, entry.displayName)) },
-            confirmButton = {
-                TextButton(onClick = viewModel::confirmDelete) { Text(stringResource(R.string.vault_delete)) }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::cancelDelete) { Text(stringResource(R.string.vault_cancel)) }
-            },
+    state.deleting?.let { request ->
+        VaultDeleteDialog(
+            request = request,
+            onConfirm = viewModel::confirmDelete,
+            onCancel = viewModel::cancelDelete,
         )
     }
+}
+
+/** Confirmation with a "don't ask again" box that turns the setting off for good. */
+@Composable
+private fun VaultDeleteDialog(
+    request: VaultDeleteRequest,
+    onConfirm: (dontAskAgain: Boolean) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var dontAsk by remember { mutableStateOf(false) }
+    val count = request.entries.size
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.vault_delete_title)) },
+        text = {
+            Column {
+                Text(
+                    request.single?.let { stringResource(R.string.vault_delete_body, it.displayName) }
+                        ?: pluralStringResource(R.plurals.vault_delete_many_body, count, count),
+                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 8.dp).clickable { dontAsk = !dontAsk },
+                ) {
+                    Checkbox(checked = dontAsk, onCheckedChange = { dontAsk = it })
+                    Text(stringResource(R.string.vault_delete_dont_ask))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(dontAsk) }) { Text(stringResource(R.string.vault_delete)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.vault_cancel)) }
+        },
+    )
 }
 
 /**
@@ -261,6 +315,7 @@ private fun VaultViewer(
     onToggleAutoAdvance: () -> Unit,
     onPageViewed: (VaultEntry) -> Unit,
     onDismiss: () -> Unit,
+    onDelete: (VaultEntry) -> Unit,
 ) {
     val context = LocalContext.current
     val entries = viewer.entries
@@ -298,6 +353,9 @@ private fun VaultViewer(
             }
         }) {
             Icon(Icons.Filled.Share, stringResource(R.string.thread_share), tint = Color.White)
+        }
+        IconButton(onClick = { entries.getOrNull(page)?.let(onDelete) }) {
+            Icon(Icons.Filled.Delete, stringResource(R.string.vault_delete), tint = Color.White)
         }
     }
 }

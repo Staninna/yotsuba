@@ -17,6 +17,7 @@ import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.vault.VaultPostFile
 import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultFileMeta
+import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.core.vault.toVaultMeta
@@ -163,6 +164,63 @@ class MediaVaultRepositoryImpl @Inject constructor(
             }
             savedMediaDao.delete(url)
         }
+    }
+
+    /** What [trash] set aside, kept in memory: a restart empties the trash anyway. */
+    private class Trashed(
+        val entity: SavedMediaEntity,
+        val fileMeta: VaultFileMeta?,
+        val dir: File,
+        val trashFile: File,
+    )
+
+    private val trashed = mutableMapOf<String, Trashed>()
+
+    override suspend fun trash(url: String): VaultError? = withContext(Dispatchers.IO) {
+        val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
+        if (entity.absolutePath.isEmpty()) return@withContext delete(url)
+        attempt {
+            val file = File(entity.absolutePath)
+            val dir = file.parentFile ?: throw java.io.IOException("no parent for ${file.name}")
+            val trashDir = File(store.root, VaultPaths.TRASH_DIR_NAME).apply { mkdirs() }
+            val target = store.uniqueFile(trashDir, "${System.nanoTime()}_${file.name}")
+            if (!store.moveFile(file, target)) throw java.io.IOException("Couldn't move ${file.name} to trash")
+            var removed: VaultFileMeta? = null
+            store.lock.withLock {
+                store.updateMeta(dir) { meta ->
+                    removed = meta.files.firstOrNull { it.fileName == file.name }
+                    meta.remove(file.name)
+                }
+            }
+            // The thread dir is deliberately not pruned here: an undo needs its sidecars
+            // intact. Emptied directories go with the trash in [purgeTrash].
+            trashed[url] = Trashed(entity, removed, dir, target)
+            savedMediaDao.delete(url)
+        }
+    }
+
+    override suspend fun restoreTrashed(url: String): VaultError? = withContext(Dispatchers.IO) {
+        val item = trashed[url] ?: return@withContext VaultError.NotFound
+        attempt {
+            item.dir.mkdirs()
+            val back = File(item.entity.absolutePath)
+            if (!store.moveFile(item.trashFile, back)) throw java.io.IOException("Couldn't restore ${back.name}")
+            store.lock.withLock {
+                store.updateMeta(item.dir) { meta ->
+                    item.fileMeta?.let { meta.upsert(it) } ?: meta
+                }
+            }
+            savedMediaDao.insert(item.entity)
+            trashed.remove(url)
+        }
+    }
+
+    override suspend fun purgeTrash() = withContext(Dispatchers.IO) {
+        if (!hasStorageAccess()) return@withContext
+        val dirs = trashed.values.map { it.dir }.toSet()
+        trashed.clear()
+        File(store.root, VaultPaths.TRASH_DIR_NAME).deleteRecursively()
+        store.lock.withLock { dirs.forEach { if (it.isDirectory) store.pruneIfEmpty(it) } }
     }
 
     override suspend fun importLocalThread(

@@ -23,6 +23,7 @@ import dev.stan.yotsuba.feature.vault.VaultPlayback
 import dev.stan.yotsuba.feature.vault.VaultUiState
 import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultViewModel
+import dev.stan.yotsuba.feature.vault.UNDO_WINDOW_MS
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -78,6 +79,24 @@ class VaultViewModelTest {
             deleted += url
             state.value = state.value.filterNot { it.url == url }
             return null
+        }
+        val trash = mutableMapOf<String, VaultEntry>()
+        var purges = 0
+        override suspend fun trash(url: String): VaultError? {
+            deleteError?.let { return it }
+            val entry = state.value.firstOrNull { it.url == url } ?: return VaultError.NotFound
+            trash[url] = entry
+            state.value = state.value.filterNot { it.url == url }
+            return null
+        }
+        override suspend fun restoreTrashed(url: String): VaultError? {
+            val entry = trash.remove(url) ?: return VaultError.NotFound
+            state.value = state.value + entry
+            return null
+        }
+        override suspend fun purgeTrash() {
+            purges++
+            trash.clear()
         }
         var rescanGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
         var syncs = 0
@@ -202,7 +221,7 @@ class VaultViewModelTest {
         vm.uiState.test {
             assertEquals("g/1.jpg", latest().viewer?.current?.url)
             vm.requestDelete(entry("g/1.jpg", threadG))
-            assertEquals("g/1.jpg", latest().deleting?.url)
+            assertEquals("g/1.jpg", latest().deleting?.single?.url)
             vm.confirmDelete()
             val after = latest()
             assertNull(after.deleting)
@@ -284,6 +303,69 @@ class VaultViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test fun `a grid delete goes through the trash and comes back on undo`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
+        val vm = VaultViewModel(vault, FakeSettings(), boards)
+        vm.uiState.test {
+            latest()
+            vm.requestDelete(entry("g/1.jpg", threadG), undoable = true)
+            vm.confirmDelete()
+            val trashed = latest()
+            assertEquals(listOf("g/2.jpg"), trashed.entries.map { it.url })
+            assertEquals(listOf("g/1.jpg"), trashed.undo?.map { it.url })
+            assertTrue(vault.deleted.isEmpty())
+            assertEquals(setOf("g/1.jpg"), vault.trash.keys)
+
+            vm.undoDelete()
+            val restored = latest()
+            assertNull(restored.undo)
+            assertEquals(setOf("g/1.jpg", "g/2.jpg"), restored.entries.map { it.url }.toSet())
+            assertEquals(VaultNotice.Restored, restored.notice)
+            assertTrue(vault.trash.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `the undo window closes on its own and empties the trash`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
+        val vm = VaultViewModel(vault, FakeSettings(), boards)
+        vm.uiState.test {
+            latest()
+            vm.requestDelete(entry("g/1.jpg", threadG), undoable = true)
+            vm.confirmDelete()
+            assertEquals(1, latest().undo?.size)
+            val purgesBefore = vault.purges
+            dispatcher.scheduler.advanceTimeBy(UNDO_WINDOW_MS + 1)
+            assertNull(latest().undo)
+            assertEquals(purgesBefore + 1, vault.purges)
+            assertTrue(vault.trash.isEmpty())
+            vm.undoDelete() // too late: nothing to bring back
+            assertTrue(latest().entries.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `don't ask again turns the confirmation off and later deletes skip the dialog`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
+            val settings = FakeSettings()
+            val vm = VaultViewModel(vault, settings, boards)
+            vm.uiState.test {
+                latest()
+                vm.requestDelete(entry("g/1.jpg", threadG))
+                assertTrue(latest().deleting != null)
+                vm.confirmDelete(dontAskAgain = true)
+                assertEquals(false, settings.state.value.confirmVaultDelete)
+                assertEquals(listOf("g/1.jpg"), vault.deleted)
+
+                vm.requestDelete(entry("g/2.jpg", threadG))
+                val after = latest()
+                assertNull(after.deleting)
+                assertEquals(listOf("g/1.jpg", "g/2.jpg"), vault.deleted)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `playback follows the autoplay setting and the board's webm audio`() =
         runTest(dispatcher.scheduler) {

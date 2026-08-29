@@ -53,6 +53,19 @@ interface MediaVaultRepository {
     suspend fun delete(url: String): VaultError?
 
     /**
+     * Like [delete] as far as the index is concerned, but the file is moved aside rather
+     * than removed, so [restoreTrashed] can bring it back until [purgeTrash] runs. The
+     * default cannot undo; real implementations override it.
+     */
+    suspend fun trash(url: String): VaultError? = delete(url)
+
+    /** Puts a [trash]ed file back where it was, sidecar entry and row included. */
+    suspend fun restoreTrashed(url: String): VaultError? = VaultError.NotFound
+
+    /** Empties the trash for good. Called at launch and once an undo window closes. */
+    suspend fun purgeTrash() {}
+
+    /**
      * The thread as it was saved, rebuilt from its sidecars — posts, quote graph and all.
      * Null when nothing was captured for it. `archived` and `closed` are unknowable from
      * disk and come back false, so nothing may present them as fact.
