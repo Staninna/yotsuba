@@ -27,6 +27,7 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
+import dev.stan.yotsuba.feature.thread.Session
 import dev.stan.yotsuba.feature.thread.ThreadContent
 import dev.stan.yotsuba.feature.thread.ThreadViewModel
 import kotlinx.coroutines.Dispatchers
@@ -219,6 +220,22 @@ class ThreadViewModelTest {
             assertEquals(100L, vm.scrollTarget.value?.postNo)
             vm.onSearchStep(-1) // wraps backward
             assertEquals(104L, vm.scrollTarget.value?.postNo)
+        }
+
+    @Test fun `a new query and its reset index arrive in one session emission`() =
+        runTest(dispatcher.scheduler) {
+            val vm = Env().vm()
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.onSearchChange("match")
+            vm.onSearchStep(1)
+            vm.onSearchStep(1) // index 2
+            val seen = mutableListOf<Session>()
+            val job = launch(Dispatchers.Unconfined) { vm.session.collect { seen += it } }
+            vm.onSearchChange("other")
+            job.cancel()
+            // Never (query = "other", index = 2): the two fields changed together.
+            assertEquals(listOf(2, 0), seen.map { it.searchIndex })
+            assertEquals(listOf("match", "other"), seen.map { it.searchQuery })
         }
 
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {

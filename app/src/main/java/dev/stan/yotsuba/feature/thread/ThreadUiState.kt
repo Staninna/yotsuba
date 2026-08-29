@@ -40,41 +40,25 @@ data class ThreadContent(
 /** One-shot scroll request resolved by the ViewModel; the screen obeys and reports back. */
 data class ScrollTarget(val postNo: Long, val animate: Boolean)
 
-/** Text and image spoilers the user has revealed by tapping. */
-data class SpoilerState(
-    val revealedText: Set<Pair<Long, Int>>,
-    val revealedImages: Set<Long>,
-)
-
-/** Raw in-thread search input; matches are derived against the loaded posts. */
-data class SearchInput(val query: String?, val index: Int)
-
-/** Quotelink preview stack (post numbers) and the pending external-link confirmation. */
-data class OverlayState(
-    val previewPostNos: List<List<Long>>,
-    val pendingExternalUrl: String?,
-)
-
-/** Auto-refresh bookkeeping: the new-posts divider, archived flag, and the user's override. */
-data class RefreshState(
-    val newPostsAfter: Pair<Long, Int>?,
-    val archived: Boolean,
-    val autoRefreshOverride: Boolean?,
-    val error: NetworkError?,
-    val refreshing: Boolean,
-)
-
-/** Slow-changing companions of the thread itself. */
-data class MetaState(
-    val board: Board?,
-    val bookmarked: Boolean,
-    val mediaSaveStatuses: Map<String, MediaSaveStatus>,
-)
-
-/** Everything the user has done in this session, grouped for one typed top-level combine. */
-data class SessionState(
-    val spoilers: SpoilerState,
-    val search: SearchInput,
-    val overlays: OverlayState,
-    val refresh: RefreshState,
+/**
+ * Everything the user has done in this thread since opening it. One flow, mutated with
+ * `update { it.copy(...) }`, so related fields (a new query and its reset index) change
+ * in a single emission.
+ */
+data class Session(
+    /** Text spoilers revealed by tapping, as (postNo, spoiler id). */
+    val revealedText: Set<Pair<Long, Int>> = emptySet(),
+    val revealedImages: Set<Long> = emptySet(),
+    val searchQuery: String? = null,
+    val searchIndex: Int = 0,
+    /** Quotelink preview stack, each entry a group of post numbers. */
+    val previewPostNos: List<List<Long>> = emptyList(),
+    val pendingExternalUrl: String? = null,
+    /** (last post before the divider, count of posts after it); null = no divider. */
+    val newPostsAfter: Pair<Long, Int>? = null,
+    /** The thread 404ed during a refresh. */
+    val archived: Boolean = false,
+    val autoRefreshOverride: Boolean? = null,
+    val refreshError: NetworkError? = null,
+    val refreshing: Boolean = false,
 )

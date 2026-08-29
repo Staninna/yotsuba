@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel(assistedFactory = ThreadViewModel.Factory::class)
@@ -67,17 +68,8 @@ class ThreadViewModel @AssistedInject constructor(
 
     private val result = MutableStateFlow<DataResult<ThreadDetails>?>(null)
     private val boardInfo = MutableStateFlow<Board?>(null)
-    private val revealedSpoilers = MutableStateFlow<Set<Pair<Long, Int>>>(emptySet())
-    private val revealedImageSpoilers = MutableStateFlow<Set<Long>>(emptySet())
-    private val newPostsAfter = MutableStateFlow<Pair<Long, Int>?>(null)
-    private val archivedNotice = MutableStateFlow(false)
-    private val refreshError = MutableStateFlow<NetworkError?>(null)
-    private val refreshing = MutableStateFlow(false)
-    private val searchQuery = MutableStateFlow<String?>(null)
-    private val searchIndex = MutableStateFlow(0)
-    private val previewStack = MutableStateFlow<List<List<Long>>>(emptyList())
-    private val pendingExternalUrl = MutableStateFlow<String?>(null)
-    private val autoRefreshUserOverride = MutableStateFlow<Boolean?>(null)
+    /** Exposed for tests: every change to it is one atomic emission. */
+    val session = MutableStateFlow(Session())
 
     private val scrollTargetFlow = MutableStateFlow<ScrollTarget?>(null)
     private val topVisiblePostNo = MutableStateFlow<Long?>(null)
@@ -88,8 +80,8 @@ class ThreadViewModel @AssistedInject constructor(
 
     private val poller = ThreadPoller(
         isEnabled = {
-            !archivedNotice.value &&
-                (autoRefreshUserOverride.value ?: settingsRepository.settings.first().autoRefreshEnabled)
+            !session.value.archived &&
+                (session.value.autoRefreshOverride ?: settingsRepository.settings.first().autoRefreshEnabled)
         },
         poll = { load(forceRefresh = true, quiet = true) },
     )
@@ -116,47 +108,43 @@ class ThreadViewModel @AssistedInject constructor(
         }
     }
 
-    private val spoilerState = combine(revealedSpoilers, revealedImageSpoilers, ::SpoilerState)
-    private val searchInput = combine(searchQuery, searchIndex, ::SearchInput)
-    private val overlayState = combine(previewStack, pendingExternalUrl, ::OverlayState)
-    private val refreshState = combine(newPostsAfter, archivedNotice, autoRefreshUserOverride, refreshError, refreshing, ::RefreshState)
-    private val metaState = combine(boardInfo, bookmarked, mediaSaveStatuses, ::MetaState)
-    private val sessionState = combine(spoilerState, searchInput, overlayState, refreshState, ::SessionState)
+    /** Slow-changing companions of the thread, folded so the top-level combine stays typed. */
+    private val meta = combine(boardInfo, bookmarked, mediaSaveStatuses, ::Triple)
 
     val uiState: StateFlow<UiState<ThreadContent>> = combine(
-        result, settingsRepository.settings, metaState, sessionState,
-    ) { res, settings, meta, session ->
+        result, settingsRepository.settings, meta, session,
+    ) { res, settings, (board, bookmarked, saveStatuses), session ->
         when (res) {
             null -> UiState.Loading
             is DataResult.Failure -> UiState.Error(res.error)
             is DataResult.Success -> {
                 val details = res.value
-                val matches = searchMatches(details.posts, session.search.query)
+                val matches = searchMatches(details.posts, session.searchQuery)
                 val byNo = details.posts.associateBy { it.no }
                 UiState.Success(
                     ThreadContent(
                         details = details,
-                        board = meta.board,
-                        bookmarked = meta.bookmarked,
+                        board = board,
+                        bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
-                        revealedSpoilers = session.spoilers.revealedText,
-                        revealedImageSpoilers = session.spoilers.revealedImages,
-                        newPostsAfter = session.refresh.newPostsAfter?.first,
-                        newPostsCount = session.refresh.newPostsAfter?.second ?: 0,
-                        autoRefreshEnabled = session.refresh.autoRefreshOverride ?: settings.autoRefreshEnabled,
-                        archivedNotice = session.refresh.archived || details.archived,
-                        refreshError = session.refresh.error,
-                        refreshing = session.refresh.refreshing,
-                        searchQuery = session.search.query,
+                        revealedSpoilers = session.revealedText,
+                        revealedImageSpoilers = session.revealedImages,
+                        newPostsAfter = session.newPostsAfter?.first,
+                        newPostsCount = session.newPostsAfter?.second ?: 0,
+                        autoRefreshEnabled = session.autoRefreshOverride ?: settings.autoRefreshEnabled,
+                        archivedNotice = session.archived || details.archived,
+                        refreshError = session.refreshError,
+                        refreshing = session.refreshing,
+                        searchQuery = session.searchQuery,
                         searchMatches = matches,
-                        searchIndex = if (matches.isEmpty()) 0 else session.search.index.coerceIn(0, matches.size - 1),
-                        previewStack = session.overlays.previewPostNos
+                        searchIndex = if (matches.isEmpty()) 0 else session.searchIndex.coerceIn(0, matches.size - 1),
+                        previewStack = session.previewPostNos
                             .map { group -> group.mapNotNull { byNo[it] } }
                             .filter { it.isNotEmpty() },
-                        pendingExternalUrl = session.overlays.pendingExternalUrl,
+                        pendingExternalUrl = session.pendingExternalUrl,
                         confirmBeforeOpeningLinks = settings.confirmBeforeOpeningLinks,
                         trustedDomains = settings.trustedDomains,
-                        mediaSaveStatuses = meta.mediaSaveStatuses,
+                        mediaSaveStatuses = saveStatuses,
                         holdToSave = settings.holdToSave,
                     )
                 )
@@ -186,24 +174,24 @@ class ThreadViewModel @AssistedInject constructor(
     /** [quiet] refreshes without the spinner: auto-polls should not flicker the indicator. */
     fun load(forceRefresh: Boolean = false, quiet: Boolean = false) {
         viewModelScope.launch {
-            if (!forceRefresh) result.value = null else if (!quiet) refreshing.value = true
+            if (!forceRefresh) result.value = null else if (!quiet) session.update { it.copy(refreshing = true) }
             val r = threadRepository.thread(board, threadNo, forceRefresh)
-            refreshing.value = false
+            session.update { it.copy(refreshing = false) }
             when (r) {
                 is DataResult.Success -> {
-                    refreshError.value = null
+                    session.update { it.copy(refreshError = null) }
                     onLoaded(r.value)
                     result.value = r
                 }
                 is DataResult.Failure -> {
                     if (r.error == NetworkError.NotFound) {
-                        archivedNotice.value = true
+                        session.update { it.copy(archived = true) }
                         poller.stop()
                     }
                     if (result.value !is DataResult.Success) {
                         result.value = r // nothing to keep on screen
                     } else if (r.error != NetworkError.NotFound) {
-                        refreshError.value = r.error // keep content, report transiently
+                        session.update { it.copy(refreshError = r.error) } // keep content, report transiently
                     }
                 }
             }
@@ -214,7 +202,7 @@ class ThreadViewModel @AssistedInject constructor(
         val newest = details.posts.maxOfOrNull { it.no } ?: 0L
         if (lastKnownPostNo != 0L && newest > lastKnownPostNo) {
             val newOnes = details.posts.count { it.no > lastKnownPostNo }
-            newPostsAfter.value = lastKnownPostNo to newOnes
+            session.update { it.copy(newPostsAfter = lastKnownPostNo to newOnes) }
             poller.resetBackoff()
         }
         lastKnownPostNo = newest
@@ -223,7 +211,7 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     /** The screen showed the refresh error; drop it so it is not shown again. */
-    fun onRefreshErrorShown() { refreshError.value = null }
+    fun onRefreshErrorShown() = session.update { it.copy(refreshError = null) }
 
     /**
      * Restore priority: explicit target (quote/history tap) > media last viewed in the
@@ -280,9 +268,9 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onToggleAutoRefresh() = viewModelScope.launch {
-        val effective = autoRefreshUserOverride.value
+        val effective = session.value.autoRefreshOverride
             ?: settingsRepository.settings.first().autoRefreshEnabled
-        autoRefreshUserOverride.value = !effective
+        session.update { it.copy(autoRefreshOverride = !effective) }
         poller.resetBackoff()
     }
 
@@ -313,38 +301,31 @@ class ThreadViewModel @AssistedInject constructor(
         }
     }
 
-    fun onRevealSpoiler(postNo: Long, spoilerId: Int) {
-        revealedSpoilers.value = revealedSpoilers.value + (postNo to spoilerId)
-    }
+    fun onRevealSpoiler(postNo: Long, spoilerId: Int) =
+        session.update { it.copy(revealedText = it.revealedText + (postNo to spoilerId)) }
 
-    fun onRevealImageSpoiler(postNo: Long) {
-        revealedImageSpoilers.value = revealedImageSpoilers.value + postNo
-    }
+    fun onRevealImageSpoiler(postNo: Long) =
+        session.update { it.copy(revealedImages = it.revealedImages + postNo) }
 
-    fun onOpenPreview(postNo: Long) {
-        previewStack.value = previewStack.value + listOf(listOf(postNo))
-    }
+    fun onOpenPreview(postNo: Long) =
+        session.update { it.copy(previewPostNos = it.previewPostNos + listOf(listOf(postNo))) }
 
     fun onOpenBacklinks(postNo: Long) {
         val details = (result.value as? DataResult.Success)?.value ?: return
         val links = details.backlinks[postNo].orEmpty()
-        if (links.isNotEmpty()) previewStack.value = previewStack.value + listOf(links)
+        if (links.isNotEmpty()) session.update { it.copy(previewPostNos = it.previewPostNos + listOf(links)) }
     }
 
-    fun onClosePreview() {
-        previewStack.value = previewStack.value.dropLast(1)
-    }
+    fun onClosePreview() = session.update { it.copy(previewPostNos = it.previewPostNos.dropLast(1)) }
 
-    fun onSearchChange(query: String?) {
-        searchQuery.value = query
-        searchIndex.value = 0
-    }
+    /** Query and index change together: a stale index must never meet a new query. */
+    fun onSearchChange(query: String?) = session.update { it.copy(searchQuery = query, searchIndex = 0) }
 
     fun onSearchStep(delta: Int) {
-        val matches = searchMatches(loadedPosts() ?: return, searchQuery.value)
+        val matches = searchMatches(loadedPosts() ?: return, session.value.searchQuery)
         if (matches.isEmpty()) return
-        val next = (searchIndex.value + delta).mod(matches.size)
-        searchIndex.value = next
+        val next = (session.value.searchIndex + delta).mod(matches.size)
+        session.update { it.copy(searchIndex = next) }
         scrollTargetFlow.value = ScrollTarget(matches[next], animate = true)
     }
 
@@ -355,12 +336,12 @@ class ThreadViewModel @AssistedInject constructor(
         return if (!settings.confirmBeforeOpeningLinks || (domain != null && domain in settings.trustedDomains)) {
             true // open immediately
         } else {
-            pendingExternalUrl.value = url
+            session.update { it.copy(pendingExternalUrl = url) }
             false
         }
     }
 
-    fun onDismissLinkDialog() { pendingExternalUrl.value = null }
+    fun onDismissLinkDialog() = session.update { it.copy(pendingExternalUrl = null) }
 
     fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
 
@@ -389,7 +370,7 @@ class ThreadViewModel @AssistedInject constructor(
     fun onTrustDomain(url: String) = viewModelScope.launch {
         val domain = Urls.domainOf(url) ?: return@launch
         settingsRepository.update { it.copy(trustedDomains = it.trustedDomains + domain) }
-        pendingExternalUrl.value = null
+        session.update { it.copy(pendingExternalUrl = null) }
     }
 
     /** The screen reports the visible index range; the VM owns what it means. */
@@ -415,7 +396,7 @@ class ThreadViewModel @AssistedInject constructor(
         bookmarkRepository.markSeen(board, threadNo, postNo, replyCount)
     }
 
-    fun onDismissNewPostsDivider() { newPostsAfter.value = null }
+    fun onDismissNewPostsDivider() = session.update { it.copy(newPostsAfter = null) }
 
     private companion object {
         fun searchMatches(posts: List<ThreadPost>, query: String?): List<Long> =
