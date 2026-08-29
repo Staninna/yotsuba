@@ -10,6 +10,9 @@ sealed interface MediaSaveStatus {
     data object Downloading : MediaSaveStatus
     data class Failed(val error: VaultError) : MediaSaveStatus
 
+    /** Not downloaded: a byte-identical file is already in the vault at [existingPath]. */
+    data class AlreadySaved(val existingPath: String) : MediaSaveStatus
+
     /** Queued or downloading: the save is still going to happen. */
     val inProgress: Boolean get() = this is Queued || this is Downloading
 }

@@ -23,6 +23,8 @@ data class MediaItem(
     val spoiler: Boolean,
     /** External audio for a "sound post", played alongside the visual. Null for most files. */
     val soundUrl: String? = null,
+    /** 4chan's MD5 of the file, base64 of the raw digest. Null when the source didn't say. */
+    val md5: String? = null,
 ) {
     val hasSound: Boolean get() = soundUrl != null
 

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
@@ -112,6 +113,7 @@ fun VaultScreen(
     var searchOpen by remember { mutableStateOf(state.query.isNotEmpty()) }
     var syncMenuOpen by remember { mutableStateOf(false) }
     var statsOpen by remember { mutableStateOf(false) }
+    var dedupOpen by remember { mutableStateOf(false) }
 
     state.notice?.let { notice ->
         val message = when (notice) {
@@ -331,6 +333,16 @@ fun VaultScreen(
                                             statsOpen = true
                                         },
                                     )
+                                    DropdownMenuItem(
+                                        text = {
+                                            MenuLabel(R.string.vault_dedup_label, R.string.vault_dedup_explanation)
+                                        },
+                                        leadingIcon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
+                                        onClick = {
+                                            syncMenuOpen = false
+                                            dedupOpen = true
+                                        },
+                                    )
                                 }
                             }
                         }
@@ -402,6 +414,13 @@ fun VaultScreen(
                 viewModel.openBoard(location.board)
                 viewModel.openThread(location)
             },
+        )
+    }
+
+    if (dedupOpen) {
+        VaultDedupSheet(
+            onDismiss = { dedupOpen = false },
+            onNotice = { message -> scope.launch { snackbar.showSnackbar(message) } },
         )
     }
 

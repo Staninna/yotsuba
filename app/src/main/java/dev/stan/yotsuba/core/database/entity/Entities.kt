@@ -82,6 +82,12 @@ data class SavedMediaEntity(
     val thumbnailPath: String? = null,
     /** Video length, millis. */
     val durationMs: Long? = null,
+    /** MD5 of the file, base64 of the raw digest (4chan's format). Null until known. */
+    val md5: String? = null,
+    /** 64-bit difference hash of the decoded image; null for videos and until backfilled. */
+    val phash: Long? = null,
+    /** Decoded width times height, for picking the keeper among near-duplicates. */
+    val pixelSize: Long? = null,
 )
 
 /** A post the user marked as their own, so quotes of it read "(You)". Nothing is ever posted. */

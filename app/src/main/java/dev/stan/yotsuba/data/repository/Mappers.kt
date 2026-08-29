@@ -93,6 +93,7 @@ fun PostDto.toPostMedia(board: String): PostMedia? {
             thumbnailUrl = Urls.thumbnail(board, t),
             fullUrl = Urls.fullMedia(board, t, e),
             spoiler = spoiler == 1,
+            md5 = md5,
         )
     )
 }

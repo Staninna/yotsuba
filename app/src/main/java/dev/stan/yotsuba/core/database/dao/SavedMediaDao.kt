@@ -35,6 +35,25 @@ interface SavedMediaDao {
     @Query("DELETE FROM saved_media")
     suspend fun clearAll()
 
+    @Query("SELECT * FROM saved_media")
+    suspend fun allOnce(): List<SavedMediaEntity>
+
+    @Query("SELECT * FROM saved_media WHERE md5 = :md5 AND absolutePath != '' LIMIT 1")
+    suspend fun byMd5(md5: String): SavedMediaEntity?
+
+    /** Rows the hasher still has to visit: no MD5, or an image with no dHash. */
+    @Query(
+        "SELECT * FROM saved_media WHERE absolutePath != '' AND " +
+            "(md5 IS NULL OR (phash IS NULL AND ext NOT IN ('.webm', '.mp4')))",
+    )
+    suspend fun missingHashes(): List<SavedMediaEntity>
+
+    @Query("UPDATE saved_media SET md5 = :md5 WHERE url = :url")
+    suspend fun updateMd5(url: String, md5: String)
+
+    @Query("UPDATE saved_media SET md5 = :md5, phash = :phash, pixelSize = :pixelSize WHERE url = :url")
+    suspend fun updateHashes(url: String, md5: String, phash: Long?, pixelSize: Long?)
+
     /** Atomic rebuild for rescan — a crash mid-rescan can never leave the index empty. */
     @Transaction
     suspend fun replaceAll(entities: List<SavedMediaEntity>) {

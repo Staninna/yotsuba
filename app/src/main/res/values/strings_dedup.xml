@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="media_already_saved">Already in the vault</string>
+    <string name="vault_dedup_label">Find duplicates</string>
+    <string name="vault_dedup_explanation">Files saved twice, or images that look alike</string>
+    <string name="vault_dedup_title">Duplicates</string>
+    <string name="vault_dedup_scanning">Looking for duplicates…</string>
+    <string name="vault_dedup_hashing">Hashing files (%1$d of %2$d)</string>
+    <string name="vault_dedup_deleting">Deleting (%1$d of %2$d)</string>
+    <string name="vault_dedup_none">No duplicates found</string>
+    <string name="vault_dedup_mode_exact">Exact</string>
+    <string name="vault_dedup_mode_similar">Similar</string>
+    <string name="vault_dedup_distance">Max distance: %1$d (lower is stricter)</string>
+    <string name="vault_dedup_apply_all">Apply suggestions</string>
+    <string name="vault_dedup_confirm_delete">Delete</string>
+    <string name="vault_dedup_untitled">Untitled thread</string>
+    <string name="vault_dedup_kept">Kept</string>
+    <string name="vault_dedup_delete_failed">Couldn\'t delete %1$d of them</string>
+    <plurals name="vault_dedup_summary">
+        <item quantity="one">%1$d group · suggestions free %2$s</item>
+        <item quantity="other">%1$d groups · suggestions free %2$s</item>
+    </plurals>
+    <plurals name="vault_dedup_keep_selected">
+        <item quantity="one">Keep selected, delete %1$d (%2$s)</item>
+        <item quantity="other">Keep selected, delete %1$d (%2$s)</item>
+    </plurals>
+    <plurals name="vault_dedup_confirm_body">
+        <item quantity="one">Delete %1$d file (%2$s) from the vault, keeping the suggested copy in each group? The file on disk goes with it.</item>
+        <item quantity="other">Delete %1$d files (%2$s) from the vault, keeping the suggested copy in each group? The files on disk go with them.</item>
+    </plurals>
+    <plurals name="vault_dedup_deleted">
+        <item quantity="one">Deleted %1$d duplicate</item>
+        <item quantity="other">Deleted %1$d duplicates</item>
+    </plurals>
+</resources>
