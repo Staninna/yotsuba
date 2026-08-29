@@ -61,6 +61,7 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
 import dev.stan.yotsuba.feature.thread.components.PostCard
+import dev.stan.yotsuba.feature.thread.components.PostCardActions
 import dev.stan.yotsuba.feature.thread.components.QuotePreviewOverlay
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
 import kotlinx.coroutines.launch
@@ -163,57 +164,58 @@ fun ThreadScreen(
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             UiStateContent(state, onRetry = { viewModel.load() }) { s ->
+                fun actionsFor(post: ThreadPost) = PostCardActions(
+                    onBodyTap = { tap ->
+                        when (tap) {
+                            is BodyTap.Spoiler -> viewModel.onRevealSpoiler(post.no, tap.id)
+                            is BodyTap.SameThreadQuote -> viewModel.onOpenPreview(tap.postNo)
+                            is BodyTap.CrossThreadQuote -> onOpenInternal(
+                                Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
+                            )
+                            is BodyTap.Link -> handleLink(tap.url)
+                        }
+                    },
+                    onThumbnailTap = onThumbnailTap@{
+                        val media = post.presentMedia ?: return@onThumbnailTap
+                        if (media.spoiler && !s.revealAllSpoilers && post.no !in s.revealedImageSpoilers) {
+                            viewModel.onRevealImageSpoiler(post.no)
+                        } else {
+                            onOpenMedia(post.no)
+                        }
+                    },
+                    onThumbnailLongPress = {
+                        if (s.holdToSave && post.presentMedia != null) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            saveToVault(
+                                context = context,
+                                hasAccess = viewModel.hasStorageAccess(),
+                                onAccessNeeded = {
+                                    scope.launch { snackbar.showSnackbar(grantAccessMessage) }
+                                },
+                                save = { viewModel.onSaveMedia(post) },
+                            )
+                        }
+                    },
+                    onBacklinksTap = { viewModel.onOpenBacklinks(post.no) },
+                    onCopyPostNo = {
+                        clipboard.setText(AnnotatedString(post.no.toString()))
+                        scope.launch { snackbar.showSnackbar(copiedMessage) }
+                    },
+                )
+
                 val postCard: @Composable (ThreadPost, Boolean) -> Unit = { post, inPreview ->
+                    val actions = actionsFor(post)
                     PostCard(
                         post = post,
                         board = s.board,
-                        backlinkCount = if (inPreview) 0 else s.details.backlinks[post.no]?.size ?: 0,
+                        backlinkCount = s.details.backlinks[post.no]?.size ?: 0,
                         saveStatus = post.presentMedia?.fullUrl?.let { s.mediaSaveStatuses[it] },
                         revealedSpoilerIds = s.revealedSpoilers
                             .filter { it.first == post.no }.map { it.second }.toSet(),
                         revealAll = s.revealAllSpoilers,
                         imageSpoilerRevealed = post.no in s.revealedImageSpoilers,
                         darkTheme = dark,
-                        onBodyTap = { tap ->
-                            when (tap) {
-                                is BodyTap.Spoiler -> viewModel.onRevealSpoiler(post.no, tap.id)
-                                is BodyTap.SameThreadQuote -> viewModel.onOpenPreview(tap.postNo)
-                                is BodyTap.CrossThreadQuote -> onOpenInternal(
-                                    Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
-                                )
-                                is BodyTap.Link -> handleLink(tap.url)
-                            }
-                        },
-                        onThumbnailTap = onThumbnailTap@{
-                            val media = post.presentMedia ?: return@onThumbnailTap
-                            if (!inPreview && media.spoiler && !s.revealAllSpoilers &&
-                                post.no !in s.revealedImageSpoilers
-                            ) {
-                                viewModel.onRevealImageSpoiler(post.no)
-                            } else {
-                                onOpenMedia(post.no)
-                            }
-                        },
-                        onThumbnailLongPress = {
-                            if (!inPreview && s.holdToSave && post.presentMedia != null) {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                saveToVault(
-                                    context = context,
-                                    hasAccess = viewModel.hasStorageAccess(),
-                                    onAccessNeeded = {
-                                        scope.launch { snackbar.showSnackbar(grantAccessMessage) }
-                                    },
-                                    save = { viewModel.onSaveMedia(post) },
-                                )
-                            }
-                        },
-                        onBacklinksTap = { if (!inPreview) viewModel.onOpenBacklinks(post.no) },
-                        onCopyPostNo = {
-                            if (!inPreview) {
-                                clipboard.setText(AnnotatedString(post.no.toString()))
-                                scope.launch { snackbar.showSnackbar(copiedMessage) }
-                            }
-                        },
+                        actions = if (inPreview) actions.forPreview() else actions,
                         highlight = if (inPreview) null else s.searchQuery,
                     )
                 }

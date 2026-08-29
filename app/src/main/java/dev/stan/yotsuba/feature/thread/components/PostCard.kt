@@ -56,6 +56,22 @@ fun countryFlagEmoji(iso: String): String =
         .joinToString("") { String(Character.toChars(it)) }
         .ifEmpty { "🏳" }
 
+/**
+ * Everything a post card can do. Nullable handlers are unsupported in that context and
+ * the card renders them inert; [forPreview] is the one place that decides which.
+ */
+data class PostCardActions(
+    val onBodyTap: (BodyTap) -> Unit,
+    val onThumbnailTap: () -> Unit,
+    val onThumbnailLongPress: (() -> Unit)?,
+    val onBacklinksTap: (() -> Unit)?,
+    val onCopyPostNo: (() -> Unit)?,
+) {
+    /** A card inside the quote preview overlay: read-only apart from following links. */
+    fun forPreview(): PostCardActions =
+        copy(onThumbnailLongPress = null, onBacklinksTap = null, onCopyPostNo = null)
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PostCard(
@@ -66,12 +82,8 @@ fun PostCard(
     revealAll: Boolean,
     imageSpoilerRevealed: Boolean,
     darkTheme: Boolean,
-    onBodyTap: (BodyTap) -> Unit,
-    onThumbnailTap: () -> Unit,
-    onThumbnailLongPress: () -> Unit = {},
+    actions: PostCardActions,
     saveStatus: MediaSaveStatus? = null,
-    onBacklinksTap: () -> Unit,
-    onCopyPostNo: () -> Unit,
     modifier: Modifier = Modifier,
     highlight: String? = null,
 ) {
@@ -131,7 +143,7 @@ fun PostCard(
                     "#${post.no}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable(onClick = onCopyPostNo),
+                    modifier = actions.onCopyPostNo?.let { Modifier.clickable(onClick = it) } ?: Modifier,
                 )
             }
             post.subject?.let {
@@ -160,8 +172,8 @@ fun PostCard(
                                     modifier = Modifier
                                         .size(if (post.isOp) 140.dp else 100.dp)
                                         .combinedClickable(
-                                            onClick = onThumbnailTap,
-                                            onLongClick = onThumbnailLongPress,
+                                            onClick = actions.onThumbnailTap,
+                                            onLongClick = actions.onThumbnailLongPress,
                                         ),
                                 )
                                 saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
@@ -190,11 +202,12 @@ fun PostCard(
                     body = post.body,
                     revealedSpoilerIds = revealedSpoilerIds,
                     revealAll = revealAll,
-                    onTap = onBodyTap,
+                    onTap = actions.onBodyTap,
                     highlight = highlight,
                 )
             }
-            if (backlinkCount > 0) {
+            val onBacklinksTap = actions.onBacklinksTap
+            if (backlinkCount > 0 && onBacklinksTap != null) {
                 Spacer(Modifier.height(spacing.xs))
                 AssistChip(
                     onClick = onBacklinksTap,
@@ -206,6 +219,47 @@ fun PostCard(
         }
     }
 }
+
+/**
+ * Individual-callback form kept for callers outside this feature (the media viewer's
+ * sub-thread panel); new code passes a [PostCardActions].
+ */
+@Composable
+fun PostCard(
+    post: ThreadPost,
+    board: Board?,
+    backlinkCount: Int,
+    revealedSpoilerIds: Set<Int>,
+    revealAll: Boolean,
+    imageSpoilerRevealed: Boolean,
+    darkTheme: Boolean,
+    onBodyTap: (BodyTap) -> Unit,
+    onThumbnailTap: () -> Unit,
+    onThumbnailLongPress: () -> Unit = {},
+    saveStatus: MediaSaveStatus? = null,
+    onBacklinksTap: () -> Unit,
+    onCopyPostNo: () -> Unit,
+    modifier: Modifier = Modifier,
+    highlight: String? = null,
+) = PostCard(
+    post = post,
+    board = board,
+    backlinkCount = backlinkCount,
+    revealedSpoilerIds = revealedSpoilerIds,
+    revealAll = revealAll,
+    imageSpoilerRevealed = imageSpoilerRevealed,
+    darkTheme = darkTheme,
+    actions = PostCardActions(
+        onBodyTap = onBodyTap,
+        onThumbnailTap = onThumbnailTap,
+        onThumbnailLongPress = onThumbnailLongPress,
+        onBacklinksTap = onBacklinksTap,
+        onCopyPostNo = onCopyPostNo,
+    ),
+    saveStatus = saveStatus,
+    modifier = modifier,
+    highlight = highlight,
+)
 
 /** Tiny vault-status badge overlaid on a post thumbnail's corner. */
 @Composable
