@@ -5,6 +5,7 @@ import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.MediaSaveQueue
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.domain.repository.VaultDedupRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -21,11 +22,13 @@ import kotlinx.coroutines.launch
  * App-wide save queue: enqueueing is instant, one background worker walks the queue
  * sequentially (the vault write streams from cache or network — no point fanning out
  * against the 1 s API courtesy). A successful save simply drops out of the queue's own
- * map; the vault's saved table takes over and [statuses] reads it as saved.
+ * map; the vault's saved table takes over and [statuses] reads it as saved. A file whose MD5
+ * the vault already holds is not fetched: it reads [MediaSaveStatus.AlreadySaved] instead.
  */
 @Singleton
 class MediaDownloadQueue @Inject constructor(
     private val vault: MediaVaultRepository,
+    private val dedup: VaultDedupRepository = VaultDedupRepository.None,
 ) : MediaSaveQueue {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channel = Channel<Pair<MediaItem, VaultSaveContext>>(Channel.UNLIMITED)
@@ -49,8 +52,14 @@ class MediaDownloadQueue @Inject constructor(
                 // A cancelled entry was removed from the map — skip its stale channel element.
                 if (queued.value[item.fullUrl] != MediaSaveStatus.Queued) continue
                 queued.update { it + (item.fullUrl to MediaSaveStatus.Downloading) }
+                val existing = item.md5?.let { dedup.findByMd5(it) }
+                if (existing != null) {
+                    queued.update { it + (item.fullUrl to MediaSaveStatus.AlreadySaved(existing)) }
+                    continue
+                }
                 val error = vault.save(item, ctx)
                 if (error == null) {
+                    item.md5?.let { dedup.recordMd5(item.fullUrl, it) }
                     queued.update { it - item.fullUrl }
                 } else {
                     failedRequests.update { it + (item.fullUrl to (item to ctx)) }
@@ -78,6 +87,6 @@ class MediaDownloadQueue @Inject constructor(
 
     override fun dismiss(url: String) {
         failedRequests.update { it - url }
-        queued.update { if (it[url] is MediaSaveStatus.Failed) it - url else it }
+        queued.update { if (it[url] is MediaSaveStatus.Failed || it[url] is MediaSaveStatus.AlreadySaved) it - url else it }
     }
 }

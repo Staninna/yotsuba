@@ -332,6 +332,10 @@ private fun SaveStatusBadge(status: MediaSaveStatus, modifier: Modifier = Modifi
                 Icons.Filled.ErrorOutline, stringResource(R.string.media_save_failed),
                 tint = Color(0xFFE57373), modifier = Modifier.size(13.dp),
             )
+            is MediaSaveStatus.AlreadySaved -> Icon(
+                Icons.Filled.DownloadDone, stringResource(R.string.media_already_saved),
+                tint = Color(0xFF81C784).copy(alpha = 0.7f), modifier = Modifier.size(13.dp),
+            )
         }
     }
 }

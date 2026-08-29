@@ -68,6 +68,10 @@ internal fun DownloadAction(
                     MenuItem(R.string.media_retry_download) { close(); onRetry() }
                     MenuItem(R.string.media_dismiss_failed) { close(); onDismissFailed() }
                 }
+                is MediaSaveStatus.AlreadySaved -> {
+                    MenuItem(R.string.media_already_saved, enabled = false) {}
+                    MenuItem(R.string.media_dismiss_failed) { close(); onDismissFailed() }
+                }
                 null -> Unit
             }
         }
@@ -105,6 +109,11 @@ private fun SaveStatusIcon(status: MediaSaveStatus?) {
             Icons.Filled.Download,
             stringResource(R.string.media_save_failed),
             tint = Color(0xFFE57373),
+        )
+        is MediaSaveStatus.AlreadySaved -> Icon(
+            Icons.Filled.DownloadDone,
+            stringResource(R.string.media_already_saved),
+            tint = Color(0xFF81C784).copy(alpha = 0.7f),
         )
         null -> Icon(
             Icons.Filled.Download,

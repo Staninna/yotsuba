@@ -20,7 +20,7 @@ import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
         BookmarkEntity::class, HistoryEntity::class, HiddenThreadEntity::class,
         DownloadedMediaEntity::class, SavedMediaEntity::class, ClaimedPostEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
 )
 abstract class YotsubaDatabase : RoomDatabase() {

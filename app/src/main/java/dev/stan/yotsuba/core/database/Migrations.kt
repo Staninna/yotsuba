@@ -71,3 +71,12 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
         )
     }
 }
+
+/** Content hashes on saved media, for duplicate detection; a backfill fills them in. */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `md5` TEXT")
+        db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `phash` INTEGER")
+        db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `pixelSize` INTEGER")
+    }
+}
