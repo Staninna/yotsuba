@@ -15,7 +15,14 @@ data class VaultThreadMeta(
     val subject: String? = null,
     val threadUrl: String? = null,
     val files: List<VaultFileMeta> = emptyList(),
+    /** When posts.json was compacted to the saved conversations, unix millis. Set once, never merged into again. */
+    val prunedAt: Long? = null,
+    /** How many posts the compaction dropped. */
+    val prunedPostCount: Int? = null,
 ) {
+    /** A pruned thread is final: sync never widens it again. */
+    val isPruned: Boolean get() = prunedAt != null
+
     /** Replaces any entry with the same [VaultFileMeta.fileName], keeps order stable. */
     fun upsert(entry: VaultFileMeta): VaultThreadMeta {
         val kept = files.filterNot { it.fileName == entry.fileName }

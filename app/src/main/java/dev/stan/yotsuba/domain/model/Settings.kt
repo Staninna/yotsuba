@@ -40,6 +40,12 @@ data class Settings(
      * so the context survives the thread being pruned. Text only, never bytes.
      */
     val saveRepliesWithMedia: Boolean = true,
+    /**
+     * Once a thread is gone, compact its posts.json to the OP plus the conversation around
+     * each saved file. Off by default: the whole dead thread is kept. A thread with no
+     * saved files is never pruned either way.
+     */
+    val pruneDeadSidecars: Boolean = false,
     val recordHistory: Boolean = true,
     val historyRetention: HistoryRetention = HistoryRetention.FOREVER,
     /** Ask before removing a saved thread from the vault. */

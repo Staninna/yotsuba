@@ -8,7 +8,9 @@ import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultPostsCodec
 import dev.stan.yotsuba.core.vault.VaultThreadPosts
 import dev.stan.yotsuba.core.vault.VaultThreadMeta
+import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.ThreadPost
 import java.io.File
 import javax.inject.Inject
@@ -17,10 +19,12 @@ import kotlinx.coroutines.sync.Mutex
 
 /** File-system plumbing shared by the vault repository and the legacy migration. */
 @Singleton
-class VaultStore @Inject constructor() {
+class VaultStore(private val rootOverride: File?) {
+
+    @Inject constructor() : this(null)
 
     val root: File
-        get() = File(Environment.getExternalStorageDirectory(), VaultPaths.ROOT_DIR_NAME)
+        get() = rootOverride ?: File(Environment.getExternalStorageDirectory(), VaultPaths.ROOT_DIR_NAME)
 
     /** meta.json read-modify-write and migration must not interleave. */
     val lock = Mutex()
@@ -100,6 +104,36 @@ class VaultStore @Inject constructor() {
             File(dir, VaultPaths.POSTS_FILE_NAME),
             VaultPostsCodec.encode(current.mergedWith(incoming)),
         )
+    }
+
+    /**
+     * Compacts a dead thread's posts.json to the OP plus the conversation around every post
+     * that has a saved file on disk, and marks meta.json so it never happens twice. Returns
+     * how many posts were dropped, or null when there was nothing to do: already pruned, no
+     * posts captured, or no media saved -- a snapshot-only thread is the only copy and is
+     * left whole.
+     */
+    fun pruneDeadThread(dir: File): Int? {
+        val meta = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
+            ?.let { VaultMetaCodec.decode(it.readText()) } ?: return null
+        if (meta.isPruned) return null
+        val savedPostNos = meta.files
+            .filter { File(dir, it.fileName).isFile }
+            .mapNotNull { it.postNo }
+            .toSet()
+        if (savedPostNos.isEmpty()) return null
+        val saved = readPosts(dir) ?: return null
+        val threadPosts = saved.posts.map { it.toThreadPost(meta.board) }
+        val graph = PostGraph(threadPosts, PostGraph.backlinksOf(threadPosts))
+        val keep = buildSet {
+            saved.posts.filter { it.isOp }.forEach { add(it.no) }
+            savedPostNos.forEach { no -> graph.conversationAround(no).forEach { add(it.no) } }
+        }
+        val kept = saved.posts.filter { it.no in keep }
+        val dropped = saved.posts.size - kept.size
+        writeSidecar(File(dir, VaultPaths.POSTS_FILE_NAME), VaultPostsCodec.encode(saved.copy(posts = kept)))
+        updateMeta(dir) { it.copy(prunedAt = System.currentTimeMillis(), prunedPostCount = dropped) }
+        return dropped
     }
 
     /** Write via a temp file so a crash mid-write cannot leave a half-parsed sidecar. */

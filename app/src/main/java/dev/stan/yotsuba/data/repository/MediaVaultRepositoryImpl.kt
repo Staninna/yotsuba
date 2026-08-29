@@ -36,6 +36,7 @@ import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import java.io.File
@@ -62,6 +63,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
     private val byteSource: MediaByteSource,
     private val threadRepository: ThreadRepository,
     private val preferences: DataStore<Preferences>,
+    private val settings: SettingsRepository,
 ) : MediaVaultRepository {
 
     override fun hasStorageAccess(): Boolean =
@@ -375,31 +377,49 @@ class MediaVaultRepositoryImpl @Inject constructor(
     ): VaultSyncSummary = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext VaultSyncSummary()
         val targets = savedThreads()
-        onProgress(0, targets.size)
+        runPass(targets.map { VaultLocation(it.board, it.threadNo) }, onProgress) { location, thread ->
+            val dir = store.threadDir(location.board, location.threadNo) ?: return@runPass
+            // The whole comment section, not just the conversation around what was
+            // saved: while the thread is alive this is the only chance to take it.
+            store.updatePosts(
+                dir = dir,
+                board = location.board,
+                threadNo = location.threadNo,
+                incoming = thread.posts.map { it.toVaultMeta() },
+            )
+        }
+    }
 
+    /**
+     * One rate-limited walk over [targets]: fetch each live thread and hand it to [apply]
+     * under the store lock. A 404 is the thread's end, and the moment its sidecar may be
+     * compacted; a rate limit ends the pass.
+     */
+    private suspend fun runPass(
+        targets: List<VaultLocation>,
+        onProgress: (done: Int, total: Int) -> Unit,
+        apply: (VaultLocation, ThreadDetails) -> Unit,
+    ): VaultSyncSummary {
+        onProgress(0, targets.size)
         var updated = 0
         var gone = 0
         var failed = 0
+        var pruned = 0
         var rateLimited = false
 
         for ((index, target) in targets.withIndex()) {
             when (val result = threadRepository.thread(target.board, target.threadNo, forceRefresh = true)) {
                 is DataResult.Success -> {
-                    // The whole comment section, not just the conversation around what was
-                    // saved: while the thread is alive this is the only chance to take it.
-                    store.lock.withLock {
-                        store.updatePosts(
-                            dir = target.dir,
-                            board = target.board,
-                            threadNo = target.threadNo,
-                            incoming = result.value.posts.map { it.toVaultMeta() },
-                        )
-                    }
-                    updated++
+                    val outcome = attempt { store.lock.withLock { apply(target, result.value) } }
+                    if (outcome == null) updated++ else failed++
                 }
                 is DataResult.Failure -> when (result.error) {
-                    // Already gone. Whatever was captured before is all there will ever be.
-                    NetworkError.NotFound -> gone++
+                    // Already gone. Whatever was captured before is all there will ever be,
+                    // so this is the one moment the sidecar can be compacted.
+                    NetworkError.NotFound -> {
+                        gone++
+                        if (store.lock.withLock { pruneIfDead(target.board, target.threadNo) }) pruned++
+                    }
                     // Backing off is the whole point of a rate limit; finish another day.
                     NetworkError.RateLimited -> {
                         rateLimited = true
@@ -410,12 +430,20 @@ class MediaVaultRepositoryImpl @Inject constructor(
             onProgress(index + 1, targets.size)
             if (rateLimited) break
         }
-        VaultSyncSummary(updated = updated, gone = gone, failed = failed, rateLimited = rateLimited)
+        return VaultSyncSummary(updated = updated, gone = gone, failed = failed, pruned = pruned, rateLimited = rateLimited)
     }
 
-    /** Saved threads that have an upstream to sync against; local imports do not. */
+    /** Under the store lock. True when the thread's sidecar was compacted this time. */
+    private suspend fun pruneIfDead(board: String, threadNo: Long): Boolean {
+        if (!settings.settings.first().pruneDeadSidecars) return false
+        val dir = store.threadDir(board, threadNo) ?: return false
+        return runCatching { store.pruneDeadThread(dir) }.getOrNull() != null
+    }
+
+    /** Saved threads that have an upstream to sync against; local imports and pruned threads do not. */
     private fun savedThreads(): List<SavedThreadDir> =
         store.threadMetas().mapNotNull { (dir, meta) ->
+            if (meta.isPruned) return@mapNotNull null
             val threadNo = meta.threadNo ?: return@mapNotNull null
             val board = meta.board.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             if (!VaultLocation(board, threadNo).isRemote) return@mapNotNull null
