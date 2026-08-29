@@ -41,3 +41,14 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL("ALTER TABLE `history` ADD COLUMN `maxReadPostNo` INTEGER")
     }
 }
+
+/** One read mark (readUpTo, seeded from the old last-seen marker), pin flag, activity time. */
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `bookmarks` ADD COLUMN `readUpTo` INTEGER")
+        db.execSQL("ALTER TABLE `bookmarks` ADD COLUMN `postNos` TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE `bookmarks` ADD COLUMN `pinned` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `bookmarks` ADD COLUMN `lastActivityAt` INTEGER")
+        db.execSQL("UPDATE `bookmarks` SET `readUpTo` = `lastSeenPostNo`")
+    }
+}

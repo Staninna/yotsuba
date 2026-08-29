@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bookmarks_badge_archived">Archived</string>
+    <string name="bookmarks_badge_pruned">Pruned</string>
+    <string name="bookmarks_unread_pill">%d unread</string>
+    <plurals name="bookmarks_unread_a11y">
+        <item quantity="one">%d unread reply</item>
+        <item quantity="other">%d unread replies</item>
+    </plurals>
+    <string name="bookmarks_menu">Bookmark options</string>
+    <string name="bookmarks_sort_unread_first">Unread first</string>
+    <string name="bookmarks_sort_last_activity">Last activity</string>
+    <string name="bookmarks_sort_bookmarked">Bookmarked</string>
+    <string name="bookmarks_remove_dead">Remove pruned threads</string>
+    <string name="bookmarks_pin">Pin</string>
+    <string name="bookmarks_unpin">Unpin</string>
+    <string name="bookmarks_pinned_a11y">Pinned</string>
+    <string name="bookmarks_notification_channel">Bookmarked threads</string>
+    <string name="bookmarks_notification_title">New replies</string>
+    <plurals name="bookmarks_notification_replies">
+        <item quantity="one">%d new reply in</item>
+        <item quantity="other">%d new replies in</item>
+    </plurals>
+    <plurals name="bookmarks_notification_threads">
+        <item quantity="one">%d thread</item>
+        <item quantity="other">%d threads</item>
+    </plurals>
+</resources>

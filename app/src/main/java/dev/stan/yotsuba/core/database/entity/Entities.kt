@@ -15,11 +15,18 @@ data class BookmarkEntity(
     val bookmarkedAt: Long,
     val lastCheckedAt: Long?,
     val lastSeenPostNo: Long?,
-    val state: String, // ALIVE | DEAD | UNKNOWN (D9)
-    /** Replies newer than lastSeenPostNo, counted by refreshOne; reset on thread visit. */
+    val state: String, // ALIVE | ARCHIVED | DEAD | UNKNOWN (D9)
+    /** Superseded by readUpTo/postNos; no longer written, dropped in a later migration. */
     val newReplies: Int = 0,
-    /** Posts past the history reading position, counted by refreshOne. */
+    /** Superseded by readUpTo/postNos; no longer written, dropped in a later migration. */
     val unreadCount: Int = 0,
+    /** The one read mark: the newest post the user has had on screen. Only markSeen writes it. */
+    val readUpTo: Long? = null,
+    /** Comma-separated post numbers as of the last refresh; unread = those past readUpTo. */
+    val postNos: String = "",
+    val pinned: Boolean = false,
+    /** Catalog last_modified (epoch ms) as of the last refresh. */
+    val lastActivityAt: Long? = null,
 )
 
 @Entity(tableName = "history", primaryKeys = ["board", "threadNo"])
