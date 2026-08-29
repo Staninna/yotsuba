@@ -12,8 +12,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.util.Urls
-import dev.stan.yotsuba.core.vault.VaultMetaCodec
-import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.vault.VaultPostFile
@@ -25,6 +23,7 @@ import dev.stan.yotsuba.core.vault.toVaultMeta
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.domain.model.ImportSource
@@ -298,36 +297,24 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     /** Saved threads that have an upstream to sync against; local imports do not. */
     private fun savedThreads(): List<SavedThreadDir> =
-        store.root.walkTopDown()
-            .filter { it.isFile && it.name == VaultPaths.META_FILE_NAME }
-            .mapNotNull { metaFile ->
-                val meta = VaultMetaCodec.decode(metaFile.readText()) ?: return@mapNotNull null
-                val threadNo = meta.threadNo ?: return@mapNotNull null
-                val board = meta.board.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                val dir = metaFile.parentFile ?: return@mapNotNull null
-                if (board == VaultPaths.LOCAL_BOARD_NAME || board == VaultPaths.UNSORTED_DIR_NAME) {
-                    return@mapNotNull null
-                }
-                SavedThreadDir(dir, board, threadNo)
-            }
-            .toList()
+        store.threadMetas().mapNotNull { (dir, meta) ->
+            val threadNo = meta.threadNo ?: return@mapNotNull null
+            val board = meta.board.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            if (!VaultLocation(board, threadNo).isRemote) return@mapNotNull null
+            SavedThreadDir(dir, board, threadNo)
+        }
 
     private data class SavedThreadDir(val dir: File, val board: String, val threadNo: Long)
 
     override suspend fun rescan() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext
-        val rebuilt = mutableListOf<SavedMediaEntity>()
-        store.lock.withLock {
-            store.root.walkTopDown()
-                .filter { it.isFile && it.name == VaultPaths.META_FILE_NAME }
-                .forEach { metaFile ->
-                    val meta = VaultMetaCodec.decode(metaFile.readText()) ?: return@forEach
-                    meta.files.forEach { f ->
-                        val file = File(metaFile.parentFile, f.fileName)
-                        if (!file.isFile) return@forEach
-                        rebuilt += savedMediaEntity(meta, f, file)
-                    }
+        val rebuilt = store.lock.withLock {
+            store.threadMetas().flatMap { (dir, meta) ->
+                meta.files.mapNotNull { f ->
+                    val file = File(dir, f.fileName)
+                    if (file.isFile) savedMediaEntity(meta, f, file) else null
                 }
+            }
         }
         savedMediaDao.clearAll()
         savedMediaDao.insertAll(rebuilt)
