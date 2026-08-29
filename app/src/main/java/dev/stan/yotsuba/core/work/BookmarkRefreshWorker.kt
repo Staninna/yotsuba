@@ -1,9 +1,13 @@
 package dev.stan.yotsuba.core.work
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
@@ -66,7 +70,15 @@ class BookmarkRefreshWorker(
             .setAutoCancel(true)
             .build()
         // POST_NOTIFICATIONS may be denied on 13+; the runtime prompt lives outside this feature.
-        runCatching { manager.notify(NOTIFICATION_ID, notification) }
+        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) return
+        try {
+            manager.notify(NOTIFICATION_ID, notification)
+        } catch (_: SecurityException) {
+            // Revoked between the check and the call; nothing to do.
+        }
     }
 
     companion object {
