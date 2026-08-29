@@ -263,50 +263,6 @@ fun PostCard(
     }
 }
 
-/**
- * Individual-callback form kept for callers outside this feature (the media viewer's
- * sub-thread panel); new code passes a [PostCardActions].
- */
-@Composable
-fun PostCard(
-    post: ThreadPost,
-    board: Board?,
-    backlinkCount: Int,
-    revealedSpoilerIds: Set<Int>,
-    revealAll: Boolean,
-    imageSpoilerRevealed: Boolean,
-    darkTheme: Boolean,
-    onBodyTap: (BodyTap) -> Unit,
-    onThumbnailTap: () -> Unit,
-    onThumbnailLongPress: () -> Unit = {},
-    saveStatus: MediaSaveStatus? = null,
-    onBacklinksTap: () -> Unit,
-    onCopyPostNo: () -> Unit,
-    modifier: Modifier = Modifier,
-    highlight: String? = null,
-) = PostCard(
-    post = post,
-    board = board,
-    ui = PostUiState(
-        revealedSpoilerIds = revealedSpoilerIds,
-        imageSpoilerRevealed = imageSpoilerRevealed,
-        backlinks = List(backlinkCount) { 0L }, // only the count is shown
-        saveStatus = saveStatus,
-    ),
-    revealAll = revealAll,
-    darkTheme = darkTheme,
-    actions = PostCardActions(
-        onBodyTap = onBodyTap,
-        onThumbnailTap = onThumbnailTap,
-        onThumbnailLongPress = onThumbnailLongPress,
-        onBacklinkTap = null,
-        onBacklinksTap = onBacklinksTap,
-        onCopyPostNo = onCopyPostNo,
-    ),
-    modifier = modifier,
-    highlight = highlight,
-)
-
 /** "Closed" / "Sticky" on the OP card. */
 @Composable
 private fun ThreadBadge(icon: ImageVector, label: String) {

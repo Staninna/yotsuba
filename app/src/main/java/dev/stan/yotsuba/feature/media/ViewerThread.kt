@@ -11,13 +11,15 @@ import dev.stan.yotsuba.domain.model.ThreadPost
  *
  * Deliberately says nothing about where the posts came from: the live thread and the
  * posts.json snapshot beside saved media produce the same thing, which is what lets the
- * vault show replies at all.
+ * vault show replies at all. [posts] keep thread order; [byNo] is the lookup.
  */
 data class ViewerThread(
-    val posts: Map<Long, ThreadPost> = emptyMap(),
+    val posts: List<ThreadPost> = emptyList(),
     val backlinks: Map<Long, List<Long>> = emptyMap(),
     val board: Board? = null,
 ) {
+    val byNo: Map<Long, ThreadPost> by lazy(LazyThreadSafetyMode.NONE) { posts.associateBy { it.no } }
+
     val graph: PostGraph by lazy(LazyThreadSafetyMode.NONE) { PostGraph(posts, backlinks) }
 
     /** False when nothing was captured, so a viewer can hide the affordance entirely. */
@@ -25,7 +27,7 @@ data class ViewerThread(
 
     companion object {
         fun of(details: ThreadDetails?, board: Board? = null): ViewerThread = ViewerThread(
-            posts = details?.posts.orEmpty().associateBy { it.no },
+            posts = details?.posts.orEmpty(),
             backlinks = details?.backlinks.orEmpty(),
             board = board,
         )

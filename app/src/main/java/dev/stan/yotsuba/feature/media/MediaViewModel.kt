@@ -76,7 +76,7 @@ data class MediaUiState(
     /** The vault file for [url], when it is saved and its file is known. */
     fun savedPath(url: String): String? = saved[url]
 
-    val posts: Map<Long, ThreadPost> get() = thread.posts
+    val posts: Map<Long, ThreadPost> get() = thread.byNo
     val backlinks: Map<Long, List<Long>> get() = thread.backlinks
     val board: Board? get() = thread.board
 
