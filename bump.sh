@@ -11,9 +11,14 @@
 #   ./bump.sh --no-push    stop after the commit; you push and tag by hand
 #   ./bump.sh --just-push  the bump is already committed; only push and tag
 #   ./bump.sh --watch      follow the release run to the end
+#   ./bump.sh --help       this
 set -euo pipefail
 
-cd "$(dirname "$0")"
+# The comment block above is the help text; there is only one copy of it.
+SELF=$(readlink -f "$0")
+usage() { sed -n '2,/^[^#]/ s/^# \?//p' "$SELF"; }
+
+cd "$(dirname "$SELF")"
 
 GRADLE=app/build.gradle.kts
 APP=$(sed -n 's/^rootProject.name = "\(.*\)"/\1/p' settings.gradle.kts)
@@ -24,12 +29,13 @@ BUMP=patch
 
 for arg in "$@"; do
   case "$arg" in
+    -h|--help) usage; exit 0 ;;
     --no-push) PUSH=no ;;
     --just-push) BUMP=none ;;
     --watch) WATCH=yes ;;
     patch|minor|major) BUMP=$arg ;;
     [0-9]*.[0-9]*.[0-9]*) BUMP=exact; VERSION=$arg ;;
-    *) echo "unknown argument: $arg" >&2; exit 2 ;;
+    *) { echo "unknown argument: $arg"; echo; usage; } >&2; exit 2 ;;
   esac
 done
 
