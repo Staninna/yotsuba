@@ -45,24 +45,35 @@ class PostGraph(
     }
 
     /**
-     * The thread as a forest: each post nested under the first post it quotes that appears
-     * earlier in the thread. Posts quoting nothing in-thread sit at the top level. [maxDepth]
-     * flattens anything deeper onto the last allowed level so the indent stays readable.
+     * The thread as a forest, depth-first: each post sits under the first post it quotes
+     * that appears earlier in the thread, followed by its own replies. Posts quoting nothing
+     * in-thread (and the OP) are top level, in thread order. Every post appears exactly once.
      */
-    fun tree(maxDepth: Int = Int.MAX_VALUE): List<TreeNode> {
-        val depthOf = HashMap<Long, Int>()
-        return posts.map { post ->
-            val parent = post.quotedPostNos.firstOrNull { q ->
+    fun tree(): List<TreeNode> {
+        val parentOf = HashMap<Long, Long>()
+        val children = LinkedHashMap<Long, MutableList<ThreadPost>>()
+        val roots = mutableListOf<ThreadPost>()
+        posts.forEach { post ->
+            val index = indexOf.getValue(post.no)
+            val parent = if (post.isOp) null else post.quotedPostNos.firstOrNull { q ->
                 val pi = indexOf[q]
-                pi != null && pi < indexOf.getValue(post.no)
+                pi != null && pi < index
             }
-            val depth = if (parent == null || post.isOp) 0 else (depthOf.getValue(parent) + 1)
-            depthOf[post.no] = depth
-            TreeNode(post, depth.coerceAtMost(maxDepth), parent)
+            if (parent == null) roots += post else {
+                parentOf[post.no] = parent
+                children.getOrPut(parent) { mutableListOf() } += post
+            }
         }
+        val out = ArrayList<TreeNode>(posts.size)
+        fun visit(post: ThreadPost, depth: Int) {
+            out += TreeNode(post, depth, parentOf[post.no])
+            children[post.no]?.forEach { visit(it, depth + 1) }
+        }
+        roots.forEach { visit(it, 0) }
+        return out
     }
 
-    /** A post with its nesting depth under [parentNo] in [tree]. */
+    /** A post with its nesting depth under [parentNo] in [tree]; depth 0 is top level. */
     data class TreeNode(val post: ThreadPost, val depth: Int, val parentNo: Long?)
 
     private fun inThreadOrder(nos: Collection<Long>): List<ThreadPost> =

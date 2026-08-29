@@ -55,6 +55,8 @@ fun ThreadTopBar(
     onRefresh: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenGallery: () -> Unit,
+    treeView: Boolean,
+    onToggleTreeView: () -> Unit,
     onToggleAutoRefresh: () -> Unit,
     onOpenExternal: (String) -> Unit,
 ) {
@@ -132,6 +134,12 @@ fun ThreadTopBar(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_open_in_browser)) },
                     onClick = { menuOpen = false; onOpenExternal(webUrl) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.thread_tree_view)) },
+                    trailingIcon = { if (treeView) Icon(Icons.Filled.Check, contentDescription = null) },
+                    onClick = { menuOpen = false; onToggleTreeView() },
+                    modifier = Modifier.semantics { toggleableState = ToggleableState(treeView) },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_auto_refresh)) },

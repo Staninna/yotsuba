@@ -68,19 +68,26 @@ class PostGraphTest {
         assertEquals(listOf(50L, 10L, 30L), g.conversationAround(10).map { it.no })
     }
 
-    @Test fun `tree nests each post under its first in-thread quote and caps the depth`() {
-        val chain = listOf(
-            post(1), post(2, listOf(1)), post(3, listOf(2)), post(4, listOf(3)), post(5, listOf(4)), post(6),
-        )
-        val g = PostGraph(chain, PostGraph.backlinksOf(chain))
-        assertEquals(listOf(0, 1, 2, 3, 4, 0), g.tree().map { it.depth })
-        assertEquals(listOf(0, 1, 2, 2, 2, 0), g.tree(maxDepth = 2).map { it.depth })
-        assertEquals(listOf(null, 1L, 2L, 3L, 4L, null), g.tree().map { it.parentNo })
+    @Test fun `tree walks depth-first with replies under their parent`() {
+        //  1 <- 2 <- 4
+        //    <- 3 <- 5      thread order 1,2,3,4,5 -> tree order 1,2,4,3,5
+        assertEquals(listOf(1L, 2L, 4L, 3L, 5L), graph.tree().map { it.post.no })
+        assertEquals(listOf(0, 1, 2, 1, 2), graph.tree().map { it.depth })
+        assertEquals(listOf(null, 1L, 2L, 1L, 3L), graph.tree().map { it.parentNo })
     }
 
-    @Test fun `tree ignores forward quotes so a reply never nests under a later post`() {
-        val forward = listOf(post(1), post(2, listOf(3)), post(3, listOf(1)))
+    @Test fun `tree nests under the first earlier quote and ignores forward quotes`() {
+        val forward = listOf(post(1), post(2, listOf(3)), post(3, listOf(1, 2)))
         val g = PostGraph(forward, PostGraph.backlinksOf(forward))
-        assertEquals(listOf(0, 0, 1), g.tree().map { it.depth })
+        // 2 quotes only a later post, so it is top level; 3 nests under 1 (its first quote).
+        assertEquals(listOf(1L, 3L, 2L), g.tree().map { it.post.no })
+        assertEquals(listOf(0, 1, 0), g.tree().map { it.depth })
+    }
+
+    @Test fun `tree lists every post once even with cycles and stray quotes`() {
+        val messy = listOf(post(1, listOf(3, 99999)), post(2, listOf(1)), post(3, listOf(2, 1)))
+        val g = PostGraph(messy, PostGraph.backlinksOf(messy))
+        assertEquals(listOf(1L, 2L, 3L), g.tree().map { it.post.no }.sorted())
+        assertEquals(3, g.tree().size)
     }
 }

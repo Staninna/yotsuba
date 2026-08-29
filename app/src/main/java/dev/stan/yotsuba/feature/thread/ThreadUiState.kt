@@ -40,6 +40,7 @@ data class ThreadContent(
     val galleryOpen: Boolean = false,
     /** The post whose long-press sheet is up. */
     val postSheet: ThreadPost? = null,
+    val treeView: Boolean = false,
     /** Posts with a present attachment, in thread order. */
     val mediaPosts: List<ThreadPost> = emptyList(),
 )
@@ -69,10 +70,14 @@ data class PostUiState(
 
 /** One list item on the thread screen; the VM decides the order, the screen only draws. */
 sealed interface ThreadRow {
-    data class Post(val post: ThreadPost) : ThreadRow
+    /** [depth] is the tree-view indent level; always 0 in the linear view. */
+    data class Post(val post: ThreadPost, val depth: Int = 0) : ThreadRow
 
     /** Sits before the first post that arrived in a refresh; tapping it dismisses it. */
     data class NewPostsDivider(val count: Int) : ThreadRow
+
+    /** Tree view: [count] replies nested deeper than the cap under [parentNo]; tap expands them. */
+    data class MoreReplies(val parentNo: Long, val count: Int) : ThreadRow
 }
 
 /** Where a tapped link goes; the VM applies the trusted-domain policy (D26). */
@@ -112,6 +117,10 @@ data class Session(
     val filterPosterId: String? = null,
     val galleryOpen: Boolean = false,
     val postSheetFor: Long? = null,
+    /** Threaded (indented) layout instead of the flat list. */
+    val treeView: Boolean = false,
+    /** Depth-capped subtrees the user expanded, by the post at the cap. */
+    val expandedTails: Set<Long> = emptySet(),
     val refreshError: NetworkError? = null,
     val refreshing: Boolean = false,
 )

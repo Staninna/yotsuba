@@ -140,7 +140,8 @@ class ThreadViewModel @AssistedInject constructor(
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
                         postStates = postStates(details, session, saveStatuses),
-                        rows = rows(visiblePosts(details.posts, session), session.newPostsAfter),
+                        rows = rows(details, session),
+                        treeView = session.treeView,
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
                         refreshError = session.refreshError,
@@ -443,6 +444,11 @@ class ThreadViewModel @AssistedInject constructor(
     fun onOpenPostSheet(postNo: Long) = session.update { it.copy(postSheetFor = postNo) }
     fun onClosePostSheet() = session.update { it.copy(postSheetFor = null) }
 
+    fun onToggleTreeView() = session.update { it.copy(treeView = !it.treeView) }
+
+    /** Expands the replies folded under [parentNo]'s "N more" row. */
+    fun onExpandTail(parentNo: Long) = session.update { it.copy(expandedTails = it.expandedTails + parentNo) }
+
     fun onOpenGallery() = session.update { it.copy(galleryOpen = true) }
     fun onCloseGallery() = session.update { it.copy(galleryOpen = false) }
 
@@ -465,7 +471,8 @@ class ThreadViewModel @AssistedInject constructor(
 
     /** The screen reports the visible row range; the VM owns what it means. */
     fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
-        val rows = rows(visiblePosts(loadedPosts() ?: return, session.value), session.value.newPostsAfter)
+        val details = (result.value as? DataResult.Success)?.value ?: return
+        val rows = rows(details, session.value)
         // Top-of-screen post: the reading position restored when the thread is reopened.
         rows.postAt(firstIndex)?.let { topVisiblePostNo.value = it.no }
         // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
@@ -488,17 +495,25 @@ class ThreadViewModel @AssistedInject constructor(
 
     fun onDismissNewPostsDivider() = session.update { it.copy(newPostsAfter = null) }
 
-    private companion object {
-        const val HIGHLIGHT_MS = 1_500L
+    companion object {
+        private const val HIGHLIGHT_MS = 1_500L
 
         /** The poster-ID filter applied; the OP always stays so the thread keeps its header. */
-        fun visiblePosts(posts: List<ThreadPost>, session: Session): List<ThreadPost> {
+        private fun visiblePosts(posts: List<ThreadPost>, session: Session): List<ThreadPost> {
             val id = session.filterPosterId ?: return posts
             return posts.filter { it.isOp || it.posterId == id }
         }
 
+        /** Tree view indents this deep; anything deeper collapses into a "N more" row. */
+        const val MAX_TREE_DEPTH = 4
+
+        /** Linear: thread order with the new-posts divider. Tree: nested, capped, filtered. */
+        private fun rows(details: ThreadDetails, session: Session): List<ThreadRow> =
+            if (session.treeView) treeRows(details, session)
+            else linearRows(visiblePosts(details.posts, session), session.newPostsAfter)
+
         /** Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post. */
-        fun rows(posts: List<ThreadPost>, newPostsAfter: Pair<Long, Int>?): List<ThreadRow> =
+        private fun linearRows(posts: List<ThreadPost>, newPostsAfter: Pair<Long, Int>?): List<ThreadRow> =
             buildList {
                 posts.forEach { post ->
                     add(ThreadRow.Post(post))
@@ -508,13 +523,42 @@ class ThreadViewModel @AssistedInject constructor(
                 }
             }
 
+        /**
+         * Depth-first tree, indent capped at [MAX_TREE_DEPTH]. A capped post's deeper replies
+         * follow it directly in the walk, so they fold into one "N more" row until expanded,
+         * then show flattened at the cap. The ID filter applies as in the linear view; the
+         * new-posts divider does not exist here since the order is no longer chronological.
+         */
+        private fun treeRows(details: ThreadDetails, session: Session): List<ThreadRow> {
+            val visible = visiblePosts(details.posts, session).mapTo(HashSet()) { it.no }
+            val nodes = PostGraph.of(details).tree().filter { it.post.no in visible }
+            val out = mutableListOf<ThreadRow>()
+            var i = 0
+            while (i < nodes.size) {
+                val node = nodes[i]
+                out += ThreadRow.Post(node.post, node.depth.coerceAtMost(MAX_TREE_DEPTH))
+                i++
+                if (node.depth != MAX_TREE_DEPTH) continue
+                val tailStart = i
+                while (i < nodes.size && nodes[i].depth > MAX_TREE_DEPTH) i++
+                val tail = nodes.subList(tailStart, i)
+                if (tail.isEmpty()) continue
+                if (node.post.no in session.expandedTails) {
+                    tail.forEach { out += ThreadRow.Post(it.post, MAX_TREE_DEPTH) }
+                } else {
+                    out += ThreadRow.MoreReplies(node.post.no, tail.size)
+                }
+            }
+            return out
+        }
+
         /** The OP is labelled first; a claimed OP still reads as yours. */
-        fun quoteLabels(details: ThreadDetails, claimed: Set<Long>): Map<Long, QuoteLabel> = buildMap {
+        private fun quoteLabels(details: ThreadDetails, claimed: Set<Long>): Map<Long, QuoteLabel> = buildMap {
             details.posts.firstOrNull { it.isOp }?.let { put(it.no, QuoteLabel.OP) }
             claimed.forEach { put(it, QuoteLabel.YOU) }
         }
 
-        fun postStates(
+        private fun postStates(
             details: ThreadDetails,
             session: Session,
             saveStatuses: Map<String, MediaSaveStatus>,
@@ -536,14 +580,14 @@ class ThreadViewModel @AssistedInject constructor(
         }
 
         /** The post at a row index, or the nearest post above a divider. */
-        fun List<ThreadRow>.postAt(index: Int): ThreadPost? =
+        private fun List<ThreadRow>.postAt(index: Int): ThreadPost? =
             (0..index).reversed().firstNotNullOfOrNull { (getOrNull(it) as? ThreadRow.Post)?.post }
 
         /** The user's in-thread toggle wins over the setting. */
-        fun autoRefreshOn(session: Session, settings: Settings): Boolean =
+        private fun autoRefreshOn(session: Session, settings: Settings): Boolean =
             session.autoRefreshOverride ?: settings.autoRefreshEnabled
 
-        fun searchMatches(posts: List<ThreadPost>, query: String?): List<Long> =
+        private fun searchMatches(posts: List<ThreadPost>, query: String?): List<Long> =
             if (query.isNullOrBlank()) emptyList()
             else posts.filter {
                 it.body.plainText.contains(query, true) || it.subject?.contains(query, true) == true

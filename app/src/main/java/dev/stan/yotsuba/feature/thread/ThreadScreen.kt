@@ -102,6 +102,7 @@ fun ThreadScreen(
     val textCopiedMessage = stringResource(R.string.thread_text_copied)
     val imageUrlCopiedMessage = stringResource(R.string.thread_image_url_copied)
     val haptics = LocalHapticFeedback.current
+    val treeIndent = spacing.lg
 
     fun closeSearch() {
         searchOpen = false
@@ -192,6 +193,8 @@ fun ThreadScreen(
                 onRefresh = { viewModel.load(forceRefresh = true) },
                 onOpenSearch = { searchOpen = true },
                 onOpenGallery = viewModel::onOpenGallery,
+                treeView = s?.treeView == true,
+                onToggleTreeView = viewModel::onToggleTreeView,
                 onToggleAutoRefresh = viewModel::onToggleAutoRefresh,
                 onOpenExternal = ::openExternal,
             )
@@ -297,14 +300,22 @@ fun ThreadScreen(
                                     when (val row = s.rows[i]) {
                                         is ThreadRow.Post -> row.post.no
                                         is ThreadRow.NewPostsDivider -> "new-posts"
+                                        is ThreadRow.MoreReplies -> "more-${'$'}{row.parentNo}"
                                     }
                                 },
                             ) { i ->
                                 when (val row = s.rows[i]) {
-                                    is ThreadRow.Post -> postCard(row.post, false)
+                                    is ThreadRow.Post -> Box(Modifier.padding(start = treeIndent * row.depth)) {
+                                        postCard(row.post, false)
+                                    }
                                     is ThreadRow.NewPostsDivider -> NewPostsDivider(
                                         count = row.count,
                                         onTap = viewModel::onDismissNewPostsDivider,
+                                    )
+                                    is ThreadRow.MoreReplies -> MoreRepliesRow(
+                                        count = row.count,
+                                        modifier = Modifier.padding(start = treeIndent * ThreadViewModel.MAX_TREE_DEPTH),
+                                        onTap = { viewModel.onExpandTail(row.parentNo) },
                                     )
                                 }
                             }
@@ -466,6 +477,18 @@ private fun JumpButtons(onTop: () -> Unit, onFirstNew: (() -> Unit)?, onBottom: 
             Icon(Icons.Filled.VerticalAlignBottom, stringResource(R.string.thread_jump_bottom))
         }
     }
+}
+
+/** Tree view: the folded tail under a depth-capped post. */
+@Composable
+private fun MoreRepliesRow(count: Int, modifier: Modifier, onTap: () -> Unit) {
+    val spacing = LocalSpacing.current
+    Text(
+        pluralStringResource(R.plurals.thread_more_replies, count, count),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier.fillMaxWidth().clickable(onClick = onTap).padding(spacing.sm),
+    )
 }
 
 @Composable
