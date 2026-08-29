@@ -64,6 +64,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
@@ -419,7 +420,10 @@ private fun MediaGrid(
             ) {
                 MediaThumb(
                     entry,
-                    Modifier.fillMaxSize().then(if (checked) Modifier.padding(6.dp) else Modifier),
+                    Modifier
+                        .fillMaxSize()
+                        .then(if (checked) Modifier.padding(6.dp) else Modifier)
+                        .sharedMedia(entry.absolutePath),
                 )
                 if (entry.isVideo) {
                     Icon(
