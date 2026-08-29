@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.domain.model
 
+import kotlinx.serialization.Serializable
+
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class CatalogLayout { COMFORTABLE, COMPACT, LIST }
 enum class MediaAutoplay { ALWAYS, UNMETERED_ONLY, NEVER }
@@ -13,6 +15,11 @@ enum class SeekStep(val seconds: Int) {
     THIRTY(30),
 }
 
+/**
+ * Persisted as one JSON blob. Every field needs a default: the serializer coerces missing
+ * keys and unknown enum names to it, which is how old installs survive new fields.
+ */
+@Serializable
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,

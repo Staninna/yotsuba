@@ -12,7 +12,12 @@ import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
+import dev.stan.yotsuba.domain.model.HistoryRetention
+import org.junit.Assert.assertNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -83,8 +88,67 @@ class SettingsDataStoreTest {
         val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
         val file = File.createTempFile("prefs", ".preferences_pb").also { it.delete() }
         val dataStore = PreferenceDataStoreFactory.create(scope = scope) { file }
-        dataStore.edit { it[androidx.datastore.preferences.core.stringPreferencesKey("seekStep")] = "TWELVE" }
+        dataStore.edit { it[stringPreferencesKey("settings")] = """{"seekStep":"TWELVE","themeMode":"DARK"}""" }
 
-        assertEquals(SeekStep.TEN, SettingsDataStore(dataStore).settings.first().seekStep)
+        val loaded = SettingsDataStore(dataStore).settings.first()
+        assertEquals(SeekStep.TEN, loaded.seekStep)
+        assertEquals(ThemeMode.DARK, loaded.themeMode)
+    }
+
+    @Test fun `a blob from a newer build with unknown keys still reads`() = runTest {
+        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val file = File.createTempFile("prefs", ".preferences_pb").also { it.delete() }
+        val dataStore = PreferenceDataStoreFactory.create(scope = scope) { file }
+        dataStore.edit { it[stringPreferencesKey("settings")] = """{"fromTheFuture":1,"dynamicColor":false}""" }
+
+        assertEquals(false, SettingsDataStore(dataStore).settings.first().dynamicColor)
+    }
+
+    @Test fun `a corrupt blob falls back to defaults rather than crashing`() = runTest {
+        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val file = File.createTempFile("prefs", ".preferences_pb").also { it.delete() }
+        val dataStore = PreferenceDataStoreFactory.create(scope = scope) { file }
+        dataStore.edit { it[stringPreferencesKey("settings")] = "not json" }
+
+        assertEquals(Settings(), SettingsDataStore(dataStore).settings.first())
+    }
+
+    @Test fun `one-preference-per-field settings migrate into the blob with values intact`() = runTest {
+        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val file = File.createTempFile("prefs", ".preferences_pb").also { it.delete() }
+        val dataStore = PreferenceDataStoreFactory.create(scope = scope) { file }
+        dataStore.edit {
+            it[stringPreferencesKey("themeMode")] = "LIGHT"
+            it[booleanPreferencesKey("dynamicColor")] = false
+            it[stringPreferencesKey("catalogLayout")] = "COMPACT"
+            it[booleanPreferencesKey("autoRefreshEnabled")] = true
+            it[stringSetPreferencesKey("trustedDomains")] = setOf("a.example", "b.example")
+            it[stringPreferencesKey("mediaAutoplay")] = "NEVER"
+            it[stringPreferencesKey("seekStep")] = "TWELVE" // unknown legacy enum name: same fallback as the blob
+            it[booleanPreferencesKey("holdToSave")] = false
+            it[stringPreferencesKey("historyRetention")] = "DAYS_7"
+            it[stringSetPreferencesKey("hiddenBoards")] = setOf("b")
+            it[stringPreferencesKey("bogus")] = "ignored" // an unknown legacy key must not break the migration
+        }
+
+        val expected = Settings(
+            themeMode = ThemeMode.LIGHT,
+            dynamicColor = false,
+            catalogLayout = CatalogLayout.COMPACT,
+            autoRefreshEnabled = true,
+            trustedDomains = setOf("a.example", "b.example"),
+            mediaAutoplay = MediaAutoplay.NEVER,
+            seekStep = SeekStep.TEN,
+            holdToSave = false,
+            historyRetention = HistoryRetention.DAYS_7,
+            hiddenBoards = setOf("b"),
+        )
+        assertEquals(expected, SettingsDataStore(dataStore).settings.first())
+
+        // The migration ran once: the legacy keys are gone and the blob alone carries the values.
+        val prefs = dataStore.data.first()
+        assertNull(prefs[stringPreferencesKey("themeMode")])
+        assertEquals(setOf("settings"), prefs.asMap().keys.map { it.name }.toSet())
+        assertEquals(expected, SettingsDataStore(dataStore).settings.first())
     }
 }
