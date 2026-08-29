@@ -93,6 +93,11 @@ class WatchedThreadsWidget : GlanceAppWidget() {
         return combine(periodic, oneOff) { a, b -> (a + b).any { it.state == WorkInfo.State.RUNNING } }
     }
 
+    companion object {
+        val SMALL = DpSize(110.dp, 110.dp)
+        val MEDIUM = DpSize(250.dp, 110.dp)
+        val LARGE = DpSize(250.dp, 250.dp)
+    }
 }
 
 class WatchedThreadsWidgetReceiver : GlanceAppWidgetReceiver() {
