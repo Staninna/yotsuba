@@ -1,6 +1,9 @@
 package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
+import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
+import dev.stan.yotsuba.core.dedup.DHash
+import dev.stan.yotsuba.core.dedup.Md5
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateGroup
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
@@ -8,7 +11,9 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 
 @Singleton
 class VaultDedupRepositoryImpl @Inject constructor(
@@ -25,7 +30,32 @@ class VaultDedupRepositoryImpl @Inject constructor(
 
     override suspend fun missingHashCount(): Int = withContext(Dispatchers.IO) { dao.missingHashes().size }
 
-    override suspend fun backfillHashes(onProgress: (Int, Int) -> Unit) {}
+    override suspend fun backfillHashes(onProgress: (Int, Int) -> Unit) = withContext(Dispatchers.IO) {
+        val todo = dao.missingHashes()
+        val total = todo.size
+        onProgress(0, total)
+        todo.forEachIndexed { i, row ->
+            coroutineContext.ensureActive()
+            val file = File(row.absolutePath)
+            if (file.isFile) {
+                runCatching {
+                    val md5 = row.md5 ?: Md5.of(file)
+                    if (isVideo(row)) {
+                        dao.updateMd5(row.url, md5)
+                    } else {
+                        val image = DHash.of(file)
+                        dao.updateHashes(
+                            row.url, md5, image?.dhash,
+                            image?.let { it.width.toLong() * it.height.toLong() },
+                        )
+                    }
+                }
+            }
+            onProgress(i + 1, total)
+        }
+    }
 
     override suspend fun findDuplicates(mode: DedupMode, maxDistance: Int): List<DuplicateGroup> = emptyList()
+
+    private fun isVideo(row: SavedMediaEntity) = row.ext == ".webm" || row.ext == ".mp4"
 }
