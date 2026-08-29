@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.feature
+package dev.stan.yotsuba.feature.boards
 
 import app.cash.turbine.test
 import dev.stan.yotsuba.core.util.DataResult
@@ -9,8 +9,6 @@ import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import dev.stan.yotsuba.feature.boards.BoardsContent
-import dev.stan.yotsuba.feature.boards.BoardsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow

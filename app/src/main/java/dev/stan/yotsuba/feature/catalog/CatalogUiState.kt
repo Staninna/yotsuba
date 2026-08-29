@@ -1,11 +1,9 @@
 package dev.stan.yotsuba.feature.catalog
 
-import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogThread
 
 data class CatalogContent(
-    val board: Board?,
     val threads: List<CatalogThread>,
     val layout: CatalogLayout,
     val searchQuery: String,

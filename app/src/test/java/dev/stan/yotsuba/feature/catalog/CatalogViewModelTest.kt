@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.feature
+package dev.stan.yotsuba.feature.catalog
 
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
@@ -18,8 +18,6 @@ import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import dev.stan.yotsuba.feature.catalog.CatalogContent
-import dev.stan.yotsuba.feature.catalog.CatalogViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -125,10 +123,11 @@ class CatalogViewModelTest {
 
     @Test fun `successful load exposes the board info and threads`() = runTest(dispatcher.scheduler) {
         val env = Env()
-        env.vm().uiState.test {
+        val vm = env.vm()
+        vm.uiState.test {
             val content = (latest() as UiState.Success).data
             assertEquals(listOf(1L, 2L, 3L), content.threads.map { it.no })
-            assertEquals("g", content.board?.code)
+            assertEquals("g", vm.boardInfo.value?.code)
             assertEquals(false, content.refreshing)
             cancelAndIgnoreRemainingEvents()
         }

@@ -58,7 +58,6 @@ import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.designsystem.component.showUndo
-import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
 import dev.stan.yotsuba.core.designsystem.component.OfflineBanner
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
@@ -79,6 +78,7 @@ fun CatalogScreen(
     ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val boardInfo by viewModel.boardInfo.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -96,7 +96,7 @@ fun CatalogScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text((state as? UiState.Success)?.data?.board?.title ?: board)
+                        Text(boardInfo?.title ?: board)
                         Text(
                             "/$board/",
                             style = MaterialTheme.typography.labelSmall,
