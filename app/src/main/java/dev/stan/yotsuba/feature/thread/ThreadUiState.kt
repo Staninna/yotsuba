@@ -34,6 +34,8 @@ data class ThreadContent(
     val claimedPostNos: Set<Long> = emptySet(),
     /** Posts (not themselves claimed) that quote a claimed post. */
     val repliesToMe: Int = 0,
+    /** Only posts by this poster ID are in [rows]; null shows everything. */
+    val filterPosterId: String? = null,
 )
 
 /** Why a quotelink target is special; the screen picks the words. */
@@ -48,6 +50,8 @@ data class PostUiState(
     val saveStatus: MediaSaveStatus? = null,
     /** Briefly true after a quotelink jump landed on this post. */
     val highlighted: Boolean = false,
+    /** How many posts in the thread share this post's poster ID; 0 without an ID. */
+    val posterIdCount: Int = 0,
 ) {
     companion object {
         val Default = PostUiState()
@@ -95,6 +99,8 @@ data class Session(
     val autoRefreshOverride: Boolean? = null,
     /** The post a quotelink jump just landed on; cleared after a short delay. */
     val highlightedPostNo: Long? = null,
+    /** Show only this poster ID's posts. */
+    val filterPosterId: String? = null,
     val refreshError: NetworkError? = null,
     val refreshing: Boolean = false,
 )

@@ -6,6 +6,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -45,6 +47,9 @@ fun ThreadTopBar(
     autoRefreshEnabled: Boolean,
     /** Replies to the user's claimed posts; hidden when zero. */
     repliesToMe: Int,
+    /** Active poster-ID filter; the chip clears it. */
+    filterPosterId: String?,
+    onClearFilter: () -> Unit,
     onBack: () -> Unit,
     onToggleBookmark: () -> Unit,
     onRefresh: () -> Unit,
@@ -59,7 +64,14 @@ fun ThreadTopBar(
         title = {
             Column {
                 Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (repliesToMe > 0) {
+                if (filterPosterId != null) {
+                    InputChip(
+                        selected = true,
+                        onClick = onClearFilter,
+                        label = { Text(stringResource(R.string.thread_filter_id, filterPosterId)) },
+                        trailingIcon = { Icon(Icons.Filled.Close, stringResource(R.string.thread_filter_clear)) },
+                    )
+                } else if (repliesToMe > 0) {
                     Text(
                         pluralStringResource(R.plurals.thread_replies_to_you, repliesToMe, repliesToMe),
                         style = MaterialTheme.typography.labelSmall,

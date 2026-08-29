@@ -135,7 +135,7 @@ class ThreadViewModel @AssistedInject constructor(
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
                         postStates = postStates(details, session, saveStatuses),
-                        rows = rows(details.posts, session.newPostsAfter),
+                        rows = rows(visiblePosts(details.posts, session), session.newPostsAfter),
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
                         refreshError = session.refreshError,
@@ -147,6 +147,7 @@ class ThreadViewModel @AssistedInject constructor(
                             .map { group -> group.mapNotNull { byNo[it] } }
                             .filter { it.isNotEmpty() },
                         pendingExternalUrl = session.pendingExternalUrl,
+                        filterPosterId = session.filterPosterId,
                         quoteLabels = quoteLabels(details, claimed),
                         claimedPostNos = claimed,
                         repliesToMe = details.posts.count { p ->
@@ -350,6 +351,10 @@ class ThreadViewModel @AssistedInject constructor(
         else claimedPosts.claim(board, threadNo, postNo)
     }
 
+    /** Tap on a poster-ID pill: show only that ID; tapping the same ID again clears it. */
+    fun onFilterPosterId(posterId: String?) =
+        session.update { it.copy(filterPosterId = if (it.filterPosterId == posterId) null else posterId) }
+
     private var highlightJob: Job? = null
 
     /**
@@ -435,7 +440,7 @@ class ThreadViewModel @AssistedInject constructor(
 
     /** The screen reports the visible row range; the VM owns what it means. */
     fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
-        val rows = rows(loadedPosts() ?: return, session.value.newPostsAfter)
+        val rows = rows(visiblePosts(loadedPosts() ?: return, session.value), session.value.newPostsAfter)
         // Top-of-screen post: the reading position restored when the thread is reopened.
         rows.postAt(firstIndex)?.let { topVisiblePostNo.value = it.no }
         // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
@@ -461,6 +466,12 @@ class ThreadViewModel @AssistedInject constructor(
     private companion object {
         const val HIGHLIGHT_MS = 1_500L
 
+        /** The poster-ID filter applied; the OP always stays so the thread keeps its header. */
+        fun visiblePosts(posts: List<ThreadPost>, session: Session): List<ThreadPost> {
+            val id = session.filterPosterId ?: return posts
+            return posts.filter { it.isOp || it.posterId == id }
+        }
+
         /** Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post. */
         fun rows(posts: List<ThreadPost>, newPostsAfter: Pair<Long, Int>?): List<ThreadRow> =
             buildList {
@@ -484,8 +495,10 @@ class ThreadViewModel @AssistedInject constructor(
             saveStatuses: Map<String, MediaSaveStatus>,
         ): Map<Long, PostUiState> {
             val revealedText = session.revealedText.groupBy({ it.first }, { it.second })
+            val idCounts = details.posts.mapNotNull { it.posterId }.groupingBy { it }.eachCount()
             return details.posts.associate { post ->
                 post.no to PostUiState(
+                    posterIdCount = post.posterId?.let { idCounts[it] } ?: 0,
                     revealedSpoilerIds = revealedText[post.no]?.toSet().orEmpty(),
                     imageSpoilerRevealed = post.no in session.revealedImages,
                     backlinks = details.backlinks[post.no].orEmpty(),

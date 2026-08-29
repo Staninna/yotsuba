@@ -350,6 +350,32 @@ class ThreadViewModelTest {
         assertNull(content(vm).quoteLabels[101L])
     }
 
+    @Test fun `filtering by poster ID keeps the OP and that ID's posts, and counts the ID`() =
+        runTest(dispatcher.scheduler) {
+            val posts = listOf(
+                Env.post(100).copy(isOp = true, posterId = "AAAA"),
+                Env.post(101).copy(posterId = "BBBB"),
+                Env.post(102).copy(posterId = "AAAA"),
+                Env.post(103).copy(posterId = "BBBB"),
+                Env.post(104).copy(posterId = "BBBB"),
+            )
+            val env = Env(posts = posts)
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(3, content(vm).postStates.getValue(101L).posterIdCount)
+
+            vm.onFilterPosterId("BBBB")
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals("BBBB", content(vm).filterPosterId)
+            assertEquals(listOf(100L, 101L, 103L, 104L), content(vm).rows.map { (it as ThreadRow.Post).post.no })
+
+            vm.onFilterPosterId("BBBB") // same ID again toggles the filter off
+            dispatcher.scheduler.advanceUntilIdle()
+            assertNull(content(vm).filterPosterId)
+            assertEquals(5, content(vm).rows.size)
+        }
+
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = Env().vm()
         dispatcher.scheduler.advanceUntilIdle()

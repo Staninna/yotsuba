@@ -161,6 +161,8 @@ fun ThreadScreen(
                 bookmarked = s?.bookmarked == true,
                 autoRefreshEnabled = s?.autoRefreshEnabled == true,
                 repliesToMe = s?.repliesToMe ?: 0,
+                filterPosterId = s?.filterPosterId,
+                onClearFilter = { viewModel.onFilterPosterId(null) },
                 onBack = onBack,
                 onToggleBookmark = viewModel::onToggleBookmark,
                 onRefresh = { viewModel.load(forceRefresh = true) },
@@ -204,6 +206,7 @@ fun ThreadScreen(
                         }
                     },
                     onBacklinkTap = viewModel::onJumpToPost,
+                    onPosterIdTap = { viewModel.onFilterPosterId(post.posterId) },
                     onCopyPostNo = {
                         clipboard.setText(AnnotatedString(post.no.toString()))
                         scope.launch { snackbar.showSnackbar(copiedMessage) }

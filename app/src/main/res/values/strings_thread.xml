@@ -13,4 +13,11 @@
     <string name="thread_mark_as_mine">Mark as mine</string>
     <string name="thread_unmark_as_mine">Not mine</string>
     <string name="thread_quoted_by">Quoted by:</string>
+    <plurals name="thread_poster_id_count">
+        <item quantity="one">%1$s · %2$d post</item>
+        <item quantity="other">%1$s · %2$d posts</item>
+    </plurals>
+    <string name="thread_filter_id">ID: %1$s</string>
+    <string name="thread_filter_clear">Clear filter</string>
+    <string name="thread_filter_by_id">Filter by ID</string>
 </resources>

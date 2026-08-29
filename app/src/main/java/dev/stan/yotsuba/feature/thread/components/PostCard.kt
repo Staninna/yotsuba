@@ -77,11 +77,13 @@ data class PostCardActions(
     /** Legacy count chip, shown only when [onBacklinkTap] is null (the media viewer's panel). */
     val onBacklinksTap: (() -> Unit)? = null,
     val onCopyPostNo: (() -> Unit)?,
+    /** Tap on the poster-ID pill filters the thread to that ID. */
+    val onPosterIdTap: (() -> Unit)? = null,
 ) {
     /** A card inside the quote preview overlay: read-only apart from following links. */
     fun forPreview(): PostCardActions = copy(
         onBodyLongPress = null, onThumbnailLongPress = null,
-        onBacklinkTap = null, onBacklinksTap = null, onCopyPostNo = null,
+        onBacklinkTap = null, onBacklinksTap = null, onCopyPostNo = null, onPosterIdTap = null,
     )
 }
 
@@ -125,12 +127,16 @@ fun PostCard(
                 }
                 if (board?.userIds == true && post.posterId != null) {
                     Spacer(Modifier.width(spacing.sm))
+                    val onPosterIdTap = actions.onPosterIdTap
                     Text(
-                        post.posterId,
+                        if (ui.posterIdCount > 1) {
+                            pluralStringResource(R.plurals.thread_poster_id_count, ui.posterIdCount, post.posterId, ui.posterIdCount)
+                        } else post.posterId,
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White,
                         modifier = Modifier
                             .background(posterIdColor(post.posterId, darkTheme), CircleShape)
+                            .then(if (onPosterIdTap != null) Modifier.clickable(onClick = onPosterIdTap) else Modifier)
                             .padding(horizontal = spacing.sm, vertical = 1.dp),
                     )
                 }
