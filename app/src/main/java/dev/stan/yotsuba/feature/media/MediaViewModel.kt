@@ -17,6 +17,7 @@ import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.VaultSaveContext
@@ -53,16 +54,8 @@ data class MediaUiState(
     val defaultUnmuted: Boolean = false,
     val loaded: Boolean = false,
 ) {
-    /** Every post that transitively replies to [postNo], in post order. */
-    fun repliesUnder(postNo: Long): List<ThreadPost> {
-        val out = linkedSetOf<Long>()
-        val queue = ArrayDeque(backlinks[postNo].orEmpty())
-        while (queue.isNotEmpty()) {
-            val n = queue.removeFirst()
-            if (out.add(n)) queue.addAll(backlinks[n].orEmpty())
-        }
-        return out.sorted().mapNotNull { posts[it] }
-    }
+    /** The thread's quote graph, for walking replies and the posts they answer. */
+    val graph: PostGraph by lazy(LazyThreadSafetyMode.NONE) { PostGraph(posts, backlinks) }
 }
 
 @HiltViewModel(assistedFactory = MediaViewModel.Factory::class)

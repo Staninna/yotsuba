@@ -184,7 +184,7 @@ class MediaViewModelTest {
         }
     }
 
-    @Test fun `repliesUnder walks backlinks transitively in post order`() =
+    @Test fun `the post graph walks backlinks transitively in post order`() =
         runTest(dispatcher.scheduler) {
             // 100 <- 102 <- 103, and 100 <- 104 directly.
             val env = Env(
@@ -192,7 +192,7 @@ class MediaViewModelTest {
                 backlinks = mapOf(100L to listOf(104L, 102L), 102L to listOf(103L)),
             )
             env.vm().uiState.test {
-                assertEquals(listOf(102L, 103L, 104L), latest().repliesUnder(100L).map { it.no })
+                assertEquals(listOf(102L, 103L, 104L), latest().graph.descendantsOf(100L).map { it.no })
                 cancelAndIgnoreRemainingEvents()
             }
         }
