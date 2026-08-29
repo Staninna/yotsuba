@@ -1,7 +1,9 @@
 package dev.stan.yotsuba.feature.thread.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,6 +56,7 @@ fun countryFlagEmoji(iso: String): String =
         .joinToString("") { String(Character.toChars(it)) }
         .ifEmpty { "🏳" }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PostCard(
     post: ThreadPost,
@@ -65,6 +68,7 @@ fun PostCard(
     darkTheme: Boolean,
     onBodyTap: (BodyTap) -> Unit,
     onThumbnailTap: () -> Unit,
+    onThumbnailLongPress: () -> Unit = {},
     saveStatus: MediaSaveStatus? = null,
     onBacklinksTap: () -> Unit,
     onCopyPostNo: () -> Unit,
@@ -155,7 +159,10 @@ fun PostCard(
                                     spoilered = media.spoiler && !revealAll && !imageSpoilerRevealed,
                                     modifier = Modifier
                                         .size(if (post.isOp) 140.dp else 100.dp)
-                                        .clickable(onClick = onThumbnailTap),
+                                        .combinedClickable(
+                                            onClick = onThumbnailTap,
+                                            onLongClick = onThumbnailLongPress,
+                                        ),
                                 )
                                 saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
                             }

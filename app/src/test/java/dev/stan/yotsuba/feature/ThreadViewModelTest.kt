@@ -9,6 +9,7 @@ import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.HistoryEntry
+import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -131,6 +132,8 @@ class ThreadViewModelTest {
         fun details(posts: List<ThreadPost>) =
             ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = emptyMap())
 
+        val queue = MediaDownloadQueue(FakeVault)
+
         fun vm(initialPostNo: Long? = null) = ThreadViewModel(
             board = "g", threadNo = 100, initialPostNo = initialPostNo,
             threadRepository = threads,
@@ -140,7 +143,7 @@ class ThreadViewModelTest {
             settingsRepository = settings,
             mediaSessionStore = sessionStore,
             mediaVault = FakeVault,
-            downloadQueue = MediaDownloadQueue(FakeVault),
+            downloadQueue = queue,
         )
 
         companion object {
@@ -151,8 +154,34 @@ class ThreadViewModelTest {
                 body = PostText(listOf(PostSegment(if (no % 2 == 0L) "match $no" else "other $no"))),
                 media = null, quotedPostNos = emptyList(),
             )
+
+            fun postWithMedia(no: Long) = post(no).copy(
+                media = PostMedia.Present(
+                    MediaItem(
+                        postNo = no, filename = "pic", ext = ".jpg", sizeBytes = 10,
+                        width = 100, height = 100,
+                        thumbnailUrl = "https://i.4cdn.org/g/${'$'}{no}s.jpg",
+                        fullUrl = "https://i.4cdn.org/g/$no.jpg",
+                        spoiler = false,
+                    ),
+                ),
+            )
         }
     }
+
+    @Test fun `saving queues the attachment, and a post without media is a no-op`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+
+            vm.onSaveMedia(Env.post(101))
+            assertTrue(env.queue.statuses.value.isEmpty())
+
+            vm.onSaveMedia(Env.postWithMedia(100))
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue("https://i.4cdn.org/g/100.jpg" in env.queue.statuses.value.keys)
+        }
 
     @Test fun `search step wraps around the matches and emits an animated scroll target`() =
         runTest(dispatcher.scheduler) {

@@ -99,6 +99,8 @@ fun MediaFeedViewer(
     /** False while another layer (e.g. a reply panel) covers the feed. */
     feedActive: Boolean = true,
     behaviour: ViewerBehaviour = ViewerBehaviour(),
+    /** Long-press on the page at this index; no-op where saving does not apply. */
+    onLongPressPage: (Int) -> Unit = {},
     topBarActions: @Composable RowScope.() -> Unit = {},
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
@@ -153,6 +155,7 @@ fun MediaFeedViewer(
                     autoAdvance = autoAdvance,
                     onEnded = { feed.animateNextWrapping(pages.size) },
                     behaviour = behaviour,
+                    onLongPress = { onLongPressPage(page) },
                 )
             } else {
                 ImagePage(
@@ -160,6 +163,7 @@ fun MediaFeedViewer(
                     thumbnailModel = p.thumbnailModel,
                     contentDescription = p.contentDescription,
                     onTap = { feed.chromeVisible = !feed.chromeVisible },
+                    onLongPress = { onLongPressPage(page) },
                 )
             }
         }

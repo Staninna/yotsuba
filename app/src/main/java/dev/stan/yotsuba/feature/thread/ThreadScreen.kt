@@ -38,7 +38,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -46,6 +48,7 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.feature.media.saveToVault
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
@@ -82,6 +85,8 @@ fun ThreadScreen(
     val dark = isSystemInDarkTheme()
     var searchOpen by remember { mutableStateOf(false) }
     val copiedMessage = stringResource(R.string.thread_post_number_copied)
+    val grantAccessMessage = stringResource(R.string.media_grant_storage)
+    val haptics = LocalHapticFeedback.current
 
     fun openExternal(url: String) {
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
@@ -169,6 +174,19 @@ fun ThreadScreen(
                                 viewModel.onRevealImageSpoiler(post.no)
                             } else {
                                 onOpenMedia(post.no)
+                            }
+                        },
+                        onThumbnailLongPress = {
+                            if (!inPreview && s.holdToSave && post.presentMedia != null) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                saveToVault(
+                                    context = context,
+                                    hasAccess = viewModel.hasStorageAccess(),
+                                    onAccessNeeded = {
+                                        scope.launch { snackbar.showSnackbar(grantAccessMessage) }
+                                    },
+                                    save = { viewModel.onSaveMedia(post) },
+                                )
                             }
                         },
                         onBacklinksTap = { if (!inPreview) viewModel.onOpenBacklinks(post.no) },

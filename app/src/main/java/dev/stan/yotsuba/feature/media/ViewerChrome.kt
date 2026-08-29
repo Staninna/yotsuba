@@ -120,6 +120,7 @@ fun ImagePage(
     thumbnailModel: Any?,
     contentDescription: String?,
     onTap: () -> Unit,
+    onLongPress: () -> Unit = {},
 ) {
     val zoomState = rememberZoomableImageState()
     Box(Modifier.fillMaxSize()) {
@@ -137,6 +138,7 @@ fun ImagePage(
             modifier = Modifier.fillMaxSize(),
             state = zoomState,
             onClick = { onTap() },
+            onLongClick = { onLongPress() },
         )
     }
 }

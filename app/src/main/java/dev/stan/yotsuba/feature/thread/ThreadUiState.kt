@@ -28,6 +28,8 @@ data class ThreadContent(
     val trustedDomains: Set<String>,
     /** Media URL → vault status, for the thumbnail download badges. */
     val mediaSaveStatuses: Map<String, MediaSaveStatus> = emptyMap(),
+    /** Long-pressing a thumbnail saves it to the vault. */
+    val holdToSave: Boolean = true,
 )
 
 /** One-shot scroll request resolved by the ViewModel; the screen obeys and reports back. */

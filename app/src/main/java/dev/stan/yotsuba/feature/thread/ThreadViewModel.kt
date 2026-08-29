@@ -20,6 +20,7 @@ import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
@@ -50,8 +51,8 @@ class ThreadViewModel @AssistedInject constructor(
     private val historyRepository: HistoryRepository,
     private val settingsRepository: SettingsRepository,
     private val mediaSessionStore: MediaSessionStore,
-    mediaVault: MediaVaultRepository,
-    downloadQueue: MediaDownloadQueue,
+    private val mediaVault: MediaVaultRepository,
+    private val downloadQueue: MediaDownloadQueue,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -151,6 +152,7 @@ class ThreadViewModel @AssistedInject constructor(
                         confirmBeforeOpeningLinks = settings.confirmBeforeOpeningLinks,
                         trustedDomains = settings.trustedDomains,
                         mediaSaveStatuses = meta.mediaSaveStatuses,
+                        holdToSave = settings.holdToSave,
                     )
                 )
             }
@@ -337,6 +339,24 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onDismissLinkDialog() { pendingExternalUrl.value = null }
+
+    fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
+
+    /** Queues a vault save for [post]'s attachment, with the thread context the vault files by. */
+    fun onSaveMedia(post: ThreadPost) {
+        val item = post.presentMedia ?: return
+        val op = (result.value as? DataResult.Success)?.value?.posts?.firstOrNull { it.isOp }
+        downloadQueue.enqueue(
+            item,
+            VaultSaveContext(
+                board = board,
+                threadNo = threadNo,
+                threadSubject = op?.subject,
+                opExcerpt = op?.body?.plainText?.takeIf { it.isNotBlank() },
+                post = post,
+            ),
+        )
+    }
 
     fun onTrustDomain(url: String) = viewModelScope.launch {
         val domain = Urls.domainOf(url) ?: return@launch

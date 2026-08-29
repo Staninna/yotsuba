@@ -29,7 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -89,6 +91,8 @@ fun MediaScreen(
         if (pip.inPipMode && !stack.onMedia) stack.collapseToMedia(feed.currentPage)
     }
 
+    val haptics = LocalHapticFeedback.current
+
     fun jumpToMedia(postNo: Long) {
         val index = state.items.indexOfFirst { it.postNo == postNo }
         if (index >= 0) stack.push(ViewerEntry.Media(index))
@@ -109,6 +113,41 @@ fun MediaScreen(
         onDismiss = onClose,
         feedActive = stack.onMedia,
         behaviour = state.behaviour,
+        // Horizontal navigation: left = open replies of the current post, right = back.
+        modifier = Modifier.pointerInput(pip.inPipMode) {
+            if (pip.inPipMode) return@pointerInput
+            var dragTotal = 0f
+            detectHorizontalDragGestures(
+                onDragStart = { dragTotal = 0f },
+                onHorizontalDrag = { _, delta -> dragTotal += delta },
+                onDragEnd = {
+                    when {
+                        dragTotal < -SWIPE_COMMIT_PX -> {
+                            val t = stack.top
+                            if (t is ViewerEntry.Media) {
+                                state.items.getOrNull(t.index)
+                                    ?.let { stack.push(ViewerEntry.Panel(it.postNo)) }
+                            }
+                        }
+                        // At the bottom of the stack, back-swipe leaves the viewer.
+                        dragTotal > SWIPE_COMMIT_PX ->
+                            if (stack.size > 1) stack.pop() else onClose()
+                    }
+                },
+            )
+        },
+        onLongPressPage = { page ->
+            val item = state.items.getOrNull(page)
+            if (state.behaviour.holdToSave && item != null) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                saveToVault(
+                    context = context,
+                    hasAccess = viewModel.hasStorageAccess(),
+                    onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
+                    save = { viewModel.enqueueSave(item) },
+                )
+            }
+        },
         // Horizontal navigation: left = open replies of the current post, right = back.
         modifier = Modifier.pointerInput(pip.inPipMode) {
             if (pip.inPipMode) return@pointerInput
