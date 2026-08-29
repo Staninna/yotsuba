@@ -37,6 +37,7 @@ class BoardsFavouriteFlowTest {
     @Test
     fun favouritingABoard_showsTheFavouritesSection_andPersists() {
         val fake = settingsRepository as FakeSettingsRepository
+        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
 
         composeRule.onAllNodesWithContentDescription("Toggle favourite")[0].performClick()
@@ -52,6 +53,7 @@ class BoardsFavouriteFlowTest {
 
     @Test
     fun boardsSearch_filtersAndRestores() {
+        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
 
         composeRule.onNode(hasSetTextAction()).performTextInput("zzz-no-such-board")
@@ -59,6 +61,7 @@ class BoardsFavouriteFlowTest {
 
         composeRule.onNode(hasSetTextAction()).performTextClearance()
         composeRule.onNode(hasSetTextAction()).performTextInput("Tech")
+        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
     }
 }

@@ -35,11 +35,13 @@ class BoardsFlowTest {
 
     @Test
     fun boardsList_showsSeededBoard() {
+        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
     }
 
     @Test
     fun boardTap_opensCatalogWithSeededThread() {
+        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
         composeRule.clickText(TestSeed.BOARD_TITLE)
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)

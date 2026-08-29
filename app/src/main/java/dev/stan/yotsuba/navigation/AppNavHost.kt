@@ -43,6 +43,7 @@ import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.util.Urls.InternalLink
 import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.feature.boards.BoardsScreen
+import dev.stan.yotsuba.feature.home.HomeScreen
 import dev.stan.yotsuba.feature.catalog.CatalogScreen
 import dev.stan.yotsuba.feature.media.MediaScreen
 import dev.stan.yotsuba.feature.settings.SettingsScreen
@@ -137,13 +138,20 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
             val slide = tween<IntOffset>(motion.medium)
             NavHost(
                 navController = navController,
-                startDestination = Route.Boards,
+                startDestination = Route.Home,
                 modifier = Modifier.fillMaxSize().padding(padding),
                 enterTransition = { fadeIn(fade) + slideInHorizontally(slide) { it / 8 } },
                 exitTransition = { fadeOut(tween(motion.short)) },
                 popEnterTransition = { fadeIn(fade) },
                 popExitTransition = { fadeOut(fade) + slideOutHorizontally(slide) { it / 8 } },
             ) {
+                composable<Route.Home> {
+                    HomeScreen(
+                        onOpenThread = { board, threadNo -> navController.navigate(Route.Thread(board, threadNo)) },
+                        onOpenBoards = { navigateTopLevel(TopLevelDestination.BOARDS) },
+                        onOpenSettings = openSettings,
+                    )
+                }
                 composable<Route.Boards> {
                     BoardsScreen(
                         slots = slots,

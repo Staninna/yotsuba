@@ -27,8 +27,14 @@ fun ComposeTestRule.clickText(text: String) {
     onNodeWithText(text, substring = true, ignoreCase = true).performClick()
 }
 
-/** Boards → catalog → thread, entirely through the real nav graph. */
+/** Home is the start destination; the board list is one tab over. Exact match: "Pick boards" also contains it. */
+fun ComposeTestRule.openBoardsTab() {
+    onNodeWithText("Boards", substring = false).performClick()
+}
+
+/** Home → boards → catalog → thread, entirely through the real nav graph. */
 fun ComposeTestRule.openSeededThread() {
+    openBoardsTab()
     waitForText(TestSeed.BOARD_TITLE)
     clickText(TestSeed.BOARD_TITLE)
     waitForText(TestSeed.THREAD_SUBJECT)

@@ -16,6 +16,7 @@ import dev.stan.yotsuba.R
 import kotlinx.serialization.Serializable
 
 sealed interface Route {
+    @Serializable data object Home : Route
     @Serializable data object Boards : Route
     @Serializable data class Catalog(val board: String, val searchQuery: String? = null) : Route
     @Serializable data class Thread(
