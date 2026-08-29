@@ -97,6 +97,9 @@ data class VaultThreadSection(
     val entries: List<VaultEntry>,
 ) {
     val sizeBytes: Long get() = entries.totalBytes
+
+    /** When the newest file in it was saved. */
+    val savedAt: Long get() = entries.maxOf { it.savedAt }
 }
 
 data class VaultBoardSection(

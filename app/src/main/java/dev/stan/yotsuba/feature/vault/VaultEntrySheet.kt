@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
 
 /**
@@ -80,8 +81,11 @@ private fun SheetAction(labelRes: Int, icon: ImageVector, onClick: () -> Unit) {
     )
 }
 
-/** Dimensions and post number; size and duration join in later. */
+/** Size, dimensions, length, post number and save date: what the tile cannot fit. */
 internal fun entryDetails(entry: VaultEntry): String = buildList {
+    entry.sizeBytes?.let { add(FileSize.format(it)) }
     if ((entry.width ?: 0) > 0) add("${entry.width}×${entry.height}")
+    entry.durationMs?.let { add(formatDuration(it)) }
     entry.postNo?.let { add("No. $it") }
+    add(savedDate(entry.savedAt))
 }.joinToString(" · ")

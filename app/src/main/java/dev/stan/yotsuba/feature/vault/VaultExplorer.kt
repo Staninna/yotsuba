@@ -72,6 +72,8 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.feature.media.requestAllFilesAccess
 import java.io.File
+import java.text.DateFormat
+import java.util.Date
 
 /** The drill-down body of the vault: boards → threads → media grid, plus the empty states. */
 @Composable
@@ -237,7 +239,8 @@ private fun ThreadList(
                     val count = section.entries.size
                     Text(
                         pluralStringResource(R.plurals.vault_items, count, count) +
-                            " · " + FileSize.format(section.sizeBytes),
+                            " · " + FileSize.format(section.sizeBytes) +
+                            " · " + savedDate(section.savedAt),
                     )
                 },
                 leadingContent = {
@@ -426,6 +429,18 @@ private fun MediaGrid(
                         tint = Color.White.copy(alpha = 0.85f),
                         modifier = Modifier.align(Alignment.Center).size(32.dp),
                     )
+                    entry.durationMs?.let { duration ->
+                        Text(
+                            formatDuration(duration),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(4.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), MaterialTheme.shapes.extraSmall)
+                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
                 }
                 if (selecting) {
                     Icon(
@@ -489,6 +504,19 @@ private fun ShuffleMenuItem(labelRes: Int, icon: ImageVector, onClick: () -> Uni
         onClick = onClick,
     )
 }
+
+/** `m:ss`, or `h:mm:ss` past the hour. */
+internal fun formatDuration(ms: Long): String {
+    val total = ms / 1000
+    val h = total / 3600
+    val m = (total % 3600) / 60
+    val s = total % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+private val dateFormat: DateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM)
+
+internal fun savedDate(millis: Long): String = dateFormat.format(Date(millis))
 
 @Composable
 internal fun boardTitle(board: String): String = when (board) {
