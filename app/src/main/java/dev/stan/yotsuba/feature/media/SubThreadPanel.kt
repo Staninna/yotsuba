@@ -45,15 +45,15 @@ import dev.stan.yotsuba.feature.thread.components.PostCard
 internal fun SubThreadPanel(
     rootPostNo: Long,
     depth: Int,
-    state: MediaUiState,
+    thread: ViewerThread,
     onOpenSubThread: (Long) -> Unit,
     onJumpToMedia: (Long) -> Unit,
     onBack: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
     val darkTheme = isSystemInDarkTheme()
-    val root = state.posts[rootPostNo]
-    val replies = state.graph.descendantsOf(rootPostNo)
+    val root = thread.posts[rootPostNo]
+    val replies = thread.graph.descendantsOf(rootPostNo)
     var revealedSpoilers by remember { mutableStateOf(setOf<Int>()) }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
@@ -96,7 +96,7 @@ internal fun SubThreadPanel(
                     item(key = "root") {
                         SubThreadPost(
                             post = root,
-                            state = state,
+                            thread = thread,
                             darkTheme = darkTheme,
                             revealedSpoilers = revealedSpoilers,
                             onOpenSubThread = onOpenSubThread,
@@ -109,7 +109,7 @@ internal fun SubThreadPanel(
                 items(replies.size, key = { replies[it].no }) { i ->
                     SubThreadPost(
                         post = replies[i],
-                        state = state,
+                        thread = thread,
                         darkTheme = darkTheme,
                         revealedSpoilers = revealedSpoilers,
                         onOpenSubThread = onOpenSubThread,
@@ -126,7 +126,7 @@ internal fun SubThreadPanel(
 @Composable
 private fun SubThreadPost(
     post: ThreadPost,
-    state: MediaUiState,
+    thread: ViewerThread,
     darkTheme: Boolean,
     revealedSpoilers: Set<Int>,
     onOpenSubThread: (Long) -> Unit,
@@ -136,8 +136,8 @@ private fun SubThreadPost(
 ) {
     PostCard(
         post = post,
-        board = state.board,
-        backlinkCount = state.backlinks[post.no].orEmpty().size,
+        board = thread.board,
+        backlinkCount = thread.backlinks[post.no].orEmpty().size,
         revealedSpoilerIds = revealedSpoilers,
         revealAll = false,
         imageSpoilerRevealed = true,

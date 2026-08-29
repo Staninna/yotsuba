@@ -38,10 +38,8 @@ import kotlinx.coroutines.withContext
 
 data class MediaUiState(
     val items: List<MediaItem> = emptyList(),
-    /** postNo -> post, for the sub-thread panel. */
-    val posts: Map<Long, ThreadPost> = emptyMap(),
-    /** postNo -> posts quoting it (D11). */
-    val backlinks: Map<Long, List<Long>> = emptyMap(),
+    /** The conversation behind the media, live or rebuilt from the vault sidecar. */
+    val thread: ViewerThread = ViewerThread(),
     /** Full URLs the user has saved to the gallery. */
     val downloadedUrls: Set<String> = emptySet(),
     /** URL → queue state for saves in flight. */
@@ -49,15 +47,18 @@ data class MediaUiState(
     /** URL → absolute path in the vault, for buffer-free playback from disk. */
     val savedPaths: Map<String, String> = emptyMap(),
     val initialIndex: Int = 0,
-    val board: Board? = null,
     val autoplay: Boolean = false,
     val behaviour: ViewerBehaviour = ViewerBehaviour(),
     /** Unmuted by default only where the board declares webm_audio (D12). */
     val defaultUnmuted: Boolean = false,
     val loaded: Boolean = false,
 ) {
+    val posts: Map<Long, ThreadPost> get() = thread.posts
+    val backlinks: Map<Long, List<Long>> get() = thread.backlinks
+    val board: Board? get() = thread.board
+
     /** The thread's quote graph, for walking replies and the posts they answer. */
-    val graph: PostGraph by lazy(LazyThreadSafetyMode.NONE) { PostGraph(posts, backlinks) }
+    val graph: PostGraph get() = thread.graph
 }
 
 @HiltViewModel(assistedFactory = MediaViewModel.Factory::class)
@@ -124,13 +125,11 @@ class MediaViewModel @AssistedInject constructor(
         val list = d?.posts.orEmpty().mapNotNull { it.presentMedia }
         MediaUiState(
             items = list,
-            posts = d?.posts.orEmpty().associateBy { it.no },
-            backlinks = d?.backlinks.orEmpty(),
+            thread = ViewerThread.of(d, info),
             downloadedUrls = saves.downloaded,
             downloadStates = saves.states,
             savedPaths = if (mediaVault.hasStorageAccess()) saves.paths else emptyMap(),
             initialIndex = list.indexOfFirst { it.postNo == initialPostNo }.coerceAtLeast(0),
-            board = info,
             autoplay = when (settings.mediaAutoplay) {
                 MediaAutoplay.ALWAYS -> true
                 MediaAutoplay.NEVER -> false

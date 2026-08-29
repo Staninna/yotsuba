@@ -14,6 +14,7 @@ import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
+import dev.stan.yotsuba.feature.media.ViewerThread
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -150,13 +151,48 @@ class VaultViewModel @Inject constructor(
         if (it.thread != null) it.copy(thread = null) else VaultSelection()
     }
 
-    fun openViewer(url: String) { viewingUrl.value = url }
+    /**
+     * The saved conversation for whichever thread the viewer is showing. Empty until the
+     * sidecar is read, and empty forever for a thread saved before replies were captured
+     * -- the explorer hides the affordance rather than opening a blank panel.
+     */
+    private val _viewerThread = MutableStateFlow(ViewerThread())
+    val viewerThread: StateFlow<ViewerThread> = _viewerThread
+
+    fun openViewer(url: String) {
+        viewingUrl.value = url
+        loadSavedConversation(url)
+    }
+
+    private fun loadSavedConversation(url: String) {
+        val location = uiState.value.entries.firstOrNull { it.url == url }?.location
+        val thread = location as? VaultLocation.Thread
+        if (thread == null) {
+            _viewerThread.value = ViewerThread()
+            return
+        }
+        viewModelScope.launch {
+            _viewerThread.value = ViewerThread.of(
+                mediaVault.savedThread(thread.board, thread.threadNo),
+            )
+        }
+    }
 
     /** Called as the viewer pages, so rotation reopens it in place. */
-    fun onViewerPage(url: String) { viewingUrl.value = url }
+    fun onViewerPage(url: String) {
+        val previous = viewingUrl.value
+        viewingUrl.value = url
+        // A shuffle can walk across threads, so the panel must follow the page it is on.
+        if (previous == null || threadOf(previous) != threadOf(url)) loadSavedConversation(url)
+    }
+
+    private fun threadOf(url: String): Pair<String, Long>? =
+        (uiState.value.entries.firstOrNull { it.url == url }?.location as? VaultLocation.Thread)
+            ?.let { it.board to it.threadNo }
 
     fun closeViewer() {
         viewingUrl.value = null
+        _viewerThread.value = ViewerThread()
         shuffleOrder.value = null
     }
 

@@ -245,6 +245,7 @@
     <string name="vault_sync_progress">%1$d / %2$d</string>
     <string name="vault_sync_nothing">Nothing saved to sync yet.</string>
     <string name="vault_sync_rate_limited">4chan asked us to slow down. Sync again in a minute to finish.</string>
+    <string name="vault_replies">Saved replies</string>
     <string name="vault_rescan">Rescan vault</string>
     <string name="vault_empty_title">Vault is empty</string>
     <string name="vault_empty_explanation">Media you save from threads is filed under /sdcard/Yotsuba/.</string>

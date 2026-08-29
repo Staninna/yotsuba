@@ -13,10 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenu
@@ -31,11 +34,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -50,11 +53,10 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
-import dev.stan.yotsuba.feature.media.MediaFeedViewer
+import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
+import dev.stan.yotsuba.feature.media.ViewerThread
 import dev.stan.yotsuba.feature.media.ViewerPage
-import dev.stan.yotsuba.feature.media.rememberMediaFeedState
-import dev.stan.yotsuba.feature.media.rememberPipController
 import dev.stan.yotsuba.feature.media.shareMediaFile
 import java.io.File
 import kotlinx.coroutines.launch
@@ -65,6 +67,7 @@ import kotlinx.coroutines.launch
 fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
+    val viewerThread by viewModel.viewerThread.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
@@ -213,6 +216,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
         state.viewer?.let { viewer ->
             VaultViewer(
                 viewer = viewer,
+                thread = viewerThread,
                 behaviour = behaviour,
                 autoAdvance = viewModel.autoAdvance,
                 onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
@@ -247,6 +251,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
 @Composable
 private fun VaultViewer(
     viewer: VaultViewerState,
+    thread: ViewerThread,
     behaviour: ViewerBehaviour,
     autoAdvance: Boolean,
     onToggleAutoAdvance: () -> Unit,
@@ -256,30 +261,41 @@ private fun VaultViewer(
     val context = LocalContext.current
     val entries = viewer.entries
 
-    BackHandler { onDismiss() }
-
-    val feed = rememberMediaFeedState(initialIndex = viewer.index) { entries.size }
-    val pip = rememberPipController(feed) { entries.lastIndex }
-
-    MediaFeedViewer(
+    ThreadMediaViewer(
         pages = entries.map { it.toViewerPage() },
-        feed = feed,
-        pip = pip,
+        thread = thread,
+        behaviour = behaviour,
+        initialIndex = viewer.index,
+        muted = false,
+        playing = true,
         autoAdvance = autoAdvance,
         onToggleAutoAdvance = onToggleAutoAdvance,
+        postNoAt = { page -> entries.getOrNull(page)?.postNo },
+        indexOfPost = { postNo -> entries.indexOfFirst { it.postNo == postNo } },
         onPageViewed = { page -> entries.getOrNull(page)?.let(onPageViewed) },
         onDismiss = onDismiss,
-        behaviour = behaviour,
-        topBarActions = {
-            IconButton(onClick = {
-                entries.getOrNull(feed.currentPage)?.let { entry ->
-                    shareMediaFile(context, File(entry.absolutePath), entry.ext.orEmpty())
+    ) { page, openReplies ->
+        val postNo = entries.getOrNull(page)?.postNo
+        if (thread.hasPosts && postNo != null) {
+            val replies = thread.graph.descendantsOf(postNo).size
+            IconButton(onClick = { openReplies(postNo) }) {
+                BadgedBox(badge = { if (replies > 0) Badge { Text(replies.toString()) } }) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Comment,
+                        stringResource(R.string.vault_replies),
+                        tint = Color.White,
+                    )
                 }
-            }) {
-                Icon(Icons.Filled.Share, stringResource(R.string.thread_share), tint = Color.White)
             }
-        },
-    )
+        }
+        IconButton(onClick = {
+            entries.getOrNull(page)?.let { entry ->
+                shareMediaFile(context, File(entry.absolutePath), entry.ext.orEmpty())
+            }
+        }) {
+            Icon(Icons.Filled.Share, stringResource(R.string.thread_share), tint = Color.White)
+        }
+    }
 }
 
 private fun VaultEntry.toViewerPage(): ViewerPage = ViewerPage(
