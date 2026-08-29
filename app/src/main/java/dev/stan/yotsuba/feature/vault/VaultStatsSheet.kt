@@ -2,6 +2,7 @@ package dev.stan.yotsuba.feature.vault
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +22,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -63,6 +65,8 @@ internal fun VaultStatsSheet(
             items(stats.perBoard, key = { it.board }) { BoardBar(it, stats.perBoard.first().bytes) }
             item { SectionTitle(stringResource(R.string.vault_stats_biggest_threads)) }
             items(stats.biggestThreads, key = { it.location }) { ThreadRow(it) { onOpenThread(it.location) } }
+            item { SectionTitle(stringResource(R.string.vault_stats_per_week)) }
+            item { WeeklyBars(stats.savedPerWeek) }
             item { Spacer(Modifier.height(32.dp)) }
         }
     }
@@ -160,4 +164,48 @@ private fun ThreadRow(stat: ThreadStat, onClick: () -> Unit) {
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         modifier = Modifier.clickable(onClick = onClick),
     )
+}
+
+/** One column per week, oldest on the left, tallest at the busiest week. */
+@Composable
+private fun WeeklyBars(counts: List<Int>) {
+    val peak = counts.maxOrNull()?.coerceAtLeast(1) ?: 1
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().height(96.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            counts.forEach { count ->
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().padding(horizontal = 2.dp),
+                    verticalArrangement = Arrangement.Bottom,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    if (count > 0) {
+                        Text(count.toString(), style = MaterialTheme.typography.labelSmall)
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight(count.toFloat() / peak * 0.8f)
+                                .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
+                                .background(MaterialTheme.colorScheme.primary),
+                        )
+                    } else {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.vault_stats_per_week_range, counts.size),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
