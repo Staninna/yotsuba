@@ -16,10 +16,13 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerThread
 import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -151,45 +154,33 @@ class VaultViewModel @Inject constructor(
     }
 
     /**
-     * The saved conversation for whichever thread the viewer is showing. Empty until the
-     * sidecar is read, and empty forever for a thread saved before replies were captured
-     * -- the explorer hides the affordance rather than opening a blank panel.
+     * The saved conversation for whichever thread the viewer is showing, keyed off the
+     * page on screen so a shuffle walking across threads swaps the panel with it. Empty
+     * until the sidecar is read, and empty forever for a thread saved before replies were
+     * captured -- the explorer hides the affordance rather than opening a blank panel.
      */
-    private val _viewerThread = MutableStateFlow(ViewerThread())
-    val viewerThread: StateFlow<ViewerThread> = _viewerThread
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val viewerThread: StateFlow<ViewerThread> = combine(viewingUrl, mediaVault.entries()) { url, entries ->
+        url?.let { u -> entries.firstOrNull { it.url == u }?.location }
+    }
+        .distinctUntilChanged()
+        .mapLatest { location ->
+            if (location == null || location.isUnsorted) ViewerThread()
+            else ViewerThread.of(mediaVault.savedThread(location.board, location.threadNo))
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ViewerThread())
 
     fun openViewer(url: String) {
         viewingUrl.value = url
-        loadSavedConversation(url)
-    }
-
-    private fun loadSavedConversation(url: String) {
-        val location = locationOf(url)
-        if (location == null || location.isUnsorted) {
-            _viewerThread.value = ViewerThread()
-            return
-        }
-        viewModelScope.launch {
-            _viewerThread.value = ViewerThread.of(
-                mediaVault.savedThread(location.board, location.threadNo),
-            )
-        }
     }
 
     /** Called as the viewer pages, so rotation reopens it in place. */
     fun onViewerPage(url: String) {
-        val previous = viewingUrl.value
         viewingUrl.value = url
-        // A shuffle can walk across threads, so the panel must follow the page it is on.
-        if (previous == null || locationOf(previous) != locationOf(url)) loadSavedConversation(url)
     }
-
-    private fun locationOf(url: String): VaultLocation? =
-        uiState.value.entries.firstOrNull { it.url == url }?.location
 
     fun closeViewer() {
         viewingUrl.value = null
-        _viewerThread.value = ViewerThread()
         shuffleOrder.value = null
     }
 

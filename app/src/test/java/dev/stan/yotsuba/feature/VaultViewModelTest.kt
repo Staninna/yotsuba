@@ -3,7 +3,9 @@ package dev.stan.yotsuba.feature
 import app.cash.turbine.test
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.model.ImportSource
+import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
@@ -84,7 +86,10 @@ class VaultViewModelTest {
             return importError
         }
         var importError: VaultError? = null
-        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
+        val threads = mutableMapOf<VaultLocation, ThreadDetails>()
+        val threadReads = mutableListOf<VaultLocation>()
+        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? =
+            VaultLocation(board, threadNo).also { threadReads += it }.let { threads[it] }
         override suspend fun rescan() { rescanGate?.await(); rescans++ }
         override suspend fun migrateLegacyIfNeeded() { migrations++ }
     }
@@ -179,6 +184,49 @@ class VaultViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    private fun details(location: VaultLocation, vararg postNos: Long) = ThreadDetails(
+        board = location.board,
+        threadNo = location.threadNo,
+        posts = postNos.map { no ->
+            ThreadPost(
+                board = location.board, no = no, isOp = no == postNos.first(), name = "Anonymous",
+                tripcode = null, capcode = null, posterId = null, countryCode = null, countryName = null,
+                timeSeconds = 0, subject = null, body = PostText(emptyList()), media = null,
+                quotedPostNos = emptyList(),
+            )
+        },
+        backlinks = emptyMap(),
+        archived = false,
+        closed = false,
+    )
+
+    @Test fun `viewer thread follows the page across threads and clears on close`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA), entry("g/2.jpg", threadG)))
+            vault.threads[threadG] = details(threadG, 100, 101)
+            vault.threads[threadA] = details(threadA, 200)
+            val vm = VaultViewModel(vault, FakeSettings())
+            vm.viewerThread.test {
+                assertEquals(false, awaitItem().hasPosts)
+                // Shuffle's first page must get its panel too: nothing was "opened" first.
+                vm.startShuffle(listOf("g/1.jpg"))
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(setOf(100L, 101L), expectMostRecentItem().posts.keys)
+                vm.onViewerPage("a/1.jpg")
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(setOf(200L), expectMostRecentItem().posts.keys)
+                vm.onViewerPage("g/2.jpg")
+                vm.onViewerPage("g/1.jpg") // same thread: no re-read
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(setOf(100L, 101L), expectMostRecentItem().posts.keys)
+                assertEquals(listOf(threadG, threadA, threadG), vault.threadReads)
+                vm.closeViewer()
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(false, expectMostRecentItem().hasPosts)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `close viewer clears the url and any shuffle order`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
