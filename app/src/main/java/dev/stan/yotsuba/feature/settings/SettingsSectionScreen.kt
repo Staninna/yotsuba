@@ -53,6 +53,8 @@ fun SettingsSectionScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val restoreAvailable by viewModel.restoreAvailable.collectAsStateWithLifecycle()
+    val backupResult by viewModel.backupResult.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -96,6 +98,12 @@ fun SettingsSectionScreen(
                 SettingsSectionId.STORAGE -> StorageSection(
                     settings = settings,
                     update = update,
+                    restoreAvailable = restoreAvailable,
+                    backupResult = backupResult,
+                    onExportBackup = viewModel::onExportBackup,
+                    onImportBackup = viewModel::onImportBackup,
+                    onDismissRestore = viewModel::onDismissRestore,
+                    onBackupResultShown = viewModel::onBackupResultShown,
                     onClearCache = viewModel::onClearCache,
                     onClearHistory = viewModel::onClearHistory,
                     onClearBookmarks = viewModel::onClearBookmarks,

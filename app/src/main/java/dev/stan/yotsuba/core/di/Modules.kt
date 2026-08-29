@@ -28,6 +28,7 @@ import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.network.RateLimitInterceptor
 import dev.stan.yotsuba.core.network.StaleIfOfflineInterceptor
 import dev.stan.yotsuba.core.util.Urls
+import dev.stan.yotsuba.data.repository.BackupRepositoryImpl
 import dev.stan.yotsuba.data.repository.BoardRepositoryImpl
 import dev.stan.yotsuba.data.repository.BookmarkRepositoryImpl
 import dev.stan.yotsuba.data.repository.CatalogRepositoryImpl
@@ -36,6 +37,7 @@ import dev.stan.yotsuba.data.repository.HistoryRepositoryImpl
 import dev.stan.yotsuba.data.repository.MaintenanceRepositoryImpl
 import dev.stan.yotsuba.data.repository.MediaVaultRepositoryImpl
 import dev.stan.yotsuba.data.repository.ThreadRepositoryImpl
+import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
@@ -129,4 +131,5 @@ abstract class RepositoryModule {
     @Binds abstract fun mediaVaultRepository(impl: MediaVaultRepositoryImpl): MediaVaultRepository
     @Binds abstract fun hiddenThreadsRepository(impl: HiddenThreadsRepositoryImpl): HiddenThreadsRepository
     @Binds abstract fun maintenanceRepository(impl: MaintenanceRepositoryImpl): MaintenanceRepository
+    @Binds abstract fun backupRepository(impl: BackupRepositoryImpl): BackupRepository
 }
