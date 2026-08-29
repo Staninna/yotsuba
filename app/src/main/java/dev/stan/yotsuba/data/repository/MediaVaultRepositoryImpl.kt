@@ -70,12 +70,17 @@ class MediaVaultRepositoryImpl @Inject constructor(
         rows.filter { it.absolutePath.isNotEmpty() }.map { it.toVaultEntry() }
     }
 
-    override fun savedUrls(): Flow<Set<String>> =
-        savedMediaDao.urls().map { it.toSet() }
-
-    override fun savedPaths(): Flow<Map<String, String>> = savedMediaDao.all().map { rows ->
-        rows.filter { it.absolutePath.isNotEmpty() }.associate { it.url to it.absolutePath }
+    override fun saved(): Flow<Map<String, String?>> = savedMediaDao.all().map { rows ->
+        rows.associate { it.url to it.absolutePath.ifEmpty { null } }
     }
+
+    @Deprecated("Use saved().keys", ReplaceWith("saved().map { it.keys }"))
+    override fun savedUrls(): Flow<Set<String>> = saved().map { it.keys }
+
+    @Deprecated("Use saved() and drop the null paths", ReplaceWith("saved().map { it.filterValues { p -> p != null } }"))
+    @Suppress("UNCHECKED_CAST")
+    override fun savedPaths(): Flow<Map<String, String>> =
+        saved().map { it.filterValues { path -> path != null } as Map<String, String> }
 
     override suspend fun save(item: MediaItem, saveContext: VaultSaveContext): VaultError? =
         withContext(Dispatchers.IO) {
