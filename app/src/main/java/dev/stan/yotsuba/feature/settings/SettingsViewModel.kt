@@ -1,10 +1,9 @@
 package dev.stan.yotsuba.feature.settings
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.stan.yotsuba.BuildConfig
 import dev.stan.yotsuba.core.update.Release
 import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.core.util.DataResult
@@ -31,7 +30,6 @@ data class SettingsUiState(
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val historyRepository: HistoryRepository,
     private val bookmarkRepository: BookmarkRepository,
@@ -42,11 +40,9 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val updateState: StateFlow<Updater.State> = updater.state
-    val updaterVersion: String get() = updater.currentVersion
 
     fun canInstallPackages(): Boolean = updater.canInstallPackages()
     fun unknownSourcesIntent() = updater.unknownSourcesIntent()
-    fun onDismissUpdate() = updater.dismiss()
 
     fun onCheckForUpdates() = viewModelScope.launch { updater.check() }
 
@@ -60,9 +56,7 @@ class SettingsViewModel @Inject constructor(
         SettingsUiState(
             settings = settings,
             hiddenThreads = hidden,
-            versionName = runCatching {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName
-            }.getOrNull() ?: "?",
+            versionName = BuildConfig.VERSION_NAME,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
 

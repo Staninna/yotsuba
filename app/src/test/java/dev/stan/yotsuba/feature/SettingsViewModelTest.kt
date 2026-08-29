@@ -39,8 +39,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Robolectric only because the VM reads the app's versionName off a [android.content.Context];
- * everything else is faked at the repository interfaces.
+ * Robolectric only because [Updater] wants a real [android.content.Context]; everything else
+ * is faked at the repository interfaces.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -123,7 +123,6 @@ class SettingsViewModelTest {
         val bookmarks = FakeBookmarkRepository()
         val maintenance = FakeMaintenanceRepository()
         val vm = SettingsViewModel(
-            context = ApplicationProvider.getApplicationContext(),
             settingsRepository = settings,
             historyRepository = history,
             bookmarkRepository = bookmarks,
