@@ -74,10 +74,9 @@ fun BoardsScreen(
                 EmptyState(
                     title = stringResource(R.string.boards_empty_title),
                     explanation = stringResource(R.string.boards_empty_explanation),
-                    modifier = Modifier.padding(padding),
                 )
             } else {
-                LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+                LazyColumn(Modifier.fillMaxSize()) {
                     item {
                         SearchField(
                             value = s.searchQuery,
