@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.boards
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +15,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -74,10 +74,9 @@ fun BoardsScreen(
                 EmptyState(
                     title = stringResource(R.string.boards_empty_title),
                     explanation = stringResource(R.string.boards_empty_explanation),
-                    modifier = Modifier.padding(padding),
                 )
             } else {
-                LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+                LazyColumn(Modifier.fillMaxSize()) {
                     item {
                         SearchField(
                             value = s.searchQuery,
@@ -123,25 +122,23 @@ fun BoardsScreen(
                                             false -> ToggleableState.Off
                                             null -> ToggleableState.Indeterminate
                                         },
-                                        onClick = {
-                                            viewModel.onToggleCategoryVisible(section.category, section.allVisible)
-                                        },
+                                        onClick = { viewModel.onToggleCategoryVisible(section.category) },
                                         modifier = Modifier.padding(end = spacing.lg),
                                     )
                                 }
                             }
                         }
-                        items(section.boards.size, key = { section.boards[it].code }) { i ->
-                            val board = section.boards[i]
+                        items(section.boards.size, key = { section.boards[it].board.code }) { i ->
+                            val row = section.boards[i]
+                            val code = row.board.code
                             BoardRow(
-                                board = board,
-                                favourite = board.code in s.favouriteBoardCodes,
+                                board = row.board,
+                                favourite = row.favourite,
                                 editMode = s.editMode,
-                                visible = board.code !in s.hiddenBoards &&
-                                    board.category.name !in s.hiddenCategories,
-                                onClick = { if (!s.editMode) onOpenBoard(board.code) },
-                                onToggleFavourite = { viewModel.onToggleFavourite(board.code) },
-                                onToggleVisible = { viewModel.onToggleBoardVisible(board.code) },
+                                visible = row.visible,
+                                onClick = { if (!s.editMode) onOpenBoard(code) },
+                                onToggleFavourite = { viewModel.onToggleFavourite(code) },
+                                onToggleVisible = { viewModel.onToggleBoardVisible(code) },
                             )
                         }
                     }
@@ -187,7 +184,14 @@ private fun BoardRow(
             }
         }
         if (!board.worksafe) {
-            AssistChip(onClick = {}, label = { Text(stringResource(R.string.boards_nsfw)) })
+            Text(
+                stringResource(R.string.boards_nsfw),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.extraSmall)
+                    .padding(horizontal = spacing.sm, vertical = spacing.xs),
+            )
             Spacer(Modifier.width(spacing.sm))
         }
         if (!editMode) {

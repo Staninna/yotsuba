@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.feature
+package dev.stan.yotsuba.feature.catalog
 
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
@@ -18,8 +18,6 @@ import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import dev.stan.yotsuba.feature.catalog.CatalogContent
-import dev.stan.yotsuba.feature.catalog.CatalogViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -125,10 +123,11 @@ class CatalogViewModelTest {
 
     @Test fun `successful load exposes the board info and threads`() = runTest(dispatcher.scheduler) {
         val env = Env()
-        env.vm().uiState.test {
+        val vm = env.vm()
+        vm.uiState.test {
             val content = (latest() as UiState.Success).data
             assertEquals(listOf(1L, 2L, 3L), content.threads.map { it.no })
-            assertEquals("g", content.board?.code)
+            assertEquals("g", vm.boardInfo.value?.code)
             assertEquals(false, content.refreshing)
             cancelAndIgnoreRemainingEvents()
         }
@@ -150,6 +149,21 @@ class CatalogViewModelTest {
             latest()
             env.catalog.result = DataResult.Success(listOf(Env.thread(9)))
             vm.load(forceRefresh = true)
+            val content = (latest() as UiState.Success).data
+            assertEquals(listOf(9L), content.threads.map { it.no })
+            assertEquals(true, env.catalog.forceFlags.last())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `retry after an error forces the fetch`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.catalog.result = DataResult.Failure(NetworkError.NotFound)
+        val vm = env.vm()
+        vm.uiState.test {
+            latest()
+            env.catalog.result = DataResult.Success(listOf(Env.thread(9)))
+            vm.retry()
             val content = (latest() as UiState.Success).data
             assertEquals(listOf(9L), content.threads.map { it.no })
             assertEquals(true, env.catalog.forceFlags.last())
@@ -194,6 +208,22 @@ class CatalogViewModelTest {
             vm.onSearchChange("excerpt 3")
             val byExcerpt = (latest() as UiState.Success).data
             assertEquals(listOf(3L), byExcerpt.threads.map { it.no })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `closing search drops the filter, not just the field`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        val vm = env.vm()
+        vm.uiState.test {
+            latest()
+            vm.onOpenSearch()
+            vm.onSearchChange("Alpha")
+            assertEquals(listOf(1L), (latest() as UiState.Success).data.threads.map { it.no })
+            vm.onCloseSearch()
+            val closed = (latest() as UiState.Success).data
+            assertEquals(null, closed.searchQuery)
+            assertEquals(listOf(1L, 2L, 3L), closed.threads.map { it.no })
             cancelAndIgnoreRemainingEvents()
         }
     }

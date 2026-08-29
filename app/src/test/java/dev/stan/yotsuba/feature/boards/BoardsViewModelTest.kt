@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.feature
+package dev.stan.yotsuba.feature.boards
 
 import app.cash.turbine.test
 import dev.stan.yotsuba.core.util.DataResult
@@ -9,8 +9,6 @@ import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import dev.stan.yotsuba.feature.boards.BoardsContent
-import dev.stan.yotsuba.feature.boards.BoardsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -83,7 +81,7 @@ class BoardsViewModelTest {
                     listOf(BoardCategory.JAPANESE_CULTURE, BoardCategory.VIDEO_GAMES, BoardCategory.INTERESTS),
                     content.sections.map { it.category },
                 )
-                assertEquals(listOf("a", "m"), content.sections[0].boards.map { it.code })
+                assertEquals(listOf("a", "m"), content.sections[0].boards.map { it.board.code })
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -109,10 +107,34 @@ class BoardsViewModelTest {
                 latest()
                 vm.onSearchChange("TECH")
                 val byTitle = (latest() as UiState.Success).data
-                assertEquals(listOf("g"), byTitle.sections.flatMap { it.boards }.map { it.code })
+                assertEquals(listOf("g"), byTitle.sections.flatMap { it.boards }.map { it.board.code })
                 vm.onSearchChange("tv")
                 val byCode = (latest() as UiState.Success).data
-                assertEquals(listOf("tv"), byCode.sections.flatMap { it.boards }.map { it.code })
+                assertEquals(listOf("tv"), byCode.sections.flatMap { it.boards }.map { it.board.code })
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test fun `search ranks code matches above title matches and ignores slashes`() =
+        runTest(dispatcher.scheduler) {
+            val repo = FakeBoardRepository(DataResult.Success(listOf(
+                board("a", title = "Anime & Manga"),
+                board("gif", title = "Adult GIF"),
+                board("g", title = "Technology"),
+                board("vg", title = "Video Game Generals"),
+            )))
+            val vm = vm(repo)
+            vm.uiState.test {
+                latest()
+                vm.onSearchChange("g")
+                val ranked = (latest() as UiState.Success).data
+                assertEquals(
+                    listOf("g", "gif", "vg", "a"),
+                    ranked.sections.flatMap { it.boards }.map { it.board.code },
+                )
+                vm.onSearchChange("/g/")
+                val slashed = (latest() as UiState.Success).data
+                assertEquals("g", slashed.sections.flatMap { it.boards }.first().board.code)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -123,10 +145,10 @@ class BoardsViewModelTest {
             val vm = vm(repo, FakeSettingsRepository(Settings(hiddenBoards = setOf("v"))))
             vm.uiState.test {
                 val visible = (latest() as UiState.Success).data
-                assertEquals(listOf("g"), visible.sections.flatMap { it.boards }.map { it.code })
+                assertEquals(listOf("g"), visible.sections.flatMap { it.boards }.map { it.board.code })
                 vm.onToggleEditMode()
                 val editing = (latest() as UiState.Success).data
-                assertEquals(listOf("g", "v"), editing.sections.flatMap { it.boards }.map { it.code })
+                assertEquals(listOf("g", "v"), editing.sections.flatMap { it.boards }.map { it.board.code })
                 assertTrue(editing.editMode)
                 cancelAndIgnoreRemainingEvents()
             }
@@ -142,10 +164,15 @@ class BoardsViewModelTest {
                 assertEquals(listOf("g"), content.favourites.map { it.code })
                 vm.onToggleFavourite("v")
                 val added = (latest() as UiState.Success).data
-                assertEquals(setOf("g", "v"), added.favouriteBoardCodes)
+                assertEquals(listOf("g", "v"), added.favourites.map { it.code })
+                assertTrue(added.sections.flatMap { it.boards }.all { it.favourite })
                 vm.onToggleFavourite("g")
                 val removed = (latest() as UiState.Success).data
-                assertEquals(setOf("v"), removed.favouriteBoardCodes)
+                assertEquals(listOf("v"), removed.favourites.map { it.code })
+                assertEquals(
+                    listOf(false, true),
+                    removed.sections.flatMap { it.boards }.map { it.favourite },
+                )
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -172,6 +199,36 @@ class BoardsViewModelTest {
             }
         }
 
+    @Test fun `toggling a board under a hidden category shows only that board`() =
+        runTest(dispatcher.scheduler) {
+            val repo = FakeBoardRepository(DataResult.Success(listOf(
+                board("a", category = BoardCategory.JAPANESE_CULTURE),
+                board("m", category = BoardCategory.JAPANESE_CULTURE),
+                board("c", category = BoardCategory.JAPANESE_CULTURE),
+                board("g", category = BoardCategory.INTERESTS),
+            )))
+            val settings = FakeSettingsRepository(
+                Settings(hiddenCategories = setOf(BoardCategory.JAPANESE_CULTURE.name))
+            )
+            val vm = vm(repo, settings)
+            vm.onToggleEditMode()
+            vm.uiState.test {
+                val before = (latest() as UiState.Success).data
+                assertEquals(
+                    listOf(false, false, false),
+                    before.sections.first().boards.map { it.visible },
+                )
+                vm.onToggleBoardVisible("m")
+                val after = (latest() as UiState.Success).data
+                val japanese = after.sections.first { it.category == BoardCategory.JAPANESE_CULTURE }
+                assertEquals(listOf("a" to false, "m" to true, "c" to false), japanese.boards.map { it.board.code to it.visible })
+                assertEquals(null, japanese.allVisible)
+                assertEquals(emptySet<String>(), settings.state.value.hiddenCategories)
+                assertEquals(setOf("a", "c"), settings.state.value.hiddenBoards)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `toggling a hidden category shows all of its boards again`() =
         runTest(dispatcher.scheduler) {
             val repo = FakeBoardRepository(DataResult.Success(listOf(
@@ -184,7 +241,7 @@ class BoardsViewModelTest {
             val vm = vm(repo, settings)
             vm.uiState.test {
                 latest()
-                vm.onToggleCategoryVisible(BoardCategory.JAPANESE_CULTURE, currentlyAllVisible = false)
+                vm.onToggleCategoryVisible(BoardCategory.JAPANESE_CULTURE)
                 dispatcher.scheduler.advanceUntilIdle()
                 assertEquals(emptySet<String>(), settings.state.value.hiddenCategories)
                 assertEquals(emptySet<String>(), settings.state.value.hiddenBoards)

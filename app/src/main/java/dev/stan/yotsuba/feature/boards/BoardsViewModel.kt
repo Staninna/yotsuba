@@ -6,7 +6,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.LoadableFlow
 import dev.stan.yotsuba.core.util.UiState
+import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
@@ -41,28 +43,21 @@ class BoardsViewModel @Inject constructor(
             is DataResult.Failure -> UiState.Error(result.error)
             is DataResult.Success -> {
                 val all = result.value
-                val matching = if (query.isBlank()) all else all.filter {
-                    it.code.contains(query, true) || it.title.contains(query, true)
-                }
-                val visible = matching.filter { board ->
-                    editing || (board.code !in settings.hiddenBoards &&
-                        board.category.name !in settings.hiddenCategories)
-                }
+                val matching = search(all, query)
+                val visible = matching.filter { editing || settings.isVisible(it) }
                 val sections = BoardCategory.entries.mapNotNull { cat ->
                     val inCat = visible.filter { it.category == cat }
                     if (inCat.isEmpty()) return@mapNotNull null
-                    val fullCat = all.filter { it.category == cat }
-                    val visibleCount = fullCat.count {
-                        it.code !in settings.hiddenBoards && cat.name !in settings.hiddenCategories
-                    }
                     BoardSection(
                         category = cat,
-                        boards = inCat,
-                        allVisible = when (visibleCount) {
-                            fullCat.size -> true
-                            0 -> false
-                            else -> null
+                        boards = inCat.map { board ->
+                            BoardRowState(
+                                board = board,
+                                favourite = board.code in settings.favouriteBoards,
+                                visible = settings.isVisible(board),
+                            )
                         },
+                        allVisible = settings.allVisible(cat, all),
                     )
                 }
                 UiState.Success(BoardsContent(
@@ -70,9 +65,6 @@ class BoardsViewModel @Inject constructor(
                     sections = sections,
                     searchQuery = query,
                     editMode = editing,
-                    hiddenBoards = settings.hiddenBoards,
-                    hiddenCategories = settings.hiddenCategories,
-                    favouriteBoardCodes = settings.favouriteBoards,
                 ))
             }
         }
@@ -94,29 +86,76 @@ class BoardsViewModel @Inject constructor(
     }
 
     fun onToggleBoardVisible(board: String) = viewModelScope.launch {
+        val all = loadedBoards()
+        val category = all.firstOrNull { it.code == board }?.category
         settingsRepository.update { s ->
-            s.copy(
-                hiddenBoards = if (board in s.hiddenBoards) s.hiddenBoards - board else s.hiddenBoards + board,
-            )
+            if (category != null && category.name in s.hiddenCategories) {
+                // The whole category is hidden, so the user wants only this board back:
+                // unhide the category and hide every sibling instead.
+                val siblings = all.filter { it.category == category && it.code != board }.map { it.code }
+                s.copy(
+                    hiddenCategories = s.hiddenCategories - category.name,
+                    hiddenBoards = s.hiddenBoards - board + siblings,
+                )
+            } else {
+                s.copy(
+                    hiddenBoards = if (board in s.hiddenBoards) s.hiddenBoards - board else s.hiddenBoards + board,
+                )
+            }
         }
     }
 
-    fun onToggleCategoryVisible(category: BoardCategory, currentlyAllVisible: Boolean?) =
-        viewModelScope.launch {
-            val boards = (boardsResult.current as? DataResult.Success)?.value.orEmpty()
-                .filter { it.category == category }.map { it.code }
-            settingsRepository.update { s ->
-                // Mixed or all-visible -> hide all; hidden -> show all (tri-state, D13).
-                if (currentlyAllVisible == false) {
-                    s.copy(
-                        hiddenCategories = s.hiddenCategories - category.name,
-                        hiddenBoards = s.hiddenBoards - boards.toSet(),
-                    )
-                } else {
-                    s.copy(
-                        hiddenCategories = s.hiddenCategories + category.name,
-                    )
-                }
+    fun onToggleCategoryVisible(category: BoardCategory) = viewModelScope.launch {
+        val all = loadedBoards()
+        val boards = all.filter { it.category == category }.map { it.code }
+        settingsRepository.update { s ->
+            // Mixed or all-visible -> hide all; hidden -> show all (tri-state, D13).
+            if (s.allVisible(category, all) == false) {
+                s.copy(
+                    hiddenCategories = s.hiddenCategories - category.name,
+                    hiddenBoards = s.hiddenBoards - boards.toSet(),
+                )
+            } else {
+                s.copy(
+                    hiddenCategories = s.hiddenCategories + category.name,
+                )
             }
         }
+    }
+
+    /**
+     * Code matches outrank title matches, and an exact code outranks a prefix, so "g" puts /g/
+     * first instead of every title with a g in it. Slashes are stripped so "/g/" matches too.
+     */
+    private fun search(all: List<Board>, rawQuery: String): List<Board> {
+        val query = rawQuery.trim().trim('/').trim()
+        if (query.isBlank()) return all
+        fun rank(board: Board): Int = when {
+            board.code.equals(query, ignoreCase = true) -> 0
+            board.code.startsWith(query, ignoreCase = true) -> 1
+            board.code.contains(query, ignoreCase = true) -> 2
+            board.title.contains(query, ignoreCase = true) -> 3
+            else -> -1
+        }
+        return all.map { it to rank(it) }
+            .filter { (_, r) -> r >= 0 }
+            .sortedBy { (_, r) -> r }
+            .map { (board, _) -> board }
+    }
+
+    private fun loadedBoards(): List<Board> =
+        (boardsResult.current as? DataResult.Success)?.value.orEmpty()
+
+    private fun Settings.isVisible(board: Board): Boolean =
+        board.code !in hiddenBoards && board.category.name !in hiddenCategories
+
+    /** true = every board shown, false = none, null = mixed. */
+    private fun Settings.allVisible(category: BoardCategory, all: List<Board>): Boolean? {
+        val inCat = all.filter { it.category == category }
+        return when (inCat.count { isVisible(it) }) {
+            inCat.size -> true
+            0 -> false
+            else -> null
+        }
+    }
 }

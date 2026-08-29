@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_thread_copy_link">Copy link</string>
+    <string name="catalog_thread_open_in_browser">Open in browser</string>
+    <string name="catalog_thread_link_copied">Link copied</string>
+</resources>

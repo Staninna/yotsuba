@@ -8,19 +8,18 @@ import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.LoadableFlow
 import dev.stan.yotsuba.core.util.UiState
+import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.CatalogLayout
-import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.repository.BoardRepository
-import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import dev.stan.yotsuba.domain.model.Board
-import javax.inject.Inject
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -41,37 +40,41 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     }
 
     private val result = LoadableFlow(viewModelScope) { catalogRepository.catalog(board, it) }
-    private val boardInfo = MutableStateFlow<Board?>(null)
-    private val searchQuery = MutableStateFlow(initialSearch.orEmpty())
+    /** null = search closed; the list is unfiltered. */
+    private val searchQuery = MutableStateFlow(initialSearch?.takeIf { it.isNotBlank() })
     private val refreshing = MutableStateFlow(false)
+    private val hiddenNos = hiddenThreadsRepository.forBoard(board)
+        .map { list -> list.map { it.threadNo }.toSet() }
     private val networkStatus = networkMonitor.status
         .stateIn(viewModelScope, SharingStarted.Eagerly, NetworkStatus.Unmetered)
 
+    /** Board metadata for the top bar; not part of the list pipeline. */
+    private val _boardInfo = MutableStateFlow<Board?>(null)
+    val boardInfo: StateFlow<Board?> = _boardInfo
+
     init {
         load()
-        viewModelScope.launch { boardInfo.value = boardRepository.board(board) }
+        viewModelScope.launch { _boardInfo.value = boardRepository.board(board) }
     }
 
-    fun load(forceRefresh: Boolean = false) {
-        viewModelScope.launch {
-            if (forceRefresh) refreshing.value = true
-            result.load(forceRefresh).join()
-            refreshing.value = false
+    fun load(forceRefresh: Boolean = false): Job {
+        val job = result.load(forceRefresh)
+        if (forceRefresh) {
+            refreshing.value = true
+            job.invokeOnCompletion { refreshing.value = false }
         }
+        return job
     }
+
+    /** Error-state retry: bypass the cache like pull-to-refresh, but show the loading shell. */
+    fun retry(): Job = result.load(forceRefresh = true, showLoading = true)
+
+    private val layout = settingsRepository.settings.map { it.catalogLayout }
+    private val offline = networkStatus.map { it == NetworkStatus.Offline }
 
     val uiState: StateFlow<UiState<CatalogContent>> = combine(
-        result.flow, boardInfo, settingsRepository.settings, searchQuery, refreshing,
-        hiddenThreadsRepository.forBoard(board), networkStatus,
-    ) { values ->
-        @Suppress("UNCHECKED_CAST")
-        val res = values[0] as DataResult<List<CatalogThread>>?
-        val info = values[1] as Board?
-        val settings = values[2] as dev.stan.yotsuba.domain.model.Settings
-        val query = values[3] as String
-        val isRefreshing = values[4] as Boolean
-        val hidden = (values[5] as List<HiddenThread>).map { it.threadNo }.toSet()
-        val status = values[6] as NetworkStatus
+        result.flow, searchQuery, refreshing, layout, combine(hiddenNos, offline, ::Pair),
+    ) { res, query, isRefreshing, layout, (hidden, offline) ->
         when (res) {
             null -> UiState.Loading
             is DataResult.Failure -> UiState.Error(res.error)
@@ -79,23 +82,24 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                 val filtered = res.value
                     .filter { it.no !in hidden }
                     .filter {
-                        query.isBlank() ||
+                        query.isNullOrBlank() ||
                             it.subject?.contains(query, true) == true ||
                             it.excerpt.plainText.contains(query, true)
                     }
                 UiState.Success(CatalogContent(
-                    board = info,
                     threads = filtered,
-                    layout = settings.catalogLayout,
+                    layout = layout,
                     searchQuery = query,
                     refreshing = isRefreshing,
-                    offline = status == NetworkStatus.Offline,
+                    offline = offline,
                 ))
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     fun onSearchChange(query: String) { searchQuery.value = query }
+    fun onOpenSearch() { if (searchQuery.value == null) searchQuery.value = "" }
+    fun onCloseSearch() { searchQuery.value = null }
 
     fun onCycleLayout() = viewModelScope.launch {
         settingsRepository.update { s ->
