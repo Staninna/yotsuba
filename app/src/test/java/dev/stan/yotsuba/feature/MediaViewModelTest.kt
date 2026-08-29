@@ -31,6 +31,7 @@ import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import dev.stan.yotsuba.feature.media.MediaUiState
 import dev.stan.yotsuba.feature.media.MediaViewModel
+import dev.stan.yotsuba.feature.media.ViewerPhase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -221,6 +222,27 @@ class MediaViewModelTest {
                 assertEquals(1, state.initialIndex)
                 assertTrue(state.loaded)
                 assertEquals(setOf(100L, 101L, 102L, 103L), state.posts.keys)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test fun `viewer goes Loading then Empty for a thread with no media`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(listOf(post(100, withMedia = false), post(101, withMedia = false)))
+            env.vm().uiState.test {
+                assertEquals(ViewerPhase.Loading, awaitItem().phase)
+                val state = latest()
+                assertEquals(ViewerPhase.Empty, state.phase)
+                assertFalse(state.loaded)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test fun `viewer reports the network error when nothing is saved either`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(listOf(post(100)), threadFails = true)
+            env.vm().uiState.test {
+                assertEquals(ViewerPhase.Error(NetworkError.NotFound), latest().phase)
                 cancelAndIgnoreRemainingEvents()
             }
         }

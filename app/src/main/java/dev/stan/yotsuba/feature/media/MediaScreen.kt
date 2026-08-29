@@ -1,15 +1,28 @@
 package dev.stan.yotsuba.feature.media
 
 import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -23,6 +36,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,6 +44,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.FileSize
+import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.data.repository.DownloadState
 import dev.stan.yotsuba.domain.model.MediaItem
 import java.io.File
@@ -52,7 +67,41 @@ fun MediaScreen(
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val shareFailedMessage = stringResource(R.string.media_share_failed)
 
-    if (!state.loaded) return
+    when (val phase = state.phase) {
+        ViewerPhase.Loading -> {
+            ViewerPlaceholder(onClose = onClose) {
+                CircularProgressIndicator(color = Color.White)
+            }
+            return
+        }
+        ViewerPhase.Empty -> {
+            ViewerPlaceholder(onClose = onClose) {
+                Text(
+                    stringResource(R.string.media_viewer_empty),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            return
+        }
+        is ViewerPhase.Error -> {
+            ViewerPlaceholder(onClose = onClose) {
+                Text(
+                    errorMessage(phase.error),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(Modifier.height(16.dp))
+                TextButton(onClick = viewModel::retry) {
+                    Text(stringResource(R.string.action_retry), color = Color.White)
+                }
+            }
+            return
+        }
+        ViewerPhase.Ready -> Unit
+    }
 
     var autoAdvance by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
@@ -140,6 +189,34 @@ fun MediaScreen(
             }
         }
     }
+}
+
+/** The black full-screen ground with a close button, for everything that is not media. */
+@Composable
+private fun ViewerPlaceholder(onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        Column(
+            modifier = Modifier.align(Alignment.Center).padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            content = content,
+        )
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp),
+        ) {
+            Icon(Icons.Filled.Close, stringResource(R.string.media_close), tint = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun errorMessage(error: NetworkError): String = when (error) {
+    NetworkError.Offline -> stringResource(R.string.error_offline)
+    NetworkError.Timeout -> stringResource(R.string.error_timeout)
+    NetworkError.RateLimited -> stringResource(R.string.error_rate_limited)
+    NetworkError.NotFound -> stringResource(R.string.error_not_found)
+    is NetworkError.Server -> stringResource(R.string.error_server, error.code)
+    is NetworkError.Unknown -> stringResource(R.string.error_unknown)
 }
 
 @Composable

@@ -12,6 +12,7 @@ import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.util.DataResult
+import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.data.repository.DownloadState
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
@@ -36,7 +37,18 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** What the viewer has to show before (or instead of) media. */
+sealed interface ViewerPhase {
+    data object Loading : ViewerPhase
+    /** The thread came back but no post carries media. */
+    data object Empty : ViewerPhase
+    /** Nothing live and nothing saved; [error] is what the network said. */
+    data class Error(val error: NetworkError) : ViewerPhase
+    data object Ready : ViewerPhase
+}
+
 data class MediaUiState(
+    val phase: ViewerPhase = ViewerPhase.Loading,
     val items: List<MediaItem> = emptyList(),
     /** The conversation behind the media, live or rebuilt from the vault sidecar. */
     val thread: ViewerThread = ViewerThread(),
@@ -51,8 +63,9 @@ data class MediaUiState(
     val behaviour: ViewerBehaviour = ViewerBehaviour(),
     /** Unmuted by default only where the board declares webm_audio (D12). */
     val defaultUnmuted: Boolean = false,
-    val loaded: Boolean = false,
 ) {
+    val loaded: Boolean get() = phase == ViewerPhase.Ready
+
     val posts: Map<Long, ThreadPost> get() = thread.posts
     val backlinks: Map<Long, List<Long>> get() = thread.backlinks
     val board: Board? get() = thread.board
@@ -77,6 +90,14 @@ class MediaViewModel @AssistedInject constructor(
     private val sessionStore: MediaSessionStore,
 ) : ViewModel() {
 
+    /** The thread load, as far as it has got. */
+    private sealed interface Source {
+        data object Loading : Source
+        data class Failed(val error: NetworkError) : Source
+        data class Loaded(val details: ThreadDetails) : Source
+    }
+
+    private val source = MutableStateFlow<Source>(Source.Loading)
     private val details = MutableStateFlow<ThreadDetails?>(null)
     private val boardInfo = MutableStateFlow<Board?>(null)
 
@@ -84,15 +105,25 @@ class MediaViewModel @AssistedInject constructor(
     private var saveContextBase: VaultSaveContext? = null
 
     init {
+        load()
+    }
+
+    /** Fetches the thread again after an error; a no-op while a load is already running. */
+    fun retry() {
+        if (source.value is Source.Failed) load()
+    }
+
+    private fun load() {
+        source.value = Source.Loading
         viewModelScope.launch {
             // Live wins. The saved snapshot is the fallback for a pruned, 404'd or
             // offline thread, so a vault item still opens with its conversation intact.
             val r = threadRepository.thread(board, threadNo)
-            if (r !is DataResult.Success) {
-                details.value = mediaVault.savedThread(board, threadNo)
+            val loaded = when (r) {
+                is DataResult.Success -> r.value
+                is DataResult.Failure -> mediaVault.savedThread(board, threadNo)
             }
             if (r is DataResult.Success) {
-                details.value = r.value
                 val op = r.value.posts.firstOrNull { it.isOp }
                 saveContextBase = VaultSaveContext(
                     board = board,
@@ -103,6 +134,12 @@ class MediaViewModel @AssistedInject constructor(
                 )
             }
             boardInfo.value = boardRepository.board(board)
+            details.value = loaded
+            source.value = when {
+                loaded != null -> Source.Loaded(loaded)
+                r is DataResult.Failure -> Source.Failed(r.error)
+                else -> Source.Failed(NetworkError.Unknown())
+            }
         }
     }
 
@@ -120,10 +157,16 @@ class MediaViewModel @AssistedInject constructor(
     }
 
     val uiState: StateFlow<MediaUiState> = combine(
-        details, boardInfo, settingsRepository.settings, networkMonitor.status, saveInfo,
-    ) { d, info, settings, status, saves ->
+        source, boardInfo, settingsRepository.settings, networkMonitor.status, saveInfo,
+    ) { src, info, settings, status, saves ->
+        val d = (src as? Source.Loaded)?.details
         val list = d?.posts.orEmpty().mapNotNull { it.presentMedia }
         MediaUiState(
+            phase = when (src) {
+                Source.Loading -> ViewerPhase.Loading
+                is Source.Failed -> ViewerPhase.Error(src.error)
+                is Source.Loaded -> if (list.isEmpty()) ViewerPhase.Empty else ViewerPhase.Ready
+            },
             items = list,
             thread = ViewerThread.of(d, info),
             downloadedUrls = saves.downloaded,
@@ -142,7 +185,6 @@ class MediaViewModel @AssistedInject constructor(
                 holdToSave = settings.holdToSave,
             ),
             defaultUnmuted = info?.webmAudio == true,
-            loaded = list.isNotEmpty(),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MediaUiState())
 
