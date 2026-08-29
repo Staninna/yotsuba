@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.DropdownMenu
@@ -21,6 +22,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import dev.stan.yotsuba.R
@@ -95,10 +100,14 @@ fun ThreadTopBar(
                     onClick = { menuOpen = false; onOpenExternal(webUrl) },
                 )
                 DropdownMenuItem(
-                    text = {
-                        Text(stringResource(R.string.thread_auto_refresh) + if (autoRefreshEnabled) " ✓" else "")
+                    text = { Text(stringResource(R.string.thread_auto_refresh)) },
+                    trailingIcon = {
+                        if (autoRefreshEnabled) Icon(Icons.Filled.Check, contentDescription = null)
                     },
                     onClick = { menuOpen = false; onToggleAutoRefresh() },
+                    modifier = Modifier.semantics {
+                        toggleableState = ToggleableState(autoRefreshEnabled)
+                    },
                 )
             }
         },

@@ -71,6 +71,8 @@ class ThreadViewModel @AssistedInject constructor(
     private val revealedImageSpoilers = MutableStateFlow<Set<Long>>(emptySet())
     private val newPostsAfter = MutableStateFlow<Pair<Long, Int>?>(null)
     private val archivedNotice = MutableStateFlow(false)
+    private val refreshError = MutableStateFlow<NetworkError?>(null)
+    private val refreshing = MutableStateFlow(false)
     private val searchQuery = MutableStateFlow<String?>(null)
     private val searchIndex = MutableStateFlow(0)
     private val previewStack = MutableStateFlow<List<List<Long>>>(emptyList())
@@ -89,7 +91,7 @@ class ThreadViewModel @AssistedInject constructor(
             !archivedNotice.value &&
                 (autoRefreshUserOverride.value ?: settingsRepository.settings.first().autoRefreshEnabled)
         },
-        poll = { load(forceRefresh = true) },
+        poll = { load(forceRefresh = true, quiet = true) },
     )
 
     private val bookmarked = bookmarkRepository.isBookmarked(board, threadNo)
@@ -117,7 +119,7 @@ class ThreadViewModel @AssistedInject constructor(
     private val spoilerState = combine(revealedSpoilers, revealedImageSpoilers, ::SpoilerState)
     private val searchInput = combine(searchQuery, searchIndex, ::SearchInput)
     private val overlayState = combine(previewStack, pendingExternalUrl, ::OverlayState)
-    private val refreshState = combine(newPostsAfter, archivedNotice, autoRefreshUserOverride, ::RefreshState)
+    private val refreshState = combine(newPostsAfter, archivedNotice, autoRefreshUserOverride, refreshError, refreshing, ::RefreshState)
     private val metaState = combine(boardInfo, bookmarked, mediaSaveStatuses, ::MetaState)
     private val sessionState = combine(spoilerState, searchInput, overlayState, refreshState, ::SessionState)
 
@@ -143,6 +145,8 @@ class ThreadViewModel @AssistedInject constructor(
                         newPostsCount = session.refresh.newPostsAfter?.second ?: 0,
                         autoRefreshEnabled = session.refresh.autoRefreshOverride ?: settings.autoRefreshEnabled,
                         archivedNotice = session.refresh.archived || details.archived,
+                        refreshError = session.refresh.error,
+                        refreshing = session.refresh.refreshing,
                         searchQuery = session.search.query,
                         searchMatches = matches,
                         searchIndex = if (matches.isEmpty()) 0 else session.search.index.coerceIn(0, matches.size - 1),
@@ -179,33 +183,51 @@ class ThreadViewModel @AssistedInject constructor(
 
     private fun loadedPosts(): List<ThreadPost>? = (result.value as? DataResult.Success)?.value?.posts
 
-    fun load(forceRefresh: Boolean = false) {
+    /** [quiet] refreshes without the spinner: auto-polls should not flicker the indicator. */
+    fun load(forceRefresh: Boolean = false, quiet: Boolean = false) {
         viewModelScope.launch {
-            if (!forceRefresh) result.value = null
+            if (!forceRefresh) result.value = null else if (!quiet) refreshing.value = true
             val r = threadRepository.thread(board, threadNo, forceRefresh)
-            if (r is DataResult.Success) {
-                val newest = r.value.posts.maxOfOrNull { it.no } ?: 0L
-                if (lastKnownPostNo != 0L && newest > lastKnownPostNo) {
-                    val newOnes = r.value.posts.count { it.no > lastKnownPostNo }
-                    newPostsAfter.value = lastKnownPostNo to newOnes
-                    poller.resetBackoff()
+            refreshing.value = false
+            when (r) {
+                is DataResult.Success -> {
+                    refreshError.value = null
+                    onLoaded(r.value)
+                    result.value = r
                 }
-                lastKnownPostNo = newest
-                recordHistory(r.value)
-                // Viewing the thread clears its bookmark's unread badge (no-op if not bookmarked).
-                if (newest > 0) {
-                    bookmarkRepository.markSeen(board, threadNo, newest, r.value.posts.size - 1)
+                is DataResult.Failure -> {
+                    if (r.error == NetworkError.NotFound) {
+                        archivedNotice.value = true
+                        poller.stop()
+                    }
+                    if (result.value !is DataResult.Success) {
+                        result.value = r // nothing to keep on screen
+                    } else if (r.error != NetworkError.NotFound) {
+                        refreshError.value = r.error // keep content, report transiently
+                    }
                 }
-                resolveScrollTarget(r.value)
             }
-            if (r is DataResult.Failure && r.error == NetworkError.NotFound) {
-                archivedNotice.value = true
-                poller.stop()
-                if (result.value is DataResult.Success) return@launch // keep showing content
-            }
-            result.value = r
         }
     }
+
+    private suspend fun onLoaded(details: ThreadDetails) {
+        val newest = details.posts.maxOfOrNull { it.no } ?: 0L
+        if (lastKnownPostNo != 0L && newest > lastKnownPostNo) {
+            val newOnes = details.posts.count { it.no > lastKnownPostNo }
+            newPostsAfter.value = lastKnownPostNo to newOnes
+            poller.resetBackoff()
+        }
+        lastKnownPostNo = newest
+        recordHistory(details)
+        // Viewing the thread clears its bookmark's unread badge (no-op if not bookmarked).
+        if (newest > 0) {
+            bookmarkRepository.markSeen(board, threadNo, newest, details.posts.size - 1)
+        }
+        resolveScrollTarget(details)
+    }
+
+    /** The screen showed the refresh error; drop it so it is not shown again. */
+    fun onRefreshErrorShown() { refreshError.value = null }
 
     /**
      * Restore priority: explicit target (quote/history tap) > media last viewed in the

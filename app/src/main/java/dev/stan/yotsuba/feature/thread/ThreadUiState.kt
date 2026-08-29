@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.thread
 
+import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -18,6 +19,10 @@ data class ThreadContent(
     val newPostsCount: Int,
     val autoRefreshEnabled: Boolean,
     val archivedNotice: Boolean,
+    /** A refresh failed while a thread was already on screen; shown once, then cleared. */
+    val refreshError: NetworkError? = null,
+    /** A manual or pull refresh is in flight; the thread stays on screen meanwhile. */
+    val refreshing: Boolean = false,
     val searchQuery: String?,
     val searchMatches: List<Long>,
     val searchIndex: Int,
@@ -55,6 +60,8 @@ data class RefreshState(
     val newPostsAfter: Pair<Long, Int>?,
     val archived: Boolean,
     val autoRefreshOverride: Boolean?,
+    val error: NetworkError?,
+    val refreshing: Boolean,
 )
 
 /** Slow-changing companions of the thread itself. */

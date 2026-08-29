@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.HorizontalDivider
@@ -26,8 +27,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,12 +47,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.feature.media.saveToVault
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -88,6 +91,11 @@ fun ThreadScreen(
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val haptics = LocalHapticFeedback.current
 
+    fun closeSearch() {
+        searchOpen = false
+        viewModel.onSearchChange(null) // drops the query and every highlight with it
+    }
+
     fun openExternal(url: String) {
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
     }
@@ -101,9 +109,10 @@ fun ThreadScreen(
         }
     }
 
-    DisposableEffect(Unit) {
+    // Polling follows the lifecycle: backgrounding the app or leaving the screen stops it.
+    LifecycleResumeEffect(Unit) {
         viewModel.onScreenVisibilityChanged(true)
-        onDispose { viewModel.onScreenVisibilityChanged(false) }
+        onPauseOrDispose { viewModel.onScreenVisibilityChanged(false) }
     }
 
     // The VM resolves where to scroll (restore priority, search steps); the screen obeys.
@@ -115,6 +124,15 @@ fun ThreadScreen(
             if (target.animate) listState.animateScrollToItem(index) else listState.scrollToItem(index)
         }
         viewModel.onScrollTargetConsumed()
+    }
+
+    // A failed refresh leaves the thread up and says so once.
+    val refreshError = (state as? UiState.Success)?.data?.refreshError
+    val refreshErrorMessage = refreshError?.let { refreshErrorMessage(it) }
+    LaunchedEffect(refreshError) {
+        if (refreshError == null || refreshErrorMessage == null) return@LaunchedEffect
+        viewModel.onRefreshErrorShown()
+        snackbar.showSnackbar(refreshErrorMessage)
     }
 
     // Report the visible index range; the VM owns read position and unread counts.
@@ -205,33 +223,38 @@ fun ThreadScreen(
                         Text(
                             stringResource(R.string.thread_archived),
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(spacing.sm),
                         )
                     }
                     if (searchOpen) {
-                        SearchBar(s, viewModel)
+                        SearchBar(s, viewModel, onClose = ::closeSearch)
                     }
-                    LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(spacing.md),
-                        verticalArrangement = Arrangement.spacedBy(spacing.md),
-                        modifier = Modifier.fillMaxSize(),
+                    PullToRefreshBox(
+                        isRefreshing = s.refreshing,
+                        onRefresh = { viewModel.load(forceRefresh = true) },
                     ) {
-                        items(s.details.posts.size, key = { s.details.posts[it].no }) { i ->
-                            val post = s.details.posts[i]
-                            if (s.newPostsAfter != null && i > 0 &&
-                                s.details.posts[i - 1].no == s.newPostsAfter
-                            ) {
-                                NewPostsDivider(
-                                    count = s.newPostsCount,
-                                    onTap = { viewModel.onDismissNewPostsDivider() },
-                                )
+                        LazyColumn(
+                            state = listState,
+                            contentPadding = PaddingValues(spacing.md),
+                            verticalArrangement = Arrangement.spacedBy(spacing.md),
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            items(s.details.posts.size, key = { s.details.posts[it].no }) { i ->
+                                val post = s.details.posts[i]
+                                if (s.newPostsAfter != null && i > 0 &&
+                                    s.details.posts[i - 1].no == s.newPostsAfter
+                                ) {
+                                    NewPostsDivider(
+                                        count = s.newPostsCount,
+                                        onTap = { viewModel.onDismissNewPostsDivider() },
+                                    )
+                                }
+                                postCard(post, false)
                             }
-                            postCard(post, false)
                         }
                     }
                 }
@@ -239,6 +262,10 @@ fun ThreadScreen(
                 // System back pops one preview instead of leaving the thread.
                 BackHandler(enabled = s.previewStack.isNotEmpty()) {
                     viewModel.onClosePreview()
+                }
+                // ...and closes the search bar before leaving the thread.
+                BackHandler(enabled = searchOpen && s.previewStack.isEmpty()) {
+                    closeSearch()
                 }
                 if (s.previewStack.isNotEmpty()) {
                     QuotePreviewOverlay(
@@ -268,7 +295,7 @@ fun ThreadScreen(
 }
 
 @Composable
-private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel) {
+private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel, onClose: () -> Unit) {
     val spacing = LocalSpacing.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -291,8 +318,24 @@ private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel) {
         IconButton(onClick = { viewModel.onSearchStep(1) }) {
             Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.thread_search_next))
         }
+        IconButton(onClick = onClose) {
+            Icon(Icons.Filled.Close, stringResource(R.string.thread_search_close))
+        }
     }
 }
+
+@Composable
+private fun refreshErrorMessage(error: NetworkError): String = stringResource(
+    R.string.thread_refresh_failed,
+    when (error) {
+        NetworkError.Offline -> stringResource(R.string.error_offline)
+        NetworkError.Timeout -> stringResource(R.string.error_timeout)
+        NetworkError.RateLimited -> stringResource(R.string.error_rate_limited)
+        NetworkError.NotFound -> stringResource(R.string.error_not_found)
+        is NetworkError.Server -> stringResource(R.string.error_server, error.code)
+        is NetworkError.Unknown -> stringResource(R.string.error_unknown)
+    },
+)
 
 @Composable
 private fun NewPostsDivider(count: Int, onTap: () -> Unit) {
