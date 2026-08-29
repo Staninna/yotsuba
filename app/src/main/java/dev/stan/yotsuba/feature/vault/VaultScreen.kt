@@ -289,8 +289,9 @@ fun VaultScreen(
                                     onDismissRequest = { syncMenuOpen = false },
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.vault_rescan)) },
-                                        supportingContent = { Text(stringResource(R.string.vault_rescan_explanation)) },
+                                        text = {
+                                            MenuLabel(R.string.vault_rescan_label, R.string.vault_rescan_explanation)
+                                        },
                                         leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
                                         onClick = {
                                             syncMenuOpen = false
@@ -298,8 +299,9 @@ fun VaultScreen(
                                         },
                                     )
                                     DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.vault_fetch_replies)) },
-                                        supportingContent = { Text(stringResource(R.string.vault_fetch_replies_explanation)) },
+                                        text = {
+                                            MenuLabel(R.string.vault_fetch_replies, R.string.vault_fetch_replies_explanation)
+                                        },
                                         leadingIcon = { Icon(Icons.Filled.CloudDownload, contentDescription = null) },
                                         onClick = {
                                             syncMenuOpen = false
@@ -441,6 +443,19 @@ private fun MergeDialog(
         confirmButton = {},
         dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.vault_cancel)) } },
     )
+}
+
+/** A menu entry that says what it does underneath its name. */
+@Composable
+private fun MenuLabel(titleRes: Int, explanationRes: Int) {
+    Column {
+        Text(stringResource(titleRes))
+        Text(
+            stringResource(explanationRes),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 /** The top bar as a search field; the query lives in the VM so rotation keeps it. */

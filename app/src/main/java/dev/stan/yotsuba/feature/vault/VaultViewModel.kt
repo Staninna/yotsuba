@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.MediaAutoplay
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
@@ -31,7 +32,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /** How long a grid delete can be undone before the trash is emptied. */
@@ -606,14 +606,17 @@ class VaultViewModel @Inject constructor(
     fun requestDelete(entries: List<VaultEntry>, undoable: Boolean) {
         if (entries.isEmpty()) return
         val request = VaultDeleteRequest(entries, undoable)
-        viewModelScope.launch {
-            if (settingsRepository.settings.first().confirmVaultDelete) {
-                deleting.value = request
-            } else {
-                delete(request)
-            }
+        if (confirmDelete.value) {
+            deleting.value = request
+        } else {
+            viewModelScope.launch { delete(request) }
         }
     }
+
+    /** The confirmation setting, kept current so [requestDelete] can answer at once. */
+    private val confirmDelete: StateFlow<Boolean> = settingsRepository.settings
+        .map { it.confirmVaultDelete }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings().confirmVaultDelete)
 
     fun requestDelete(entry: VaultEntry, undoable: Boolean = false) = requestDelete(listOf(entry), undoable)
 

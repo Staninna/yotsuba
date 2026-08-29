@@ -140,6 +140,12 @@ class VaultViewModelTest {
         return expectMostRecentItem()
     }
 
+    /** Like [latest] but without running the clock forward: for states behind a timer. */
+    private suspend fun app.cash.turbine.TurbineTestContext<VaultUiState>.now(): VaultUiState {
+        dispatcher.scheduler.runCurrent()
+        return expectMostRecentItem()
+    }
+
     private val boards = FakeBoards()
 
     private class FakeBoards : BoardRepository {
@@ -319,7 +325,7 @@ class VaultViewModelTest {
             latest()
             vm.requestDelete(entry("g/1.jpg", threadG), undoable = true)
             vm.confirmDelete()
-            val trashed = latest()
+            val trashed = now()
             assertEquals(listOf("g/2.jpg"), trashed.entries.map { it.url })
             assertEquals(listOf("g/1.jpg"), trashed.undo?.map { it.url })
             assertTrue(vault.deleted.isEmpty())
@@ -342,14 +348,15 @@ class VaultViewModelTest {
             latest()
             vm.requestDelete(entry("g/1.jpg", threadG), undoable = true)
             vm.confirmDelete()
-            assertEquals(1, latest().undo?.size)
+            assertEquals(1, now().undo?.size)
             val purgesBefore = vault.purges
             dispatcher.scheduler.advanceTimeBy(UNDO_WINDOW_MS + 1)
             assertNull(latest().undo)
             assertEquals(purgesBefore + 1, vault.purges)
             assertTrue(vault.trash.isEmpty())
             vm.undoDelete() // too late: nothing to bring back
-            assertTrue(latest().entries.isEmpty())
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue(vault.state.value.isEmpty())
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -364,6 +371,7 @@ class VaultViewModelTest {
                 vm.requestDelete(entry("g/1.jpg", threadG))
                 assertTrue(latest().deleting != null)
                 vm.confirmDelete(dontAskAgain = true)
+                latest()
                 assertEquals(false, settings.state.value.confirmVaultDelete)
                 assertEquals(listOf("g/1.jpg"), vault.deleted)
 
@@ -550,7 +558,8 @@ class VaultViewModelTest {
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
             val vm = VaultViewModel(vault, FakeSettings(), boards)
-            vm.openViewer("a/1.jpg") // no thread selected — the thread filter matches nothing
+            vm.setMode(VaultMode.BROWSE) // off the Recent feed, with no thread selected
+            vm.openViewer("a/1.jpg") // the thread filter matches nothing
             vm.uiState.test {
                 val viewer = latest().viewer!!
                 assertEquals(listOf("a/1.jpg"), viewer.entries.map { it.url })

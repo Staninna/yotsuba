@@ -327,7 +327,6 @@ internal fun VaultChipRow(
     filter: VaultFilter,
     onSort: (VaultSort) -> Unit,
     onFilter: (VaultFilter) -> Unit,
-    onMode: (VaultMode) -> Unit,
 ) {
     val spacing = LocalSpacing.current
     Row(
