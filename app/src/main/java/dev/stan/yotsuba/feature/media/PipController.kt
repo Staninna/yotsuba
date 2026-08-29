@@ -5,6 +5,7 @@ import android.app.PictureInPictureParams
 import android.app.RemoteAction
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.drawable.Icon as AndroidIcon
@@ -95,24 +96,19 @@ internal data class PipLabels(
     val pause: String,
 )
 
+/** The hosting activity, if any, behind a possibly-wrapped Compose context. */
+tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findComponentActivity()
+    else -> null
+}
+
 /**
  * A controller whose transport buttons drive [feed]. Every viewer wants exactly this
  * wiring, so it lives here rather than being spelled out again at each call site.
  */
 @Composable
-fun rememberPipController(feed: MediaFeedState, lastIndex: () -> Int): PipController =
-    rememberPipController(
-        onPrev = { feed.previous() },
-        onNext = { feed.next(lastIndex()) },
-        onTogglePlayPause = { feed.playbackOn = !feed.playbackOn },
-    )
-
-@Composable
-fun rememberPipController(
-    onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onTogglePlayPause: () -> Unit,
-): PipController {
+fun rememberPipController(feed: MediaFeedState, lastIndex: () -> Int): PipController {
     val context = LocalContext.current
     val labels = PipLabels(
         previous = stringResource(R.string.media_pip_previous),
@@ -123,9 +119,8 @@ fun rememberPipController(
     val controller = remember(context) {
         PipController(context, context.findComponentActivity(), labels)
     }
-    val prev by rememberUpdatedState(onPrev)
-    val next by rememberUpdatedState(onNext)
-    val togglePlayPause by rememberUpdatedState(onTogglePlayPause)
+    val currentFeed by rememberUpdatedState(feed)
+    val currentLastIndex by rememberUpdatedState(lastIndex)
 
     DisposableEffect(controller) {
         val activity = context.findComponentActivity()
@@ -141,9 +136,9 @@ fun rememberPipController(
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 when (intent?.getIntExtra(PIP_EXTRA, -1)) {
-                    PIP_PREV -> prev()
-                    PIP_NEXT -> next()
-                    PIP_PLAY_PAUSE -> togglePlayPause()
+                    PIP_PREV -> currentFeed.previous()
+                    PIP_NEXT -> currentFeed.next(currentLastIndex())
+                    PIP_PLAY_PAUSE -> currentFeed.playbackOn = !currentFeed.playbackOn
                 }
             }
         }

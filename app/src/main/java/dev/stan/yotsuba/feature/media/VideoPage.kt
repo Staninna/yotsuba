@@ -90,6 +90,10 @@ fun VideoPage(
     onEnded: () -> Unit = {},
     behaviour: ViewerBehaviour = ViewerBehaviour(),
     onLongPress: () -> Unit = {},
+    /** Any press on the transport bar; the owner uses it to keep the chrome awake. */
+    onControlTouched: () -> Unit = {},
+    /** True from the first drag of the seek bar until it is released. */
+    onScrubbing: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val player = remember(videoUri) {
@@ -267,6 +271,7 @@ fun VideoPage(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color.Black.copy(alpha = 0.6f))
+                    .notifyOnPress(onControlTouched)
                     .navigationBarsPadding()
                     .padding(horizontal = spacing.sm),
             ) {
@@ -285,12 +290,14 @@ fun VideoPage(
                 Slider(
                     value = if (durationMs > 0) positionMs.toFloat() / durationMs else 0f,
                     onValueChange = { f ->
+                        onScrubbing(true)
                         if (durationMs > 0) {
                             val target = (f * durationMs).toLong()
                             positionMs = target
                             player.seekTo(target)
                         }
                     },
+                    onValueChangeFinished = { onScrubbing(false) },
                     modifier = Modifier.weight(1f).padding(horizontal = spacing.sm),
                 )
                 Text(

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_paused_banner">History is paused</string>
+    <string name="history_paused_banner_explanation">New threads aren\'t recorded until \"Record history\" is back on in Settings.</string>
+    <string name="history_search">Search history</string>
+    <string name="history_search_close">Close search</string>
+    <string name="history_search_hint">Subject or board</string>
+    <string name="history_search_no_matches">No matches</string>
+    <string name="history_search_no_matches_explanation">Nothing in your history matches \"%1$s\".</string>
+</resources>

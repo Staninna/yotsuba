@@ -2,6 +2,8 @@ package dev.stan.yotsuba.feature.history
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,24 +11,35 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,13 +71,41 @@ fun HistoryScreen(
     val removedMessage = stringResource(R.string.history_entry_removed)
     val undoLabel = stringResource(R.string.action_undo)
 
+    var searching by remember { mutableStateOf(false) }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.tab_history)) },
+                title = {
+                    if (searching) {
+                        HistorySearchField(
+                            query = state.query,
+                            onQueryChange = viewModel::onQueryChange,
+                        )
+                    } else {
+                        Text(stringResource(R.string.tab_history))
+                    }
+                },
                 actions = {
-                    IconButton(onClick = { confirmClear = true }) {
+                    IconButton(
+                        onClick = {
+                            if (searching) viewModel.onQueryChange("")
+                            searching = !searching
+                        },
+                        enabled = searching || state.totalCount > 0,
+                    ) {
+                        Icon(
+                            if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                            stringResource(
+                                if (searching) R.string.history_search_close else R.string.history_search,
+                            ),
+                        )
+                    }
+                    IconButton(
+                        onClick = { confirmClear = true },
+                        enabled = state.totalCount > 0,
+                    ) {
                         Icon(Icons.Filled.DeleteSweep, stringResource(R.string.action_clear_all))
                     }
                 },
@@ -73,15 +114,21 @@ fun HistoryScreen(
     ) { padding ->
         when {
             !state.loaded -> LoadingSkeleton(Modifier.padding(padding))
-            !state.recordingEnabled -> EmptyState(
-                title = stringResource(R.string.history_disabled_title),
-                explanation = stringResource(R.string.history_disabled_explanation),
+            state.groups.isEmpty() && state.query.isNotBlank() -> EmptyState(
+                title = stringResource(R.string.history_search_no_matches),
+                explanation = stringResource(R.string.history_search_no_matches_explanation, state.query),
+                icon = Icons.Filled.Search,
+                modifier = Modifier.padding(padding),
+            )
+            state.groups.isEmpty() && state.recordingEnabled -> EmptyState(
+                title = stringResource(R.string.history_empty_title),
+                explanation = stringResource(R.string.history_empty_explanation),
                 icon = Icons.Filled.History,
                 modifier = Modifier.padding(padding),
             )
             state.groups.isEmpty() -> EmptyState(
-                title = stringResource(R.string.history_empty_title),
-                explanation = stringResource(R.string.history_empty_explanation),
+                title = stringResource(R.string.history_disabled_title),
+                explanation = stringResource(R.string.history_disabled_explanation),
                 icon = Icons.Filled.History,
                 modifier = Modifier.padding(padding),
             )
@@ -90,6 +137,9 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 modifier = Modifier.fillMaxSize().padding(padding),
             ) {
+                if (!state.recordingEnabled) {
+                    item(key = "paused_banner") { PausedBanner() }
+                }
                 state.groups.forEach { (bucket, entries) ->
                     item(key = "header_${bucket.name}") { SectionHeader(stringResource(bucket.labelRes)) }
                     items(entries.size, key = { entries[it].board + "/" + entries[it].threadNo }) { i ->
@@ -140,12 +190,56 @@ private val HistoryBucket.labelRes: Int
     }
 
 @Composable
+private fun HistorySearchField(query: String, onQueryChange: (String) -> Unit) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    TextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = { Text(stringResource(R.string.history_search_hint)) },
+        singleLine = true,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+        ),
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+    )
+}
+
+/** Rows stay readable while recording is off; this just says why nothing new appears. */
+@Composable
+private fun PausedBanner() {
+    val spacing = LocalSpacing.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(spacing.md),
+        ) {
+            Icon(Icons.Filled.PauseCircle, contentDescription = null)
+            Column(Modifier.padding(start = spacing.md)) {
+                Text(
+                    stringResource(R.string.history_paused_banner),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    stringResource(R.string.history_paused_banner_explanation),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun HistoryCard(entry: HistoryEntry, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         ThreadSummaryRow(
             thumbnailUrl = entry.thumbnailUrl,
             title = entry.displayTitle,
-            metadata = "/${entry.board}/ · " + TimeFormat.relative(entry.viewedAt / 1000),
+            metadata = "/${entry.board}/ · " + TimeFormat.relativeMillis(entry.viewedAt),
             thumbnailSize = 48.dp,
         )
     }

@@ -31,6 +31,7 @@ import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import dev.stan.yotsuba.feature.media.MediaUiState
 import dev.stan.yotsuba.feature.media.MediaViewModel
+import dev.stan.yotsuba.feature.media.ViewerPhase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -225,6 +226,27 @@ class MediaViewModelTest {
             }
         }
 
+    @Test fun `viewer goes Loading then Empty for a thread with no media`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(listOf(post(100, withMedia = false), post(101, withMedia = false)))
+            env.vm().uiState.test {
+                assertEquals(ViewerPhase.Loading, awaitItem().phase)
+                val state = latest()
+                assertEquals(ViewerPhase.Empty, state.phase)
+                assertFalse(state.loaded)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test fun `viewer reports the network error when nothing is saved either`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(listOf(post(100)), threadFails = true)
+            env.vm().uiState.test {
+                assertEquals(ViewerPhase.Error(NetworkError.NotFound), latest().phase)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `unknown initial post falls back to the first item`() = runTest(dispatcher.scheduler) {
         val env = Env(listOf(post(100), post(102)))
         env.vm(initialPostNo = 999).uiState.test {
@@ -267,28 +289,45 @@ class MediaViewModelTest {
 
     @Test fun `saved paths are hidden without storage access`() = runTest(dispatcher.scheduler) {
         val env = Env(listOf(post(100)))
-        env.vault.urls.value = setOf("https://i/100.jpg")
         env.vault.paths.value = mapOf("https://i/100.jpg" to "/vault/100.jpg")
         val vm = env.vm()
         vm.uiState.test {
             val withAccess = latest()
-            assertEquals(setOf("https://i/100.jpg"), withAccess.downloadedUrls)
+            assertTrue(withAccess.isSaved("https://i/100.jpg"))
             assertEquals("/vault/100.jpg", withAccess.savedPaths["https://i/100.jpg"])
             env.vault.access = false
             assertFalse(vm.hasStorageAccess())
-            // Access isn't a flow; nudge any upstream so the combine re-evaluates.
-            env.vault.paths.value = env.vault.paths.value.toMap()
-            env.vault.urls.value = env.vault.urls.value + "https://i/101.jpg"
-            assertTrue(latest().savedPaths.isEmpty())
+            // Access isn't a flow; nudge an upstream so the combine re-evaluates.
+            env.vault.paths.value = env.vault.paths.value + ("https://i/101.jpg" to "/vault/101.jpg")
+            val withoutAccess = latest()
+            assertTrue(withoutAccess.savedPaths.isEmpty())
+            assertFalse(withoutAccess.isSaved("https://i/100.jpg"))
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test fun `conversation capture follows the setting the viewer already holds`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(
+                posts = listOf(post(100), post(102, quotes = listOf(100))),
+                backlinks = mapOf(100L to listOf(102L)),
+            )
+            env.settings.state.value = Settings(saveRepliesWithMedia = true)
+            val vm = env.vm()
+            vm.uiState.test {
+                assertTrue(latest().saveReplies)
+                vm.enqueueSave(media(100))
+                val ctx = env.vault.firstSave.await()
+                assertEquals(listOf(100L, 102L), ctx.conversation.map { it.no })
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `enqueueSave carries the OP-derived context plus the item's own post`() =
         runTest(dispatcher.scheduler) {
             val env = Env(listOf(post(100), post(102)))
             val vm = env.vm()
-            dispatcher.scheduler.advanceUntilIdle() // let the thread load fill saveContextBase
+            dispatcher.scheduler.advanceUntilIdle() // let the thread load in, so the OP is known
             vm.enqueueSave(media(102))
             val ctx = env.vault.firstSave.await() // real IO worker; runTest's own timeout guards a hang
             assertEquals("g", ctx.board)
@@ -330,6 +369,47 @@ class MediaViewModelTest {
             assertEquals("img100.jpg", file?.name)
             assertEquals("jpeg-bytes", file?.readText())
             assertTrue(file!!.path.contains("shared_media"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test fun `prepareShare hands over the vault file instead of downloading again`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(listOf(post(100)))
+            val saved = java.io.File.createTempFile("vault", ".jpg").apply { writeText("on disk") }
+            try {
+                env.vault.paths.value = mapOf("https://i/100.jpg" to saved.absolutePath)
+                val vm = env.vm()
+                vm.uiState.test {
+                    latest()
+                    assertEquals(saved, vm.prepareShare(media(100)))
+                    cancelAndIgnoreRemainingEvents()
+                }
+            } finally {
+                saved.delete()
+            }
+        }
+
+    @Test fun `prepareShare keeps only the newest twenty cached files`() = runTest(dispatcher.scheduler) {
+        val server = MockWebServer().apply { start() }
+        try {
+            val env = Env(listOf(post(100)))
+            val dir = java.io.File(env.context.cacheDir, "shared_media").apply { mkdirs() }
+            repeat(25) { i ->
+                java.io.File(dir, "old$i.jpg").apply {
+                    writeText("x")
+                    setLastModified(1_000_000L + i * 1_000)
+                }
+            }
+            val item = media(100).copy(fullUrl = server.url("/i/100.jpg").toString())
+            server.enqueue(MockResponse().setBody("jpeg-bytes"))
+            val file = env.vm().prepareShare(item)
+            val names = dir.list()!!.toSet()
+            assertEquals(20, names.size)
+            assertTrue(file!!.name in names)
+            assertTrue("old24.jpg" in names)
+            assertFalse("old0.jpg" in names)
         } finally {
             server.shutdown()
         }

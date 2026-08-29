@@ -23,6 +23,16 @@ fun requestAllFilesAccess(context: Context) {
     }
 }
 
+fun mimeOf(ext: String): String = when (ext.lowercase()) {
+    ".jpg", ".jpeg" -> "image/jpeg"
+    ".png" -> "image/png"
+    ".gif" -> "image/gif"
+    ".webp" -> "image/webp"
+    ".webm" -> "video/webm"
+    ".mp4" -> "video/mp4"
+    else -> "application/octet-stream"
+}
+
 /** Fires a share chooser over [file] through the app's FileProvider. */
 fun shareMediaFile(context: Context, file: File, ext: String) {
     val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)

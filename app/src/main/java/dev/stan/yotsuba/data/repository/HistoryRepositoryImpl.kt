@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.core.database.dao.HistoryDao
+import dev.stan.yotsuba.core.database.entity.HistoryEntity
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.repository.HistoryRepository
@@ -18,7 +19,7 @@ class HistoryRepositoryImpl @Inject constructor(
 ) : HistoryRepository {
 
     override val history: Flow<List<HistoryEntry>> =
-        dao.all().map { list -> list.map { it.toDomain() } }
+        dao.all().map { list -> list.map { it.toDomainWithReadMark() } }
 
     override suspend fun record(entry: HistoryEntry) {
         dao.record(entry.toEntity())
@@ -48,7 +49,20 @@ class HistoryRepositoryImpl @Inject constructor(
 
     override suspend fun remove(board: String, threadNo: Long) = dao.delete(board, threadNo)
 
+    override suspend fun restore(entry: HistoryEntry) {
+        // Ignore-on-conflict: if the thread was revisited between remove and undo, the
+        // fresher row wins over the stale snapshot.
+        dao.insertIgnore(entry.toFullEntity())
+    }
+
     override suspend fun clearAll() = dao.clearAll()
 
     override suspend fun trim(retainAfterMs: Long) = dao.trimOlderThan(retainAfterMs)
 }
+
+/** [toDomain] drops the read mark on purpose for callers that only record visits; history needs it. */
+private fun HistoryEntity.toDomainWithReadMark(): HistoryEntry =
+    toDomain().copy(maxReadPostNo = maxReadPostNo)
+
+private fun HistoryEntry.toFullEntity(): HistoryEntity =
+    toEntity().copy(maxReadPostNo = maxReadPostNo)

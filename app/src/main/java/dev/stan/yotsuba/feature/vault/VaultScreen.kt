@@ -50,7 +50,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
-import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
@@ -302,21 +301,28 @@ private fun VaultViewer(
     }
 }
 
-private fun VaultEntry.toViewerPage(): ViewerPage = ViewerPage(
-    isVideo = isVideo,
-    videoUri = Uri.fromFile(File(absolutePath)).toString(),
-    imageModel = File(absolutePath),
-    thumbnailModel = if (isVideo) thumbnailUrl else null,
-    width = width ?: 0,
-    height = height ?: 0,
-    title = displayName,
-    subtitle = buildString {
-        sizeBytes?.let { append(" · ${FileSize.format(it)}") }
-        if ((width ?: 0) > 0) append(" · ${width}×${height}")
-        subject?.let { append(" · $it") }
-    },
-    contentDescription = displayName,
-)
+private fun VaultEntry.toViewerPage(): ViewerPage = if (isVideo) {
+    ViewerPage.Video(
+        uri = Uri.fromFile(File(absolutePath)).toString(),
+        thumbnailModel = thumbnailUrl,
+        width = width ?: 0,
+        height = height ?: 0,
+        sizeBytes = sizeBytes,
+        title = displayName,
+        note = subject,
+        contentDescription = displayName,
+    )
+} else {
+    ViewerPage.Image(
+        model = File(absolutePath),
+        width = width ?: 0,
+        height = height ?: 0,
+        sizeBytes = sizeBytes,
+        title = displayName,
+        note = subject,
+        contentDescription = displayName,
+    )
+}
 
 @Composable
 private fun vaultTitle(state: VaultUiState): String = when {

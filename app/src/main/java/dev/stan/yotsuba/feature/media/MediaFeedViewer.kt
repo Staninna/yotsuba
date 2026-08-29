@@ -22,27 +22,63 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import dev.stan.yotsuba.core.util.FileSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** One page of a full-screen vertical media feed. */
-data class ViewerPage(
-    val isVideo: Boolean,
-    /** Playable URI string for videos; unused for images. */
-    val videoUri: String = "",
-    /** Coil model for images; unused for videos. */
-    val imageModel: Any? = null,
-    val thumbnailModel: Any? = null,
-    val width: Int = 0,
-    val height: Int = 0,
-    val title: String = "",
-    /** Appended after the "n / total" prefix in the top chrome. */
-    val subtitle: String = "",
-    val contentDescription: String = "",
-) {
+private const val CHROME_HIDE_DELAY_MS = 3_000L
+
+/** One page of a full-screen vertical media feed: an image to zoom or a video to play. */
+sealed interface ViewerPage {
+    /** Usually the already-cached thumbnail, drawn underneath until the real thing loads. */
+    val thumbnailModel: Any?
+    val width: Int
+    val height: Int
+    /** Null when the size is unknown (a legacy vault row, say). */
+    val sizeBytes: Long?
+    val title: String
+    /** Free text the chrome appends after size and dimensions, e.g. the thread subject. */
+    val note: String?
+    val contentDescription: String
+
+    val isVideo: Boolean get() = this is Video
     val pipInfo: PipMediaInfo get() = PipMediaInfo(width, height, isVideo)
+
+    data class Image(
+        /** Coil model: a URL request or a [java.io.File] straight from the vault. */
+        val model: Any?,
+        override val thumbnailModel: Any? = null,
+        override val width: Int = 0,
+        override val height: Int = 0,
+        override val sizeBytes: Long? = null,
+        override val title: String = "",
+        override val note: String? = null,
+        override val contentDescription: String = "",
+    ) : ViewerPage
+
+    data class Video(
+        /** Playable URI string, remote or `file://`. */
+        val uri: String,
+        override val thumbnailModel: Any? = null,
+        override val width: Int = 0,
+        override val height: Int = 0,
+        override val sizeBytes: Long? = null,
+        override val title: String = "",
+        override val note: String? = null,
+        override val contentDescription: String = "",
+    ) : ViewerPage
 }
+
+/** "3 / 12 · 1.2 MB · 1920×1080 · subject · ↓2", dropping whatever is unknown. */
+internal fun viewerSubtitle(page: ViewerPage, index: Int, total: Int, activeDownloads: Int): String =
+    buildString {
+        append("${index + 1} / $total")
+        page.sizeBytes?.let { append(" · ${FileSize.format(it)}") }
+        if (page.width > 0 && page.height > 0) append(" · ${page.width}×${page.height}")
+        page.note?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+        if (activeDownloads > 0) append(" · ↓$activeDownloads")
+    }
 
 /** Pager position plus mute/playback/chrome state, shared by both viewers. */
 @Stable
@@ -55,6 +91,19 @@ class MediaFeedState internal constructor(
     var muted by mutableStateOf(initialMuted)
     var playbackOn by mutableStateOf(initialPlaying)
     var chromeVisible by mutableStateOf(true)
+
+    /** Bumped on every control interaction; the auto-hide timer restarts when it changes. */
+    var chromeTouches by mutableStateOf(0L)
+        private set
+
+    /** True while the seek bar is being dragged; the chrome stays put until it is let go. */
+    var scrubbing by mutableStateOf(false)
+
+    /** Keeps the chrome up and restarts its countdown. */
+    fun touchChrome() {
+        chromeVisible = true
+        chromeTouches++
+    }
 
     /** Set for the length of a gesture that is clearly sideways, so the pager sits it out. */
     var pagerLocked by mutableStateOf(false)
@@ -112,9 +161,11 @@ fun MediaFeedViewer(
 ) {
     val chromeShown = feed.chromeVisible && !pip.inPipMode && feedActive
 
-    LaunchedEffect(feed.chromeVisible) {
-        if (feed.chromeVisible) {
-            delay(3_000)
+    // Restarts on every control tap and waits out a scrub, so the bar never vanishes
+    // under a finger that is still using it.
+    LaunchedEffect(feed.chromeVisible, feed.chromeTouches, feed.scrubbing) {
+        if (feed.chromeVisible && !feed.scrubbing) {
+            delay(CHROME_HIDE_DELAY_MS)
             feed.chromeVisible = false
         }
     }
@@ -154,10 +205,9 @@ fun MediaFeedViewer(
             modifier = Modifier.fillMaxSize(),
             userScrollEnabled = !pip.inPipMode && feedActive && !feed.pagerLocked,
         ) { page ->
-            val p = pages[page]
-            if (p.isVideo) {
-                VideoPage(
-                    videoUri = p.videoUri,
+            when (val p = pages[page]) {
+                is ViewerPage.Video -> VideoPage(
+                    videoUri = p.uri,
                     thumbnailModel = p.thumbnailModel,
                     initialWidth = p.width,
                     initialHeight = p.height,
@@ -168,14 +218,15 @@ fun MediaFeedViewer(
                     chromeVisible = chromeShown,
                     onToggleMute = { feed.muted = !feed.muted },
                     onToggleChrome = { feed.chromeVisible = !feed.chromeVisible },
+                    onControlTouched = feed::touchChrome,
+                    onScrubbing = { feed.scrubbing = it },
                     autoAdvance = autoAdvance,
                     onEnded = { feed.animateNextWrapping(pages.size) },
                     behaviour = behaviour,
                     onLongPress = { onLongPressPage(page) },
                 )
-            } else {
-                ImagePage(
-                    model = p.imageModel,
+                is ViewerPage.Image -> ImagePage(
+                    model = p.model,
                     thumbnailModel = p.thumbnailModel,
                     contentDescription = p.contentDescription,
                     onTap = { feed.chromeVisible = !feed.chromeVisible },
@@ -190,9 +241,9 @@ fun MediaFeedViewer(
         ViewerTopChrome(
             visible = chromeShown,
             title = current?.title.orEmpty(),
-            subtitle = current?.let { "${feed.currentPage + 1} / ${pages.size}${it.subtitle}" },
+            subtitle = current?.let { viewerSubtitle(it, feed.currentPage, pages.size, activeDownloads) },
             onClose = onDismiss,
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier.align(Alignment.TopCenter).notifyOnPress(feed::touchChrome),
         ) {
             AutoAdvanceButton(autoAdvance, onToggleAutoAdvance)
             PipButton { pip.enter(current?.pipInfo, feed.playbackOn) }

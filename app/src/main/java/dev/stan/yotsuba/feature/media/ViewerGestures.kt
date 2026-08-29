@@ -2,6 +2,8 @@ package dev.stan.yotsuba.feature.media
 
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.positionChange
@@ -92,5 +94,16 @@ suspend fun PointerInputScope.lockPagerOnHorizontalIntent(onLock: () -> Unit, on
         } finally {
             onRelease()
         }
+    }
+}
+
+/**
+ * Calls [onTouch] on every press that lands inside, without consuming it, so the controls
+ * underneath still get their clicks. Used to keep the chrome awake while it is in use.
+ */
+fun Modifier.notifyOnPress(onTouch: () -> Unit): Modifier = pointerInput(onTouch) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        onTouch()
     }
 }

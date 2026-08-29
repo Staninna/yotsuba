@@ -8,11 +8,16 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.history.HistoryBucket
 import dev.stan.yotsuba.feature.history.HistoryUiState
 import dev.stan.yotsuba.feature.history.HistoryViewModel
+import dev.stan.yotsuba.feature.history.bucketOf
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -33,13 +38,29 @@ class HistoryViewModelTest {
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    private val startOfToday: Long =
-        LocalDate.now(ZoneId.systemDefault()).atStartOfDay(ZoneId.systemDefault())
-            .toInstant().toEpochMilli()
+    private val zone: ZoneId = ZoneOffset.UTC
 
-    private fun entry(no: Long, viewedAt: Long) = HistoryEntry(
+    /** A fixed "now": 2026-03-10 at 15:00 UTC. */
+    private val nowMs: Long = LocalDate.of(2026, 3, 10).atTime(15, 0).toInstant(ZoneOffset.UTC).toEpochMilli()
+    private val startOfToday: Long = LocalDate.of(2026, 3, 10).atStartOfDay(zone).toInstant().toEpochMilli()
+
+    /** A clock the test moves by hand. */
+    private class ManualClock(var now: Long, private val zone: ZoneId) : Clock() {
+        override fun getZone() = zone
+        override fun withZone(zone: ZoneId) = ManualClock(now, zone)
+        override fun instant(): Instant = Instant.ofEpochMilli(now)
+    }
+
+    private val clock = ManualClock(nowMs, zone)
+    private val ticks = MutableSharedFlow<Unit>()
+
+    private fun vm(repo: HistoryRepository, settings: SettingsRepository = FakeSettingsRepository()) =
+        HistoryViewModel(repo, settings, clock, ticks)
+
+    private fun entry(no: Long, viewedAt: Long, maxRead: Long? = null) = HistoryEntry(
         board = "g", threadNo = no, subject = null, opExcerpt = "e$no",
         thumbnailUrl = null, viewedAt = viewedAt, lastScrollPostNo = null,
+        maxReadPostNo = maxRead,
     )
 
     private class FakeHistoryRepository(initial: List<HistoryEntry>) : HistoryRepository {
@@ -47,8 +68,14 @@ class HistoryViewModelTest {
         var cleared = false
         override val history: Flow<List<HistoryEntry>> = state
         override suspend fun record(entry: HistoryEntry) {
-            state.value = listOf(entry) + state.value.filterNot {
+            // Mirrors the DAO: a visit never carries the read mark with it.
+            state.value = listOf(entry.copy(maxReadPostNo = null)) + state.value.filterNot {
                 it.board == entry.board && it.threadNo == entry.threadNo
+            }
+        }
+        override suspend fun restore(entry: HistoryEntry) {
+            if (state.value.none { it.board == entry.board && it.threadNo == entry.threadNo }) {
+                state.value = state.value + entry
             }
         }
         override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) {}
@@ -85,10 +112,10 @@ class HistoryViewModelTest {
             entry(3, startOfToday - 3 * 86_400_000),     // this week
             entry(4, startOfToday - 30L * 86_400_000),   // older
         ))
-        HistoryViewModel(repo, FakeSettingsRepository()).uiState.test {
+        vm(repo).uiState.test {
             val state = latest()
             assertTrue(state.loaded)
-            val byBucket = state.groups.toMap()
+            val byBucket = state.groups.associate { it.bucket to it.entries }
             assertEquals(listOf(1L), byBucket[HistoryBucket.TODAY]?.map { it.threadNo })
             assertEquals(listOf(2L), byBucket[HistoryBucket.YESTERDAY]?.map { it.threadNo })
             assertEquals(listOf(3L), byBucket[HistoryBucket.THIS_WEEK]?.map { it.threadNo })
@@ -97,32 +124,75 @@ class HistoryViewModelTest {
         }
     }
 
+    @Test fun `bucketOf draws its lines at local midnight`() {
+        assertEquals(HistoryBucket.TODAY, bucketOf(startOfToday, startOfToday))
+        assertEquals(HistoryBucket.YESTERDAY, bucketOf(startOfToday - 1, startOfToday))
+        assertEquals(HistoryBucket.YESTERDAY, bucketOf(startOfToday - 86_400_000, startOfToday))
+        assertEquals(HistoryBucket.THIS_WEEK, bucketOf(startOfToday - 86_400_001, startOfToday))
+        assertEquals(HistoryBucket.THIS_WEEK, bucketOf(startOfToday - 6 * 86_400_000L, startOfToday))
+        assertEquals(HistoryBucket.OLDER, bucketOf(startOfToday - 6 * 86_400_000L - 1, startOfToday))
+    }
+
+    @Test fun `groups re-bucket when the date rolls over`() = runTest(dispatcher.scheduler) {
+        val repo = FakeHistoryRepository(listOf(entry(1, startOfToday + 1_000)))
+        vm(repo).uiState.test {
+            assertEquals(HistoryBucket.TODAY, latest().groups.single().bucket)
+            clock.now = startOfToday + 86_400_000 + 60_000 // one minute past midnight
+            ticks.emit(Unit)
+            assertEquals(HistoryBucket.YESTERDAY, latest().groups.single().bucket)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test fun `recording setting is passed through`() = runTest(dispatcher.scheduler) {
         val repo = FakeHistoryRepository(emptyList())
         val settings = FakeSettingsRepository(Settings(recordHistory = false))
-        HistoryViewModel(repo, settings).uiState.test {
+        vm(repo, settings).uiState.test {
             assertFalse(latest().recordingEnabled)
             cancelAndIgnoreRemainingEvents()
         }
     }
 
-    @Test fun `remove and undo restore the entry`() = runTest(dispatcher.scheduler) {
-        val e = entry(1, startOfToday + 1_000)
+    @Test fun `remove and undo restore the entry with its read mark`() = runTest(dispatcher.scheduler) {
+        val e = entry(1, startOfToday + 1_000, maxRead = 42)
         val repo = FakeHistoryRepository(listOf(e))
-        val vm = HistoryViewModel(repo, FakeSettingsRepository())
+        val vm = vm(repo)
         vm.uiState.test {
             latest()
             vm.onRemove(e)
             assertTrue(latest().groups.isEmpty())
             vm.onUndoRemove(e)
-            assertEquals(listOf(1L), latest().groups.single().second.map { it.threadNo })
+            val restored = latest().groups.single().entries.single()
+            assertEquals(1L, restored.threadNo)
+            assertEquals(42L, restored.maxReadPostNo)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `search filters by title and board but keeps the total count`() = runTest(dispatcher.scheduler) {
+        val repo = FakeHistoryRepository(listOf(
+            entry(1, startOfToday).copy(subject = "Rust thread"),
+            entry(2, startOfToday).copy(board = "a", subject = "Anime"),
+        ))
+        val vm = vm(repo)
+        vm.uiState.test {
+            latest()
+            vm.onQueryChange("rust")
+            var state = latest()
+            assertEquals(listOf(1L), state.groups.flatMap { it.entries }.map { it.threadNo })
+            assertEquals(2, state.totalCount)
+            vm.onQueryChange("/a/")
+            state = latest()
+            assertEquals(listOf(2L), state.groups.flatMap { it.entries }.map { it.threadNo })
+            vm.onQueryChange("zzz")
+            assertTrue(latest().groups.isEmpty())
             cancelAndIgnoreRemainingEvents()
         }
     }
 
     @Test fun `clear all empties the repository`() = runTest(dispatcher.scheduler) {
         val repo = FakeHistoryRepository(listOf(entry(1, startOfToday), entry(2, startOfToday)))
-        val vm = HistoryViewModel(repo, FakeSettingsRepository())
+        val vm = vm(repo)
         vm.uiState.test {
             latest()
             vm.onClearAll()

@@ -1,8 +1,5 @@
 package dev.stan.yotsuba.feature.media
 
-import android.content.Context
-import android.content.ContextWrapper
-import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -182,20 +179,4 @@ fun ImagePage(
             onLongClick = { onLongPress() },
         )
     }
-}
-
-tailrec fun Context.findComponentActivity(): ComponentActivity? = when (this) {
-    is ComponentActivity -> this
-    is ContextWrapper -> baseContext.findComponentActivity()
-    else -> null
-}
-
-fun mimeOf(ext: String): String = when (ext.lowercase()) {
-    ".jpg", ".jpeg" -> "image/jpeg"
-    ".png" -> "image/png"
-    ".gif" -> "image/gif"
-    ".webp" -> "image/webp"
-    ".webm" -> "video/webm"
-    ".mp4" -> "video/mp4"
-    else -> "application/octet-stream"
 }
