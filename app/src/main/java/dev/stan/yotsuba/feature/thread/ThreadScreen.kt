@@ -223,10 +223,10 @@ fun ThreadScreen(
                         Text(
                             stringResource(R.string.thread_archived),
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.errorContainer)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(spacing.sm),
                         )
                     }
