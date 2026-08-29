@@ -148,6 +148,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                     BoardsScreen(
                         slots = slots,
                         onOpenBoard = { navController.navigate(Route.Catalog(it)) },
+                        onOpenSettings = openSettings,
                     )
                 }
                 composable<Route.Catalog> { entry ->
@@ -193,6 +194,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                 composable<Route.Vault> {
                     VaultScreen(
                         slots = slots,
+                        onOpenSettings = openSettings,
                         onOpenThread = { board, no, post ->
                             navController.navigate(Route.Thread(board, no, post))
                         },

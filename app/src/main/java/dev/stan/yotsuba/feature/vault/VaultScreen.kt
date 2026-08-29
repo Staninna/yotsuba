@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -86,6 +87,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun VaultScreen(
     slots: TabScaffoldSlots,
+    onOpenSettings: () -> Unit,
     viewModel: VaultViewModel = hiltViewModel(),
     /** Leaves the vault for the live thread; [postNo] scrolls to that post when given. */
     onOpenThread: (board: String, threadNo: Long, postNo: Long?) -> Unit = { _, _, _ -> },
@@ -312,6 +314,9 @@ fun VaultScreen(
                                     )
                                 }
                             }
+                        }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Outlined.Settings, stringResource(R.string.action_open_settings))
                         }
                     },
                 )

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,6 +51,7 @@ import dev.stan.yotsuba.domain.model.Board
 fun BoardsScreen(
     slots: TabScaffoldSlots,
     onOpenBoard: (String) -> Unit,
+    onOpenSettings: () -> Unit,
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -68,6 +70,9 @@ fun BoardsScreen(
                                 if (editing) R.string.boards_done_editing else R.string.boards_edit_visibility
                             ),
                         )
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Outlined.Settings, stringResource(R.string.action_open_settings))
                     }
                 },
             )
