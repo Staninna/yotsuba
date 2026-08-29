@@ -27,6 +27,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+private const val CHROME_HIDE_DELAY_MS = 3_000L
+
 /** One page of a full-screen vertical media feed: an image to zoom or a video to play. */
 sealed interface ViewerPage {
     /** Usually the already-cached thumbnail, drawn underneath until the real thing loads. */
@@ -90,6 +92,19 @@ class MediaFeedState internal constructor(
     var playbackOn by mutableStateOf(initialPlaying)
     var chromeVisible by mutableStateOf(true)
 
+    /** Bumped on every control interaction; the auto-hide timer restarts when it changes. */
+    var chromeTouches by mutableStateOf(0L)
+        private set
+
+    /** True while the seek bar is being dragged; the chrome stays put until it is let go. */
+    var scrubbing by mutableStateOf(false)
+
+    /** Keeps the chrome up and restarts its countdown. */
+    fun touchChrome() {
+        chromeVisible = true
+        chromeTouches++
+    }
+
     /** Set for the length of a gesture that is clearly sideways, so the pager sits it out. */
     var pagerLocked by mutableStateOf(false)
 
@@ -146,9 +161,11 @@ fun MediaFeedViewer(
 ) {
     val chromeShown = feed.chromeVisible && !pip.inPipMode && feedActive
 
-    LaunchedEffect(feed.chromeVisible) {
-        if (feed.chromeVisible) {
-            delay(3_000)
+    // Restarts on every control tap and waits out a scrub, so the bar never vanishes
+    // under a finger that is still using it.
+    LaunchedEffect(feed.chromeVisible, feed.chromeTouches, feed.scrubbing) {
+        if (feed.chromeVisible && !feed.scrubbing) {
+            delay(CHROME_HIDE_DELAY_MS)
             feed.chromeVisible = false
         }
     }
@@ -201,6 +218,8 @@ fun MediaFeedViewer(
                     chromeVisible = chromeShown,
                     onToggleMute = { feed.muted = !feed.muted },
                     onToggleChrome = { feed.chromeVisible = !feed.chromeVisible },
+                    onControlTouched = feed::touchChrome,
+                    onScrubbing = { feed.scrubbing = it },
                     autoAdvance = autoAdvance,
                     onEnded = { feed.animateNextWrapping(pages.size) },
                     behaviour = behaviour,
@@ -224,7 +243,7 @@ fun MediaFeedViewer(
             title = current?.title.orEmpty(),
             subtitle = current?.let { viewerSubtitle(it, feed.currentPage, pages.size, activeDownloads) },
             onClose = onDismiss,
-            modifier = Modifier.align(Alignment.TopCenter),
+            modifier = Modifier.align(Alignment.TopCenter).notifyOnPress(feed::touchChrome),
         ) {
             AutoAdvanceButton(autoAdvance, onToggleAutoAdvance)
             PipButton { pip.enter(current?.pipInfo, feed.playbackOn) }
