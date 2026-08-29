@@ -33,10 +33,11 @@ class BookmarksFlowTest {
         composeRule.onNodeWithContentDescription("Bookmark").performClick()
         composeRule.waitForContentDescription("Remove bookmark")
 
-        // Back to catalog, then jump to the Bookmarks tab.
+        // Back to catalog, then jump to the Threads tab; Watched is the default segment.
         composeRule.onNodeWithContentDescription("Back").performClick()
-        composeRule.waitForText("Bookmarks")
-        composeRule.clickText("Bookmarks")
+        composeRule.waitForText("Threads")
+        composeRule.clickText("Threads")
+        composeRule.waitForText("Watched")
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
 
         // Re-open the thread from the bookmark card and toggle the bookmark off.
@@ -46,7 +47,7 @@ class BookmarksFlowTest {
         composeRule.waitForContentDescription("Bookmark")
         composeRule.onNodeWithContentDescription("Back").performClick()
 
-        // Bookmarks list is empty again.
+        // Watched list is empty again.
         composeRule.waitForText("No bookmarks yet")
     }
 }

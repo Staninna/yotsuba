@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -44,9 +45,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -68,6 +66,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
+import dev.stan.yotsuba.core.designsystem.component.TabChrome
+import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
@@ -87,6 +87,8 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VaultScreen(
+    slots: TabScaffoldSlots,
+    onOpenSettings: () -> Unit,
     viewModel: VaultViewModel = hiltViewModel(),
     /** Leaves the vault for the live thread; [postNo] scrolls to that post when given. */
     onOpenThread: (board: String, threadNo: Long, postNo: Long?) -> Unit = { _, _, _ -> },
@@ -97,7 +99,7 @@ fun VaultScreen(
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val snackbar = remember { SnackbarHostState() }
+    val snackbar = slots.snackbar
     val resources = context.resources
     var importMenuOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(state.query.isNotEmpty()) }
@@ -190,10 +192,12 @@ fun VaultScreen(
     BackHandler(enabled = state.viewer != null) { viewModel.closeViewer() }
 
     Box(Modifier.fillMaxSize()) {
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbar) },
+        TabChrome(
+            slots = slots,
             topBar = {
-                if (state.selecting) {
+                if (state.viewer != null) {
+                    // The viewer is fullscreen; an app bar above it would be a lie.
+                } else if (state.selecting) {
                     SelectionTopBar(
                         count = state.selected.size,
                         onClear = viewModel::clearSelection,
@@ -323,6 +327,9 @@ fun VaultScreen(
                                 }
                             }
                         }
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Outlined.Settings, stringResource(R.string.action_open_settings))
+                        }
                     },
                 )
             },
@@ -331,24 +338,23 @@ fun VaultScreen(
                     VaultShuffleFab(state.scopeEntries) { viewModel.startShuffle(it) }
                 }
             },
-        ) { padding ->
-            Box(Modifier.fillMaxSize().padding(padding)) {
-                VaultExplorer(
-                    state = state,
-                    onOpenBoard = viewModel::openBoard,
-                    onOpenThread = viewModel::openThread,
-                    onOpenEntry = { viewModel.openViewer(it.url) },
-                    onLongPressEntry = viewModel::inspect,
-                    onToggleSelected = viewModel::toggleSelected,
-                    onDeleteThread = viewModel::deleteThread,
-                    onDeleteBoard = viewModel::deleteBoard,
-                    onRenameThread = viewModel::requestRename,
-                    onMergeThread = viewModel::requestMerge,
-                    onSort = viewModel::setSort,
-                    onFilter = viewModel::setFilter,
-                    onMode = viewModel::setMode,
-                )
-            }
+        )
+        Box(Modifier.fillMaxSize()) {
+            VaultExplorer(
+                state = state,
+                onOpenBoard = viewModel::openBoard,
+                onOpenThread = viewModel::openThread,
+                onOpenEntry = { viewModel.openViewer(it.url) },
+                onLongPressEntry = viewModel::inspect,
+                onToggleSelected = viewModel::toggleSelected,
+                onDeleteThread = viewModel::deleteThread,
+                onDeleteBoard = viewModel::deleteBoard,
+                onRenameThread = viewModel::requestRename,
+                onMergeThread = viewModel::requestMerge,
+                onSort = viewModel::setSort,
+                onFilter = viewModel::setFilter,
+                onMode = viewModel::setMode,
+            )
         }
 
         state.viewer?.let { viewer ->

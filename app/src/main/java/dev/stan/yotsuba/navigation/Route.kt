@@ -24,9 +24,8 @@ sealed interface Route {
         val scrollToPostNo: Long? = null,
     ) : Route
     @Serializable data class Media(val board: String, val threadNo: Long, val initialPostNo: Long) : Route
-    @Serializable data object Bookmarks : Route
+    @Serializable data object Threads : Route
     @Serializable data object Vault : Route
-    @Serializable data object History : Route
     @Serializable data object Settings : Route
     @Serializable data class SettingsSection(val id: SettingsSectionId) : Route
 }

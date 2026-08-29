@@ -28,10 +28,12 @@ class HistoryFlowTest {
     fun visitingThread_recordsHistoryEntry() {
         composeRule.openSeededThread()
 
-        // Leave the thread, then open the History tab.
+        // Leave the thread, then open the Recent segment of the Threads tab.
         composeRule.onNodeWithContentDescription("Back").performClick()
-        composeRule.waitForText("History")
-        composeRule.clickText("History")
+        composeRule.waitForText("Threads")
+        composeRule.clickText("Threads")
+        composeRule.waitForText("Recent")
+        composeRule.clickText("Recent")
 
         // The visited thread shows up as a history entry.
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)

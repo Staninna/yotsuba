@@ -27,18 +27,15 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
@@ -46,7 +43,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
@@ -59,15 +55,20 @@ import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
 import kotlinx.coroutines.launch
 
+/**
+ * The Watched segment of the Threads tab. The top-bar menu lives in [BookmarksMenu] so the
+ * host can put it in whichever app bar it owns; this is only the list.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookmarksScreen(
+fun BookmarksList(
+    viewModel: BookmarksViewModel,
+    snackbar: SnackbarHostState,
     onOpenThread: (String, Long) -> Unit,
-    viewModel: BookmarksViewModel = hiltViewModel(),
+    modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
-    val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val removedMessage = stringResource(R.string.bookmarks_removed)
     val undoLabel = stringResource(R.string.action_undo)
@@ -76,70 +77,40 @@ fun BookmarksScreen(
     // so the pills update without a manual pull.
     OnResumeEffect(viewModel::onScreenVisible)
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(stringResource(R.string.tab_bookmarks))
-                        state.checking?.let { (current, total) ->
-                            if (total > 0) {
-                                Text(
-                                    stringResource(R.string.bookmarks_checking, current, total),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                },
-                actions = {
-                    BookmarksMenu(
-                        sortOrder = state.sortOrder,
-                        hasDead = state.hasDead,
-                        onSortOrderChanged = viewModel::onSortOrderChanged,
-                        onRemoveDead = viewModel::onRemoveDead,
-                    )
-                },
-            )
-        },
-    ) { padding ->
-        if (state.loaded && state.bookmarks.isEmpty()) {
-            EmptyState(
-                title = stringResource(R.string.bookmarks_empty_title),
-                explanation = stringResource(R.string.bookmarks_empty_explanation),
-                icon = Icons.Filled.BookmarkBorder,
-                modifier = Modifier.padding(padding),
-            )
-        } else {
-            PullToRefreshBox(
-                isRefreshing = state.checking != null,
-                onRefresh = viewModel::onRefreshAll,
-                modifier = Modifier.padding(padding),
+    if (state.loaded && state.bookmarks.isEmpty()) {
+        EmptyState(
+            title = stringResource(R.string.bookmarks_empty_title),
+            explanation = stringResource(R.string.bookmarks_empty_explanation),
+            icon = Icons.Filled.BookmarkBorder,
+            modifier = modifier,
+        )
+    } else {
+        PullToRefreshBox(
+            isRefreshing = state.checking != null,
+            onRefresh = viewModel::onRefreshAll,
+            modifier = modifier,
+        ) {
+            LazyColumn(
+                contentPadding = PaddingValues(spacing.md),
+                verticalArrangement = Arrangement.spacedBy(spacing.md),
+                modifier = Modifier.fillMaxSize(),
             ) {
-                LazyColumn(
-                    contentPadding = PaddingValues(spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(spacing.md),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(
-                        state.bookmarks.size,
-                        key = { state.bookmarks[it].board + "/" + state.bookmarks[it].threadNo },
-                    ) { i ->
-                        val bookmark = state.bookmarks[i]
-                        SwipeToDeleteRow(onDelete = {
-                            viewModel.onRemove(bookmark)
-                            scope.launch {
-                                snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
-                            }
-                        }) {
-                            BookmarkCard(
-                                bookmark,
-                                onClick = { onOpenThread(bookmark.board, bookmark.threadNo) },
-                                onTogglePinned = { viewModel.onTogglePinned(bookmark) },
-                            )
+                items(
+                    state.bookmarks.size,
+                    key = { state.bookmarks[it].board + "/" + state.bookmarks[it].threadNo },
+                ) { i ->
+                    val bookmark = state.bookmarks[i]
+                    SwipeToDeleteRow(onDelete = {
+                        viewModel.onRemove(bookmark)
+                        scope.launch {
+                            snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
                         }
+                    }) {
+                        BookmarkCard(
+                            bookmark,
+                            onClick = { onOpenThread(bookmark.board, bookmark.threadNo) },
+                            onTogglePinned = { viewModel.onTogglePinned(bookmark) },
+                        )
                     }
                 }
             }
@@ -147,8 +118,21 @@ fun BookmarksScreen(
     }
 }
 
+/** "Checking 3/12" under the title while a refresh runs; nothing otherwise. */
 @Composable
-private fun BookmarksMenu(
+fun BookmarksCheckingSubtitle(checking: Pair<Int, Int>?) {
+    val (current, total) = checking ?: return
+    if (total > 0) {
+        Text(
+            stringResource(R.string.bookmarks_checking, current, total),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+fun BookmarksMenu(
     sortOrder: BookmarkSortOrder,
     hasDead: Boolean,
     onSortOrderChanged: (BookmarkSortOrder) -> Unit,
