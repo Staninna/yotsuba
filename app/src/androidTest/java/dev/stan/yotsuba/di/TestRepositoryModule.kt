@@ -285,7 +285,8 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
     override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
         val entry = VaultEntry(
             url = item.fullUrl,
-            location = VaultLocation.Thread(context.board, context.threadNo, context.threadSubject),
+            location = VaultLocation(context.board, context.threadNo),
+            subject = context.threadSubject,
             postNo = item.postNo,
             displayName = item.displayName,
             absolutePath = "/fake-vault/${item.displayName}",

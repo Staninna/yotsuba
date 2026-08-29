@@ -34,7 +34,8 @@ class VaultEntryMappingTest {
     @Test
     fun `thread rows map to a thread location`() {
         val entry = entity().toVaultEntry()
-        assertEquals(VaultLocation.Thread("g", 100L, "subj"), entry.location)
+        assertEquals(VaultLocation("g", 100L), entry.location)
+        assertEquals("subj", entry.subject)
         assertEquals("123.jpg", entry.displayName)
     }
 

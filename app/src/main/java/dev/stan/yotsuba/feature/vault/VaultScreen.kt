@@ -50,7 +50,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
-import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.feature.media.ThreadMediaViewer
@@ -309,7 +308,7 @@ private fun VaultEntry.toViewerPage(): ViewerPage = ViewerPage(
     subtitle = buildString {
         sizeBytes?.let { append(" · ${FileSize.format(it)}") }
         if ((width ?: 0) > 0) append(" · ${width}×${height}")
-        (location as? VaultLocation.Thread)?.subject?.let { append(" · $it") }
+        subject?.let { append(" · $it") }
     },
     contentDescription = displayName,
 )
@@ -318,14 +317,7 @@ private fun VaultEntry.toViewerPage(): ViewerPage = ViewerPage(
 private fun vaultTitle(state: VaultUiState): String = when {
     state.selection.board == null -> stringResource(R.string.vault_title)
     state.selection.thread == null -> boardTitle(state.selection.board!!)
-    else -> {
-        val location = state.selection.thread
-        (location as? VaultLocation.Thread)?.subject
-            ?: stringResource(
-                R.string.vault_thread_untitled,
-                (location as? VaultLocation.Thread)?.threadNo ?: 0L,
-            )
-    }
+    else -> threadTitle(state.selection.thread!!, state.openThread?.subject)
 }
 
 /** Fallback thread name when the picker gives files but no folder to name them after. */

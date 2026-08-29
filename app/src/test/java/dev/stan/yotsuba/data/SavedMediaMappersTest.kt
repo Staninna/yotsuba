@@ -82,7 +82,8 @@ class SavedMediaMappersTest {
     @Test fun `toVaultEntry files thread rows under Thread`() {
         val entity = savedMediaEntity(item, "g", 42, "s", File("/vault/g/42/cat.jpg"), 1)
         val entry = entity.toVaultEntry()
-        assertEquals(VaultLocation.Thread("g", 42, "s"), entry.location)
+        assertEquals(VaultLocation("g", 42), entry.location)
+        assertEquals("s", entry.subject)
         assertEquals("cat.jpg", entry.displayName)
         assertEquals(1L, entry.savedAt)
     }

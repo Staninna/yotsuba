@@ -25,22 +25,21 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Which board group is open in the explorer. */
-sealed interface VaultBoardKey {
-    data class Board(val code: String) : VaultBoardKey
-    data object Unsorted : VaultBoardKey
-}
-
 /** Explorer drill-down position: root → board → thread. */
 data class VaultSelection(
-    val board: VaultBoardKey? = null,
+    val board: String? = null,
     val thread: VaultLocation? = null,
 )
 
-data class VaultThreadSection(val location: VaultLocation, val entries: List<VaultEntry>)
+/** One thread directory's entries. The subject is whatever the newest row recorded. */
+data class VaultThreadSection(
+    val location: VaultLocation,
+    val subject: String?,
+    val entries: List<VaultEntry>,
+)
 
 data class VaultBoardSection(
-    val key: VaultBoardKey,
+    val board: String,
     val threads: List<VaultThreadSection>,
     val entries: List<VaultEntry>,
 )
@@ -65,9 +64,9 @@ data class VaultUiState(
     val viewer: VaultViewerState? = null,
     val sync: VaultSyncState = VaultSyncState(),
 ) {
-    val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.key == selection.board }
+    val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.board == selection.board }
     val openThread: VaultThreadSection?
-        get() = openBoard?.threads?.firstOrNull { it.location.sameThreadAs(selection.thread) }
+        get() = openBoard?.threads?.firstOrNull { it.location == selection.thread }
 
     /** Whatever level is on screen: everything, one board, or one thread. */
     val scopeEntries: List<VaultEntry>
@@ -142,7 +141,7 @@ class VaultViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
-    fun openBoard(key: VaultBoardKey) = selection.update { VaultSelection(board = key) }
+    fun openBoard(board: String) = selection.update { VaultSelection(board = board) }
 
     fun openThread(location: VaultLocation) = selection.update { it.copy(thread = location) }
 
@@ -165,15 +164,14 @@ class VaultViewModel @Inject constructor(
     }
 
     private fun loadSavedConversation(url: String) {
-        val location = uiState.value.entries.firstOrNull { it.url == url }?.location
-        val thread = location as? VaultLocation.Thread
-        if (thread == null) {
+        val location = locationOf(url)
+        if (location == null || location.isUnsorted) {
             _viewerThread.value = ViewerThread()
             return
         }
         viewModelScope.launch {
             _viewerThread.value = ViewerThread.of(
-                mediaVault.savedThread(thread.board, thread.threadNo),
+                mediaVault.savedThread(location.board, location.threadNo),
             )
         }
     }
@@ -183,12 +181,11 @@ class VaultViewModel @Inject constructor(
         val previous = viewingUrl.value
         viewingUrl.value = url
         // A shuffle can walk across threads, so the panel must follow the page it is on.
-        if (previous == null || threadOf(previous) != threadOf(url)) loadSavedConversation(url)
+        if (previous == null || locationOf(previous) != locationOf(url)) loadSavedConversation(url)
     }
 
-    private fun threadOf(url: String): Pair<String, Long>? =
-        (uiState.value.entries.firstOrNull { it.url == url }?.location as? VaultLocation.Thread)
-            ?.let { it.board to it.threadNo }
+    private fun locationOf(url: String): VaultLocation? =
+        uiState.value.entries.firstOrNull { it.url == url }?.location
 
     fun closeViewer() {
         viewingUrl.value = null
@@ -227,19 +224,24 @@ class VaultViewModel @Inject constructor(
 
     suspend fun delete(url: String): VaultError? = mediaVault.delete(url)
 
+    /** Boards sort by directory name, which puts the `_`-prefixed reserved ones first. */
     private fun groupByBoard(entries: List<VaultEntry>): List<VaultBoardSection> =
         entries
-            .groupBy { boardKeyOf(it.location) }
+            .groupBy { it.location.board }
             .toList()
-            .sortedBy { (key, _) -> sortKeyOf(key) }
-            .map { (key, group) ->
+            .sortedBy { (board, _) -> board }
+            .map { (board, group) ->
                 val threads = group
-                    .groupBy { (it.location as? VaultLocation.Thread)?.threadNo ?: 0L }
-                    .map { (_, threadEntries) ->
-                        VaultThreadSection(threadEntries.first().location, threadEntries)
+                    .groupBy { it.location }
+                    .map { (location, threadEntries) ->
+                        VaultThreadSection(
+                            location = location,
+                            subject = threadEntries.firstNotNullOfOrNull { it.subject },
+                            entries = threadEntries,
+                        )
                     }
-                    .sortedByDescending { (it.location as? VaultLocation.Thread)?.threadNo ?: 0L }
-                VaultBoardSection(key = key, threads = threads, entries = group)
+                    .sortedByDescending { it.location.threadNo }
+                VaultBoardSection(board = board, threads = threads, entries = group)
             }
 
     /** The viewer's play order and position; null once the viewed entry is gone (deleted). */
@@ -252,26 +254,8 @@ class VaultViewModel @Inject constructor(
         val byUrl = entries.associateBy { it.url }
         val current = url?.let { byUrl[it] } ?: return null
         val ordered = shuffle?.mapNotNull { byUrl[it] }
-            ?: entries.filter { it.location.sameThreadAs(sel.thread) }.ifEmpty { listOf(current) }
+            ?: entries.filter { it.location == sel.thread }.ifEmpty { listOf(current) }
         val index = ordered.indexOfFirst { it.url == current.url }.coerceAtLeast(0)
         return VaultViewerState(ordered, index)
     }
-
-    private fun boardKeyOf(location: VaultLocation): VaultBoardKey = when (location) {
-        is VaultLocation.Thread -> VaultBoardKey.Board(location.board)
-        VaultLocation.Unsorted -> VaultBoardKey.Unsorted
-    }
-
-    /** Preserves the old explorer order: `_unsorted` sorts ahead of board codes. */
-    private fun sortKeyOf(key: VaultBoardKey): String = when (key) {
-        is VaultBoardKey.Board -> key.code
-        VaultBoardKey.Unsorted -> "_unsorted"
-    }
-}
-
-/** Same thread regardless of subject drift between rows. */
-internal fun VaultLocation.sameThreadAs(other: VaultLocation?): Boolean = when {
-    this is VaultLocation.Thread && other is VaultLocation.Thread ->
-        board == other.board && threadNo == other.threadNo
-    else -> this is VaultLocation.Unsorted && other is VaultLocation.Unsorted
 }

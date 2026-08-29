@@ -11,7 +11,6 @@ import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
-import dev.stan.yotsuba.feature.vault.VaultBoardKey
 import dev.stan.yotsuba.feature.vault.VaultUiState
 import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultViewModel
@@ -42,10 +41,11 @@ class VaultViewModelTest {
 
     private fun entry(
         url: String,
-        location: VaultLocation = VaultLocation.Thread("g", 100, "subj"),
+        location: VaultLocation = VaultLocation("g", 100),
         savedAt: Long = 0,
+        subject: String? = null,
     ) = VaultEntry(
-        url = url, location = location, postNo = null, displayName = url.substringAfterLast('/'),
+        url = url, location = location, subject = subject, postNo = null, displayName = url.substringAfterLast('/'),
         absolutePath = "/vault/$url", ext = ".jpg", sizeBytes = 1, width = 1, height = 1,
         thumbnailUrl = null, savedAt = savedAt,
     )
@@ -94,8 +94,30 @@ class VaultViewModelTest {
         return expectMostRecentItem()
     }
 
-    private val threadA = VaultLocation.Thread("a", 200, null)
-    private val threadG = VaultLocation.Thread("g", 100, "subj")
+    private val threadA = VaultLocation("a", 200)
+    private val threadG = VaultLocation("g", 100)
+
+    @Test fun `a thread is identified by board and number, never by subject`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(
+                entry("g/1.jpg", threadG, subject = null),
+                entry("g/2.jpg", threadG, subject = "renamed"),
+                entry("g/3.jpg", VaultLocation("g", 101), subject = "renamed"),
+                entry("loose.jpg", VaultLocation.Unsorted),
+            ))
+            VaultViewModel(vault, FakeSettings()).uiState.test {
+                val state = latest()
+                val g = state.boards.first { it.board == "g" }
+                assertEquals(listOf(VaultLocation("g", 101), threadG), g.threads.map { it.location })
+                assertEquals("renamed", g.threads.last().subject)
+                assertEquals(2, g.threads.last().entries.size)
+                assertEquals(VaultLocation.Unsorted, state.boards.first().threads.single().location)
+                assertTrue(VaultLocation.Unsorted.isUnsorted)
+                assertTrue(VaultLocation("_local", 1).isLocal)
+                assertTrue(threadG.isRemote)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `entries group into boards with unsorted sorted first`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(
@@ -105,10 +127,7 @@ class VaultViewModelTest {
         ))
         VaultViewModel(vault, FakeSettings()).uiState.test {
             val state = latest()
-            assertEquals(
-                listOf(VaultBoardKey.Unsorted, VaultBoardKey.Board("a"), VaultBoardKey.Board("g")),
-                state.boards.map { it.key },
-            )
+            assertEquals(listOf("_unsorted", "a", "g"), state.boards.map { it.board })
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -119,13 +138,13 @@ class VaultViewModelTest {
             val vm = VaultViewModel(vault, FakeSettings())
             vm.uiState.test {
                 assertEquals(2, latest().scopeEntries.size)
-                vm.openBoard(VaultBoardKey.Board("g"))
+                vm.openBoard("g")
                 vm.openThread(threadG)
                 val inThread = latest()
                 assertEquals(listOf("g/1.jpg"), inThread.scopeEntries.map { it.url })
                 vm.navigateUp()
                 val inBoard = latest()
-                assertEquals(VaultBoardKey.Board("g"), inBoard.selection.board)
+                assertEquals("g", inBoard.selection.board)
                 assertNull(inBoard.selection.thread)
                 vm.navigateUp()
                 assertNull(latest().selection.board)
@@ -136,7 +155,7 @@ class VaultViewModelTest {
     @Test fun `viewer opens over the current thread in entry order`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
         val vm = VaultViewModel(vault, FakeSettings())
-        vm.openBoard(VaultBoardKey.Board("g"))
+        vm.openBoard("g")
         vm.openThread(threadG)
         vm.openViewer("g/2.jpg")
         vm.uiState.test {
@@ -190,7 +209,7 @@ class VaultViewModelTest {
     @Test fun `paging the viewer moves the index without reordering`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
         val vm = VaultViewModel(vault, FakeSettings())
-        vm.openBoard(VaultBoardKey.Board("g"))
+        vm.openBoard("g")
         vm.openThread(threadG)
         vm.openViewer("g/1.jpg")
         vm.uiState.test {
