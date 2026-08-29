@@ -7,6 +7,7 @@ import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.domain.model.ArchiveSource
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
@@ -62,7 +63,17 @@ class ThreadViewModelTest {
 
     private class FakeThreadRepository(details: ThreadDetails) : ThreadRepository {
         var result: DataResult<ThreadDetails> = DataResult.Success(details)
-        override suspend fun thread(board: String, no: Long, forceRefresh: Boolean) = result
+        var archived: DataResult<ThreadDetails> = DataResult.Failure(NetworkError.NotFound)
+        /** Every source asked, in order, so a test can assert the fallback order. */
+        val asked = mutableListOf<String>()
+        override suspend fun thread(board: String, no: Long, forceRefresh: Boolean): DataResult<ThreadDetails> {
+            asked += "live"
+            return result
+        }
+        override suspend fun archivedThread(board: String, no: Long): DataResult<ThreadDetails> {
+            asked += "archive"
+            return archived
+        }
     }
 
     private object FakeBoardRepository : BoardRepository {
@@ -612,5 +623,34 @@ class ThreadViewModelTest {
             vm.onClosePreview()
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(1, content(vm).previewStack.size)
+        }
+
+    @Test fun `a 404 falls through to the archive and the copy names its source`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.threads.result = DataResult.Failure(NetworkError.NotFound)
+            env.threads.archived = DataResult.Success(
+                env.details(listOf(Env.post(100), Env.post(101))).copy(archived = true, archive = ArchiveSource.DESU),
+            )
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            val content = (vm.uiState.value as UiState.Success<ThreadContent>).data
+            assertEquals(listOf("live", "archive"), env.threads.asked)
+            assertEquals(2, content.details.posts.size)
+            assertTrue(content.archivedNotice)
+            assertEquals("https://desuarchive.org/g/thread/100", content.archiveUrl)
+        }
+
+    @Test fun `a 404 with no archive copy stays a 404`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.threads.result = DataResult.Failure(NetworkError.NotFound)
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(UiState.Error(NetworkError.NotFound), vm.uiState.value)
+            assertEquals(listOf("live", "archive"), env.threads.asked)
         }
 }

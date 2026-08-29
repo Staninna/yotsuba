@@ -22,6 +22,7 @@ import dev.stan.yotsuba.core.database.MIGRATION_7_8
 import dev.stan.yotsuba.core.database.MIGRATION_8_9
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
+import dev.stan.yotsuba.core.network.ArchiveApi
 import dev.stan.yotsuba.core.network.CachePolicyInterceptor
 import dev.stan.yotsuba.core.network.FourChanApi
 import dev.stan.yotsuba.core.network.InMemoryCookieJar
@@ -95,6 +96,20 @@ object NetworkModule {
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
         .create(FourChanApi::class.java)
+
+    /**
+     * Same client as [api] (ADR-0003): the rate limiter only fires for a.4cdn.org, and the
+     * cache policy's `no-cache` for thread paths is what an archive lookup wants anyway.
+     * The base URL is a placeholder; every call carries its own absolute URL.
+     */
+    @Provides
+    @Singleton
+    fun archiveApi(client: OkHttpClient, json: Json): ArchiveApi = Retrofit.Builder()
+        .baseUrl("https://desuarchive.org/")
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+        .create(ArchiveApi::class.java)
 }
 
 @Module

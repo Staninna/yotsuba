@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.data
 
+import dev.stan.yotsuba.core.network.ArchiveApi
 import dev.stan.yotsuba.core.network.FourChanApi
 import dev.stan.yotsuba.core.network.dto.BoardDto
 import dev.stan.yotsuba.core.network.dto.BoardsDto
@@ -125,7 +126,7 @@ class RepositoryTest {
                 )
             )
         }
-        val result = ThreadRepositoryImpl(api).thread("g", 100) as DataResult.Success
+        val result = ThreadRepositoryImpl(api, NoArchive).thread("g", 100) as DataResult.Success
         val details = result.value
         assertEquals("g", details.board)
         assertEquals(100L, details.threadNo)
@@ -142,6 +143,11 @@ class RepositoryTest {
             override suspend fun thread(board: String, no: Long, cacheControl: String?): ThreadDto =
                 throw java.net.ConnectException()
         }
-        assertEquals(DataResult.Failure(NetworkError.Offline), ThreadRepositoryImpl(api).thread("g", 1))
+        assertEquals(DataResult.Failure(NetworkError.Offline), ThreadRepositoryImpl(api, NoArchive).thread("g", 1))
     }
+}
+
+/** An archive that never answers: these tests are about the live API. */
+private object NoArchive : ArchiveApi {
+    override suspend fun thread(url: String) = kotlinx.serialization.json.JsonObject(emptyMap())
 }

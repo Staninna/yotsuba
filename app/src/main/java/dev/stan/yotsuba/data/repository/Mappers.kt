@@ -3,11 +3,14 @@ package dev.stan.yotsuba.data.repository
 import dev.stan.yotsuba.core.database.entity.BookmarkEntity
 import dev.stan.yotsuba.core.database.entity.HistoryEntity
 import dev.stan.yotsuba.core.network.dto.BoardDto
+import dev.stan.yotsuba.core.network.dto.FoolFuukaPostDto
+import dev.stan.yotsuba.core.network.dto.FoolFuukaThreadDto
 import dev.stan.yotsuba.core.network.dto.PostDto
 import dev.stan.yotsuba.core.media.SoundPost
 import dev.stan.yotsuba.core.text.PostAnnotation
 import dev.stan.yotsuba.core.text.PostHtmlParser
 import dev.stan.yotsuba.core.util.Urls
+import dev.stan.yotsuba.domain.model.ArchiveSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
@@ -92,6 +95,85 @@ fun PostDto.toPostMedia(board: String): PostMedia? {
             spoiler = spoiler == 1,
         )
     )
+}
+
+/**
+ * An archived thread in the app's own shape. The archive's raw [FoolFuukaPostDto.comment]
+ * is re-marked-up as 4chan HTML before parsing, so quotelinks and greentext come out as
+ * the same annotations a live post gets.
+ */
+fun FoolFuukaThreadDto.toThreadDetails(board: String, source: ArchiveSource): ThreadDetails =
+    buildThreadDetails(
+        board = board,
+        threadNo = op.num,
+        posts = posts.map { it.toThreadPost(board) },
+        archived = true,
+    ).copy(archive = source)
+
+fun FoolFuukaPostDto.toThreadPost(board: String): ThreadPost {
+    val body = PostHtmlParser.parse(archiveCommentToHtml(comment))
+    return ThreadPost(
+        board = board,
+        no = num,
+        isOp = op == 1,
+        name = name?.ifBlank { null } ?: "Anonymous",
+        tripcode = trip?.ifBlank { null },
+        capcode = capcode?.takeUnless { it.isBlank() || it == "N" },
+        posterId = poster_hash?.ifBlank { null },
+        countryCode = poster_country?.ifBlank { null },
+        countryName = poster_country_name?.ifBlank { null },
+        timeSeconds = timestamp,
+        subject = title?.ifBlank { null },
+        body = body,
+        media = toPostMedia(),
+        quotedPostNos = body.segments.mapNotNull {
+            (it.annotation as? PostAnnotation.QuotelinkSameThread)?.postNo
+        }.distinct(),
+    )
+}
+
+private fun FoolFuukaPostDto.toPostMedia(): PostMedia? {
+    val m = media ?: return null
+    val name = m.media_filename?.ifBlank { null } ?: return null
+    val full = m.media_link?.ifBlank { null } ?: m.remote_media_link?.ifBlank { null }
+    val thumb = m.thumb_link?.ifBlank { null }
+    if (full == null || thumb == null || m.banned == 1) return PostMedia.Deleted(displayName = name)
+    val dot = name.lastIndexOf('.')
+    val ext = if (dot > 0) name.substring(dot) else ""
+    val sound = SoundPost.parse(if (dot > 0) name.substring(0, dot) else name)
+    return PostMedia.Present(
+        MediaItem(
+            postNo = num,
+            filename = sound.name,
+            ext = ext,
+            soundUrl = sound.url,
+            sizeBytes = m.media_size,
+            width = m.media_w,
+            height = m.media_h,
+            thumbnailUrl = thumb,
+            fullUrl = full,
+            spoiler = m.spoiler == 1,
+        )
+    )
+}
+
+private val ARCHIVE_QUOTELINK = Regex(""">>(\d+)""")
+
+/** FoolFuuka's plain comment, marked up the way 4chan would have served it. */
+fun archiveCommentToHtml(comment: String?): String? {
+    if (comment.isNullOrEmpty()) return null
+    return comment.split('\n').joinToString("<br>") { line ->
+        val escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        val linked = escaped.replace(Regex("&gt;&gt;(\\d+)")) { m ->
+            val no = m.groupValues[1]
+            """<a href="#p$no" class="quotelink">&gt;&gt;$no</a>"""
+        }
+        if (line.startsWith(">") && !ARCHIVE_QUOTELINK.matchesAt(line, 0)) {
+            """<span class="quote">$linked</span>"""
+        } else {
+            linked
+        }
+    }
 }
 
 fun buildThreadDetails(

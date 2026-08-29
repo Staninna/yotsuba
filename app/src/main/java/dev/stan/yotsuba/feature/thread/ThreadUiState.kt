@@ -18,6 +18,8 @@ data class ThreadContent(
     val rows: List<ThreadRow>,
     val autoRefreshEnabled: Boolean,
     val archivedNotice: Boolean,
+    /** Where this copy lives when it came from a third-party archive; "Open in browser" goes there. */
+    val archiveUrl: String? = null,
     /** A refresh failed while a thread was already on screen; shown once, then cleared. */
     val refreshError: NetworkError? = null,
     /** A manual or pull refresh is in flight; the thread stays on screen meanwhile. */

@@ -6,6 +6,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.stan.yotsuba.core.network.ArchiveHosts
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
@@ -144,6 +145,7 @@ class ThreadViewModel @AssistedInject constructor(
                         treeView = session.treeView,
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
+                        archiveUrl = details.archive?.let { ArchiveHosts.threadUrl(it, this@ThreadViewModel.board, threadNo) },
                         refreshError = session.refreshError,
                         refreshing = session.refreshing,
                         searchQuery = session.searchQuery,
@@ -197,7 +199,10 @@ class ThreadViewModel @AssistedInject constructor(
     fun load(forceRefresh: Boolean = false, quiet: Boolean = false) {
         viewModelScope.launch {
             if (!forceRefresh) result.value = null else if (!quiet) session.update { it.copy(refreshing = true) }
-            val r = threadRepository.thread(board, threadNo, forceRefresh)
+            var r = threadRepository.thread(board, threadNo, forceRefresh)
+            if (r is DataResult.Failure && r.error == NetworkError.NotFound && result.value !is DataResult.Success) {
+                r = fallback(r)
+            }
             session.update { it.copy(refreshing = false) }
             when (r) {
                 is DataResult.Success -> {
@@ -218,6 +223,15 @@ class ThreadViewModel @AssistedInject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * What to show once 4chan says the thread is gone: an archive's copy, or the 404
+     * itself when no archive has it. Archived copies never poll.
+     */
+    private suspend fun fallback(notFound: DataResult.Failure): DataResult<ThreadDetails> {
+        val archived = threadRepository.archivedThread(board, threadNo)
+        return if (archived is DataResult.Success) archived else notFound
     }
 
     private suspend fun onLoaded(details: ThreadDetails) {

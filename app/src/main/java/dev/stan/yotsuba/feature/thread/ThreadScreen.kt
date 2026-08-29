@@ -197,6 +197,7 @@ fun ThreadScreen(
                 onToggleTreeView = viewModel::onToggleTreeView,
                 onToggleAutoRefresh = viewModel::onToggleAutoRefresh,
                 onOpenExternal = ::openExternal,
+                archiveUrl = s?.archiveUrl,
             )
         },
     ) { padding ->
@@ -272,7 +273,8 @@ fun ThreadScreen(
                 Column {
                     if (s.archivedNotice) {
                         Text(
-                            stringResource(R.string.thread_archived),
+                            s.details.archive?.let { stringResource(R.string.thread_archived_from, it.label) }
+                                ?: stringResource(R.string.thread_archived),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier

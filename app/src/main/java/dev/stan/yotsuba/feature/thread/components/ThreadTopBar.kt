@@ -59,6 +59,8 @@ fun ThreadTopBar(
     onToggleTreeView: () -> Unit,
     onToggleAutoRefresh: () -> Unit,
     onOpenExternal: (String) -> Unit,
+    /** When set, "Open in browser" goes here instead of 4chan; share and copy keep the 4chan link. */
+    archiveUrl: String? = null,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -133,7 +135,7 @@ fun ThreadTopBar(
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_open_in_browser)) },
-                    onClick = { menuOpen = false; onOpenExternal(webUrl) },
+                    onClick = { menuOpen = false; onOpenExternal(archiveUrl ?: webUrl) },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_tree_view)) },
