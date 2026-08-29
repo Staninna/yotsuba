@@ -5,6 +5,8 @@ import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.navigation.NavDestination
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -153,10 +155,18 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         navController = navController,
                         startDestination = Route.Home,
                         modifier = Modifier.fillMaxSize(),
-                        enterTransition = { fadeIn(fade) + slideInHorizontally(slide) { it / 8 } },
+                        // A tab switch composes both screens at once, so it gets a short fade
+                        // and no slide; the push/pop slide is for screens that stack.
+                        enterTransition = {
+                            if (isTabSwitch()) fadeIn(tween(motion.short))
+                            else fadeIn(fade) + slideInHorizontally(slide) { it / 8 }
+                        },
                         exitTransition = { fadeOut(tween(motion.short)) },
-                        popEnterTransition = { fadeIn(fade) },
-                        popExitTransition = { fadeOut(fade) + slideOutHorizontally(slide) { it / 8 } },
+                        popEnterTransition = { fadeIn(if (isTabSwitch()) tween(motion.short) else fade) },
+                        popExitTransition = {
+                            if (isTabSwitch()) fadeOut(tween(motion.short))
+                            else fadeOut(fade) + slideOutHorizontally(slide) { it / 8 }
+                        },
                     ) {
                         screen<Route.Home> {
                             HomeScreen(
@@ -283,3 +293,10 @@ private fun NavController.openInternal(link: InternalLink, from: Route.Thread) {
 
 private fun NavController.hasEntry(route: Route): Boolean =
     runCatching { getBackStackEntry(route) }.isSuccess
+
+private fun NavDestination.isTopLevel(): Boolean =
+    TopLevelDestination.entries.any { hasRoute(it.route::class) }
+
+/** Both ends of the transition are tab roots: a bottom-bar tap, not a push or a pop. */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.isTabSwitch(): Boolean =
+    initialState.destination.isTopLevel() && targetState.destination.isTopLevel()
