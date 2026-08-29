@@ -18,7 +18,6 @@ import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
-import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -52,12 +51,15 @@ data class MediaUiState(
     val items: List<MediaItem> = emptyList(),
     /** The conversation behind the media, live or rebuilt from the vault sidecar. */
     val thread: ViewerThread = ViewerThread(),
-    /** Full URLs the user has saved to the gallery. */
-    val downloadedUrls: Set<String> = emptySet(),
     /** URL → queue state for saves in flight. */
     val downloadStates: Map<String, DownloadState> = emptyMap(),
-    /** URL → absolute path in the vault, for buffer-free playback from disk. */
+    /**
+     * URL → absolute path in the vault. Membership is "already saved"; the path plays the
+     * file from disk without buffering. Empty while storage access is missing.
+     */
     val savedPaths: Map<String, String> = emptyMap(),
+    /** Whether a save also captures the post's conversation. */
+    val saveReplies: Boolean = false,
     val initialIndex: Int = 0,
     val autoplay: Boolean = false,
     val behaviour: ViewerBehaviour = ViewerBehaviour(),
@@ -65,6 +67,7 @@ data class MediaUiState(
     val defaultUnmuted: Boolean = false,
 ) {
     val loaded: Boolean get() = phase == ViewerPhase.Ready
+    fun isSaved(url: String): Boolean = url in savedPaths
 
     val posts: Map<Long, ThreadPost> get() = thread.posts
     val backlinks: Map<Long, List<Long>> get() = thread.backlinks
@@ -101,9 +104,6 @@ class MediaViewModel @AssistedInject constructor(
     private val details = MutableStateFlow<ThreadDetails?>(null)
     private val boardInfo = MutableStateFlow<Board?>(null)
 
-    /** OP-derived save context, computed once when the thread arrives. */
-    private var saveContextBase: VaultSaveContext? = null
-
     init {
         load()
     }
@@ -123,16 +123,6 @@ class MediaViewModel @AssistedInject constructor(
                 is DataResult.Success -> r.value
                 is DataResult.Failure -> mediaVault.savedThread(board, threadNo)
             }
-            if (r is DataResult.Success) {
-                val op = r.value.posts.firstOrNull { it.isOp }
-                saveContextBase = VaultSaveContext(
-                    board = board,
-                    threadNo = threadNo,
-                    threadSubject = op?.subject,
-                    opExcerpt = op?.body?.plainText?.takeIf { it.isNotBlank() },
-                    post = null,
-                )
-            }
             boardInfo.value = boardRepository.board(board)
             details.value = loaded
             source.value = when {
@@ -143,22 +133,14 @@ class MediaViewModel @AssistedInject constructor(
         }
     }
 
-    /** Persisted saves + in-flight queue, merged so the combine below stays at five flows. */
-    private data class SaveInfo(
-        val downloaded: Set<String>,
-        val states: Map<String, DownloadState>,
-        val paths: Map<String, String>,
-    )
-
-    private val saveInfo = combine(
-        mediaVault.savedUrls(), mediaVault.savedPaths(), downloadQueue.statuses,
-    ) { urls, paths, states ->
-        SaveInfo(downloaded = urls, states = states, paths = paths)
+    /** Persisted saves + in-flight queue, paired so the combine below stays at five flows. */
+    private val saves = combine(mediaVault.savedPaths(), downloadQueue.statuses) { paths, states ->
+        paths to states
     }
 
     val uiState: StateFlow<MediaUiState> = combine(
-        source, boardInfo, settingsRepository.settings, networkMonitor.status, saveInfo,
-    ) { src, info, settings, status, saves ->
+        source, boardInfo, settingsRepository.settings, networkMonitor.status, saves,
+    ) { src, info, settings, status, (paths, states) ->
         val d = (src as? Source.Loaded)?.details
         val list = d?.posts.orEmpty().mapNotNull { it.presentMedia }
         MediaUiState(
@@ -169,9 +151,9 @@ class MediaViewModel @AssistedInject constructor(
             },
             items = list,
             thread = ViewerThread.of(d, info),
-            downloadedUrls = saves.downloaded,
-            downloadStates = saves.states,
-            savedPaths = if (mediaVault.hasStorageAccess()) saves.paths else emptyMap(),
+            downloadStates = states,
+            savedPaths = if (mediaVault.hasStorageAccess()) paths else emptyMap(),
+            saveReplies = settings.saveRepliesWithMedia,
             initialIndex = list.indexOfFirst { it.postNo == initialPostNo }.coerceAtLeast(0),
             autoplay = when (settings.mediaAutoplay) {
                 MediaAutoplay.ALWAYS -> true
@@ -192,17 +174,20 @@ class MediaViewModel @AssistedInject constructor(
 
     fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
 
-    private val settingsState = settingsRepository.settings
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
-
     /** Queues a vault save with full thread/post context; returns immediately. */
     fun enqueueSave(item: MediaItem) {
-        val base = saveContextBase ?: VaultSaveContext(board, threadNo, null, null, null)
         val loaded = details.value
-        val post = loaded?.posts?.firstOrNull { it.no == item.postNo }
+        val op = loaded?.posts?.firstOrNull { it.isOp }
         downloadQueue.enqueue(
             item,
-            base.copy(post = post, conversation = conversationFor(item.postNo, loaded)),
+            VaultSaveContext(
+                board = board,
+                threadNo = threadNo,
+                threadSubject = op?.subject,
+                opExcerpt = op?.body?.plainText?.takeIf { it.isNotBlank() },
+                post = loaded?.posts?.firstOrNull { it.no == item.postNo },
+                conversation = conversationFor(item.postNo, loaded),
+            ),
         )
     }
 
@@ -211,7 +196,7 @@ class MediaViewModel @AssistedInject constructor(
      * quotes it, transitively. Empty when the user has reply capture off.
      */
     private fun conversationFor(postNo: Long, loaded: ThreadDetails?): List<ThreadPost> =
-        if (loaded == null || !settingsState.value.saveRepliesWithMedia) {
+        if (loaded == null || !uiState.value.saveReplies) {
             emptyList()
         } else {
             PostGraph.of(loaded).conversationAround(postNo)

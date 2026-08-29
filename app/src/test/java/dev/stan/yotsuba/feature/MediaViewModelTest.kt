@@ -289,28 +289,45 @@ class MediaViewModelTest {
 
     @Test fun `saved paths are hidden without storage access`() = runTest(dispatcher.scheduler) {
         val env = Env(listOf(post(100)))
-        env.vault.urls.value = setOf("https://i/100.jpg")
         env.vault.paths.value = mapOf("https://i/100.jpg" to "/vault/100.jpg")
         val vm = env.vm()
         vm.uiState.test {
             val withAccess = latest()
-            assertEquals(setOf("https://i/100.jpg"), withAccess.downloadedUrls)
+            assertTrue(withAccess.isSaved("https://i/100.jpg"))
             assertEquals("/vault/100.jpg", withAccess.savedPaths["https://i/100.jpg"])
             env.vault.access = false
             assertFalse(vm.hasStorageAccess())
-            // Access isn't a flow; nudge any upstream so the combine re-evaluates.
-            env.vault.paths.value = env.vault.paths.value.toMap()
-            env.vault.urls.value = env.vault.urls.value + "https://i/101.jpg"
-            assertTrue(latest().savedPaths.isEmpty())
+            // Access isn't a flow; nudge an upstream so the combine re-evaluates.
+            env.vault.paths.value = env.vault.paths.value + ("https://i/101.jpg" to "/vault/101.jpg")
+            val withoutAccess = latest()
+            assertTrue(withoutAccess.savedPaths.isEmpty())
+            assertFalse(withoutAccess.isSaved("https://i/100.jpg"))
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test fun `conversation capture follows the setting the viewer already holds`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(
+                posts = listOf(post(100), post(102, quotes = listOf(100))),
+                backlinks = mapOf(100L to listOf(102L)),
+            )
+            env.settings.state.value = Settings(saveRepliesWithMedia = true)
+            val vm = env.vm()
+            vm.uiState.test {
+                assertTrue(latest().saveReplies)
+                vm.enqueueSave(media(100))
+                val ctx = env.vault.firstSave.await()
+                assertEquals(listOf(102L), ctx.conversation.map { it.no })
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `enqueueSave carries the OP-derived context plus the item's own post`() =
         runTest(dispatcher.scheduler) {
             val env = Env(listOf(post(100), post(102)))
             val vm = env.vm()
-            dispatcher.scheduler.advanceUntilIdle() // let the thread load fill saveContextBase
+            dispatcher.scheduler.advanceUntilIdle() // let the thread load in, so the OP is known
             vm.enqueueSave(media(102))
             val ctx = env.vault.firstSave.await() // real IO worker; runTest's own timeout guards a hang
             assertEquals("g", ctx.board)

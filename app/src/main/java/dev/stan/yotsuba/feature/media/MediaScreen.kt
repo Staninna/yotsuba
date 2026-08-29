@@ -144,7 +144,7 @@ fun MediaScreen(
         val item = state.items.getOrNull(page)
         DownloadAction(
             status = saveStatusOf(
-                downloaded = item != null && item.fullUrl in state.downloadedUrls,
+                downloaded = item != null && state.isSaved(item.fullUrl),
                 queueState = item?.let { state.downloadStates[it.fullUrl] },
             ),
             interceptClick = {
