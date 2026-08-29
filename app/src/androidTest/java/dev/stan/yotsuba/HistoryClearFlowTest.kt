@@ -29,8 +29,10 @@ class HistoryClearFlowTest {
     fun clearAll_asksForConfirmation_thenEmptiesHistory() {
         composeRule.openSeededThread()
         composeRule.onNodeWithContentDescription("Back").performClick()
-        composeRule.waitForText("History")
-        composeRule.clickText("History")
+        composeRule.waitForText("Threads")
+        composeRule.clickText("Threads")
+        composeRule.waitForText("Recent")
+        composeRule.clickText("Recent")
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
 
         composeRule.onNodeWithContentDescription("Clear all").performClick()

@@ -24,13 +24,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowWidthSizeClass
-import dev.stan.yotsuba.feature.bookmarks.BookmarksScreen
 import dev.stan.yotsuba.feature.boards.BoardsScreen
 import dev.stan.yotsuba.feature.catalog.CatalogScreen
-import dev.stan.yotsuba.feature.history.HistoryScreen
 import dev.stan.yotsuba.feature.media.MediaScreen
 import dev.stan.yotsuba.feature.settings.SettingsScreen
 import dev.stan.yotsuba.feature.settings.SettingsSectionScreen
+import dev.stan.yotsuba.feature.threads.ThreadsScreen
 import dev.stan.yotsuba.feature.thread.ThreadScreen
 import dev.stan.yotsuba.feature.vault.VaultScreen
 
@@ -102,15 +101,11 @@ fun AppNavHost() {
                     onClose = { navController.popBackStack() },
                 )
             }
-            composable<Route.Bookmarks> {
-                BookmarksScreen(onOpenThread = { board, no ->
-                    navController.navigate(Route.Thread(board, no))
-                })
-            }
-            composable<Route.History> {
-                HistoryScreen(onOpenThread = { board, no, post ->
-                    navController.navigate(Route.Thread(board, no, post))
-                })
+            composable<Route.Threads> {
+                ThreadsScreen(
+                    onOpenThread = { board, no, post -> navController.navigate(Route.Thread(board, no, post)) },
+                    onOpenSettings = { navController.navigate(Route.Settings) },
+                )
             }
             composable<Route.Vault> {
                 VaultScreen(onOpenThread = { board, no, post ->
@@ -118,7 +113,10 @@ fun AppNavHost() {
                 })
             }
             composable<Route.Settings> {
-                SettingsScreen(onOpenSection = { navController.navigate(Route.SettingsSection(it)) })
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenSection = { navController.navigate(Route.SettingsSection(it)) },
+                )
             }
             composable<Route.SettingsSection> { entry ->
                 SettingsSectionScreen(

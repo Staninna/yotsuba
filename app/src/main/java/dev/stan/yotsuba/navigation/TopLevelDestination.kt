@@ -3,17 +3,14 @@ package dev.stan.yotsuba.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.outlined.List
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.stan.yotsuba.R
 
+/** The tab row, in order. Settings is not a tab: every tab reaches it from a gear icon. */
 enum class TopLevelDestination(
     val route: Route,
     val labelRes: Int,
@@ -21,8 +18,6 @@ enum class TopLevelDestination(
     val unselectedIcon: ImageVector,
 ) {
     BOARDS(Route.Boards, R.string.tab_boards, Icons.AutoMirrored.Filled.List, Icons.AutoMirrored.Outlined.List),
-    BOOKMARKS(Route.Bookmarks, R.string.tab_bookmarks, Icons.Filled.Bookmark, Icons.Outlined.BookmarkBorder),
-    HISTORY(Route.History, R.string.tab_history, Icons.Filled.History, Icons.Outlined.History),
+    THREADS(Route.Threads, R.string.tab_threads, Icons.Filled.Bookmarks, Icons.Outlined.Bookmarks),
     VAULT(Route.Vault, R.string.tab_vault, Icons.Filled.PhotoLibrary, Icons.Outlined.PhotoLibrary),
-    SETTINGS(Route.Settings, R.string.tab_settings, Icons.Filled.Settings, Icons.Outlined.Settings),
 }

@@ -1,6 +1,8 @@
 package dev.stan.yotsuba
 
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.di.FakeSettingsRepository
@@ -34,9 +36,9 @@ class SettingsFlowTest {
         val fake = settingsRepository as FakeSettingsRepository
         assertTrue(fake.state.value.dynamicColor)
 
-        // Open the Settings tab, drill into Appearance, flip the "Dynamic color" switch row.
-        composeRule.waitForText("Settings")
-        composeRule.clickText("Settings")
+        // Open Settings from the Boards gear, drill into Appearance, flip the "Dynamic color" switch row.
+        composeRule.waitForContentDescription("Settings")
+        composeRule.onNodeWithContentDescription("Settings").performClick()
         composeRule.waitForText("Appearance")
         composeRule.clickText("Appearance")
         composeRule.waitForText("Dynamic color")

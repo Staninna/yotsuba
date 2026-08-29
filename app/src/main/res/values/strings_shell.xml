@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tab_threads">Threads</string>
+    <string name="threads_watched">Watched</string>
+    <string name="threads_recent">Recent</string>
+    <string name="action_open_settings">Settings</string>
+</resources>
