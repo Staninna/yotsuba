@@ -3,6 +3,7 @@ package dev.stan.yotsuba.data.repository
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import dev.stan.yotsuba.core.backup.ApplicationScope
 import dev.stan.yotsuba.core.backup.BackupCodec
 import dev.stan.yotsuba.core.backup.BackupFile
 import dev.stan.yotsuba.domain.repository.BackupInfo
@@ -16,8 +17,15 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -29,7 +37,21 @@ class BackupRepositoryImpl @Inject constructor(
     private val hiddenThreads: HiddenThreadsRepository,
     private val settings: SettingsRepository,
     private val preferences: DataStore<Preferences>,
+    @ApplicationScope scope: CoroutineScope,
 ) : BackupRepository {
+
+    /**
+     * Any change to what the backup holds re-exports it, once the burst settles. The first
+     * emission is the current state, not a change, so it is skipped.
+     */
+    @OptIn(FlowPreview::class)
+    private val autoExport = combine(
+        bookmarks.bookmarks, hiddenThreads.all, settings.settings,
+    ) { b, h, s -> Triple(b, h, s) }
+        .drop(1)
+        .debounce(AUTO_EXPORT_DEBOUNCE_MS)
+        .onEach { export() }
+        .launchIn(scope)
 
     /** Test seam: the impl reads and writes under [store]'s root by default. */
     internal var rootOverride: File? = null
@@ -93,6 +115,8 @@ class BackupRepositoryImpl @Inject constructor(
         bookmarks.bookmarks.first().isEmpty() && preferences.data.first()[SETTINGS_BLOB] == null
 
     private companion object {
+        const val AUTO_EXPORT_DEBOUNCE_MS = 5_000L
+
         /** Same key [dev.stan.yotsuba.core.datastore.SettingsDataStore] writes its blob under. */
         val SETTINGS_BLOB = stringPreferencesKey("settings")
     }

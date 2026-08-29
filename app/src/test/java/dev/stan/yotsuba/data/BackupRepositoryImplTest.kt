@@ -23,7 +23,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -89,8 +93,9 @@ class BackupRepositoryImplTest {
         val hidden: FakeHidden = FakeHidden(),
         val settings: FakeSettings = FakeSettings(),
         val prefs: FakePreferences = FakePreferences(),
+        scope: CoroutineScope = CoroutineScope(Job()),
     ) {
-        val repo = BackupRepositoryImpl(VaultStore(), bookmarks, hidden, settings, prefs).apply {
+        val repo = BackupRepositoryImpl(VaultStore(), bookmarks, hidden, settings, prefs, scope).apply {
             rootOverride = root
             ioDispatcher = UnconfinedTestDispatcher()
         }
@@ -178,5 +183,26 @@ class BackupRepositoryImplTest {
         val written = FakePreferences(mutablePreferencesOf(stringPreferencesKey("settings") to "{}"))
         assertFalse(Env(root, prefs = written).repo.isFreshInstall())
         assertTrue(Env(root).settings.settings.first() == Settings())
+    }
+
+    @Test
+    fun `a change re-exports after the debounce, the initial state does not`() = runTest {
+        val root = folder.newFolder()
+        val env = Env(root, scope = backgroundScope)
+        val file = File(root, BackupFile.FILE_NAME)
+        runCurrent()
+        advanceTimeBy(10_000)
+        runCurrent()
+        assertFalse(file.exists())
+
+        env.bookmarks.add(bookmark("g", 1))
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertFalse(file.exists())
+        env.hidden.hide("g", 2)
+        advanceTimeBy(5_001)
+        runCurrent()
+        assertTrue(file.exists())
+        assertTrue(file.readText().contains("\"threadNo\": 2"))
     }
 }
