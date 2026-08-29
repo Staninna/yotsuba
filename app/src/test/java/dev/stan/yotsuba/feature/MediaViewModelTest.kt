@@ -10,6 +10,7 @@ import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
+import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
@@ -116,6 +117,7 @@ class MediaViewModelTest {
             return null
         }
         var snapshot: ThreadDetails? = null
+        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
         override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
         override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
         override suspend fun rescan() {}

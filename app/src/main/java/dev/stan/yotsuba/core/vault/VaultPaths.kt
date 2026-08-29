@@ -51,21 +51,6 @@ object VaultPaths {
         return cleaned.ifEmpty { "_" }
     }
 
-    /** FAT/exFAT-illegal characters plus control chars; replaced, never dropped, to keep names readable. */
-    private val ILLEGAL = Regex("""[\\/:*?"<>|\p{Cntrl}]""")
-
-    private const val MAX_SEGMENT_LENGTH = 80
-
-    /** Makes [raw] a safe single path segment; never empty (falls back to "_"). */
-    fun sanitizeSegment(raw: String): String {
-        val cleaned = ILLEGAL.replace(raw, "_")
-            .trim()
-            .trimEnd('.')
-            .take(MAX_SEGMENT_LENGTH)
-            .trim()
-        return cleaned.ifEmpty { "_" }
-    }
-
     /**
      * Directory name for a thread: `"<threadNo> - <slug>"` where the slug comes from the
      * subject, else the OP excerpt, else nothing (`"<threadNo>"` alone).

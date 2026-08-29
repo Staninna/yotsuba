@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature
 
 import app.cash.turbine.test
+import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.MediaItem
@@ -12,6 +13,7 @@ import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.feature.vault.VaultBoardKey
 import dev.stan.yotsuba.feature.vault.VaultUiState
+import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -66,6 +68,16 @@ class VaultViewModelTest {
             return null
         }
         var rescanGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+        var syncs = 0
+        var syncSummary = VaultSyncSummary()
+        var syncSteps = 0
+        var syncGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit): VaultSyncSummary {
+            syncs++
+            repeat(syncSteps) { onProgress(it + 1, syncSteps) }
+            syncGate?.await()
+            return syncSummary
+        }
         var imported: Pair<String, List<ImportSource>>? = null
         override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? {
             imported = name to sources
@@ -204,26 +216,81 @@ class VaultViewModelTest {
             }
         }
 
-    @Test fun `rescan ignores presses while one is already running`() = runTest(dispatcher.scheduler) {
+    @Test fun `sync ignores presses while one is already running`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
         vault.rescanGate = gate
         val vm = VaultViewModel(vault, FakeSettings())
-        vm.rescan()
-        dispatcher.scheduler.advanceUntilIdle() // first rescan is now suspended on the gate
-        vm.rescan() // busy flag must gate this press
+        vm.sync()
+        dispatcher.scheduler.advanceUntilIdle() // first pass is now suspended on the gate
+        vm.sync() // busy flag must gate this press
         gate.complete(Unit)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vault.rescans)
     }
 
-    @Test fun `rescan migrates legacy files then rebuilds the index`() = runTest(dispatcher.scheduler) {
+    @Test fun `importing forwards the picked files and reports a failure`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
         val vm = VaultViewModel(vault, FakeSettings())
-        vm.rescan()
+        val picked = listOf(ImportSource("content://a", "a.jpg"), ImportSource("content://b", "b.webm"))
+
+        assertEquals(null, vm.importLocalThread("Holiday", picked))
+        assertEquals("Holiday" to picked, vault.imported)
+
+        vault.importError = VaultError.NoAccess
+        assertEquals(VaultError.NoAccess, vm.importLocalThread("Holiday", picked))
+    }
+
+    @Test fun `an empty selection is not an import`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        assertEquals(null, VaultViewModel(vault, FakeSettings()).importLocalThread("Empty", emptyList()))
+        assertEquals(null, vault.imported)
+    }
+
+    @Test fun `sync shows a live progress counter and clears it when done`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(emptyList())
+            vault.syncSteps = 3
+            val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            vault.syncGate = gate
+            val vm = VaultViewModel(vault, FakeSettings())
+
+            vm.uiState.test {
+                latest()
+                vm.sync()
+                dispatcher.scheduler.advanceUntilIdle() // held open on the gate, mid-pass
+                // The counter is what stops a rate-limited pass over many threads
+                // looking hung: it ticks once per thread.
+                assertEquals(VaultSyncState(running = true, done = 3, total = 3), latest().sync)
+
+                gate.complete(Unit)
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(VaultSyncState(), latest().sync)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test fun `the summary comes back to the caller so it can be reported`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(emptyList())
+            vault.syncSummary = VaultSyncSummary(updated = 4, gone = 2, failed = 1, rateLimited = true)
+            var reported: VaultSyncSummary? = null
+
+            VaultViewModel(vault, FakeSettings()).sync { reported = it }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(7, reported?.checked)
+            assertEquals(true, reported?.rateLimited)
+        }
+
+    @Test fun `sync migrates, rebuilds the index, then refreshes live threads`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        val vm = VaultViewModel(vault, FakeSettings())
+        vm.sync()
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vault.migrations)
         assertEquals(1, vault.rescans)
+        assertEquals(1, vault.syncs)
         assertTrue(vm.hasStorageAccess())
         vault.access = false
         assertEquals(false, vm.hasStorageAccess())

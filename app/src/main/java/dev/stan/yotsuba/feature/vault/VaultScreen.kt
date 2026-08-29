@@ -5,9 +5,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -20,6 +23,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -32,6 +36,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +49,7 @@ import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.ImportSource
+import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.feature.media.MediaFeedViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerPage
@@ -62,10 +68,25 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
+    val resources = context.resources
     var deleting by remember { mutableStateOf<VaultEntry?>(null) }
     var importMenuOpen by remember { mutableStateOf(false) }
     val importFailed = stringResource(R.string.vault_import_failed)
     val importEmpty = stringResource(R.string.vault_import_empty)
+
+    val syncNothing = stringResource(R.string.vault_sync_nothing)
+    val syncRateLimited = stringResource(R.string.vault_sync_rate_limited)
+
+    fun reportSync(summary: VaultSyncSummary) {
+        val message = when {
+            summary.checked == 0 -> syncNothing
+            summary.rateLimited -> syncRateLimited
+            else -> resources.getQuantityString(
+                R.plurals.vault_sync_done, summary.updated, summary.updated, summary.gone,
+            )
+        }
+        scope.launch { snackbar.showSnackbar(message) }
+    }
 
     fun runImport(name: String, sources: List<ImportSource>) {
         scope.launch {
@@ -98,7 +119,6 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
             )
         }
     }
-
 
 
     BackHandler(enabled = state.selection.board != null) { viewModel.navigateUp() }
@@ -146,11 +166,27 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                                 }
                             }
                         }
-                        if (state.rescanning) {
-                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                        if (state.sync.running) {
+                            // The counter matters: a rate-limited sync of many threads
+                            // takes about a second each, and a bare spinner looks hung.
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (state.sync.total > 0) {
+                                    Text(
+                                        stringResource(
+                                            R.string.vault_sync_progress,
+                                            state.sync.done,
+                                            state.sync.total,
+                                        ),
+                                        style = MaterialTheme.typography.labelMedium,
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(12.dp))
+                            }
                         } else {
-                            IconButton(onClick = { viewModel.rescan() }) {
-                                Icon(Icons.Filled.Refresh, stringResource(R.string.vault_rescan))
+                            IconButton(onClick = { viewModel.sync { summary -> reportSync(summary) } }) {
+                                Icon(Icons.Filled.Refresh, stringResource(R.string.vault_sync))
                             }
                         }
                     },
@@ -223,11 +259,7 @@ private fun VaultViewer(
     BackHandler { onDismiss() }
 
     val feed = rememberMediaFeedState(initialIndex = viewer.index) { entries.size }
-    val pip = rememberPipController(
-        onPrev = { feed.previous() },
-        onNext = { feed.next(entries.lastIndex) },
-        onTogglePlayPause = { feed.playbackOn = !feed.playbackOn },
-    )
+    val pip = rememberPipController(feed) { entries.lastIndex }
 
     MediaFeedViewer(
         pages = entries.map { it.toViewerPage() },
@@ -280,7 +312,6 @@ private fun vaultTitle(state: VaultUiState): String = when {
     }
 }
 
-
+/** Fallback thread name when the picker gives files but no folder to name them after. */
 private fun defaultImportName(count: Int): String =
     if (count > 0) "Imported ($count)" else "Imported"
-

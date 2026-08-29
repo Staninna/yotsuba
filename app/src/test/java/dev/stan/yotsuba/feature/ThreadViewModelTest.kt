@@ -6,12 +6,13 @@ import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
+import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.HistoryEntry
-import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -114,6 +115,7 @@ class ThreadViewModelTest {
         override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
         override suspend fun delete(url: String): VaultError? = null
+        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
         override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
         override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
         override suspend fun rescan() {}

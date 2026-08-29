@@ -16,18 +16,22 @@ import dev.stan.yotsuba.core.vault.VaultMetaCodec
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
-import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultPostFile
 import dev.stan.yotsuba.core.vault.VaultPostMeta
+import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.core.vault.toVaultMeta
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.core.util.DataResult
+import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.VaultSaveContext
+import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import java.io.File
 import javax.inject.Inject
@@ -49,6 +53,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
     private val store: VaultStore,
     private val migration: VaultLegacyMigration,
     private val byteSource: MediaByteSource,
+    private val threadRepository: ThreadRepository,
     private val preferences: DataStore<Preferences>,
 ) : MediaVaultRepository {
 

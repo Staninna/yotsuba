@@ -10,6 +10,7 @@ import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
+import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
@@ -48,13 +49,20 @@ data class VaultViewerState(val entries: List<VaultEntry>, val index: Int) {
     val current: VaultEntry get() = entries[index]
 }
 
+/** Progress of a vault sync: local rebuild, then one live thread at a time. */
+data class VaultSyncState(
+    val running: Boolean = false,
+    val done: Int = 0,
+    val total: Int = 0,
+)
+
 data class VaultUiState(
     /** Entries with a real file on disk, newest first. */
     val entries: List<VaultEntry> = emptyList(),
     val boards: List<VaultBoardSection> = emptyList(),
     val selection: VaultSelection = VaultSelection(),
     val viewer: VaultViewerState? = null,
-    val rescanning: Boolean = false,
+    val sync: VaultSyncState = VaultSyncState(),
 ) {
     val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.key == selection.board }
     val openThread: VaultThreadSection?
@@ -86,7 +94,7 @@ class VaultViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ViewerBehaviour())
 
-    private val rescanning = MutableStateFlow(false)
+    private val syncState = MutableStateFlow(VaultSyncState())
 
     // Explorer position and viewer live here, not in the composable: the adaptive layout
     // switch on rotation (nav bar ↔ nav rail) rebuilds the screen and would wipe
@@ -121,16 +129,15 @@ class VaultViewModel @Inject constructor(
         }
     }
 
-
     val uiState: StateFlow<VaultUiState> = combine(
-        mediaVault.entries(), rescanning, selection, viewingUrl, shuffleOrder,
-    ) { entries, busy, sel, url, shuffle ->
+        mediaVault.entries(), syncState, selection, viewingUrl, shuffleOrder,
+    ) { entries, sync, sel, url, shuffle ->
         VaultUiState(
             entries = entries,
             boards = groupByBoard(entries),
             selection = sel,
             viewer = viewerState(entries, sel, url, shuffle),
-            rescanning = busy,
+            sync = sync,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
@@ -163,13 +170,22 @@ class VaultViewModel @Inject constructor(
 
     fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
 
-    fun rescan() {
-        if (rescanning.value) return
+    /**
+     * Brings the vault up to date: rebuild the local index, then refresh every saved
+     * thread's comment section from the live thread while it is still there. The second
+     * half is rate-limited to about one thread a second, hence the progress counter.
+     */
+    fun sync(onDone: (VaultSyncSummary) -> Unit = {}) {
+        if (syncState.value.running) return
         viewModelScope.launch {
-            rescanning.value = true
+            syncState.value = VaultSyncState(running = true)
             mediaVault.migrateLegacyIfNeeded()
             mediaVault.rescan()
-            rescanning.value = false
+            val summary = mediaVault.syncSavedThreads { done, total ->
+                syncState.value = VaultSyncState(running = true, done = done, total = total)
+            }
+            syncState.value = VaultSyncState()
+            onDone(summary)
         }
     }
 

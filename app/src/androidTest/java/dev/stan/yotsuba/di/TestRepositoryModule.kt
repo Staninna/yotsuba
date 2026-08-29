@@ -9,6 +9,7 @@ import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
+import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
@@ -302,6 +303,8 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
         state.update { list -> list.filterNot { it.url == url } }
         return null
     }
+
+    override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
 
     override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
 
