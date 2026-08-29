@@ -69,7 +69,10 @@ fun HistoryScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_history)) },
                 actions = {
-                    IconButton(onClick = { confirmClear = true }) {
+                    IconButton(
+                        onClick = { confirmClear = true },
+                        enabled = state.groups.isNotEmpty(),
+                    ) {
                         Icon(Icons.Filled.DeleteSweep, stringResource(R.string.action_clear_all))
                     }
                 },
