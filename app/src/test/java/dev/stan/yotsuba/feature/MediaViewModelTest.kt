@@ -318,7 +318,7 @@ class MediaViewModelTest {
                 assertTrue(latest().saveReplies)
                 vm.enqueueSave(media(100))
                 val ctx = env.vault.firstSave.await()
-                assertEquals(listOf(102L), ctx.conversation.map { it.no })
+                assertEquals(listOf(100L, 102L), ctx.conversation.map { it.no })
                 cancelAndIgnoreRemainingEvents()
             }
         }
