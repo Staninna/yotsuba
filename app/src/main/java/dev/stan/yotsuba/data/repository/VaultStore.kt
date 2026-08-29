@@ -47,11 +47,14 @@ class VaultStore @Inject constructor() {
         true
     }.getOrDefault(false)
 
-    fun updateMeta(dir: File, transform: (VaultThreadMeta) -> VaultThreadMeta) {
+    /** Read-modify-writes the thread's meta.json; returns what was written. */
+    fun updateMeta(dir: File, transform: (VaultThreadMeta) -> VaultThreadMeta): VaultThreadMeta {
         val metaFile = File(dir, VaultPaths.META_FILE_NAME)
         val current = metaFile.takeIf { it.isFile }?.let { VaultMetaCodec.decode(it.readText()) }
             ?: VaultThreadMeta(board = dir.parentFile?.name ?: "")
-        writeSidecar(metaFile, VaultMetaCodec.encode(transform(current)))
+        val next = transform(current)
+        writeSidecar(metaFile, VaultMetaCodec.encode(next))
+        return next
     }
 
     /**
