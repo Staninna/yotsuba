@@ -4,4 +4,5 @@
     <string name="media_load_sized">Load (%1$s)</string>
     <string name="media_load">Load</string>
     <string name="media_sound_badge">sound</string>
+    <string name="media_video_failed">This video could not be played</string>
 </resources>
