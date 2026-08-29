@@ -9,6 +9,9 @@ import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.repository.BackupInfo
+import dev.stan.yotsuba.domain.repository.BackupRepository
+import dev.stan.yotsuba.domain.repository.BackupResult
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
@@ -16,7 +19,9 @@ import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
@@ -37,7 +42,34 @@ class SettingsViewModel @Inject constructor(
     private val boardRepository: BoardRepository,
     private val maintenanceRepository: MaintenanceRepository,
     private val updater: Updater,
+    private val backupRepository: BackupRepository = BackupRepository.None,
 ) : ViewModel() {
+
+    private val _restoreAvailable = MutableStateFlow<BackupInfo?>(null)
+
+    /** A backup at the vault root on an install that has nothing to lose to a restore; null once dismissed. */
+    val restoreAvailable: StateFlow<BackupInfo?> = _restoreAvailable.asStateFlow()
+
+    private val _backupResult = MutableStateFlow<BackupResult?>(null)
+
+    /** The last manual export or import outcome, cleared by [onBackupResultShown]. */
+    val backupResult: StateFlow<BackupResult?> = _backupResult.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            if (backupRepository.isFreshInstall()) _restoreAvailable.value = backupRepository.available()
+        }
+    }
+
+    fun onExportBackup() = viewModelScope.launch { _backupResult.value = backupRepository.export() }
+
+    fun onImportBackup() = viewModelScope.launch {
+        _backupResult.value = backupRepository.import()
+        _restoreAvailable.value = null
+    }
+
+    fun onDismissRestore() { _restoreAvailable.value = null }
+    fun onBackupResultShown() { _backupResult.value = null }
 
     val updateState: StateFlow<Updater.State> = updater.state
 

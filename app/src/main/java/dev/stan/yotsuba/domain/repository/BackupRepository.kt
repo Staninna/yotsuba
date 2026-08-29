@@ -38,4 +38,12 @@ interface BackupRepository {
 
     /** No bookmarks and no settings ever written: the install has nothing to lose to a restore. */
     suspend fun isFreshInstall(): Boolean
+
+    /** For callers built without a vault, such as tests: never exports, never finds a file. */
+    object None : BackupRepository {
+        override suspend fun export(): BackupResult = BackupResult.NoAccess
+        override suspend fun import(): BackupResult = BackupResult.NoBackup
+        override suspend fun available(): BackupInfo? = null
+        override suspend fun isFreshInstall(): Boolean = false
+    }
 }
