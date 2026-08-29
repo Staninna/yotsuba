@@ -8,6 +8,7 @@ import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.util.DataResult
+import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
@@ -66,9 +67,12 @@ class MediaViewModelTest {
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    private class FakeThreadRepository(var details: ThreadDetails) : ThreadRepository {
+    private class FakeThreadRepository(
+        var details: ThreadDetails,
+        private val fails: Boolean = false,
+    ) : ThreadRepository {
         override suspend fun thread(board: String, no: Long, forceRefresh: Boolean) =
-            DataResult.Success(details)
+            if (fails) DataResult.Failure(NetworkError.NotFound) else DataResult.Success(details)
     }
 
     private class FakeBoardRepository(var webmAudio: Boolean = false) : BoardRepository {
@@ -110,6 +114,8 @@ class MediaViewModelTest {
             deleted += url
             return null
         }
+        var snapshot: ThreadDetails? = null
+        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
         override suspend fun rescan() {}
         override suspend fun migrateLegacyIfNeeded() {}
     }
@@ -138,9 +144,11 @@ class MediaViewModelTest {
         val vault: FakeVault = FakeVault(),
         val sessionStore: MediaSessionStore = MediaSessionStore(),
         val server: MockWebServer? = null,
+        threadFails: Boolean = false,
     ) {
         val threads = FakeThreadRepository(
-            ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks)
+            ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks),
+            fails = threadFails,
         )
         val queue = MediaDownloadQueue(vault)
         val context: Context = ApplicationProvider.getApplicationContext()
@@ -163,6 +171,23 @@ class MediaViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         return expectMostRecentItem()
     }
+
+    @Test fun `a dead thread falls back to the conversation saved on disk`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(listOf(post(100)), threadFails = true)
+            env.vault.snapshot = ThreadDetails(
+                "g", 100,
+                posts = listOf(post(100), post(101)),
+                archived = false, closed = false,
+                backlinks = mapOf(100L to listOf(101L)),
+            )
+            env.vm().uiState.test {
+                val state = latest()
+                assertEquals(setOf(100L, 101L), state.posts.keys)
+                assertEquals(listOf(101L), state.graph.descendantsOf(100L).map { it.no })
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `viewer behaviour mirrors the settings that drive the gestures`() =
         runTest(dispatcher.scheduler) {

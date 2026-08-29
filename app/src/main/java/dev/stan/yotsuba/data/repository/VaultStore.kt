@@ -4,6 +4,9 @@ import android.os.Environment
 import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultMetaCodec
 import dev.stan.yotsuba.core.vault.VaultPaths
+import dev.stan.yotsuba.core.vault.VaultPostMeta
+import dev.stan.yotsuba.core.vault.VaultPostsCodec
+import dev.stan.yotsuba.core.vault.VaultThreadPosts
 import dev.stan.yotsuba.core.vault.VaultThreadMeta
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -48,19 +51,52 @@ class VaultStore @Inject constructor() {
         val metaFile = File(dir, VaultPaths.META_FILE_NAME)
         val current = metaFile.takeIf { it.isFile }?.let { VaultMetaCodec.decode(it.readText()) }
             ?: VaultThreadMeta(board = dir.parentFile?.name ?: "")
-        val next = transform(current)
-        val tmp = File(dir, VaultPaths.META_FILE_NAME + ".tmp")
-        tmp.writeText(VaultMetaCodec.encode(next))
-        if (!tmp.renameTo(metaFile)) {
-            metaFile.writeText(VaultMetaCodec.encode(next))
+        writeSidecar(metaFile, VaultMetaCodec.encode(transform(current)))
+    }
+
+    /**
+     * The directory holding [threadNo] on [board]. Thread dirs are named `"<no>"` or
+     * `"<no> - <slug>"`, and the slug changes with the subject, so the number is matched
+     * rather than the whole name.
+     */
+    fun threadDir(board: String, threadNo: Long): File? {
+        val boardDir = File(root, VaultPaths.sanitizeSegment(board))
+        return boardDir.listFiles()
+            ?.firstOrNull { it.isDirectory && it.name.substringBefore(" -").trim() == threadNo.toString() }
+    }
+
+    fun readPosts(dir: File): VaultThreadPosts? =
+        File(dir, VaultPaths.POSTS_FILE_NAME).takeIf { it.isFile }
+            ?.let { VaultPostsCodec.decode(it.readText()) }
+
+    /**
+     * Widens the thread's saved conversation with [incoming]. A no-op when nothing was
+     * captured, so a thread whose replies were never saved gets no empty sidecar.
+     */
+    fun updatePosts(dir: File, board: String, threadNo: Long, incoming: List<VaultPostMeta>) {
+        if (incoming.isEmpty()) return
+        val current = readPosts(dir) ?: VaultThreadPosts(board = board, threadNo = threadNo)
+        writeSidecar(
+            File(dir, VaultPaths.POSTS_FILE_NAME),
+            VaultPostsCodec.encode(current.mergedWith(incoming)),
+        )
+    }
+
+    /** Write via a temp file so a crash mid-write cannot leave a half-parsed sidecar. */
+    private fun writeSidecar(file: File, text: String) {
+        val tmp = File(file.parentFile, file.name + ".tmp")
+        tmp.writeText(text)
+        if (!tmp.renameTo(file)) {
+            file.writeText(text)
             tmp.delete()
         }
     }
 
-    /** Removes a thread dir once only meta.json (with no entries) is left; then an emptied board dir. */
+    /** Removes a thread dir once only sidecars (with no entries) are left; then an emptied board dir. */
     fun pruneIfEmpty(dir: File) {
         val remaining = dir.listFiles() ?: return
-        val onlyMeta = remaining.all { it.name == VaultPaths.META_FILE_NAME }
+        val sidecars = setOf(VaultPaths.META_FILE_NAME, VaultPaths.POSTS_FILE_NAME)
+        val onlyMeta = remaining.all { it.name in sidecars }
         val metaEmpty = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
             ?.let { VaultMetaCodec.decode(it.readText())?.files?.isEmpty() } ?: true
         if (onlyMeta && metaEmpty) {

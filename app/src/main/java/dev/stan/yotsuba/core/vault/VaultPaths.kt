@@ -10,12 +10,16 @@ package dev.stan.yotsuba.core.vault
  * └── <board>/<threadNo> - <subject slug>/<postNo>_<original filename><ext>
  * ```
  *
- * Every thread directory carries a [meta file][META_FILE_NAME] describing each saved file.
+ * Every thread directory carries a [meta file][META_FILE_NAME] describing each saved file,
+ * and optionally a [posts file][POSTS_FILE_NAME] holding the surrounding conversation as
+ * text. They are separate because meta.json is rewritten on every single save, and folding
+ * a few hundred posts into that hot path would rewrite the lot each time.
  */
 object VaultPaths {
     const val ROOT_DIR_NAME = "Yotsuba"
     const val NOMEDIA_FILE_NAME = ".nomedia"
     const val META_FILE_NAME = "meta.json"
+    const val POSTS_FILE_NAME = "posts.json"
     const val UNSORTED_DIR_NAME = "_unsorted"
 
     /** FAT/exFAT-illegal characters plus control chars; replaced, never dropped, to keep names readable. */

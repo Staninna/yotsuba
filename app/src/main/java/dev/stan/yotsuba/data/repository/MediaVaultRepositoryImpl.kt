@@ -13,9 +13,12 @@ import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.core.vault.VaultMetaCodec
 import dev.stan.yotsuba.core.vault.VaultPaths
+import dev.stan.yotsuba.core.vault.toThreadPost
+import dev.stan.yotsuba.core.vault.toVaultMeta
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import java.io.File
@@ -88,6 +91,15 @@ class MediaVaultRepositoryImpl @Inject constructor(
                             threadUrl = Urls.threadWebUrl(saveContext.board, saveContext.threadNo),
                         ).upsert(store.fileMetaOf(target.name, item, saveContext.post, savedAt))
                     }
+                    // Same lock as meta.json. The two writes are not one transaction, but
+                    // each is atomic and a missing posts.json already means "no snapshot",
+                    // so a crash between them degrades to exactly the pre-existing state.
+                    store.updatePosts(
+                        dir = dir,
+                        board = saveContext.board,
+                        threadNo = saveContext.threadNo,
+                        incoming = saveContext.conversation.map { it.toVaultMeta() },
+                    )
                 }
                 savedMediaDao.insert(
                     savedMediaEntity(
@@ -96,6 +108,18 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     ),
                 )
             }
+        }
+
+    override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? =
+        withContext(Dispatchers.IO) {
+            if (!hasStorageAccess()) return@withContext null
+            val dir = store.threadDir(board, threadNo) ?: return@withContext null
+            val saved = store.readPosts(dir)?.takeIf { it.posts.isNotEmpty() } ?: return@withContext null
+            buildThreadDetails(
+                board = saved.board.ifEmpty { board },
+                threadNo = saved.threadNo,
+                posts = saved.posts.map { it.toThreadPost(saved.board.ifEmpty { board }) },
+            )
         }
 
     override suspend fun delete(url: String): VaultError? = withContext(Dispatchers.IO) {

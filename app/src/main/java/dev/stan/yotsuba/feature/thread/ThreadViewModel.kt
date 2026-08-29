@@ -20,6 +20,7 @@ import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
@@ -345,7 +346,8 @@ class ThreadViewModel @AssistedInject constructor(
     /** Queues a vault save for [post]'s attachment, with the thread context the vault files by. */
     fun onSaveMedia(post: ThreadPost) {
         val item = post.presentMedia ?: return
-        val op = (result.value as? DataResult.Success)?.value?.posts?.firstOrNull { it.isOp }
+        val loaded = (result.value as? DataResult.Success)?.value
+        val op = loaded?.posts?.firstOrNull { it.isOp }
         downloadQueue.enqueue(
             item,
             VaultSaveContext(
@@ -354,6 +356,11 @@ class ThreadViewModel @AssistedInject constructor(
                 threadSubject = op?.subject,
                 opExcerpt = op?.body?.plainText?.takeIf { it.isNotBlank() },
                 post = post,
+                conversation = if (loaded != null && settingsState.value.saveRepliesWithMedia) {
+                    PostGraph.of(loaded).conversationAround(post.no)
+                } else {
+                    emptyList()
+                },
             ),
         )
     }

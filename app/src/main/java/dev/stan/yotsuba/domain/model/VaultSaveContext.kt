@@ -9,4 +9,9 @@ data class VaultSaveContext(
     /** Plain-text OP excerpt, slug fallback when the thread has no subject. */
     val opExcerpt: String?,
     val post: ThreadPost?,
+    /**
+     * The conversation to preserve as text beside the file — the saved post's transitive
+     * parents and replies. Empty when the user has the setting off.
+     */
+    val conversation: List<ThreadPost> = emptyList(),
 )

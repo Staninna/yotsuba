@@ -302,6 +302,8 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
         return null
     }
 
+    override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
+
     override suspend fun rescan() = Unit
     override suspend fun migrateLegacyIfNeeded() = Unit
 }

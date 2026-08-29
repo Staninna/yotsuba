@@ -2,6 +2,7 @@ package dev.stan.yotsuba.data
 
 import dev.stan.yotsuba.data.repository.DownloadState
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
+import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
@@ -56,6 +57,7 @@ class MediaDownloadQueueTest {
             return gate.await()
         }
         override suspend fun delete(url: String): VaultError? = null
+        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
         override suspend fun rescan() {}
         override suspend fun migrateLegacyIfNeeded() {}
     }

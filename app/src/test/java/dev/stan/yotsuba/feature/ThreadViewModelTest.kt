@@ -113,6 +113,7 @@ class ThreadViewModelTest {
         override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
         override suspend fun delete(url: String): VaultError? = null
+        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
         override suspend fun rescan() {}
         override suspend fun migrateLegacyIfNeeded() {}
     }

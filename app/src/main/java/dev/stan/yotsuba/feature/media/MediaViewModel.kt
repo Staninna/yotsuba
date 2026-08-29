@@ -17,6 +17,7 @@ import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -67,7 +68,7 @@ class MediaViewModel @AssistedInject constructor(
     @ApplicationContext private val appContext: Context,
     private val threadRepository: ThreadRepository,
     private val boardRepository: BoardRepository,
-    settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsRepository,
     networkMonitor: NetworkMonitor,
     private val mediaVault: MediaVaultRepository,
     private val downloadQueue: MediaDownloadQueue,
@@ -83,7 +84,12 @@ class MediaViewModel @AssistedInject constructor(
 
     init {
         viewModelScope.launch {
+            // Live wins. The saved snapshot is the fallback for a pruned, 404'd or
+            // offline thread, so a vault item still opens with its conversation intact.
             val r = threadRepository.thread(board, threadNo)
+            if (r !is DataResult.Success) {
+                details.value = mediaVault.savedThread(board, threadNo)
+            }
             if (r is DataResult.Success) {
                 details.value = r.value
                 val op = r.value.posts.firstOrNull { it.isOp }
@@ -145,12 +151,30 @@ class MediaViewModel @AssistedInject constructor(
 
     fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
 
+    private val settingsState = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
+
     /** Queues a vault save with full thread/post context; returns immediately. */
     fun enqueueSave(item: MediaItem) {
         val base = saveContextBase ?: VaultSaveContext(board, threadNo, null, null, null)
-        val post = details.value?.posts?.firstOrNull { it.no == item.postNo }
-        downloadQueue.enqueue(item, base.copy(post = post))
+        val loaded = details.value
+        val post = loaded?.posts?.firstOrNull { it.no == item.postNo }
+        downloadQueue.enqueue(
+            item,
+            base.copy(post = post, conversation = conversationFor(item.postNo, loaded)),
+        )
     }
+
+    /**
+     * The posts worth keeping beside [postNo]: everything it quotes and everything that
+     * quotes it, transitively. Empty when the user has reply capture off.
+     */
+    private fun conversationFor(postNo: Long, loaded: ThreadDetails?): List<ThreadPost> =
+        if (loaded == null || !settingsState.value.saveRepliesWithMedia) {
+            emptyList()
+        } else {
+            PostGraph.of(loaded).conversationAround(postNo)
+        }
 
     /** Deletes the saved file, its meta entry, and DB row. */
     fun removeDownload(url: String) {
