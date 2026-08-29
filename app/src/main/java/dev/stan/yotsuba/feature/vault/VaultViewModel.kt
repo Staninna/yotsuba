@@ -10,11 +10,14 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -68,7 +71,19 @@ data class VaultUiState(
 @HiltViewModel
 class VaultViewModel @Inject constructor(
     private val mediaVault: MediaVaultRepository,
+    settingsRepository: SettingsRepository,
 ) : ViewModel() {
+
+    /** Playback preferences for the full-screen viewer. Saving does not apply here. */
+    val behaviour: StateFlow<ViewerBehaviour> = settingsRepository.settings
+        .map {
+            ViewerBehaviour(
+                keepScreenOn = it.keepScreenOnWhileWatching,
+                doubleTapSeek = it.doubleTapSeekEnabled,
+                seekStepSeconds = it.seekStep.seconds,
+            )
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ViewerBehaviour())
 
     private val rescanning = MutableStateFlow(false)
 

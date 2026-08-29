@@ -5,6 +5,7 @@ import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
+import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.feature.vault.VaultBoardKey
@@ -81,7 +82,7 @@ class VaultViewModelTest {
             entry("a/1.jpg", threadA),
             entry("loose.jpg", VaultLocation.Unsorted),
         ))
-        VaultViewModel(vault).uiState.test {
+        VaultViewModel(vault, FakeSettings()).uiState.test {
             val state = latest()
             assertEquals(
                 listOf(VaultBoardKey.Unsorted, VaultBoardKey.Board("a"), VaultBoardKey.Board("g")),
@@ -94,7 +95,7 @@ class VaultViewModelTest {
     @Test fun `drill-down selection scopes the visible entries and navigates back up`() =
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
-            val vm = VaultViewModel(vault)
+            val vm = VaultViewModel(vault, FakeSettings())
             vm.uiState.test {
                 assertEquals(2, latest().scopeEntries.size)
                 vm.openBoard(VaultBoardKey.Board("g"))
@@ -113,7 +114,7 @@ class VaultViewModelTest {
 
     @Test fun `viewer opens over the current thread in entry order`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
-        val vm = VaultViewModel(vault)
+        val vm = VaultViewModel(vault, FakeSettings())
         vm.openBoard(VaultBoardKey.Board("g"))
         vm.openThread(threadG)
         vm.openViewer("g/2.jpg")
@@ -128,7 +129,7 @@ class VaultViewModelTest {
 
     @Test fun `deleting the viewed entry closes the viewer`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
-        val vm = VaultViewModel(vault)
+        val vm = VaultViewModel(vault, FakeSettings())
         vm.openViewer("g/1.jpg")
         vm.uiState.test {
             assertEquals("g/1.jpg", latest().viewer?.current?.url)
@@ -141,7 +142,7 @@ class VaultViewModelTest {
 
     @Test fun `close viewer clears the url and any shuffle order`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
-        val vm = VaultViewModel(vault)
+        val vm = VaultViewModel(vault, FakeSettings())
         vm.startShuffle(listOf("g/2.jpg", "g/1.jpg"))
         vm.uiState.test {
             assertTrue(latest().viewer != null)
@@ -154,7 +155,7 @@ class VaultViewModelTest {
     @Test fun `shuffle plays the given urls in the shuffled order`() = runTest(dispatcher.scheduler) {
         val urls = (1..5).map { "g/$it.jpg" }
         val vault = FakeVault(urls.map { entry(it, threadG) })
-        val vm = VaultViewModel(vault)
+        val vm = VaultViewModel(vault, FakeSettings())
         vm.startShuffle(urls)
         vm.uiState.test {
             val viewer = latest().viewer!!
@@ -167,7 +168,7 @@ class VaultViewModelTest {
 
     @Test fun `paging the viewer moves the index without reordering`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
-        val vm = VaultViewModel(vault)
+        val vm = VaultViewModel(vault, FakeSettings())
         vm.openBoard(VaultBoardKey.Board("g"))
         vm.openThread(threadG)
         vm.openViewer("g/1.jpg")
@@ -184,7 +185,7 @@ class VaultViewModelTest {
     @Test fun `viewer opened outside any thread plays just that entry`() =
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
-            val vm = VaultViewModel(vault)
+            val vm = VaultViewModel(vault, FakeSettings())
             vm.openViewer("a/1.jpg") // no thread selected — the thread filter matches nothing
             vm.uiState.test {
                 val viewer = latest().viewer!!
@@ -198,7 +199,7 @@ class VaultViewModelTest {
         val vault = FakeVault(emptyList())
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
         vault.rescanGate = gate
-        val vm = VaultViewModel(vault)
+        val vm = VaultViewModel(vault, FakeSettings())
         vm.rescan()
         dispatcher.scheduler.advanceUntilIdle() // first rescan is now suspended on the gate
         vm.rescan() // busy flag must gate this press
@@ -209,7 +210,7 @@ class VaultViewModelTest {
 
     @Test fun `rescan migrates legacy files then rebuilds the index`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
-        val vm = VaultViewModel(vault)
+        val vm = VaultViewModel(vault, FakeSettings())
         vm.rescan()
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vault.migrations)

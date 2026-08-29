@@ -37,6 +37,7 @@ import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.feature.media.MediaFeedViewer
+import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerPage
 import dev.stan.yotsuba.feature.media.rememberMediaFeedState
 import dev.stan.yotsuba.feature.media.rememberPipController
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var deleting by remember { mutableStateOf<VaultEntry?>(null) }
 
@@ -98,6 +100,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
         state.viewer?.let { viewer ->
             VaultViewer(
                 viewer = viewer,
+                behaviour = behaviour,
                 autoAdvance = viewModel.autoAdvance,
                 onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
                 onPageViewed = { viewModel.onViewerPage(it.url) },
@@ -131,6 +134,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
 @Composable
 private fun VaultViewer(
     viewer: VaultViewerState,
+    behaviour: ViewerBehaviour,
     autoAdvance: Boolean,
     onToggleAutoAdvance: () -> Unit,
     onPageViewed: (VaultEntry) -> Unit,
@@ -156,6 +160,7 @@ private fun VaultViewer(
         onToggleAutoAdvance = onToggleAutoAdvance,
         onPageViewed = { page -> entries.getOrNull(page)?.let(onPageViewed) },
         onDismiss = onDismiss,
+        behaviour = behaviour,
         topBarActions = {
             IconButton(onClick = {
                 entries.getOrNull(feed.currentPage)?.let { entry ->

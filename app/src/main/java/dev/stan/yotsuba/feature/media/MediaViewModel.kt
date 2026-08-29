@@ -50,6 +50,7 @@ data class MediaUiState(
     val initialIndex: Int = 0,
     val board: Board? = null,
     val autoplay: Boolean = false,
+    val behaviour: ViewerBehaviour = ViewerBehaviour(),
     /** Unmuted by default only where the board declares webm_audio (D12). */
     val defaultUnmuted: Boolean = false,
     val loaded: Boolean = false,
@@ -129,6 +130,12 @@ class MediaViewModel @AssistedInject constructor(
                 MediaAutoplay.NEVER -> false
                 MediaAutoplay.UNMETERED_ONLY -> status == NetworkStatus.Unmetered
             },
+            behaviour = ViewerBehaviour(
+                keepScreenOn = settings.keepScreenOnWhileWatching,
+                doubleTapSeek = settings.doubleTapSeekEnabled,
+                seekStepSeconds = settings.seekStep.seconds,
+                holdToSave = settings.holdToSave,
+            ),
             defaultUnmuted = info?.webmAudio == true,
             loaded = list.isNotEmpty(),
         )

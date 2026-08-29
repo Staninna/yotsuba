@@ -9,6 +9,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -19,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -96,6 +98,7 @@ fun MediaFeedViewer(
     modifier: Modifier = Modifier,
     /** False while another layer (e.g. a reply panel) covers the feed. */
     feedActive: Boolean = true,
+    behaviour: ViewerBehaviour = ViewerBehaviour(),
     topBarActions: @Composable RowScope.() -> Unit = {},
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
@@ -109,6 +112,17 @@ fun MediaFeedViewer(
     }
 
     LaunchedEffect(feed.currentPage) { onPageViewed(feed.currentPage) }
+
+    // One owner for the wake lock. FLAG_KEEP_SCREEN_ON is window-scoped and not
+    // refcounted, so letting each composed VideoPage set it would have them fighting;
+    // View.keepScreenOn is released for us when this composable leaves.
+    val view = LocalView.current
+    val keepAwake = behaviour.keepScreenOn && feedActive &&
+        feed.playbackOn && pages.getOrNull(feed.currentPage)?.isVideo == true
+    DisposableEffect(view, keepAwake) {
+        view.keepScreenOn = keepAwake
+        onDispose { view.keepScreenOn = false }
+    }
 
     LaunchedEffect(pip.inPipMode, feed.currentPage, feed.playbackOn, pages) {
         if (pip.inPipMode) {

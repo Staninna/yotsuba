@@ -108,6 +108,7 @@ fun MediaScreen(
         },
         onDismiss = onClose,
         feedActive = stack.onMedia,
+        behaviour = state.behaviour,
         // Horizontal navigation: left = open replies of the current post, right = back.
         modifier = Modifier.pointerInput(pip.inPipMode) {
             if (pip.inPipMode) return@pointerInput
