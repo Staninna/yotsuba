@@ -3,8 +3,11 @@ package dev.stan.yotsuba.data.repository
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.dedup.DHash
+import dev.stan.yotsuba.core.dedup.Grouping
+import dev.stan.yotsuba.core.dedup.Keeper
 import dev.stan.yotsuba.core.dedup.Md5
 import dev.stan.yotsuba.domain.model.DedupMode
+import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
 import java.io.File
@@ -55,7 +58,31 @@ class VaultDedupRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun findDuplicates(mode: DedupMode, maxDistance: Int): List<DuplicateGroup> = emptyList()
+    override suspend fun findDuplicates(mode: DedupMode, maxDistance: Int): List<DuplicateGroup> =
+        withContext(Dispatchers.IO) {
+            val rows = dao.allOnce().filter { it.absolutePath.isNotEmpty() }
+            val groups = when (mode) {
+                DedupMode.EXACT -> Grouping.exact(rows) { it.md5 }
+                DedupMode.SIMILAR -> Grouping.near(rows.filterNot(::isVideo), maxDistance) { it.phash }
+            }
+            groups.map { rows ->
+                val entries = rows.map { it.toDuplicateEntry() }.sortedWith(Keeper.order)
+                DuplicateGroup(entries, Keeper.suggest(entries).url)
+            }.sortedByDescending { it.redundantBytes }
+        }
 
     private fun isVideo(row: SavedMediaEntity) = row.ext == ".webm" || row.ext == ".mp4"
+
+    private fun SavedMediaEntity.toDuplicateEntry() = DuplicateEntry(
+        url = url,
+        absolutePath = absolutePath,
+        displayName = displayName,
+        sizeBytes = sizeBytes ?: File(absolutePath).length(),
+        width = width,
+        height = height,
+        savedAt = savedAt,
+        subject = subject,
+        isVideo = isVideo(this),
+        thumbnailPath = thumbnailPath,
+    )
 }
