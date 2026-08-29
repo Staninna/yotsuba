@@ -236,6 +236,15 @@
     <!-- Saved-media vault -->
     <string name="tab_vault">Saved</string>
     <string name="vault_title">Saved media</string>
+    <string name="vault_import">Import</string>
+    <string name="vault_import_files">Import photos or videos\u2026</string>
+    <string name="vault_import_folder">Import a folder\u2026</string>
+    <string name="vault_import_failed">Could not import those files.</string>
+    <string name="vault_import_empty">Nothing to import there.</string>
+    <string name="vault_sync">Sync</string>
+    <string name="vault_sync_progress">%1$d / %2$d</string>
+    <string name="vault_sync_nothing">Nothing saved to sync yet.</string>
+    <string name="vault_sync_rate_limited">4chan asked us to slow down. Sync again in a minute to finish.</string>
     <string name="vault_rescan">Rescan vault</string>
     <string name="vault_empty_title">Vault is empty</string>
     <string name="vault_empty_explanation">Media you save from threads is filed under /sdcard/Yotsuba/.</string>
@@ -262,6 +271,7 @@
     <string name="vault_shuffle_images">Images only</string>
     <string name="vault_auto_advance_on">Auto-advance on — tap to loop</string>
     <string name="vault_auto_advance_off">Looping — tap to auto-advance</string>
+    <plurals name="vault_sync_done">
         <item quantity="one">Refreshed %1$d thread, %2$d already gone.</item>
         <item quantity="other">Refreshed %1$d threads, %2$d already gone.</item>
     </plurals>
