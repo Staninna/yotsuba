@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -48,9 +49,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
-import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.feature.media.ThreadMediaViewer
@@ -68,14 +69,26 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val viewerThread by viewModel.viewerThread.collectAsStateWithLifecycle()
+    val playback by viewModel.playback.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val resources = context.resources
-    var deleting by remember { mutableStateOf<VaultEntry?>(null) }
     var importMenuOpen by remember { mutableStateOf(false) }
-    val importFailed = stringResource(R.string.vault_import_failed)
-    val importEmpty = stringResource(R.string.vault_import_empty)
+
+    state.notice?.let { notice ->
+        val message = when (notice) {
+            VaultNotice.ImportEmpty -> stringResource(R.string.vault_import_empty)
+            is VaultNotice.ImportFailed -> stringResource(R.string.vault_import_failed)
+            VaultNotice.Deleted -> stringResource(R.string.vault_deleted)
+            is VaultNotice.DeleteFailed ->
+                stringResource(R.string.vault_delete_failed, notice.entry.displayName)
+        }
+        LaunchedEffect(notice) {
+            snackbar.showSnackbar(message)
+            viewModel.noticeShown()
+        }
+    }
 
     val syncNothing = stringResource(R.string.vault_sync_nothing)
     val syncRateLimited = stringResource(R.string.vault_sync_rate_limited)
@@ -91,22 +104,11 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
         scope.launch { snackbar.showSnackbar(message) }
     }
 
-    fun runImport(name: String, sources: List<ImportSource>) {
-        scope.launch {
-            if (sources.isEmpty()) {
-                snackbar.showSnackbar(importEmpty)
-                return@launch
-            }
-            val error = viewModel.importLocalThread(name, sources)
-            if (error != null) snackbar.showSnackbar(importFailed)
-        }
-    }
-
     val pickFiles = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
         if (uris.isNotEmpty()) {
-            runImport(
+            viewModel.importLocalThread(
                 name = defaultImportName(uris.size),
                 sources = ImportPicker.sourcesFrom(context, uris),
             )
@@ -116,7 +118,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
         ActivityResultContracts.OpenDocumentTree(),
     ) { tree ->
         if (tree != null) {
-            runImport(
+            viewModel.importLocalThread(
                 name = ImportPicker.treeName(context, tree) ?: defaultImportName(0),
                 sources = ImportPicker.sourcesFromTree(context, tree),
             )
@@ -124,7 +126,11 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     }
 
 
-    BackHandler(enabled = state.selection.board != null) { viewModel.navigateUp() }
+    OnResumeEffect(viewModel::refreshStorageAccess)
+    // Back peels layers in order: the viewer's own reply panel (its BackHandler is composed
+    // later, so it wins while enabled), then the viewer, then the drill-down.
+    BackHandler(enabled = state.selection.board != null && state.viewer == null) { viewModel.navigateUp() }
+    BackHandler(enabled = state.viewer != null) { viewModel.closeViewer() }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
@@ -140,10 +146,10 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                         }
                     },
                     actions = {
-                        if (viewModel.hasStorageAccess()) {
+                        if (state.hasStorageAccess) {
                             Box {
                                 IconButton(
-                                    enabled = !viewModel.importing,
+                                    enabled = !state.importing,
                                     onClick = { importMenuOpen = true },
                                 ) {
                                     Icon(Icons.Filled.Add, stringResource(R.string.vault_import))
@@ -196,7 +202,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                 )
             },
             floatingActionButton = {
-                if (state.scopeEntries.isNotEmpty() && viewModel.hasStorageAccess()) {
+                if (state.scopeEntries.isNotEmpty() && state.hasStorageAccess) {
                     VaultShuffleFab(state.scopeEntries) { viewModel.startShuffle(it) }
                 }
             },
@@ -204,11 +210,10 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
             Box(Modifier.fillMaxSize().padding(padding)) {
                 VaultExplorer(
                     state = state,
-                    hasStorageAccess = viewModel.hasStorageAccess(),
                     onOpenBoard = viewModel::openBoard,
                     onOpenThread = viewModel::openThread,
                     onOpenEntry = { viewModel.openViewer(it.url) },
-                    onLongPressEntry = { deleting = it },
+                    onLongPressEntry = viewModel::requestDelete,
                 )
             }
         }
@@ -218,6 +223,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                 viewer = viewer,
                 thread = viewerThread,
                 behaviour = behaviour,
+                playback = playback,
                 autoAdvance = viewModel.autoAdvance,
                 onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
                 onPageViewed = { viewModel.onViewerPage(it.url) },
@@ -226,19 +232,16 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
         }
     }
 
-    deleting?.let { entry ->
+    state.deleting?.let { entry ->
         AlertDialog(
-            onDismissRequest = { deleting = null },
+            onDismissRequest = viewModel::cancelDelete,
             title = { Text(stringResource(R.string.vault_delete_title)) },
             text = { Text(stringResource(R.string.vault_delete_body, entry.displayName)) },
             confirmButton = {
-                TextButton(onClick = {
-                    deleting = null
-                    scope.launch { viewModel.delete(entry.url) }
-                }) { Text(stringResource(R.string.vault_delete)) }
+                TextButton(onClick = viewModel::confirmDelete) { Text(stringResource(R.string.vault_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.vault_cancel)) }
+                TextButton(onClick = viewModel::cancelDelete) { Text(stringResource(R.string.vault_cancel)) }
             },
         )
     }
@@ -253,6 +256,7 @@ private fun VaultViewer(
     viewer: VaultViewerState,
     thread: ViewerThread,
     behaviour: ViewerBehaviour,
+    playback: VaultPlayback,
     autoAdvance: Boolean,
     onToggleAutoAdvance: () -> Unit,
     onPageViewed: (VaultEntry) -> Unit,
@@ -266,8 +270,8 @@ private fun VaultViewer(
         thread = thread,
         behaviour = behaviour,
         initialIndex = viewer.index,
-        muted = false,
-        playing = true,
+        muted = playback.muted,
+        playing = playback.playing,
         autoAdvance = autoAdvance,
         onToggleAutoAdvance = onToggleAutoAdvance,
         postNoAt = { page -> entries.getOrNull(page)?.postNo },
@@ -309,7 +313,7 @@ private fun VaultEntry.toViewerPage(): ViewerPage = ViewerPage(
     subtitle = buildString {
         sizeBytes?.let { append(" · ${FileSize.format(it)}") }
         if ((width ?: 0) > 0) append(" · ${width}×${height}")
-        (location as? VaultLocation.Thread)?.subject?.let { append(" · $it") }
+        subject?.let { append(" · $it") }
     },
     contentDescription = displayName,
 )
@@ -318,14 +322,7 @@ private fun VaultEntry.toViewerPage(): ViewerPage = ViewerPage(
 private fun vaultTitle(state: VaultUiState): String = when {
     state.selection.board == null -> stringResource(R.string.vault_title)
     state.selection.thread == null -> boardTitle(state.selection.board!!)
-    else -> {
-        val location = state.selection.thread
-        (location as? VaultLocation.Thread)?.subject
-            ?: stringResource(
-                R.string.vault_thread_untitled,
-                (location as? VaultLocation.Thread)?.threadNo ?: 0L,
-            )
-    }
+    else -> threadTitle(state.selection.thread!!, state.openThread?.subject)
 }
 
 /** Fallback thread name when the picker gives files but no folder to name them after. */

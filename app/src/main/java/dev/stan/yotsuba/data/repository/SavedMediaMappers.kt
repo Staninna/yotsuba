@@ -89,10 +89,11 @@ fun urlOnlySavedMediaEntity(url: String, downloadedAt: Long): SavedMediaEntity =
 fun SavedMediaEntity.toVaultEntry(): VaultEntry = VaultEntry(
     url = url,
     location = if (board != null && board != VaultPaths.UNSORTED_DIR_NAME && threadNo != null) {
-        VaultLocation.Thread(board = board!!, threadNo = threadNo!!, subject = subject)
+        VaultLocation(board = board!!, threadNo = threadNo!!)
     } else {
         VaultLocation.Unsorted
     },
+    subject = subject,
     postNo = postNo,
     displayName = displayName,
     absolutePath = absolutePath,

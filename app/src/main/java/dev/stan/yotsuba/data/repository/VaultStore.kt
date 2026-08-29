@@ -47,11 +47,14 @@ class VaultStore @Inject constructor() {
         true
     }.getOrDefault(false)
 
-    fun updateMeta(dir: File, transform: (VaultThreadMeta) -> VaultThreadMeta) {
+    /** Read-modify-writes the thread's meta.json; returns what was written. */
+    fun updateMeta(dir: File, transform: (VaultThreadMeta) -> VaultThreadMeta): VaultThreadMeta {
         val metaFile = File(dir, VaultPaths.META_FILE_NAME)
         val current = metaFile.takeIf { it.isFile }?.let { VaultMetaCodec.decode(it.readText()) }
             ?: VaultThreadMeta(board = dir.parentFile?.name ?: "")
-        writeSidecar(metaFile, VaultMetaCodec.encode(transform(current)))
+        val next = transform(current)
+        writeSidecar(metaFile, VaultMetaCodec.encode(next))
+        return next
     }
 
     /**
@@ -64,6 +67,23 @@ class VaultStore @Inject constructor() {
         return boardDir.listFiles()
             ?.firstOrNull { it.isDirectory && it.name.substringBefore(" -").trim() == threadNo.toString() }
     }
+
+    /** A thread directory and its decoded meta.json. */
+    data class StoredThread(val dir: File, val meta: VaultThreadMeta)
+
+    /**
+     * Every thread directory under the root that carries a readable meta.json -- the whole
+     * index, as far as the sidecars know it. Empty when the root is missing.
+     */
+    fun threadMetas(): List<StoredThread> =
+        root.takeIf { it.isDirectory }?.walkTopDown().orEmpty()
+            .filter { it.isFile && it.name == VaultPaths.META_FILE_NAME }
+            .mapNotNull { metaFile ->
+                val dir = metaFile.parentFile ?: return@mapNotNull null
+                val meta = VaultMetaCodec.decode(metaFile.readText()) ?: return@mapNotNull null
+                StoredThread(dir, meta)
+            }
+            .toList()
 
     fun readPosts(dir: File): VaultThreadPosts? =
         File(dir, VaultPaths.POSTS_FILE_NAME).takeIf { it.isFile }

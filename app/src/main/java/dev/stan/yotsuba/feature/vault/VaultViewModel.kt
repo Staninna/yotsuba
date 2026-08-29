@@ -7,47 +7,66 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.domain.model.ImportSource
+import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerThread
 import javax.inject.Inject
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Which board group is open in the explorer. */
-sealed interface VaultBoardKey {
-    data class Board(val code: String) : VaultBoardKey
-    data object Unsorted : VaultBoardKey
-}
-
 /** Explorer drill-down position: root → board → thread. */
 data class VaultSelection(
-    val board: VaultBoardKey? = null,
+    val board: String? = null,
     val thread: VaultLocation? = null,
 )
 
-data class VaultThreadSection(val location: VaultLocation, val entries: List<VaultEntry>)
+/** One thread directory's entries. The subject is whatever the newest row recorded. */
+data class VaultThreadSection(
+    val location: VaultLocation,
+    val subject: String?,
+    val entries: List<VaultEntry>,
+)
 
 data class VaultBoardSection(
-    val key: VaultBoardKey,
+    val board: String,
     val threads: List<VaultThreadSection>,
     val entries: List<VaultEntry>,
 )
 
+/**
+ * How the viewer starts a video, from the same settings the live viewer reads. Playback is
+ * from disk, so "autoplay on unmetered networks only" means autoplay: no network is used.
+ * Sound follows the board: a webm from a board without audio starts muted, as it would live.
+ */
+data class VaultPlayback(val muted: Boolean = true, val playing: Boolean = true)
+
 /** Entries-in-order plus the index of the one on screen. */
 data class VaultViewerState(val entries: List<VaultEntry>, val index: Int) {
     val current: VaultEntry get() = entries[index]
+}
+
+/** One-shot messages for the screen to show; it calls [VaultViewModel.noticeShown] after. */
+sealed interface VaultNotice {
+    data object ImportEmpty : VaultNotice
+    data class ImportFailed(val error: VaultError) : VaultNotice
+    data object Deleted : VaultNotice
+    data class DeleteFailed(val entry: VaultEntry, val error: VaultError) : VaultNotice
 }
 
 /** Progress of a vault sync: local rebuild, then one live thread at a time. */
@@ -64,10 +83,17 @@ data class VaultUiState(
     val selection: VaultSelection = VaultSelection(),
     val viewer: VaultViewerState? = null,
     val sync: VaultSyncState = VaultSyncState(),
+    /** False until "All files access" is granted; the explorer shows the grant prompt instead. */
+    val hasStorageAccess: Boolean = false,
+    /** True while an import is copying, so the screen blocks a second one. */
+    val importing: Boolean = false,
+    val notice: VaultNotice? = null,
+    /** The entry whose delete confirmation is on screen; here so rotation keeps the dialog. */
+    val deleting: VaultEntry? = null,
 ) {
-    val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.key == selection.board }
+    val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.board == selection.board }
     val openThread: VaultThreadSection?
-        get() = openBoard?.threads?.firstOrNull { it.location.sameThreadAs(selection.thread) }
+        get() = openBoard?.threads?.firstOrNull { it.location == selection.thread }
 
     /** Whatever level is on screen: everything, one board, or one thread. */
     val scopeEntries: List<VaultEntry>
@@ -82,6 +108,7 @@ data class VaultUiState(
 class VaultViewModel @Inject constructor(
     private val mediaVault: MediaVaultRepository,
     settingsRepository: SettingsRepository,
+    private val boardRepository: BoardRepository,
 ) : ViewModel() {
 
     /** Playback preferences for the full-screen viewer. Saving does not apply here. */
@@ -112,37 +139,68 @@ class VaultViewModel @Inject constructor(
     /** Viewer toggle: advance to the next item when a video ends instead of looping it. */
     var autoAdvance by mutableStateOf(false)
 
-    /** Non-null while an import is copying, so the screen can block a second one. */
-    var importing by mutableStateOf(false)
-        private set
+    private val importing = MutableStateFlow(false)
+    private val notice = MutableStateFlow<VaultNotice?>(null)
+    private val deleting = MutableStateFlow<VaultEntry?>(null)
 
     /**
-     * Copies the picked files into a new local thread. Returns the error to report, or null
-     * when it worked. The explorer refreshes itself: the DB rows land as part of the import.
+     * Copies the picked files into a new local thread. The explorer refreshes itself: the
+     * DB rows land as part of the import. Failure surfaces as a [VaultNotice].
      */
-    suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? {
-        if (sources.isEmpty() || importing) return null
-        importing = true
-        return try {
-            mediaVault.importLocalThread(name, sources)
-        } finally {
-            importing = false
+    fun importLocalThread(name: String, sources: List<ImportSource>) {
+        if (importing.value) return
+        if (sources.isEmpty()) {
+            notice.value = VaultNotice.ImportEmpty
+            return
+        }
+        viewModelScope.launch {
+            importing.value = true
+            try {
+                mediaVault.importLocalThread(name, sources)?.let { notice.value = VaultNotice.ImportFailed(it) }
+            } finally {
+                importing.value = false
+            }
         }
     }
 
+    fun noticeShown() {
+        notice.value = null
+    }
+
+    /** The viewer's inputs, folded into one so the outer combine stays within five flows. */
+    private data class Viewing(val url: String?, val shuffle: List<String>?)
+
+    private val viewing = combine(viewingUrl, shuffleOrder) { url, shuffle -> Viewing(url, shuffle) }
+
+    /** Transient screen-level flags, folded for the same reason. */
+    private data class Activity(
+        val importing: Boolean,
+        val notice: VaultNotice?,
+        val access: Boolean,
+        val deleting: VaultEntry?,
+    )
+
+    private val activity = combine(importing, notice, mediaVault.storageAccess, deleting) { i, n, a, d ->
+        Activity(i, n, a, d)
+    }
+
     val uiState: StateFlow<VaultUiState> = combine(
-        mediaVault.entries(), syncState, selection, viewingUrl, shuffleOrder,
-    ) { entries, sync, sel, url, shuffle ->
+        mediaVault.entries(), syncState, selection, viewing, activity,
+    ) { entries, sync, sel, viewing, activity ->
         VaultUiState(
             entries = entries,
             boards = groupByBoard(entries),
             selection = sel,
-            viewer = viewerState(entries, sel, url, shuffle),
+            viewer = viewerState(entries, sel, viewing.url, viewing.shuffle),
             sync = sync,
+            hasStorageAccess = activity.access,
+            importing = activity.importing,
+            notice = activity.notice,
+            deleting = activity.deleting,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
-    fun openBoard(key: VaultBoardKey) = selection.update { VaultSelection(board = key) }
+    fun openBoard(board: String) = selection.update { VaultSelection(board = board) }
 
     fun openThread(location: VaultLocation) = selection.update { it.copy(thread = location) }
 
@@ -152,47 +210,45 @@ class VaultViewModel @Inject constructor(
     }
 
     /**
-     * The saved conversation for whichever thread the viewer is showing. Empty until the
-     * sidecar is read, and empty forever for a thread saved before replies were captured
-     * -- the explorer hides the affordance rather than opening a blank panel.
+     * The saved conversation for whichever thread the viewer is showing, keyed off the
+     * page on screen so a shuffle walking across threads swaps the panel with it. Empty
+     * until the sidecar is read, and empty forever for a thread saved before replies were
+     * captured -- the explorer hides the affordance rather than opening a blank panel.
      */
-    private val _viewerThread = MutableStateFlow(ViewerThread())
-    val viewerThread: StateFlow<ViewerThread> = _viewerThread
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val viewerThread: StateFlow<ViewerThread> = combine(viewingUrl, mediaVault.entries()) { url, entries ->
+        url?.let { u -> entries.firstOrNull { it.url == u }?.location }
+    }
+        .distinctUntilChanged()
+        .mapLatest { location ->
+            when {
+                location == null || location.isUnsorted -> ViewerThread()
+                else -> ViewerThread.of(
+                    mediaVault.savedThread(location.board, location.threadNo),
+                    board = if (location.isRemote) boardRepository.board(location.board) else null,
+                )
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ViewerThread())
+
+    val playback: StateFlow<VaultPlayback> = combine(settingsRepository.settings, viewerThread) { settings, thread ->
+        VaultPlayback(
+            muted = thread.board?.webmAudio != true,
+            playing = settings.mediaAutoplay != MediaAutoplay.NEVER,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultPlayback())
 
     fun openViewer(url: String) {
         viewingUrl.value = url
-        loadSavedConversation(url)
-    }
-
-    private fun loadSavedConversation(url: String) {
-        val location = uiState.value.entries.firstOrNull { it.url == url }?.location
-        val thread = location as? VaultLocation.Thread
-        if (thread == null) {
-            _viewerThread.value = ViewerThread()
-            return
-        }
-        viewModelScope.launch {
-            _viewerThread.value = ViewerThread.of(
-                mediaVault.savedThread(thread.board, thread.threadNo),
-            )
-        }
     }
 
     /** Called as the viewer pages, so rotation reopens it in place. */
     fun onViewerPage(url: String) {
-        val previous = viewingUrl.value
         viewingUrl.value = url
-        // A shuffle can walk across threads, so the panel must follow the page it is on.
-        if (previous == null || threadOf(previous) != threadOf(url)) loadSavedConversation(url)
     }
-
-    private fun threadOf(url: String): Pair<String, Long>? =
-        (uiState.value.entries.firstOrNull { it.url == url }?.location as? VaultLocation.Thread)
-            ?.let { it.board to it.threadNo }
 
     fun closeViewer() {
         viewingUrl.value = null
-        _viewerThread.value = ViewerThread()
         shuffleOrder.value = null
     }
 
@@ -204,7 +260,8 @@ class VaultViewModel @Inject constructor(
         viewingUrl.value = order.first()
     }
 
-    fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
+    /** The grant happens off in system settings, so re-check whenever the screen comes back. */
+    fun refreshStorageAccess() = mediaVault.refreshStorageAccess()
 
     /**
      * Brings the vault up to date: rebuild the local index, then refresh every saved
@@ -225,21 +282,48 @@ class VaultViewModel @Inject constructor(
         }
     }
 
-    suspend fun delete(url: String): VaultError? = mediaVault.delete(url)
+    fun requestDelete(entry: VaultEntry) {
+        deleting.value = entry
+    }
 
+    fun cancelDelete() {
+        deleting.value = null
+    }
+
+    /** Deletes whatever [requestDelete] queued and dismisses the dialog. */
+    fun confirmDelete() {
+        val entry = deleting.value ?: return
+        deleting.value = null
+        delete(entry)
+    }
+
+    private fun delete(entry: VaultEntry) {
+        viewModelScope.launch {
+            notice.value = when (val error = mediaVault.delete(entry.url)) {
+                null -> VaultNotice.Deleted
+                else -> VaultNotice.DeleteFailed(entry, error)
+            }
+        }
+    }
+
+    /** Boards sort by directory name, which puts the `_`-prefixed reserved ones first. */
     private fun groupByBoard(entries: List<VaultEntry>): List<VaultBoardSection> =
         entries
-            .groupBy { boardKeyOf(it.location) }
+            .groupBy { it.location.board }
             .toList()
-            .sortedBy { (key, _) -> sortKeyOf(key) }
-            .map { (key, group) ->
+            .sortedBy { (board, _) -> board }
+            .map { (board, group) ->
                 val threads = group
-                    .groupBy { (it.location as? VaultLocation.Thread)?.threadNo ?: 0L }
-                    .map { (_, threadEntries) ->
-                        VaultThreadSection(threadEntries.first().location, threadEntries)
+                    .groupBy { it.location }
+                    .map { (location, threadEntries) ->
+                        VaultThreadSection(
+                            location = location,
+                            subject = threadEntries.firstNotNullOfOrNull { it.subject },
+                            entries = threadEntries,
+                        )
                     }
-                    .sortedByDescending { (it.location as? VaultLocation.Thread)?.threadNo ?: 0L }
-                VaultBoardSection(key = key, threads = threads, entries = group)
+                    .sortedByDescending { it.location.threadNo }
+                VaultBoardSection(board = board, threads = threads, entries = group)
             }
 
     /** The viewer's play order and position; null once the viewed entry is gone (deleted). */
@@ -252,26 +336,8 @@ class VaultViewModel @Inject constructor(
         val byUrl = entries.associateBy { it.url }
         val current = url?.let { byUrl[it] } ?: return null
         val ordered = shuffle?.mapNotNull { byUrl[it] }
-            ?: entries.filter { it.location.sameThreadAs(sel.thread) }.ifEmpty { listOf(current) }
+            ?: entries.filter { it.location == sel.thread }.ifEmpty { listOf(current) }
         val index = ordered.indexOfFirst { it.url == current.url }.coerceAtLeast(0)
         return VaultViewerState(ordered, index)
     }
-
-    private fun boardKeyOf(location: VaultLocation): VaultBoardKey = when (location) {
-        is VaultLocation.Thread -> VaultBoardKey.Board(location.board)
-        VaultLocation.Unsorted -> VaultBoardKey.Unsorted
-    }
-
-    /** Preserves the old explorer order: `_unsorted` sorts ahead of board codes. */
-    private fun sortKeyOf(key: VaultBoardKey): String = when (key) {
-        is VaultBoardKey.Board -> key.code
-        VaultBoardKey.Unsorted -> "_unsorted"
-    }
-}
-
-/** Same thread regardless of subject drift between rows. */
-internal fun VaultLocation.sameThreadAs(other: VaultLocation?): Boolean = when {
-    this is VaultLocation.Thread && other is VaultLocation.Thread ->
-        board == other.board && threadNo == other.threadNo
-    else -> this is VaultLocation.Unsorted && other is VaultLocation.Unsorted
 }

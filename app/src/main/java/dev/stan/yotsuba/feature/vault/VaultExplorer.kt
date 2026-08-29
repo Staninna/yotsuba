@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.feature.media.requestAllFilesAccess
@@ -55,8 +56,7 @@ import java.io.File
 @Composable
 internal fun VaultExplorer(
     state: VaultUiState,
-    hasStorageAccess: Boolean,
-    onOpenBoard: (VaultBoardKey) -> Unit,
+    onOpenBoard: (String) -> Unit,
     onOpenThread: (VaultLocation) -> Unit,
     onOpenEntry: (VaultEntry) -> Unit,
     onLongPressEntry: (VaultEntry) -> Unit,
@@ -65,7 +65,7 @@ internal fun VaultExplorer(
     val context = LocalContext.current
     Box(Modifier.fillMaxSize()) {
         when {
-            !hasStorageAccess -> Column(
+            !state.hasStorageAccess -> Column(
                 Modifier.align(Alignment.Center).padding(spacing.lg),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(spacing.md),
@@ -106,18 +106,18 @@ internal fun VaultExplorer(
 }
 
 @Composable
-private fun BoardList(boards: List<VaultBoardSection>, onOpen: (VaultBoardKey) -> Unit) {
+private fun BoardList(boards: List<VaultBoardSection>, onOpen: (String) -> Unit) {
     LazyColumn(Modifier.fillMaxSize()) {
-        items(boards.size, key = { boardLabelKey(boards[it].key) }) { i ->
+        items(boards.size, key = { boards[it].board }) { i ->
             val section = boards[i]
             ListItem(
-                headlineContent = { Text(boardTitle(section.key)) },
+                headlineContent = { Text(boardTitle(section.board)) },
                 supportingContent = {
                     val count = section.entries.size
                     Text(pluralStringResource(R.plurals.vault_items, count, count))
                 },
                 leadingContent = { Icon(Icons.Filled.Folder, contentDescription = null) },
-                modifier = Modifier.clickable { onOpen(section.key) },
+                modifier = Modifier.clickable { onOpen(section.board) },
             )
         }
     }
@@ -126,10 +126,10 @@ private fun BoardList(boards: List<VaultBoardSection>, onOpen: (VaultBoardKey) -
 @Composable
 private fun ThreadList(threads: List<VaultThreadSection>, onOpen: (VaultLocation) -> Unit) {
     LazyColumn(Modifier.fillMaxSize()) {
-        items(threads.size, key = { threadLabelKey(threads[it].location) }) { i ->
+        items(threads.size, key = { threads[it].location.threadNo }) { i ->
             val section = threads[i]
             ListItem(
-                headlineContent = { Text(threadListTitle(section.location), maxLines = 1) },
+                headlineContent = { Text(threadTitle(section.location, section.subject), maxLines = 1) },
                 supportingContent = {
                     val count = section.entries.size
                     Text(pluralStringResource(R.plurals.vault_items, count, count))
@@ -223,25 +223,15 @@ private fun ShuffleMenuItem(labelRes: Int, icon: ImageVector, onClick: () -> Uni
 }
 
 @Composable
-internal fun boardTitle(key: VaultBoardKey): String = when (key) {
-    is VaultBoardKey.Board -> "/${key.code}/"
-    VaultBoardKey.Unsorted -> stringResource(R.string.vault_unsorted)
+internal fun boardTitle(board: String): String = when (board) {
+    VaultPaths.UNSORTED_DIR_NAME -> stringResource(R.string.vault_unsorted)
+    VaultPaths.LOCAL_BOARD_NAME -> stringResource(R.string.vault_local_board)
+    else -> "/$board/"
 }
 
-/** Row title in the thread list; unsorted shows its own label instead of "Thread 0". */
+/** Thread title in the list and the top bar; unsorted shows its own label instead of "Thread 0". */
 @Composable
-internal fun threadListTitle(location: VaultLocation): String = when (location) {
-    is VaultLocation.Thread ->
-        location.subject ?: stringResource(R.string.vault_thread_untitled, location.threadNo)
-    VaultLocation.Unsorted -> stringResource(R.string.vault_unsorted)
-}
-
-private fun boardLabelKey(key: VaultBoardKey): String = when (key) {
-    is VaultBoardKey.Board -> key.code
-    VaultBoardKey.Unsorted -> "_unsorted"
-}
-
-private fun threadLabelKey(location: VaultLocation): Long = when (location) {
-    is VaultLocation.Thread -> location.threadNo
-    VaultLocation.Unsorted -> 0L
+internal fun threadTitle(location: VaultLocation, subject: String?): String = when {
+    location.isUnsorted -> stringResource(R.string.vault_unsorted)
+    else -> subject ?: stringResource(R.string.vault_thread_untitled, location.threadNo)
 }

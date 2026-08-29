@@ -12,8 +12,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.util.Urls
-import dev.stan.yotsuba.core.vault.VaultMetaCodec
-import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.vault.VaultPostFile
@@ -25,6 +23,7 @@ import dev.stan.yotsuba.core.vault.toVaultMeta
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.domain.model.ImportSource
@@ -39,6 +38,7 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.withLock
@@ -66,16 +66,28 @@ class MediaVaultRepositoryImpl @Inject constructor(
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
 
+    private val storageAccessState = MutableStateFlow(hasStorageAccess())
+    override val storageAccess: Flow<Boolean> = storageAccessState
+
+    override fun refreshStorageAccess() {
+        storageAccessState.value = hasStorageAccess()
+    }
+
     override fun entries(): Flow<List<VaultEntry>> = savedMediaDao.all().map { rows ->
         rows.filter { it.absolutePath.isNotEmpty() }.map { it.toVaultEntry() }
     }
 
-    override fun savedUrls(): Flow<Set<String>> =
-        savedMediaDao.urls().map { it.toSet() }
-
-    override fun savedPaths(): Flow<Map<String, String>> = savedMediaDao.all().map { rows ->
-        rows.filter { it.absolutePath.isNotEmpty() }.associate { it.url to it.absolutePath }
+    override fun saved(): Flow<Map<String, String?>> = savedMediaDao.all().map { rows ->
+        rows.associate { it.url to it.absolutePath.ifEmpty { null } }
     }
+
+    @Deprecated("Use saved().keys", ReplaceWith("saved().map { it.keys }"))
+    override fun savedUrls(): Flow<Set<String>> = saved().map { it.keys }
+
+    @Deprecated("Use saved() and drop the null paths", ReplaceWith("saved().map { it.filterValues { p -> p != null } }"))
+    @Suppress("UNCHECKED_CAST")
+    override fun savedPaths(): Flow<Map<String, String>> =
+        saved().map { it.filterValues { path -> path != null } as Map<String, String> }
 
     override suspend fun save(item: MediaItem, saveContext: VaultSaveContext): VaultError? =
         withContext(Dispatchers.IO) {
@@ -170,75 +182,63 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 VaultPaths.threadDirName(threadNo, name),
             ).apply { mkdirs() }
 
-            val files = mutableListOf<VaultFileMeta>()
-            val posts = mutableListOf<VaultPostMeta>()
-            val rows = mutableListOf<SavedMediaEntity>()
-
-            sources.forEachIndexed { index, source ->
+            // Every file is a post of its own, numbered in pick order. No CDN URL exists, so
+            // the file's own path is its key -- the same scheme rescan already uses for
+            // unsorted migration leftovers.
+            val files = sources.mapIndexed { index, source ->
                 val postNo = (index + 1).toLong()
                 val ext = VaultPaths.extensionOf(source.displayName)
                 val base = source.displayName.removeSuffix(ext)
                 val target = store.uniqueFile(dir, VaultPaths.fileName(postNo, base, ext))
                 copyInto(source.uri, target)
-
-                // No CDN URL exists, so the file's own path is its key -- the same scheme
-                // rescan already uses for unsorted migration leftovers.
-                val url = "file://" + target.absolutePath
-                files += VaultFileMeta(
+                VaultFileMeta(
                     fileName = target.name,
                     postNo = postNo,
                     originalFilename = base,
                     ext = ext,
+                    url = "file://" + target.absolutePath,
                     sizeBytes = target.length(),
                     savedAtMillis = threadNo,
                 )
-                posts += VaultPostMeta(
-                    no = postNo,
-                    isOp = index == 0,
-                    subject = if (index == 0) name else null,
-                    timeSeconds = threadNo / 1000,
-                    body = PostText(listOf(PostSegment(source.displayName))),
-                    file = VaultPostFile(
-                        filename = base,
-                        ext = ext,
-                        url = url,
-                        thumbnailUrl = "",
-                        sizeBytes = target.length(),
-                    ),
-                )
-                rows += SavedMediaEntity(
-                    url = url,
-                    board = VaultPaths.LOCAL_BOARD_NAME,
-                    threadNo = threadNo,
-                    postNo = postNo,
-                    subject = name,
-                    displayName = target.name,
-                    absolutePath = target.absolutePath,
-                    ext = ext,
-                    sizeBytes = target.length(),
-                    width = null,
-                    height = null,
-                    thumbnailUrl = null,
-                    savedAt = threadNo,
-                )
             }
 
-            store.lock.withLock {
+            val meta = store.lock.withLock {
+                store.updatePosts(
+                    dir, VaultPaths.LOCAL_BOARD_NAME, threadNo,
+                    files.map { it.toLocalPost(name, threadNo) },
+                )
                 store.updateMeta(dir) { meta ->
-                    var next = meta.copy(
-                        board = VaultPaths.LOCAL_BOARD_NAME,
-                        threadNo = threadNo,
-                        subject = name,
-                        threadUrl = null,
-                    )
-                    files.forEach { next = next.upsert(it) }
-                    next
+                    files.fold(
+                        meta.copy(
+                            board = VaultPaths.LOCAL_BOARD_NAME,
+                            threadNo = threadNo,
+                            subject = name,
+                            threadUrl = null,
+                        ),
+                    ) { acc, f -> acc.upsert(f) }
                 }
-                store.updatePosts(dir, VaultPaths.LOCAL_BOARD_NAME, threadNo, posts)
             }
-            savedMediaDao.insertAll(rows)
+            // The sidecar is the source of truth; the rows are derived from it exactly as
+            // a rescan would derive them.
+            savedMediaDao.insertAll(meta.files.map { savedMediaEntity(meta, it, File(dir, it.fileName)) })
         }
     }
+
+    /** The synthetic post a locally imported file stands in for; the first one is the OP. */
+    private fun VaultFileMeta.toLocalPost(name: String, threadNo: Long) = VaultPostMeta(
+        no = postNo ?: 0L,
+        isOp = postNo == 1L,
+        subject = if (postNo == 1L) name else null,
+        timeSeconds = threadNo / 1000,
+        body = PostText(listOf(PostSegment(originalFilename.orEmpty() + ext.orEmpty()))),
+        file = VaultPostFile(
+            filename = originalFilename.orEmpty(),
+            ext = ext.orEmpty(),
+            url = url.orEmpty(),
+            thumbnailUrl = "",
+            sizeBytes = sizeBytes ?: 0L,
+        ),
+    )
 
     /** Copies a picked file in whole; a partial copy is deleted rather than left to confuse. */
     private fun copyInto(uri: String, target: File) {
@@ -297,36 +297,24 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     /** Saved threads that have an upstream to sync against; local imports do not. */
     private fun savedThreads(): List<SavedThreadDir> =
-        store.root.walkTopDown()
-            .filter { it.isFile && it.name == VaultPaths.META_FILE_NAME }
-            .mapNotNull { metaFile ->
-                val meta = VaultMetaCodec.decode(metaFile.readText()) ?: return@mapNotNull null
-                val threadNo = meta.threadNo ?: return@mapNotNull null
-                val board = meta.board.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-                val dir = metaFile.parentFile ?: return@mapNotNull null
-                if (board == VaultPaths.LOCAL_BOARD_NAME || board == VaultPaths.UNSORTED_DIR_NAME) {
-                    return@mapNotNull null
-                }
-                SavedThreadDir(dir, board, threadNo)
-            }
-            .toList()
+        store.threadMetas().mapNotNull { (dir, meta) ->
+            val threadNo = meta.threadNo ?: return@mapNotNull null
+            val board = meta.board.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            if (!VaultLocation(board, threadNo).isRemote) return@mapNotNull null
+            SavedThreadDir(dir, board, threadNo)
+        }
 
     private data class SavedThreadDir(val dir: File, val board: String, val threadNo: Long)
 
     override suspend fun rescan() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext
-        val rebuilt = mutableListOf<dev.stan.yotsuba.core.database.entity.SavedMediaEntity>()
-        store.lock.withLock {
-            store.root.walkTopDown()
-                .filter { it.isFile && it.name == VaultPaths.META_FILE_NAME }
-                .forEach { metaFile ->
-                    val meta = VaultMetaCodec.decode(metaFile.readText()) ?: return@forEach
-                    meta.files.forEach { f ->
-                        val file = File(metaFile.parentFile, f.fileName)
-                        if (!file.isFile) return@forEach
-                        rebuilt += savedMediaEntity(meta, f, file)
-                    }
+        val rebuilt = store.lock.withLock {
+            store.threadMetas().flatMap { (dir, meta) ->
+                meta.files.mapNotNull { f ->
+                    val file = File(dir, f.fileName)
+                    if (file.isFile) savedMediaEntity(meta, f, file) else null
                 }
+            }
         }
         savedMediaDao.clearAll()
         savedMediaDao.insertAll(rebuilt)
