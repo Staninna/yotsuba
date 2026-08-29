@@ -2,6 +2,8 @@ package dev.stan.yotsuba.feature.history
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,11 +11,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -26,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -73,15 +78,15 @@ fun HistoryScreen(
     ) { padding ->
         when {
             !state.loaded -> LoadingSkeleton(Modifier.padding(padding))
-            !state.recordingEnabled -> EmptyState(
-                title = stringResource(R.string.history_disabled_title),
-                explanation = stringResource(R.string.history_disabled_explanation),
+            state.groups.isEmpty() && state.recordingEnabled -> EmptyState(
+                title = stringResource(R.string.history_empty_title),
+                explanation = stringResource(R.string.history_empty_explanation),
                 icon = Icons.Filled.History,
                 modifier = Modifier.padding(padding),
             )
             state.groups.isEmpty() -> EmptyState(
-                title = stringResource(R.string.history_empty_title),
-                explanation = stringResource(R.string.history_empty_explanation),
+                title = stringResource(R.string.history_disabled_title),
+                explanation = stringResource(R.string.history_disabled_explanation),
                 icon = Icons.Filled.History,
                 modifier = Modifier.padding(padding),
             )
@@ -90,6 +95,9 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(spacing.sm),
                 modifier = Modifier.fillMaxSize().padding(padding),
             ) {
+                if (!state.recordingEnabled) {
+                    item(key = "paused_banner") { PausedBanner() }
+                }
                 state.groups.forEach { (bucket, entries) ->
                     item(key = "header_${bucket.name}") { SectionHeader(stringResource(bucket.labelRes)) }
                     items(entries.size, key = { entries[it].board + "/" + entries[it].threadNo }) { i ->
@@ -138,6 +146,31 @@ private val HistoryBucket.labelRes: Int
         HistoryBucket.THIS_WEEK -> R.string.history_this_week
         HistoryBucket.OLDER -> R.string.history_older
     }
+
+/** Rows stay readable while recording is off; this just says why nothing new appears. */
+@Composable
+private fun PausedBanner() {
+    val spacing = LocalSpacing.current
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(spacing.md),
+        ) {
+            Icon(Icons.Filled.PauseCircle, contentDescription = null)
+            Column(Modifier.padding(start = spacing.md)) {
+                Text(
+                    stringResource(R.string.history_paused_banner),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                Text(
+                    stringResource(R.string.history_paused_banner_explanation),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun HistoryCard(entry: HistoryEntry, onClick: () -> Unit) {

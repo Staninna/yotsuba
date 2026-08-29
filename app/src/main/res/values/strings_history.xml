@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_paused_banner">History is paused</string>
+    <string name="history_paused_banner_explanation">New threads aren\'t recorded until \"Record history\" is back on in Settings.</string>
+</resources>
