@@ -55,6 +55,8 @@ sealed interface ViewerPage {
         override val title: String = "",
         override val note: String? = null,
         override val contentDescription: String = "",
+        /** Data saver: show the thumbnail and fetch the full image only on a tap. */
+        val deferLoad: Boolean = false,
     ) : ViewerPage
 
     data class Video(
@@ -229,6 +231,8 @@ fun MediaFeedViewer(
                     model = p.model,
                     thumbnailModel = p.thumbnailModel,
                     contentDescription = p.contentDescription,
+                    deferLoad = p.deferLoad,
+                    sizeBytes = p.sizeBytes,
                     onTap = { feed.chromeVisible = !feed.chromeVisible },
                     onLongPress = { onLongPressPage(page) },
                 )

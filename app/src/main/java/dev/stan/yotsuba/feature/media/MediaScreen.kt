@@ -248,6 +248,8 @@ private fun MediaItem.toViewerPage(context: android.content.Context, state: Medi
             sizeBytes = sizeBytes,
             title = displayName,
             contentDescription = description,
+            // A vault copy costs nothing to show; only the network fetch is deferred.
+            deferLoad = state.deferHeavyMedia && localPath == null,
         )
     }
 }

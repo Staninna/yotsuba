@@ -12,8 +12,14 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
-enum class NetworkStatus { Offline, Metered, Unmetered }
+enum class NetworkStatus {
+    Offline, Metered, Unmetered;
+
+    /** True on a connection the carrier bills by the byte; false offline or on wifi. */
+    val isMetered: Boolean get() = this == Metered
+}
 
 /**
  * A boolean cannot answer "is this connection metered", which is what mediaAutoplay needs (§8).
@@ -38,6 +44,9 @@ class NetworkMonitor @Inject constructor(
         manager.registerNetworkCallback(NetworkRequest.Builder().build(), callback)
         awaitClose { manager.unregisterNetworkCallback(callback) }
     }.distinctUntilChanged()
+
+    /** [status] reduced to "is this connection metered". */
+    val metered: Flow<Boolean> = status.map { it.isMetered }.distinctUntilChanged()
 
     private fun statusOf(network: Network?): NetworkStatus {
         val caps = network?.let { manager.getNetworkCapabilities(it) }

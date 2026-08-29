@@ -65,6 +65,8 @@ data class MediaUiState(
     val saveReplies: Boolean = false,
     val initialIndex: Int = 0,
     val autoplay: Boolean = false,
+    /** Data saver on a metered connection: no autoplay, full images wait for a tap. */
+    val deferHeavyMedia: Boolean = false,
     val behaviour: ViewerBehaviour = ViewerBehaviour(),
     /** Unmuted by default only where the board declares webm_audio (D12). */
     val defaultUnmuted: Boolean = false,
@@ -148,6 +150,7 @@ class MediaViewModel @AssistedInject constructor(
     ) { src, info, settings, status, (saved, access, states) ->
         val d = (src as? Source.Loaded)?.details
         val list = d?.posts.orEmpty().mapNotNull { it.presentMedia }
+        val defer = defersHeavyMedia(settings.dataSaver, status)
         MediaUiState(
             phase = when (src) {
                 Source.Loading -> ViewerPhase.Loading
@@ -161,11 +164,12 @@ class MediaViewModel @AssistedInject constructor(
             hasStorageAccess = access,
             saveReplies = settings.saveRepliesWithMedia,
             initialIndex = list.indexOfFirst { it.postNo == initialPostNo }.coerceAtLeast(0),
-            autoplay = when (settings.mediaAutoplay) {
+            autoplay = !defer && when (settings.mediaAutoplay) {
                 MediaAutoplay.ALWAYS -> true
                 MediaAutoplay.NEVER -> false
                 MediaAutoplay.UNMETERED_ONLY -> status == NetworkStatus.Unmetered
             },
+            deferHeavyMedia = defer,
             behaviour = ViewerBehaviour(
                 keepScreenOn = settings.keepScreenOnWhileWatching,
                 doubleTapSeek = settings.doubleTapSeekEnabled,

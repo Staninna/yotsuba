@@ -3,7 +3,10 @@ package dev.stan.yotsuba.feature.media
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
@@ -25,6 +29,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.util.FileSize
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
 import me.saket.telephoto.zoomable.rememberZoomableImageState
 
@@ -152,6 +161,7 @@ fun DownloadIndicator(count: Int, visible: Boolean, modifier: Modifier = Modifie
  * One zoomable image page. [thumbnailModel] (usually the already-cached thumbnail) sits
  * underneath until the full image draws, so swiping never lands on a black page.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ImagePage(
     model: Any?,
@@ -159,10 +169,17 @@ fun ImagePage(
     contentDescription: String?,
     onTap: () -> Unit,
     onLongPress: () -> Unit = {},
+    /** Data saver: hold the full image behind a "Load (N MB)" tap over the thumbnail. */
+    deferLoad: Boolean = false,
+    sizeBytes: Long? = null,
 ) {
     val zoomState = rememberZoomableImageState()
+    // Once tapped the image stays loaded for this page's lifetime, even if the connection
+    // flips back to metered mid-thread: the bytes are already spent.
+    var loadRequested by remember(model) { mutableStateOf(false) }
+    val deferred = deferLoad && !loadRequested
     Box(Modifier.fillMaxSize()) {
-        if (thumbnailModel != null && !zoomState.isImageDisplayed) {
+        if (thumbnailModel != null && (deferred || !zoomState.isImageDisplayed)) {
             AsyncImage(
                 model = thumbnailModel,
                 contentDescription = null,
@@ -170,13 +187,47 @@ fun ImagePage(
                 modifier = Modifier.fillMaxSize(),
             )
         }
-        ZoomableAsyncImage(
-            model = model,
-            contentDescription = contentDescription,
-            modifier = Modifier.fillMaxSize(),
-            state = zoomState,
-            onClick = { onTap() },
-            onLongClick = { onLongPress() },
+        if (deferred) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .combinedClickable(onClick = onTap, onLongClick = onLongPress),
+                contentAlignment = Alignment.Center,
+            ) {
+                LoadPill(sizeBytes = sizeBytes, onClick = { loadRequested = true })
+            }
+        } else {
+            ZoomableAsyncImage(
+                model = model,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                state = zoomState,
+                onClick = { onTap() },
+                onLongClick = { onLongPress() },
+            )
+        }
+    }
+}
+
+/** "Load (1.2 MB)" over a deferred image; the size is dropped when it is unknown. */
+@Composable
+private fun LoadPill(sizeBytes: Long?, onClick: () -> Unit) {
+    val spacing = LocalSpacing.current
+    val label = sizeBytes?.let { stringResource(R.string.media_load_sized, FileSize.format(it)) }
+        ?: stringResource(R.string.media_load)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = spacing.md, vertical = spacing.sm),
+    ) {
+        Icon(Icons.Filled.Download, null, tint = Color.White, modifier = Modifier.size(18.dp))
+        Text(
+            label,
+            color = Color.White,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = spacing.xs),
         )
     }
 }
