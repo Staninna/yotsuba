@@ -225,6 +225,7 @@ private fun ShuffleMenuItem(labelRes: Int, icon: ImageVector, onClick: () -> Uni
 @Composable
 internal fun boardTitle(board: String): String = when (board) {
     VaultPaths.UNSORTED_DIR_NAME -> stringResource(R.string.vault_unsorted)
+    VaultPaths.LOCAL_BOARD_NAME -> stringResource(R.string.vault_local_board)
     else -> "/$board/"
 }
 
