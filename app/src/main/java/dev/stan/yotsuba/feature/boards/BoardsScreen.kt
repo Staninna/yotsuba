@@ -2,6 +2,7 @@ package dev.stan.yotsuba.feature.boards
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,7 +21,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -38,6 +38,8 @@ import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.SectionHeader
+import dev.stan.yotsuba.core.designsystem.component.TabChrome
+import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
@@ -46,12 +48,14 @@ import dev.stan.yotsuba.domain.model.Board
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BoardsScreen(
+    slots: TabScaffoldSlots,
     onOpenBoard: (String) -> Unit,
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
-    Scaffold(
+    TabChrome(
+        slots = slots,
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.tab_boards)) },
@@ -68,8 +72,9 @@ fun BoardsScreen(
                 },
             )
         },
-    ) { padding ->
-        UiStateContent(state, onRetry = { viewModel.load(forceRefresh = true) }, Modifier.padding(padding)) { s ->
+    )
+    Box(Modifier.fillMaxSize()) {
+        UiStateContent(state, onRetry = { viewModel.load(forceRefresh = true) }) { s ->
             if (s.isEmpty && s.searchQuery.isBlank() && !s.editMode) {
                 EmptyState(
                     title = stringResource(R.string.boards_empty_title),

@@ -12,12 +12,9 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -32,6 +29,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.TabChrome
+import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.feature.bookmarks.BookmarksCheckingSubtitle
 import dev.stan.yotsuba.feature.bookmarks.BookmarksList
@@ -56,6 +55,7 @@ enum class ThreadsSegment(val labelRes: Int) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThreadsScreen(
+    slots: TabScaffoldSlots,
     onOpenThread: (board: String, threadNo: Long, postNo: Long?) -> Unit,
     onOpenSettings: () -> Unit,
     bookmarksViewModel: BookmarksViewModel = hiltViewModel(),
@@ -64,15 +64,15 @@ fun ThreadsScreen(
     var segment by rememberSaveable { mutableStateOf(ThreadsSegment.WATCHED) }
     val bookmarks by bookmarksViewModel.uiState.collectAsStateWithLifecycle()
     val history by historyViewModel.uiState.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
+    val snackbar = slots.snackbar
     val scope = rememberCoroutineScope()
     val spacing = LocalSpacing.current
     var searching by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
     val clearedMessage = stringResource(R.string.history_cleared)
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
+    TabChrome(
+        slots = slots,
         topBar = {
             TopAppBar(
                 title = {
@@ -119,8 +119,8 @@ fun ThreadsScreen(
                 },
             )
         },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+    )
+    Column(Modifier.fillMaxSize()) {
             SingleChoiceSegmentedButtonRow(
                 Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.sm),
             ) {
@@ -146,7 +146,6 @@ fun ThreadsScreen(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-        }
     }
 
     if (confirmClear) {

@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.navigation
 
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -9,12 +10,15 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -24,21 +28,28 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowWidthSizeClass
+import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.feature.boards.BoardsScreen
 import dev.stan.yotsuba.feature.catalog.CatalogScreen
 import dev.stan.yotsuba.feature.media.MediaScreen
 import dev.stan.yotsuba.feature.settings.SettingsScreen
 import dev.stan.yotsuba.feature.settings.SettingsSectionScreen
-import dev.stan.yotsuba.feature.threads.ThreadsScreen
 import dev.stan.yotsuba.feature.thread.ThreadScreen
+import dev.stan.yotsuba.feature.threads.ThreadsScreen
 import dev.stan.yotsuba.feature.vault.VaultScreen
 
+/**
+ * The app shell: one Scaffold, one bottom bar (or rail), one NavHost. Tab screens fill
+ * the top bar and FAB through [TabScaffoldSlots]; pushed screens bring their own Scaffold
+ * and the shell hides its chrome while they are on top.
+ */
 @Composable
 fun AppNavHost() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val expanded = currentWindowAdaptiveInfo().windowSizeClass.windowWidthSizeClass != WindowWidthSizeClass.COMPACT
+    val slots = remember { TabScaffoldSlots() }
 
     fun navigateTopLevel(dest: TopLevelDestination) {
         navController.navigate(dest.route) {
@@ -48,122 +59,128 @@ fun AppNavHost() {
         }
     }
 
-    val showChrome = TopLevelDestination.entries.any { dest ->
+    fun isSelected(dest: TopLevelDestination) =
         currentDestination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true
-    }
 
-    val navHost: @Composable (Modifier) -> Unit = { modifier ->
-        NavHost(
-            navController = navController,
-            startDestination = Route.Boards,
-            modifier = modifier,
-        ) {
-            composable<Route.Boards> {
-                BoardsScreen(onOpenBoard = { navController.navigate(Route.Catalog(it)) })
-            }
-            composable<Route.Catalog> { entry ->
-                val route = entry.toRoute<Route.Catalog>()
-                CatalogScreen(
-                    board = route.board,
-                    initialSearch = route.searchQuery,
-                    onBack = { navController.popBackStack() },
-                    onOpenThread = { threadNo ->
-                        navController.navigate(Route.Thread(route.board, threadNo))
-                    },
-                )
-            }
-            composable<Route.Thread> { entry ->
-                val route = entry.toRoute<Route.Thread>()
-                ThreadScreen(
-                    board = route.board,
-                    threadNo = route.threadNo,
-                    scrollToPostNo = route.scrollToPostNo,
-                    onBack = { navController.popBackStack() },
-                    onOpenMedia = { postNo ->
-                        navController.navigate(Route.Media(route.board, route.threadNo, postNo))
-                    },
-                    onOpenInternal = { link ->
-                        when (link) {
-                            is dev.stan.yotsuba.core.util.Urls.InternalLink.Catalog ->
-                                navController.navigate(Route.Catalog(link.board, link.searchQuery))
-                            is dev.stan.yotsuba.core.util.Urls.InternalLink.Thread ->
-                                navController.navigate(Route.Thread(link.board, link.threadNo, link.postNo))
-                        }
-                    },
-                )
-            }
-            composable<Route.Media> { entry ->
-                val route = entry.toRoute<Route.Media>()
-                MediaScreen(
-                    board = route.board,
-                    threadNo = route.threadNo,
-                    initialPostNo = route.initialPostNo,
-                    onClose = { navController.popBackStack() },
-                )
-            }
-            composable<Route.Threads> {
-                ThreadsScreen(
-                    onOpenThread = { board, no, post -> navController.navigate(Route.Thread(board, no, post)) },
-                    onOpenSettings = { navController.navigate(Route.Settings) },
-                )
-            }
-            composable<Route.Vault> {
-                VaultScreen(onOpenThread = { board, no, post ->
-                    navController.navigate(Route.Thread(board, no, post))
-                })
-            }
-            composable<Route.Settings> {
-                SettingsScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenSection = { navController.navigate(Route.SettingsSection(it)) },
-                )
-            }
-            composable<Route.SettingsSection> { entry ->
-                SettingsSectionScreen(
-                    section = entry.toRoute<Route.SettingsSection>().id,
-                    onBack = { navController.popBackStack() },
-                )
-            }
-        }
-    }
+    val showChrome = TopLevelDestination.entries.any(::isSelected)
+    val openSettings = { navController.navigate(Route.Settings) }
 
-    // One items builder for both chrome variants; only the item composable differs.
-    val navItems: @Composable (
-        item: @Composable (Boolean, () -> Unit, @Composable () -> Unit, @Composable () -> Unit) -> Unit,
-    ) -> Unit = { item ->
-        TopLevelDestination.entries.forEach { dest ->
-            val selected = currentDestination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true
-            item(
-                selected,
-                { navigateTopLevel(dest) },
-                { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
-                { Text(stringResource(dest.labelRes)) },
-            )
-        }
-    }
-
-    if (expanded && showChrome) {
-        Row(Modifier.fillMaxSize()) {
+    Row(Modifier.fillMaxSize()) {
+        if (expanded && showChrome) {
             NavigationRail {
-                navItems { selected, onClick, icon, label ->
-                    NavigationRailItem(selected = selected, onClick = onClick, icon = icon, label = label)
+                for (dest in TopLevelDestination.entries) {
+                    val selected = isSelected(dest)
+                    NavigationRailItem(
+                        selected = selected,
+                        onClick = { navigateTopLevel(dest) },
+                        icon = { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
+                        label = { Text(stringResource(dest.labelRes)) },
+                    )
                 }
             }
-            navHost(Modifier.weight(1f))
         }
-    } else {
         Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            // Pushed screens own their insets; tab bars handle theirs. Nothing to add here.
+            contentWindowInsets = WindowInsets(0.dp),
+            topBar = { if (showChrome) slots.topBar() },
+            floatingActionButton = { if (showChrome) slots.floatingActionButton() },
+            snackbarHost = { SnackbarHost(slots.snackbar) },
             bottomBar = {
-                if (showChrome) {
+                if (!expanded && showChrome) {
                     NavigationBar {
-                        navItems { selected, onClick, icon, label ->
-                            NavigationBarItem(selected = selected, onClick = onClick, icon = icon, label = label)
+                        for (dest in TopLevelDestination.entries) {
+                            val selected = isSelected(dest)
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = { navigateTopLevel(dest) },
+                                icon = { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
+                                label = { Text(stringResource(dest.labelRes)) },
+                            )
                         }
                     }
                 }
             },
         ) { padding ->
-            navHost(Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()))
+            NavHost(
+                navController = navController,
+                startDestination = Route.Boards,
+                modifier = Modifier.fillMaxSize().padding(padding),
+            ) {
+                composable<Route.Boards> {
+                    BoardsScreen(
+                        slots = slots,
+                        onOpenBoard = { navController.navigate(Route.Catalog(it)) },
+                    )
+                }
+                composable<Route.Catalog> { entry ->
+                    val route = entry.toRoute<Route.Catalog>()
+                    CatalogScreen(
+                        board = route.board,
+                        initialSearch = route.searchQuery,
+                        onBack = { navController.popBackStack() },
+                        onOpenThread = { threadNo ->
+                            navController.navigate(Route.Thread(route.board, threadNo))
+                        },
+                    )
+                }
+                composable<Route.Thread> { entry ->
+                    val route = entry.toRoute<Route.Thread>()
+                    ThreadScreen(
+                        board = route.board,
+                        threadNo = route.threadNo,
+                        scrollToPostNo = route.scrollToPostNo,
+                        onBack = { navController.popBackStack() },
+                        onOpenMedia = { postNo ->
+                            navController.navigate(Route.Media(route.board, route.threadNo, postNo))
+                        },
+                        onOpenInternal = { link ->
+                            when (link) {
+                                is dev.stan.yotsuba.core.util.Urls.InternalLink.Catalog ->
+                                    navController.navigate(Route.Catalog(link.board, link.searchQuery))
+                                is dev.stan.yotsuba.core.util.Urls.InternalLink.Thread ->
+                                    navController.navigate(Route.Thread(link.board, link.threadNo, link.postNo))
+                            }
+                        },
+                    )
+                }
+                composable<Route.Media> { entry ->
+                    val route = entry.toRoute<Route.Media>()
+                    MediaScreen(
+                        board = route.board,
+                        threadNo = route.threadNo,
+                        initialPostNo = route.initialPostNo,
+                        onClose = { navController.popBackStack() },
+                    )
+                }
+                composable<Route.Threads> {
+                    ThreadsScreen(
+                        slots = slots,
+                        onOpenThread = { board, no, post -> navController.navigate(Route.Thread(board, no, post)) },
+                        onOpenSettings = openSettings,
+                    )
+                }
+                composable<Route.Vault> {
+                    VaultScreen(
+                        slots = slots,
+                        onOpenThread = { board, no, post ->
+                            navController.navigate(Route.Thread(board, no, post))
+                        },
+                    )
+                }
+                composable<Route.Settings> {
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenSection = { navController.navigate(Route.SettingsSection(it)) },
+                    )
+                }
+                composable<Route.SettingsSection> { entry ->
+                    SettingsSectionScreen(
+                        section = entry.toRoute<Route.SettingsSection>().id,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
+            }
         }
     }
 }
