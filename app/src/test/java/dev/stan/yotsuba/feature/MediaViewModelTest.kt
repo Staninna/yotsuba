@@ -14,6 +14,7 @@ import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostMedia
+import dev.stan.yotsuba.domain.model.SeekStep
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -162,6 +163,25 @@ class MediaViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         return expectMostRecentItem()
     }
+
+    @Test fun `viewer behaviour mirrors the settings that drive the gestures`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(listOf(post(100)))
+            env.settings.state.value = Settings(
+                keepScreenOnWhileWatching = false,
+                doubleTapSeekEnabled = true,
+                seekStep = SeekStep.THIRTY,
+                holdToSave = false,
+            )
+            env.vm().uiState.test {
+                val behaviour = latest().behaviour
+                assertEquals(false, behaviour.keepScreenOn)
+                assertTrue(behaviour.doubleTapSeek)
+                assertEquals(30, behaviour.seekStepSeconds)
+                assertEquals(false, behaviour.holdToSave)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `items keep post order, skip media-less posts, and start at the requested post`() =
         runTest(dispatcher.scheduler) {

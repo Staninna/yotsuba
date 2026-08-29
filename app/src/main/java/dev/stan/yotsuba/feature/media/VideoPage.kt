@@ -28,6 +28,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -52,7 +56,11 @@ import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import me.saket.telephoto.zoomable.DoubleClickToZoomListener
+import me.saket.telephoto.zoomable.ZoomableState
 import me.saket.telephoto.zoomable.rememberZoomableState
 import me.saket.telephoto.zoomable.zoomable
 
@@ -78,6 +86,8 @@ fun VideoPage(
     /** When true the video plays once and fires [onEnded]; otherwise it loops. */
     autoAdvance: Boolean = false,
     onEnded: () -> Unit = {},
+    behaviour: ViewerBehaviour = ViewerBehaviour(),
+    onLongPress: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val player = remember(videoUri) {
@@ -152,13 +162,51 @@ fun VideoPage(
         }
     }
 
+    var viewportWidth by remember { mutableIntStateOf(0) }
+    // Signed milliseconds of the last edge jump, shown briefly; 0 while nothing is showing.
+    var seekHint by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(seekHint) {
+        if (seekHint != 0L) {
+            delay(700)
+            seekHint = 0L
+        }
+    }
+
     val zoomState = rememberZoomableState()
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    val doubleClick = remember(behaviour, viewportWidth) {
+        if (!behaviour.doubleTapSeek || viewportWidth <= 0) {
+            DoubleClickToZoomListener.cycle()
+        } else {
+            EdgeSeekDoubleClick(
+                viewportWidth = viewportWidth,
+                // Resolved per tap, not per composition: the duration is unknown until
+                // the player has prepared, and a short clip must not get the full step.
+                onSeek = { direction ->
+                    val duration = player.duration
+                    val step = behaviour.seekStepMillis(duration) * direction
+                    val limit = if (duration > 0) duration else Long.MAX_VALUE
+                    player.seekTo((player.currentPosition + step).coerceIn(0L, limit))
+                    seekHint = step
+                },
+                zoom = DoubleClickToZoomListener.cycle(),
+            )
+        }
+    }
+
+    Box(
+        Modifier.fillMaxSize().onSizeChanged { viewportWidth = it.width },
+        contentAlignment = Alignment.Center,
+    ) {
         Box(
             // Pinch-to-zoom over the whole video area; single taps still toggle the chrome.
             Modifier
                 .matchParentSize()
-                .zoomable(zoomState, onClick = { onToggleChrome() }),
+                .zoomable(
+                    zoomState,
+                    onClick = { onToggleChrome() },
+                    onLongClick = { onLongPress() },
+                    onDoubleClick = doubleClick,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             // Bare aspectRatio picks the largest size that satisfies BOTH constraints, so the
@@ -180,6 +228,16 @@ fun VideoPage(
                     modifier = Modifier.aspectRatio(aspect),
                 )
             }
+        }
+        if (seekHint != 0L) {
+            Text(
+                text = seekLabel(seekHint),
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                modifier = Modifier
+                    .align(if (seekHint > 0L) Alignment.CenterEnd else Alignment.CenterStart)
+                    .padding(horizontal = 48.dp),
+            )
         }
         if (!firstFrameRendered) {
             CircularProgressIndicator(
@@ -246,3 +304,33 @@ private fun formatMs(ms: Long): String {
     val totalSec = ms / 1000
     return "%d:%02d".format(totalSec / 60, totalSec % 60)
 }
+
+/**
+ * Double-tapping the outer [EDGE_FRACTION] of a video seeks; the middle keeps telephoto's
+ * zoom. Videos only — an image has nothing to seek, so it keeps zoom everywhere.
+ */
+private class EdgeSeekDoubleClick(
+    private val viewportWidth: Int,
+    /** Called with -1 to jump back, +1 to jump forward. */
+    private val onSeek: (Int) -> Unit,
+    private val zoom: DoubleClickToZoomListener,
+) : DoubleClickToZoomListener {
+    override suspend fun onDoubleClick(state: ZoomableState, centroid: Offset) {
+        val edge = viewportWidth * EDGE_FRACTION
+        when {
+            centroid.x < edge -> onSeek(-1)
+            centroid.x > viewportWidth - edge -> onSeek(1)
+            else -> zoom.onDoubleClick(state, centroid)
+        }
+    }
+}
+
+/** "+10 s" for whole seconds, "+0.5 s" once a short clip has scaled the jump down. */
+private fun seekLabel(deltaMs: Long): String {
+    val seconds = abs(deltaMs) / 1000f
+    val amount = if (seconds >= 1f) seconds.roundToInt().toString() else ((seconds * 10).roundToInt() / 10f).toString()
+    return (if (deltaMs > 0) "+" else "\u2212") + amount + " s"
+}
+
+/** Share of the width at each side that seeks rather than zooms. */
+private const val EDGE_FRACTION = 0.3f

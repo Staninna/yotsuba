@@ -152,6 +152,7 @@ fun MediaFeedViewer(
                     onToggleChrome = { feed.chromeVisible = !feed.chromeVisible },
                     autoAdvance = autoAdvance,
                     onEnded = { feed.animateNextWrapping(pages.size) },
+                    behaviour = behaviour,
                 )
             } else {
                 ImagePage(
