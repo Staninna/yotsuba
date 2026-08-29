@@ -1,5 +1,8 @@
 package dev.stan.yotsuba.navigation
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,6 +22,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -30,7 +34,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,6 +44,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowWidthSizeClass
+import dev.stan.yotsuba.core.designsystem.component.LocalAnimatedVisibilityScope
+import dev.stan.yotsuba.core.designsystem.component.LocalSharedTransitionScope
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.util.Urls.InternalLink
@@ -57,6 +65,7 @@ import dev.stan.yotsuba.feature.vault.VaultScreen
  * the top bar and FAB through [TabScaffoldSlots]; pushed screens bring their own Scaffold
  * and the shell hides its chrome while they are on top.
  */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
     val navController = rememberNavController()
@@ -136,92 +145,110 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
             val motion = LocalMotion.current
             val fade = tween<Float>(motion.medium)
             val slide = tween<IntOffset>(motion.medium)
-            NavHost(
-                navController = navController,
-                startDestination = Route.Home,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                enterTransition = { fadeIn(fade) + slideInHorizontally(slide) { it / 8 } },
-                exitTransition = { fadeOut(tween(motion.short)) },
-                popEnterTransition = { fadeIn(fade) },
-                popExitTransition = { fadeOut(fade) + slideOutHorizontally(slide) { it / 8 } },
-            ) {
-                composable<Route.Home> {
-                    HomeScreen(
-                        onOpenThread = { board, threadNo -> navController.navigate(Route.Thread(board, threadNo)) },
-                        onOpenBoards = { navigateTopLevel(TopLevelDestination.BOARDS) },
-                        onOpenSettings = openSettings,
-                    )
-                }
-                composable<Route.Boards> {
-                    BoardsScreen(
-                        slots = slots,
-                        onOpenBoard = { navController.navigate(Route.Catalog(it)) },
-                        onOpenSettings = openSettings,
-                    )
-                }
-                composable<Route.Catalog> { entry ->
-                    val route = entry.toRoute<Route.Catalog>()
-                    CatalogScreen(
-                        board = route.board,
-                        initialSearch = route.searchQuery,
-                        onBack = { navController.popBackStack() },
-                        onOpenThread = { threadNo ->
-                            navController.navigate(Route.Thread(route.board, threadNo))
-                        },
-                    )
-                }
-                composable<Route.Thread> { entry ->
-                    val route = entry.toRoute<Route.Thread>()
-                    ThreadScreen(
-                        board = route.board,
-                        threadNo = route.threadNo,
-                        scrollToPostNo = route.scrollToPostNo,
-                        onBack = { navController.popBackStack() },
-                        onOpenMedia = { postNo ->
-                            navController.navigate(Route.Media(route.board, route.threadNo, postNo))
-                        },
-                        onOpenInternal = { link -> navController.openInternal(link, from = route) },
-                    )
-                }
-                composable<Route.Media> { entry ->
-                    val route = entry.toRoute<Route.Media>()
-                    MediaScreen(
-                        board = route.board,
-                        threadNo = route.threadNo,
-                        initialPostNo = route.initialPostNo,
-                        onClose = { navController.popBackStack() },
-                    )
-                }
-                composable<Route.Threads> {
-                    ThreadsScreen(
-                        slots = slots,
-                        onOpenThread = { board, no, post -> navController.navigate(Route.Thread(board, no, post)) },
-                        onOpenSettings = openSettings,
-                    )
-                }
-                composable<Route.Vault> {
-                    VaultScreen(
-                        slots = slots,
-                        onOpenSettings = openSettings,
-                        onOpenThread = { board, no, post ->
-                            navController.navigate(Route.Thread(board, no, post))
-                        },
-                    )
-                }
-                composable<Route.Settings> {
-                    SettingsScreen(
-                        onBack = { navController.popBackStack() },
-                        onOpenSection = { navController.navigate(Route.SettingsSection(it)) },
-                    )
-                }
-                composable<Route.SettingsSection> { entry ->
-                    SettingsSectionScreen(
-                        section = entry.toRoute<Route.SettingsSection>().id,
-                        onBack = { navController.popBackStack() },
-                    )
+            // One shared-transition scope over the whole graph, so a thumbnail on one screen
+            // and its viewer page on the next can morph into each other (Modifier.sharedMedia).
+            SharedTransitionLayout(Modifier.fillMaxSize().padding(padding)) {
+                CompositionLocalProvider(LocalSharedTransitionScope provides this) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = Route.Home,
+                        modifier = Modifier.fillMaxSize(),
+                        enterTransition = { fadeIn(fade) + slideInHorizontally(slide) { it / 8 } },
+                        exitTransition = { fadeOut(tween(motion.short)) },
+                        popEnterTransition = { fadeIn(fade) },
+                        popExitTransition = { fadeOut(fade) + slideOutHorizontally(slide) { it / 8 } },
+                    ) {
+                        screen<Route.Home> {
+                            HomeScreen(
+                                onOpenThread = { board, threadNo -> navController.navigate(Route.Thread(board, threadNo)) },
+                                onOpenBoards = { navigateTopLevel(TopLevelDestination.BOARDS) },
+                                onOpenSettings = openSettings,
+                            )
+                        }
+                        screen<Route.Boards> {
+                            BoardsScreen(
+                                slots = slots,
+                                onOpenBoard = { navController.navigate(Route.Catalog(it)) },
+                                onOpenSettings = openSettings,
+                            )
+                        }
+                        screen<Route.Catalog> { entry ->
+                            val route = entry.toRoute<Route.Catalog>()
+                            CatalogScreen(
+                                board = route.board,
+                                initialSearch = route.searchQuery,
+                                onBack = { navController.popBackStack() },
+                                onOpenThread = { threadNo ->
+                                    navController.navigate(Route.Thread(route.board, threadNo))
+                                },
+                            )
+                        }
+                        screen<Route.Thread> { entry ->
+                            val route = entry.toRoute<Route.Thread>()
+                            ThreadScreen(
+                                board = route.board,
+                                threadNo = route.threadNo,
+                                scrollToPostNo = route.scrollToPostNo,
+                                onBack = { navController.popBackStack() },
+                                onOpenMedia = { postNo ->
+                                    navController.navigate(Route.Media(route.board, route.threadNo, postNo))
+                                },
+                                onOpenInternal = { link -> navController.openInternal(link, from = route) },
+                            )
+                        }
+                        screen<Route.Media> { entry ->
+                            val route = entry.toRoute<Route.Media>()
+                            MediaScreen(
+                                board = route.board,
+                                threadNo = route.threadNo,
+                                initialPostNo = route.initialPostNo,
+                                onClose = { navController.popBackStack() },
+                            )
+                        }
+                        screen<Route.Threads> {
+                            ThreadsScreen(
+                                slots = slots,
+                                onOpenThread = { board, no, post -> navController.navigate(Route.Thread(board, no, post)) },
+                                onOpenSettings = openSettings,
+                            )
+                        }
+                        screen<Route.Vault> {
+                            VaultScreen(
+                                slots = slots,
+                                onOpenSettings = openSettings,
+                                onOpenThread = { board, no, post ->
+                                    navController.navigate(Route.Thread(board, no, post))
+                                },
+                            )
+                        }
+                        screen<Route.Settings> {
+                            SettingsScreen(
+                                onBack = { navController.popBackStack() },
+                                onOpenSection = { navController.navigate(Route.SettingsSection(it)) },
+                            )
+                        }
+                        screen<Route.SettingsSection> { entry ->
+                            SettingsSectionScreen(
+                                section = entry.toRoute<Route.SettingsSection>().id,
+                                onBack = { navController.popBackStack() },
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+/**
+ * A destination whose content can take part in shared-element transitions: the entry's
+ * [AnimatedVisibilityScope] is published for [dev.stan.yotsuba.core.designsystem.component.sharedMedia].
+ */
+private inline fun <reified T : Any> NavGraphBuilder.screen(
+    crossinline content: @Composable AnimatedVisibilityScope.(NavBackStackEntry) -> Unit,
+) {
+    composable<T> { entry ->
+        CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) { content(entry) }
     }
 }
 
