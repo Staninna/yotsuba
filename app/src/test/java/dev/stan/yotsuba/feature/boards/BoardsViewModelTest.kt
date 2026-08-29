@@ -175,6 +175,36 @@ class BoardsViewModelTest {
             }
         }
 
+    @Test fun `toggling a board under a hidden category shows only that board`() =
+        runTest(dispatcher.scheduler) {
+            val repo = FakeBoardRepository(DataResult.Success(listOf(
+                board("a", category = BoardCategory.JAPANESE_CULTURE),
+                board("m", category = BoardCategory.JAPANESE_CULTURE),
+                board("c", category = BoardCategory.JAPANESE_CULTURE),
+                board("g", category = BoardCategory.INTERESTS),
+            )))
+            val settings = FakeSettingsRepository(
+                Settings(hiddenCategories = setOf(BoardCategory.JAPANESE_CULTURE.name))
+            )
+            val vm = vm(repo, settings)
+            vm.onToggleEditMode()
+            vm.uiState.test {
+                val before = (latest() as UiState.Success).data
+                assertEquals(
+                    listOf(false, false, false),
+                    before.sections.first().boards.map { it.visible },
+                )
+                vm.onToggleBoardVisible("m")
+                val after = (latest() as UiState.Success).data
+                val japanese = after.sections.first { it.category == BoardCategory.JAPANESE_CULTURE }
+                assertEquals(listOf("a" to false, "m" to true, "c" to false), japanese.boards.map { it.board.code to it.visible })
+                assertEquals(null, japanese.allVisible)
+                assertEquals(emptySet<String>(), settings.state.value.hiddenCategories)
+                assertEquals(setOf("a", "c"), settings.state.value.hiddenBoards)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `toggling a hidden category shows all of its boards again`() =
         runTest(dispatcher.scheduler) {
             val repo = FakeBoardRepository(DataResult.Success(listOf(

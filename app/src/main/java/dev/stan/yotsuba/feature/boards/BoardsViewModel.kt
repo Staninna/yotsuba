@@ -88,10 +88,22 @@ class BoardsViewModel @Inject constructor(
     }
 
     fun onToggleBoardVisible(board: String) = viewModelScope.launch {
+        val all = loadedBoards()
+        val category = all.firstOrNull { it.code == board }?.category
         settingsRepository.update { s ->
-            s.copy(
-                hiddenBoards = if (board in s.hiddenBoards) s.hiddenBoards - board else s.hiddenBoards + board,
-            )
+            if (category != null && category.name in s.hiddenCategories) {
+                // The whole category is hidden, so the user wants only this board back:
+                // unhide the category and hide every sibling instead.
+                val siblings = all.filter { it.category == category && it.code != board }.map { it.code }
+                s.copy(
+                    hiddenCategories = s.hiddenCategories - category.name,
+                    hiddenBoards = s.hiddenBoards - board + siblings,
+                )
+            } else {
+                s.copy(
+                    hiddenBoards = if (board in s.hiddenBoards) s.hiddenBoards - board else s.hiddenBoards + board,
+                )
+            }
         }
     }
 
