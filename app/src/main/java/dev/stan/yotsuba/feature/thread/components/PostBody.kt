@@ -98,7 +98,7 @@ private fun BodyText(
                 val label = (seg.annotation as? PostAnnotation.QuotelinkSameThread)
                     ?.let { quoteLabels[it.postNo] }
                     ?.takeUnless { hiddenSpoiler }
-                val text = if (label == null) seg.text else "${'$'}{seg.text} ${'$'}label"
+                val text = if (label == null) seg.text else "${seg.text} $label"
                 if (tap == null) {
                     withStyle(style) { append(text) }
                 } else {
