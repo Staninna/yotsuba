@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
@@ -99,6 +100,7 @@ fun VaultScreen(
     val resources = context.resources
     var importMenuOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(state.query.isNotEmpty()) }
+    var syncMenuOpen by remember { mutableStateOf(false) }
 
     state.notice?.let { notice ->
         val message = when (notice) {
@@ -139,6 +141,7 @@ fun VaultScreen(
 
     val syncNothing = stringResource(R.string.vault_sync_nothing)
     val syncRateLimited = stringResource(R.string.vault_sync_rate_limited)
+    val rescanDone = stringResource(R.string.vault_rescan_done)
 
     fun reportSync(summary: VaultSyncSummary) {
         val message = when {
@@ -276,9 +279,34 @@ fun VaultScreen(
                                 CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                                 Spacer(Modifier.width(12.dp))
                             }
-                        } else {
-                            IconButton(onClick = { viewModel.sync { summary -> reportSync(summary) } }) {
-                                Icon(Icons.Filled.Refresh, stringResource(R.string.vault_sync))
+                        } else if (state.hasStorageAccess) {
+                            Box {
+                                IconButton(onClick = { syncMenuOpen = true }) {
+                                    Icon(Icons.Filled.Refresh, stringResource(R.string.vault_sync))
+                                }
+                                DropdownMenu(
+                                    expanded = syncMenuOpen,
+                                    onDismissRequest = { syncMenuOpen = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.vault_rescan)) },
+                                        supportingContent = { Text(stringResource(R.string.vault_rescan_explanation)) },
+                                        leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
+                                        onClick = {
+                                            syncMenuOpen = false
+                                            viewModel.rescan { scope.launch { snackbar.showSnackbar(rescanDone) } }
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.vault_fetch_replies)) },
+                                        supportingContent = { Text(stringResource(R.string.vault_fetch_replies_explanation)) },
+                                        leadingIcon = { Icon(Icons.Filled.CloudDownload, contentDescription = null) },
+                                        onClick = {
+                                            syncMenuOpen = false
+                                            viewModel.fetchReplies { summary -> reportSync(summary) }
+                                        },
+                                    )
+                                }
                             }
                         }
                     },

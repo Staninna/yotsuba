@@ -667,6 +667,25 @@ class VaultViewModelTest {
         assertEquals(1, vault.syncs)
     }
 
+    @Test fun `rescan touches only the index and fetch only the network`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        vault.syncSummary = VaultSyncSummary(updated = 2)
+        val vm = VaultViewModel(vault, FakeSettings(), boards)
+        var rescanned = false
+        vm.rescan { rescanned = true }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vault.rescans)
+        assertEquals(0, vault.syncs)
+        assertTrue(rescanned)
+
+        var summary: VaultSyncSummary? = null
+        vm.fetchReplies { summary = it }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vault.rescans)
+        assertEquals(1, vault.syncs)
+        assertEquals(2, summary?.updated)
+    }
+
     @Test fun `storage access is part of the ui state`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
         VaultViewModel(vault, FakeSettings(), boards).uiState.test {

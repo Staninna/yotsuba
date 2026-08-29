@@ -51,4 +51,9 @@
     <string name="vault_merge_none">No other thread on this board to merge into.</string>
     <string name="vault_merged">Merged</string>
     <string name="vault_edit_failed">Couldn\'t change the thread</string>
+    <string name="vault_rescan">Rescan</string>
+    <string name="vault_rescan_explanation">Rebuild the index from the files on disk</string>
+    <string name="vault_rescan_done">Index rebuilt</string>
+    <string name="vault_fetch_replies">Fetch new replies</string>
+    <string name="vault_fetch_replies_explanation">Refresh saved threads from 4chan, one a second</string>
 </resources>

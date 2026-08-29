@@ -564,6 +564,37 @@ class VaultViewModel @Inject constructor(
         }
     }
 
+    /** The index half of [sync] on its own: reads the sidecars on disk, touches no network. */
+    fun rescan(onDone: () -> Unit = {}) {
+        if (syncState.value.running) return
+        viewModelScope.launch {
+            syncState.value = VaultSyncState(running = true)
+            try {
+                mediaVault.migrateLegacyIfNeeded()
+                mediaVault.rescan()
+            } finally {
+                syncState.value = VaultSyncState()
+            }
+            onDone()
+        }
+    }
+
+    /** The network half of [sync] on its own: refreshes the saved comment sections. */
+    fun fetchReplies(onDone: (VaultSyncSummary) -> Unit = {}) {
+        if (syncState.value.running) return
+        viewModelScope.launch {
+            syncState.value = VaultSyncState(running = true)
+            val summary = try {
+                mediaVault.syncSavedThreads { done, total ->
+                    syncState.value = VaultSyncState(running = true, done = done, total = total)
+                }
+            } finally {
+                syncState.value = VaultSyncState()
+            }
+            onDone(summary)
+        }
+    }
+
     /**
      * Queues [entries] for deletion. With the confirmation setting on, the dialog shows
      * first; off, the delete runs at once. [undoable] deletes go through the trash and stay
