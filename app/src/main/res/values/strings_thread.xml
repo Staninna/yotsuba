@@ -6,4 +6,10 @@
     <string name="thread_go_to_post">Go to</string>
     <string name="thread_quote_label_op">(OP)</string>
     <string name="thread_quote_label_you">(You)</string>
+    <plurals name="thread_replies_to_you">
+        <item quantity="one">%d reply to you</item>
+        <item quantity="other">%d replies to you</item>
+    </plurals>
+    <string name="thread_mark_as_mine">Mark as mine</string>
+    <string name="thread_unmark_as_mine">Not mine</string>
 </resources>

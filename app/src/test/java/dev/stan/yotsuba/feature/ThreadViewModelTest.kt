@@ -22,6 +22,7 @@ import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
@@ -139,6 +140,14 @@ class ThreadViewModelTest {
         override suspend fun migrateLegacyIfNeeded() {}
     }
 
+
+    private class FakeClaimedPosts : ClaimedPostRepository {
+        val state = MutableStateFlow<Set<Long>>(emptySet())
+        override fun claimed(board: String, threadNo: Long): Flow<Set<Long>> = state
+        override suspend fun claim(board: String, threadNo: Long, postNo: Long) { state.value += postNo }
+        override suspend fun unclaim(board: String, threadNo: Long, postNo: Long) { state.value -= postNo }
+    }
+
     private class Env(
         posts: List<ThreadPost> = (100L..104L).map { post(it) },
         backlinks: Map<Long, List<Long>> = emptyMap(),
@@ -146,6 +155,7 @@ class ThreadViewModelTest {
         val sessionStore: MediaSessionStore = MediaSessionStore(),
         val bookmarks: FakeBookmarkRepository = FakeBookmarkRepository(),
         val settings: FakeSettingsRepository = FakeSettingsRepository(),
+        val claimed: FakeClaimedPosts = FakeClaimedPosts(),
     ) {
         val threads = FakeThreadRepository(
             ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks)
@@ -167,6 +177,7 @@ class ThreadViewModelTest {
             mediaSessionStore = sessionStore,
             mediaVault = vault,
             downloadQueue = queue,
+            claimedPosts = claimed,
         )
 
         companion object {
@@ -308,6 +319,35 @@ class ThreadViewModelTest {
         backgroundScope.launch { vm.uiState.collect {} }
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(mapOf(100L to QuoteLabel.OP), content(vm).quoteLabels)
+    }
+
+    @Test fun `claimed posts read as You and their replies are counted`() = runTest(dispatcher.scheduler) {
+        // 102 quotes 100 and 101; 103 quotes 102; 104 quotes nothing.
+        val posts = listOf(
+            Env.post(100).copy(isOp = true), Env.post(101),
+            Env.post(102).copy(quotedPostNos = listOf(100, 101)),
+            Env.post(103).copy(quotedPostNos = listOf(102)), Env.post(104),
+        )
+        val env = Env(posts = posts)
+        val vm = env.vm()
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, content(vm).repliesToMe)
+
+        vm.onToggleClaimed(101)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(mapOf(100L to QuoteLabel.OP, 101L to QuoteLabel.YOU), content(vm).quoteLabels)
+        assertEquals(setOf(101L), content(vm).claimedPostNos)
+        assertEquals(1, content(vm).repliesToMe) // only 102
+
+        vm.onToggleClaimed(102) // a claimed reply to a claimed post is not a reply "to you"
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, content(vm).repliesToMe) // only 103 now
+        assertEquals(QuoteLabel.YOU, content(vm).quoteLabels[102L])
+
+        vm.onToggleClaimed(101)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertNull(content(vm).quoteLabels[101L])
     }
 
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {

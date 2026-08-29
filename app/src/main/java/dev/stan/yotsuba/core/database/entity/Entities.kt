@@ -79,3 +79,12 @@ data class SavedMediaEntity(
     val thumbnailUrl: String?,
     val savedAt: Long,
 )
+
+/** A post the user marked as their own, so quotes of it read "(You)". Nothing is ever posted. */
+@Entity(tableName = "claimed_posts", primaryKeys = ["board", "threadNo", "postNo"])
+data class ClaimedPostEntity(
+    val board: String,
+    val threadNo: Long,
+    val postNo: Long,
+    val claimedAt: Long,
+)

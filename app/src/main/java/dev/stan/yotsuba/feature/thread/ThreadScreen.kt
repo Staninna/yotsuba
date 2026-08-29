@@ -160,6 +160,7 @@ fun ThreadScreen(
                 title = s?.details?.posts?.firstOrNull()?.subject ?: "/$board/$threadNo",
                 bookmarked = s?.bookmarked == true,
                 autoRefreshEnabled = s?.autoRefreshEnabled == true,
+                repliesToMe = s?.repliesToMe ?: 0,
                 onBack = onBack,
                 onToggleBookmark = viewModel::onToggleBookmark,
                 onRefresh = { viewModel.load(forceRefresh = true) },

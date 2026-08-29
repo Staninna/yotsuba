@@ -30,6 +30,10 @@ data class ThreadContent(
     val pendingExternalUrl: String?,
     /** Suffix shown after a quotelink to these posts, e.g. ">>123 (OP)". */
     val quoteLabels: Map<Long, QuoteLabel> = emptyMap(),
+    /** Posts the user marked as theirs. */
+    val claimedPostNos: Set<Long> = emptySet(),
+    /** Posts (not themselves claimed) that quote a claimed post. */
+    val repliesToMe: Int = 0,
 )
 
 /** Why a quotelink target is special; the screen picks the words. */

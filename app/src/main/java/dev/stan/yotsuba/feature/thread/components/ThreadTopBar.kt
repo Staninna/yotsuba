@@ -8,11 +8,13 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -26,7 +28,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.AnnotatedString
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.Urls
@@ -39,6 +43,8 @@ fun ThreadTopBar(
     title: String,
     bookmarked: Boolean,
     autoRefreshEnabled: Boolean,
+    /** Replies to the user's claimed posts; hidden when zero. */
+    repliesToMe: Int,
     onBack: () -> Unit,
     onToggleBookmark: () -> Unit,
     onRefresh: () -> Unit,
@@ -50,7 +56,18 @@ fun ThreadTopBar(
     val clipboard = LocalClipboardManager.current
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
-        title = { Text(title, maxLines = 1) },
+        title = {
+            Column {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (repliesToMe > 0) {
+                    Text(
+                        pluralStringResource(R.plurals.thread_replies_to_you, repliesToMe, repliesToMe),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))

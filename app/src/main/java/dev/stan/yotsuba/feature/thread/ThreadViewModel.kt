@@ -24,6 +24,7 @@ import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
@@ -56,6 +57,7 @@ class ThreadViewModel @AssistedInject constructor(
     private val mediaSessionStore: MediaSessionStore,
     private val mediaVault: MediaVaultRepository,
     private val downloadQueue: MediaDownloadQueue,
+    private val claimedPosts: ClaimedPostRepository,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -105,12 +107,20 @@ class ThreadViewModel @AssistedInject constructor(
         }
     }
 
+    private val claimed = claimedPosts.claimed(board, threadNo)
+
     /** Slow-changing companions of the thread, folded so the top-level combine stays typed. */
-    private val meta = combine(boardInfo, bookmarked, mediaSaveStatuses, ::Triple)
+    private val meta = combine(boardInfo, bookmarked, mediaSaveStatuses, claimed, ::Meta)
+    private data class Meta(
+        val board: Board?,
+        val bookmarked: Boolean,
+        val saveStatuses: Map<String, MediaSaveStatus>,
+        val claimed: Set<Long>,
+    )
 
     val uiState: StateFlow<UiState<ThreadContent>> = combine(
         result, settingsRepository.settings, meta, session,
-    ) { res, settings, (board, bookmarked, saveStatuses), session ->
+    ) { res, settings, (board, bookmarked, saveStatuses, claimed), session ->
         when (res) {
             null -> UiState.Loading
             is DataResult.Failure -> UiState.Error(res.error)
@@ -137,7 +147,11 @@ class ThreadViewModel @AssistedInject constructor(
                             .map { group -> group.mapNotNull { byNo[it] } }
                             .filter { it.isNotEmpty() },
                         pendingExternalUrl = session.pendingExternalUrl,
-                        quoteLabels = quoteLabels(details, emptySet()),
+                        quoteLabels = quoteLabels(details, claimed),
+                        claimedPostNos = claimed,
+                        repliesToMe = details.posts.count { p ->
+                            p.no !in claimed && p.quotedPostNos.any { it in claimed }
+                        },
                     )
                 )
             }
@@ -329,6 +343,12 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onClosePreview() = session.update { it.copy(previewPostNos = it.previewPostNos.dropLast(1)) }
+
+    /** "Mark as mine" / "Not mine": flips whether [postNo] reads as the user's own post. */
+    fun onToggleClaimed(postNo: Long) = viewModelScope.launch {
+        if (postNo in claimed.first()) claimedPosts.unclaim(board, threadNo, postNo)
+        else claimedPosts.claim(board, threadNo, postNo)
+    }
 
     private var highlightJob: Job? = null
 

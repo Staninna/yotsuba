@@ -52,3 +52,14 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("UPDATE `bookmarks` SET `readUpTo` = `lastSeenPostNo`")
     }
 }
+
+/** Posts the user marked as theirs, for "(You)" labels without ever posting. */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `claimed_posts` (" +
+                "`board` TEXT NOT NULL, `threadNo` INTEGER NOT NULL, `postNo` INTEGER NOT NULL, " +
+                "`claimedAt` INTEGER NOT NULL, PRIMARY KEY(`board`, `threadNo`, `postNo`))",
+        )
+    }
+}
