@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.HorizontalDivider
@@ -88,6 +89,11 @@ fun ThreadScreen(
     val copiedMessage = stringResource(R.string.thread_post_number_copied)
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val haptics = LocalHapticFeedback.current
+
+    fun closeSearch() {
+        searchOpen = false
+        viewModel.onSearchChange(null) // drops the query and every highlight with it
+    }
 
     fun openExternal(url: String) {
         runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
@@ -223,7 +229,7 @@ fun ThreadScreen(
                         )
                     }
                     if (searchOpen) {
-                        SearchBar(s, viewModel)
+                        SearchBar(s, viewModel, onClose = ::closeSearch)
                     }
                     LazyColumn(
                         state = listState,
@@ -249,6 +255,10 @@ fun ThreadScreen(
                 // System back pops one preview instead of leaving the thread.
                 BackHandler(enabled = s.previewStack.isNotEmpty()) {
                     viewModel.onClosePreview()
+                }
+                // ...and closes the search bar before leaving the thread.
+                BackHandler(enabled = searchOpen && s.previewStack.isEmpty()) {
+                    closeSearch()
                 }
                 if (s.previewStack.isNotEmpty()) {
                     QuotePreviewOverlay(
@@ -278,7 +288,7 @@ fun ThreadScreen(
 }
 
 @Composable
-private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel) {
+private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel, onClose: () -> Unit) {
     val spacing = LocalSpacing.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -300,6 +310,9 @@ private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel) {
         }
         IconButton(onClick = { viewModel.onSearchStep(1) }) {
             Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.thread_search_next))
+        }
+        IconButton(onClick = onClose) {
+            Icon(Icons.Filled.Close, stringResource(R.string.thread_search_close))
         }
     }
 }
