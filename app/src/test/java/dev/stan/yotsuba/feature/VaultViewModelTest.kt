@@ -26,6 +26,8 @@ import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultViewModel
 import dev.stan.yotsuba.feature.vault.UNDO_WINDOW_MS
 import dev.stan.yotsuba.feature.vault.VaultFilter
+import dev.stan.yotsuba.feature.vault.VaultMode
+import dev.stan.yotsuba.feature.vault.RECENT_LIMIT
 import dev.stan.yotsuba.feature.vault.VaultSort
 import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
@@ -422,6 +424,30 @@ class VaultViewModelTest {
                 val restored = latest()
                 assertEquals(VaultSort.POST, restored.sort)
                 assertEquals(VaultFilter.VIDEOS, restored.filter)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test fun `recent is the newest two hundred and the viewer pages through it`() =
+        runTest(dispatcher.scheduler) {
+            val all = (1..250).map { entry("g/$it.jpg", VaultLocation("g", (it % 7).toLong()), savedAt = it.toLong()) }
+            val vault = FakeVault(all)
+            val vm = VaultViewModel(vault, FakeSettings(), boards)
+            vm.uiState.test {
+                val state = latest()
+                assertEquals(VaultMode.RECENT, state.mode)
+                assertEquals(RECENT_LIMIT, state.recent.size)
+                assertEquals("g/250.jpg", state.recent.first().url)
+                assertEquals("g/51.jpg", state.recent.last().url)
+                assertEquals(RECENT_LIMIT, state.scopeEntries.size)
+
+                vm.openViewer("g/249.jpg")
+                val viewer = latest().viewer!!
+                assertEquals(RECENT_LIMIT, viewer.entries.size)
+                assertEquals(1, viewer.index)
+
+                vm.setMode(VaultMode.BROWSE)
+                assertEquals(250, latest().scopeEntries.size)
                 cancelAndIgnoreRemainingEvents()
             }
         }

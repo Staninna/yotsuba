@@ -31,6 +31,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayCircle
@@ -80,6 +84,7 @@ internal fun VaultExplorer(
     onDeleteBoard: (String) -> Unit,
     onSort: (VaultSort) -> Unit,
     onFilter: (VaultFilter) -> Unit,
+    onMode: (VaultMode) -> Unit,
 ) {
     val spacing = LocalSpacing.current
     val context = LocalContext.current
@@ -111,7 +116,21 @@ internal fun VaultExplorer(
                 )
             }
 
-            state.selection.board == null -> BoardList(state.boards, onOpenBoard, onDeleteBoard)
+            state.selection.board == null -> Column(Modifier.fillMaxSize()) {
+                ModeSwitch(state.mode, onMode)
+                if (state.mode == VaultMode.RECENT) {
+                    VaultChipRow(state.sort, state.filter, onSort, onFilter)
+                    MediaGrid(
+                        entries = state.recent,
+                        selected = state.selected,
+                        onOpen = onOpenEntry,
+                        onLongPress = onLongPressEntry,
+                        onToggleSelected = { onToggleSelected(listOf(it.url)) },
+                    )
+                } else {
+                    BoardList(state.boards, onOpenBoard, onDeleteBoard)
+                }
+            }
 
             state.selection.thread == null -> ThreadList(
                 threads = state.openBoard?.threads.orEmpty(),
@@ -229,6 +248,33 @@ private fun ThreadList(
     }
 }
 
+/** Recent feed or the board drill-down, at the root only. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModeSwitch(mode: VaultMode, onMode: (VaultMode) -> Unit) {
+    val spacing = LocalSpacing.current
+    SingleChoiceSegmentedButtonRow(
+        Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.xs),
+    ) {
+        VaultMode.entries.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = mode == option,
+                onClick = { onMode(option) },
+                shape = SegmentedButtonDefaults.itemShape(index, VaultMode.entries.size),
+            ) {
+                Text(
+                    stringResource(
+                        when (option) {
+                            VaultMode.RECENT -> R.string.vault_mode_recent
+                            VaultMode.BROWSE -> R.string.vault_mode_browse
+                        },
+                    ),
+                )
+            }
+        }
+    }
+}
+
 /** Sort and type filter, one row of chips, above every grid. The sort chip cycles through a menu. */
 @Composable
 internal fun VaultChipRow(
@@ -236,6 +282,7 @@ internal fun VaultChipRow(
     filter: VaultFilter,
     onSort: (VaultSort) -> Unit,
     onFilter: (VaultFilter) -> Unit,
+    onMode: (VaultMode) -> Unit,
 ) {
     val spacing = LocalSpacing.current
     Row(

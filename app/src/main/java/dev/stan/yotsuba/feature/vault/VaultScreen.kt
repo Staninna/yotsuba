@@ -274,6 +274,7 @@ fun VaultScreen(
                     onDeleteBoard = viewModel::deleteBoard,
                     onSort = viewModel::setSort,
                     onFilter = viewModel::setFilter,
+                    onMode = viewModel::setMode,
                 )
             }
         }

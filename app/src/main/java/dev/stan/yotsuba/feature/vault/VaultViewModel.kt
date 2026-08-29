@@ -54,6 +54,12 @@ enum class VaultSort {
 
 enum class VaultFilter { ALL, IMAGES, VIDEOS }
 
+/** The root view: a flat feed of the newest saves, or the board → thread drill-down. */
+enum class VaultMode { RECENT, BROWSE }
+
+/** How many entries the Recent feed shows. */
+const val RECENT_LIMIT = 200
+
 /** [entries] in [sort] order with [filter] applied, the shape every level of the explorer shows. */
 fun arrangeEntries(entries: List<VaultEntry>, sort: VaultSort, filter: VaultFilter): List<VaultEntry> {
     val kept = when (filter) {
@@ -136,6 +142,9 @@ data class VaultUiState(
     val visible: List<VaultEntry> = emptyList(),
     val sort: VaultSort = VaultSort.SAVED,
     val filter: VaultFilter = VaultFilter.ALL,
+    val mode: VaultMode = VaultMode.RECENT,
+    /** The newest [RECENT_LIMIT] of [visible], the Recent feed. */
+    val recent: List<VaultEntry> = emptyList(),
     val boards: List<VaultBoardSection> = emptyList(),
     val selection: VaultSelection = VaultSelection(),
     val viewer: VaultViewerState? = null,
@@ -164,9 +173,10 @@ data class VaultUiState(
     /** Disk taken by the whole vault. */
     val totalBytes: Long get() = entries.totalBytes
 
-    /** Whatever level is on screen: everything, one board, or one thread. */
+    /** Whatever level is on screen: the feed, everything, one board, or one thread. */
     val scopeEntries: List<VaultEntry>
         get() = when {
+            selection.board == null && mode == VaultMode.RECENT -> recent
             selection.board == null -> visible
             selection.thread == null -> openBoard?.entries.orEmpty()
             else -> openThread?.entries.orEmpty()
@@ -268,20 +278,30 @@ class VaultViewModel @Inject constructor(
     private data class Editing(
         val selected: Set<String>,
         val inspecting: String?,
-        val sort: VaultSort,
-        val filter: VaultFilter,
+        val view: View,
     )
+
+    /** How the entries are arranged on screen. */
+    private data class View(val sort: VaultSort, val filter: VaultFilter, val mode: VaultMode)
 
     // Sort and filter outlive the process: they are the kind of thing a user sets once.
     private val sort = savedState.getStateFlow(KEY_SORT, VaultSort.SAVED.name)
     private val filter = savedState.getStateFlow(KEY_FILTER, VaultFilter.ALL.name)
+    private val mode = MutableStateFlow(VaultMode.RECENT)
 
-    private val editing = combine(selected, inspectingUrl, sort, filter) { s, i, sort, filter ->
-        Editing(
-            s, i,
+    private val view = combine(sort, filter, mode) { sort, filter, mode ->
+        View(
             VaultSort.entries.firstOrNull { it.name == sort } ?: VaultSort.SAVED,
             VaultFilter.entries.firstOrNull { it.name == filter } ?: VaultFilter.ALL,
+            mode,
         )
+    }
+
+    private val editing = combine(selected, inspectingUrl, view) { s, i, v -> Editing(s, i, v) }
+
+    fun setMode(mode: VaultMode) {
+        selected.value = emptySet()
+        this.mode.value = mode
     }
 
     fun setSort(sort: VaultSort) {
@@ -302,15 +322,22 @@ class VaultViewModel @Inject constructor(
         val viewing = args[3] as Viewing
         val activity = args[4] as Activity
         val editing = args[5] as Editing
-        val visible = arrangeEntries(entries, editing.sort, editing.filter)
+        val visible = arrangeEntries(entries, editing.view.sort, editing.view.filter)
+        val recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT).let { newest ->
+            // Newest 200 by save date, then shown in the chosen order.
+            arrangeEntries(newest, editing.view.sort, editing.view.filter)
+        }
+        val feed = if (sel.board == null && editing.view.mode == VaultMode.RECENT) recent else null
         VaultUiState(
             entries = entries,
             visible = visible,
-            sort = editing.sort,
-            filter = editing.filter,
+            sort = editing.view.sort,
+            filter = editing.view.filter,
+            mode = editing.view.mode,
+            recent = recent,
             boards = groupByBoard(visible),
             selection = sel,
-            viewer = viewerState(visible, sel, viewing.url, viewing.shuffle),
+            viewer = viewerState(visible, feed, sel, viewing.url, viewing.shuffle),
             sync = sync,
             hasStorageAccess = activity.access,
             importing = activity.importing,
@@ -551,9 +578,14 @@ class VaultViewModel @Inject constructor(
                 VaultBoardSection(board = board, threads = threads, entries = group)
             }
 
-    /** The viewer's play order and position; null once the viewed entry is gone (deleted). */
+    /**
+     * The viewer's play order and position; null once the viewed entry is gone (deleted).
+     * [feed] is the flat list on screen when there is one, which the viewer pages through
+     * instead of the current thread.
+     */
     private fun viewerState(
         entries: List<VaultEntry>,
+        feed: List<VaultEntry>?,
         sel: VaultSelection,
         url: String?,
         shuffle: List<String>?,
@@ -561,6 +593,7 @@ class VaultViewModel @Inject constructor(
         val byUrl = entries.associateBy { it.url }
         val current = url?.let { byUrl[it] } ?: return null
         val ordered = shuffle?.mapNotNull { byUrl[it] }
+            ?: feed?.takeIf { list -> list.any { it.url == current.url } }
             ?: entries.filter { it.location == sel.thread }.ifEmpty { listOf(current) }
         val index = ordered.indexOfFirst { it.url == current.url }.coerceAtLeast(0)
         return VaultViewerState(ordered, index)
