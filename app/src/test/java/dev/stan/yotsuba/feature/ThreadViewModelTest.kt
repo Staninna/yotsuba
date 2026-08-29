@@ -11,6 +11,8 @@ import dev.stan.yotsuba.domain.model.ArchiveSource
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.Filter
+import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostMedia
@@ -652,5 +654,46 @@ class ThreadViewModelTest {
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(UiState.Error(NetworkError.NotFound), vm.uiState.value)
             assertEquals(listOf("live", "archive"), env.threads.asked)
+        }
+
+    @Test fun `a HIDE filter drops the post and a STUB filter collapses it until tapped`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(posts = listOf(Env.post(100).copy(isOp = true)) + (101L..104L).map(Env::post))
+            env.settings.state.value = Settings(
+                filters = listOf(
+                    Filter(id = "h", pattern = "match 102", action = FilterAction.HIDE),
+                    Filter(id = "s", pattern = "other 103", action = FilterAction.STUB),
+                ),
+            )
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            fun content() = (vm.uiState.value as UiState.Success<ThreadContent>).data
+            assertEquals(
+                listOf(ThreadRow.Post(Env.post(100).copy(isOp = true)), ThreadRow.Post(Env.post(101)),
+                    ThreadRow.Filtered(103, "other 103"), ThreadRow.Post(Env.post(104))),
+                content().rows,
+            )
+            assertEquals(2, content().filteredCount)
+
+            vm.onExpandFiltered(103)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(ThreadRow.Post(Env.post(103)), content().rows[2])
+            assertEquals(2, content().filteredCount)
+        }
+
+    @Test fun `the OP is never filtered and an empty filter list changes nothing`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(posts = listOf(Env.post(100).copy(isOp = true), Env.post(101)))
+            env.settings.state.value = Settings(
+                filters = listOf(Filter(id = "h", pattern = "match 100", action = FilterAction.HIDE)),
+            )
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            val content = (vm.uiState.value as UiState.Success<ThreadContent>).data
+            assertEquals(listOf(100L, 101L), content.rows.map { (it as ThreadRow.Post).post.no })
+            assertEquals(0, content.filteredCount)
         }
 }

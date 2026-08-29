@@ -44,4 +44,10 @@
     </plurals>
     <!-- %1$s is the archive host, e.g. desuarchive.org. -->
     <string name="thread_archived_from">Archived copy from %1$s</string>
+    <!-- %1$s is the filter pattern that caught the post. -->
+    <string name="thread_filtered_stub">Filtered: %1$s</string>
+    <plurals name="thread_filtered_count">
+        <item quantity="one">%d post filtered</item>
+        <item quantity="other">%d posts filtered</item>
+    </plurals>
 </resources>

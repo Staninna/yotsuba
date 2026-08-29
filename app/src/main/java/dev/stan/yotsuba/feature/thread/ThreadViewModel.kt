@@ -6,6 +6,8 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.stan.yotsuba.core.filter.FilterMatcher
+import dev.stan.yotsuba.core.filter.FilterableFields
 import dev.stan.yotsuba.core.network.ArchiveHosts
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
@@ -16,6 +18,8 @@ import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.Board
+import dev.stan.yotsuba.domain.model.Filter
+import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.Settings
@@ -41,6 +45,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -74,6 +79,12 @@ class ThreadViewModel @AssistedInject constructor(
     private val settingsState = settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
     private val boardInfo = MutableStateFlow<Board?>(null)
+    /** Compiled once per change to the filter list, never per post. */
+    private val matcher: StateFlow<FilterMatcher> = settingsRepository.settings
+        .map { it.filters }
+        .distinctUntilChanged()
+        .map { FilterMatcher(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, FilterMatcher.Empty)
     /** Exposed for tests: every change to it is one atomic emission. */
     val session = MutableStateFlow(Session())
 
@@ -125,8 +136,8 @@ class ThreadViewModel @AssistedInject constructor(
     )
 
     val uiState: StateFlow<UiState<ThreadContent>> = combine(
-        result, settingsRepository.settings, meta, session,
-    ) { res, settings, (board, bookmarked, saveStatuses, claimed), session ->
+        result, settingsRepository.settings, meta, session, matcher,
+    ) { res, settings, (board, bookmarked, saveStatuses, claimed), session, matcher ->
         when (res) {
             null -> UiState.Loading
             is DataResult.Failure -> UiState.Error(res.error)
@@ -134,6 +145,7 @@ class ThreadViewModel @AssistedInject constructor(
                 val details = res.value
                 val matches = searchMatches(details.posts, session.searchQuery)
                 val byNo = details.posts.associateBy { it.no }
+                val verdicts = filterVerdicts(details.posts, matcher)
                 UiState.Success(
                     ThreadContent(
                         details = details,
@@ -141,7 +153,8 @@ class ThreadViewModel @AssistedInject constructor(
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
                         postStates = postStates(details, session, saveStatuses),
-                        rows = rows(details, session),
+                        rows = rows(details, session, verdicts),
+                        filteredCount = verdicts.size,
                         treeView = session.treeView,
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
@@ -463,6 +476,10 @@ class ThreadViewModel @AssistedInject constructor(
     /** Expands the replies folded under [parentNo]'s "N more" row. */
     fun onExpandTail(parentNo: Long) = session.update { it.copy(expandedTails = it.expandedTails + parentNo) }
 
+    /** Opens a stubbed post in place; it stays open for the rest of the session. */
+    fun onExpandFiltered(postNo: Long) =
+        session.update { it.copy(expandedFiltered = it.expandedFiltered + postNo) }
+
     fun onOpenGallery() = session.update { it.copy(galleryOpen = true) }
     fun onCloseGallery() = session.update { it.copy(galleryOpen = false) }
 
@@ -486,7 +503,7 @@ class ThreadViewModel @AssistedInject constructor(
     /** The screen reports the visible row range; the VM owns what it means. */
     fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
         val details = (result.value as? DataResult.Success)?.value ?: return
-        val rows = rows(details, session.value)
+        val rows = rows(details, session.value, filterVerdicts(details.posts, matcher.value))
         // Top-of-screen post: the reading position restored when the thread is reopened.
         rows.postAt(firstIndex)?.let { topVisiblePostNo.value = it.no }
         // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
@@ -521,16 +538,37 @@ class ThreadViewModel @AssistedInject constructor(
         /** Tree view indents this deep; anything deeper collapses into a "N more" row. */
         const val MAX_TREE_DEPTH = 4
 
+        /** The first filter each post trips, by post number. The OP is never filtered: it is the thread. */
+        private fun filterVerdicts(posts: List<ThreadPost>, matcher: FilterMatcher): Map<Long, Filter> {
+            if (matcher.isEmpty) return emptyMap()
+            return buildMap {
+                posts.forEach { post ->
+                    if (post.isOp) return@forEach
+                    matcher.matches(FilterableFields.of(post), post.board)?.let { put(post.no, it) }
+                }
+            }
+        }
+
+        /** The row for a post the filters had a say on: nothing, a stub, or the post once opened. */
+        private fun filteredRow(post: ThreadPost, filter: Filter, session: Session, depth: Int): ThreadRow? = when {
+            filter.action == FilterAction.HIDE -> null
+            post.no in session.expandedFiltered -> ThreadRow.Post(post, depth)
+            else -> ThreadRow.Filtered(post.no, filter.pattern, depth)
+        }
+
         /** Linear: thread order with the new-posts divider. Tree: nested, capped, filtered. */
-        private fun rows(details: ThreadDetails, session: Session): List<ThreadRow> =
-            if (session.treeView) treeRows(details, session)
-            else linearRows(visiblePosts(details.posts, session), session.newPostsAfter)
+        private fun rows(details: ThreadDetails, session: Session, verdicts: Map<Long, Filter>): List<ThreadRow> =
+            if (session.treeView) treeRows(details, session, verdicts)
+            else linearRows(visiblePosts(details.posts, session), session, verdicts)
 
         /** Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post. */
-        private fun linearRows(posts: List<ThreadPost>, newPostsAfter: Pair<Long, Int>?): List<ThreadRow> =
+        private fun linearRows(posts: List<ThreadPost>, session: Session, verdicts: Map<Long, Filter>): List<ThreadRow> =
             buildList {
+                val newPostsAfter = session.newPostsAfter
                 posts.forEach { post ->
-                    add(ThreadRow.Post(post))
+                    val filter = verdicts[post.no]
+                    val row = if (filter == null) ThreadRow.Post(post) else filteredRow(post, filter, session, 0)
+                    if (row != null) add(row)
                     if (newPostsAfter != null && post.no == newPostsAfter.first) {
                         add(ThreadRow.NewPostsDivider(newPostsAfter.second))
                     }
@@ -543,14 +581,19 @@ class ThreadViewModel @AssistedInject constructor(
          * then show flattened at the cap. The ID filter applies as in the linear view; the
          * new-posts divider does not exist here since the order is no longer chronological.
          */
-        private fun treeRows(details: ThreadDetails, session: Session): List<ThreadRow> {
+        private fun treeRows(details: ThreadDetails, session: Session, verdicts: Map<Long, Filter>): List<ThreadRow> {
             val visible = visiblePosts(details.posts, session).mapTo(HashSet()) { it.no }
-            val nodes = PostGraph.of(details).tree().filter { it.post.no in visible }
+            val nodes = PostGraph.of(details).tree().filter {
+                it.post.no in visible && verdicts[it.post.no]?.action != FilterAction.HIDE
+            }
             val out = mutableListOf<ThreadRow>()
             var i = 0
             while (i < nodes.size) {
                 val node = nodes[i]
-                out += ThreadRow.Post(node.post, node.depth.coerceAtMost(MAX_TREE_DEPTH))
+                val depth = node.depth.coerceAtMost(MAX_TREE_DEPTH)
+                val filter = verdicts[node.post.no]
+                out += if (filter == null) ThreadRow.Post(node.post, depth)
+                else filteredRow(node.post, filter, session, depth) ?: error("hidden posts were dropped above")
                 i++
                 if (node.depth != MAX_TREE_DEPTH) continue
                 val tailStart = i

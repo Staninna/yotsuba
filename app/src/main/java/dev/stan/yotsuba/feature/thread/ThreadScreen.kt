@@ -4,6 +4,8 @@ import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.Card
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -186,6 +188,7 @@ fun ThreadScreen(
                 bookmarked = s?.bookmarked == true,
                 autoRefreshEnabled = s?.autoRefreshEnabled == true,
                 repliesToMe = s?.repliesToMe ?: 0,
+                filteredCount = s?.filteredCount ?: 0,
                 filterPosterId = s?.filterPosterId,
                 onClearFilter = { viewModel.onFilterPosterId(null) },
                 onBack = onBack,
@@ -303,6 +306,7 @@ fun ThreadScreen(
                                         is ThreadRow.Post -> row.post.no
                                         is ThreadRow.NewPostsDivider -> "new-posts"
                                         is ThreadRow.MoreReplies -> "more-${'$'}{row.parentNo}"
+                                        is ThreadRow.Filtered -> "filtered-${'$'}{row.postNo}"
                                     }
                                 },
                             ) { i ->
@@ -318,6 +322,11 @@ fun ThreadScreen(
                                         count = row.count,
                                         modifier = Modifier.padding(start = treeIndent * ThreadViewModel.MAX_TREE_DEPTH),
                                         onTap = { viewModel.onExpandTail(row.parentNo) },
+                                    )
+                                    is ThreadRow.Filtered -> FilteredRow(
+                                        pattern = row.pattern,
+                                        modifier = Modifier.padding(start = treeIndent * row.depth),
+                                        onTap = { viewModel.onExpandFiltered(row.postNo) },
                                     )
                                 }
                             }
@@ -491,6 +500,22 @@ private fun MoreRepliesRow(count: Int, modifier: Modifier, onTap: () -> Unit) {
         color = MaterialTheme.colorScheme.primary,
         modifier = modifier.fillMaxWidth().clickable(onClick = onTap).padding(spacing.sm),
     )
+}
+
+/** One-line stand-in for a post a STUB filter caught; tapping it opens the post. */
+@Composable
+private fun FilteredRow(pattern: String, modifier: Modifier, onTap: () -> Unit) {
+    val spacing = LocalSpacing.current
+    Card(modifier = modifier.fillMaxWidth().clickable(onClick = onTap)) {
+        Text(
+            stringResource(R.string.thread_filtered_stub, pattern),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(spacing.sm),
+        )
+    }
 }
 
 @Composable

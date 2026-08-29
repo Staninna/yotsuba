@@ -47,6 +47,8 @@ fun ThreadTopBar(
     autoRefreshEnabled: Boolean,
     /** Replies to the user's claimed posts; hidden when zero. */
     repliesToMe: Int,
+    /** Posts the content filters hid or stubbed; hidden when zero. */
+    filteredCount: Int = 0,
     /** Active poster-ID filter; the chip clears it. */
     filterPosterId: String?,
     onClearFilter: () -> Unit,
@@ -81,6 +83,12 @@ fun ThreadTopBar(
                         pluralStringResource(R.plurals.thread_replies_to_you, repliesToMe, repliesToMe),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
+                    )
+                } else if (filteredCount > 0) {
+                    Text(
+                        pluralStringResource(R.plurals.thread_filtered_count, filteredCount, filteredCount),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
