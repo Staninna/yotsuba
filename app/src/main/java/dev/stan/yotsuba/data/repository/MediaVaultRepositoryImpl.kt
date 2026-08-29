@@ -23,6 +23,7 @@ import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.vault.VaultPaths
+import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.core.vault.toVaultMeta
 import dev.stan.yotsuba.domain.model.MediaItem
@@ -110,6 +111,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     dir, VaultPaths.fileName(item.postNo, item.filename, item.ext),
                 )
                 streamTo(item.fullUrl, target)
+                val still = captureStill(target)
 
                 val savedAt = System.currentTimeMillis()
                 store.lock.withLock {
@@ -119,7 +121,10 @@ class MediaVaultRepositoryImpl @Inject constructor(
                             threadNo = saveContext.threadNo,
                             subject = saveContext.threadSubject,
                             threadUrl = Urls.threadWebUrl(saveContext.board, saveContext.threadNo),
-                        ).upsert(store.fileMetaOf(target.name, item, saveContext.post, savedAt))
+                        ).upsert(
+                            store.fileMetaOf(target.name, item, saveContext.post, savedAt)
+                                .copy(durationMs = still?.durationMs),
+                        )
                     }
                     // Same lock as meta.json. The two writes are not one transaction, but
                     // each is atomic and a missing posts.json already means "no snapshot",
@@ -135,6 +140,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     savedMediaEntity(
                         item, saveContext.board, saveContext.threadNo,
                         saveContext.threadSubject, target, savedAt,
+                        thumbnailPath = still?.file?.absolutePath, durationMs = still?.durationMs,
                     ),
                 )
             }
@@ -315,6 +321,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     url = "file://" + target.absolutePath,
                     sizeBytes = target.length(),
                     savedAtMillis = threadNo,
+                    durationMs = captureStill(target)?.durationMs,
                 )
             }
 
@@ -432,8 +439,33 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 }
             }
         }
-        savedMediaDao.clearAll()
-        savedMediaDao.insertAll(rebuilt)
+        savedMediaDao.replaceAll(rebuilt)
+        // Stills for videos saved before there were any. Decoding is slow, so it happens
+        // after the index is usable and each row lands as its still does.
+        for (row in rebuilt) {
+            if (row.thumbnailPath != null || !isVideo(row.ext)) continue
+            val still = captureStill(File(row.absolutePath)) ?: continue
+            savedMediaDao.insert(row.copy(thumbnailPath = still.file.absolutePath, durationMs = still.durationMs))
+            recordDuration(File(row.absolutePath), still.durationMs)
+        }
+    }
+
+    private fun isVideo(ext: String?) = ext == ".webm" || ext == ".mp4"
+
+    /** A still and duration for a video; nothing for anything else, or when decoding fails. */
+    private fun captureStill(file: File): VideoStills.Still? =
+        if (isVideo(VaultPaths.extensionOf(file.name))) VideoStills.capture(file) else null
+
+    /** Writes a duration learned during rescan back into the sidecar, so the next rescan has it. */
+    private suspend fun recordDuration(file: File, durationMs: Long?) {
+        durationMs ?: return
+        val dir = file.parentFile ?: return
+        store.lock.withLock {
+            store.updateMeta(dir) { meta ->
+                val entry = meta.files.firstOrNull { it.fileName == file.name } ?: return@updateMeta meta
+                meta.upsert(entry.copy(durationMs = durationMs))
+            }
+        }
     }
 
     override suspend fun migrateLegacyIfNeeded() = withContext(Dispatchers.IO) {

@@ -4,6 +4,7 @@ import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.VaultThreadMeta
+import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
@@ -17,6 +18,8 @@ fun savedMediaEntity(
     subject: String?,
     target: File,
     savedAt: Long,
+    thumbnailPath: String? = null,
+    durationMs: Long? = null,
 ): SavedMediaEntity = SavedMediaEntity(
     url = item.fullUrl,
     board = board,
@@ -31,6 +34,8 @@ fun savedMediaEntity(
     height = item.height,
     thumbnailUrl = item.thumbnailUrl,
     savedAt = savedAt,
+    thumbnailPath = thumbnailPath,
+    durationMs = durationMs,
 )
 
 /** A row rebuilt from a meta.json sidecar during rescan. */
@@ -50,6 +55,8 @@ fun savedMediaEntity(meta: VaultThreadMeta, f: VaultFileMeta, file: File): Saved
         height = f.height,
         thumbnailUrl = f.thumbnailUrl,
         savedAt = f.savedAtMillis ?: file.lastModified(),
+        thumbnailPath = VideoStills.stillFor(file).takeIf { it.isFile }?.absolutePath,
+        durationMs = f.durationMs,
     )
 
 /** A migrated legacy file no thread could be matched for, filed under `_unsorted/`. */
@@ -103,4 +110,6 @@ fun SavedMediaEntity.toVaultEntry(): VaultEntry = VaultEntry(
     height = height,
     thumbnailUrl = thumbnailUrl,
     savedAt = savedAt,
+    localThumbnailPath = thumbnailPath,
+    durationMs = durationMs,
 )

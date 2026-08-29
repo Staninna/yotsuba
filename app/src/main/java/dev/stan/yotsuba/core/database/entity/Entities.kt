@@ -78,4 +78,8 @@ data class SavedMediaEntity(
     /** Remote thumbnail, used for video previews in the explorer grid. */
     val thumbnailUrl: String?,
     val savedAt: Long,
+    /** First-frame still on disk, preferred over [thumbnailUrl] when present. */
+    val thumbnailPath: String? = null,
+    /** Video length, millis. */
+    val durationMs: Long? = null,
 )

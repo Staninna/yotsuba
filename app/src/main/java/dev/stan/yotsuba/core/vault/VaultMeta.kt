@@ -47,6 +47,8 @@ data class VaultFileMeta(
     val postText: String? = null,
     /** When the user saved the file, unix millis. */
     val savedAtMillis: Long? = null,
+    /** Video length, millis; read off the file when its still was captured. */
+    val durationMs: Long? = null,
 )
 
 object VaultMetaCodec {

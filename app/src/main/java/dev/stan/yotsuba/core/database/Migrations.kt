@@ -52,3 +52,11 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("UPDATE `bookmarks` SET `readUpTo` = `lastSeenPostNo`")
     }
 }
+
+/** Local video stills and durations on saved media; a rescan fills them in. */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `thumbnailPath` TEXT")
+        db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `durationMs` INTEGER")
+    }
+}

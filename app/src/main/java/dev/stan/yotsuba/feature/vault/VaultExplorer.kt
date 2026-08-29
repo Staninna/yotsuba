@@ -353,9 +353,14 @@ private fun MediaGrid(
 
 @Composable
 internal fun MediaThumb(entry: VaultEntry, modifier: Modifier = Modifier) {
-    // Images decode straight from disk; videos fall back to their cached remote thumbnail.
+    // Images decode straight from disk; videos show their local still, or the cached
+    // remote thumbnail for one saved before stills existed and not yet rescanned.
     AsyncImage(
-        model = if (entry.isVideo) entry.thumbnailUrl else File(entry.absolutePath),
+        model = when {
+            !entry.isVideo -> File(entry.absolutePath)
+            entry.localThumbnailPath != null -> File(entry.localThumbnailPath!!)
+            else -> entry.thumbnailUrl
+        },
         contentDescription = entry.displayName,
         contentScale = ContentScale.Crop,
         modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
