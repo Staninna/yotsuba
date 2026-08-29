@@ -52,7 +52,7 @@ class HistoryViewModel @Inject constructor(
     }
 
     fun onUndoRemove(entry: HistoryEntry) = viewModelScope.launch {
-        historyRepository.record(entry)
+        historyRepository.restore(entry)
     }
 
     fun onClearAll() = viewModelScope.launch { historyRepository.clearAll() }

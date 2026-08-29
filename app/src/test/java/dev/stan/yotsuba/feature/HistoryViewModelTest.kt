@@ -37,9 +37,10 @@ class HistoryViewModelTest {
         LocalDate.now(ZoneId.systemDefault()).atStartOfDay(ZoneId.systemDefault())
             .toInstant().toEpochMilli()
 
-    private fun entry(no: Long, viewedAt: Long) = HistoryEntry(
+    private fun entry(no: Long, viewedAt: Long, maxRead: Long? = null) = HistoryEntry(
         board = "g", threadNo = no, subject = null, opExcerpt = "e$no",
         thumbnailUrl = null, viewedAt = viewedAt, lastScrollPostNo = null,
+        maxReadPostNo = maxRead,
     )
 
     private class FakeHistoryRepository(initial: List<HistoryEntry>) : HistoryRepository {
@@ -47,8 +48,14 @@ class HistoryViewModelTest {
         var cleared = false
         override val history: Flow<List<HistoryEntry>> = state
         override suspend fun record(entry: HistoryEntry) {
-            state.value = listOf(entry) + state.value.filterNot {
+            // Mirrors the DAO: a visit never carries the read mark with it.
+            state.value = listOf(entry.copy(maxReadPostNo = null)) + state.value.filterNot {
                 it.board == entry.board && it.threadNo == entry.threadNo
+            }
+        }
+        override suspend fun restore(entry: HistoryEntry) {
+            if (state.value.none { it.board == entry.board && it.threadNo == entry.threadNo }) {
+                state.value = state.value + entry
             }
         }
         override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) {}
@@ -106,8 +113,8 @@ class HistoryViewModelTest {
         }
     }
 
-    @Test fun `remove and undo restore the entry`() = runTest(dispatcher.scheduler) {
-        val e = entry(1, startOfToday + 1_000)
+    @Test fun `remove and undo restore the entry with its read mark`() = runTest(dispatcher.scheduler) {
+        val e = entry(1, startOfToday + 1_000, maxRead = 42)
         val repo = FakeHistoryRepository(listOf(e))
         val vm = HistoryViewModel(repo, FakeSettingsRepository())
         vm.uiState.test {
@@ -115,7 +122,9 @@ class HistoryViewModelTest {
             vm.onRemove(e)
             assertTrue(latest().groups.isEmpty())
             vm.onUndoRemove(e)
-            assertEquals(listOf(1L), latest().groups.single().second.map { it.threadNo })
+            val restored = latest().groups.single().second.single()
+            assertEquals(1L, restored.threadNo)
+            assertEquals(42L, restored.maxReadPostNo)
             cancelAndIgnoreRemainingEvents()
         }
     }

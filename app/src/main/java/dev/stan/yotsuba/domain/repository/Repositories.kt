@@ -67,6 +67,13 @@ interface HistoryRepository {
     suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long)
     suspend fun readUpTo(board: String, threadNo: Long): Long?
     suspend fun remove(board: String, threadNo: Long)
+
+    /**
+     * The inverse of [remove]: puts the row back exactly as it was, scroll and read marks
+     * included. Unlike [record] it never bumps `viewedAt` or trims retention. The default
+     * degrades to [record] so fakes that only care about visits keep compiling.
+     */
+    suspend fun restore(entry: HistoryEntry) = record(entry)
     suspend fun clearAll()
     suspend fun trim(retainAfterMs: Long)
 }
