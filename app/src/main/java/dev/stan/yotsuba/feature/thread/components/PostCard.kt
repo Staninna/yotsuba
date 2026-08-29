@@ -43,6 +43,7 @@ import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.feature.thread.PostUiState
 
 /** Deterministic chip colour from the poster-ID hash, harmonised into the scheme (D21). */
 fun posterIdColor(id: String, dark: Boolean): Color {
@@ -77,13 +78,10 @@ data class PostCardActions(
 fun PostCard(
     post: ThreadPost,
     board: Board?,
-    backlinkCount: Int,
-    revealedSpoilerIds: Set<Int>,
+    ui: PostUiState,
     revealAll: Boolean,
-    imageSpoilerRevealed: Boolean,
     darkTheme: Boolean,
     actions: PostCardActions,
-    saveStatus: MediaSaveStatus? = null,
     modifier: Modifier = Modifier,
     highlight: String? = null,
 ) {
@@ -168,7 +166,7 @@ fun PostCard(
                                         R.string.media_image_description,
                                         media.displayName, media.width, media.height,
                                     ),
-                                    spoilered = media.spoiler && !revealAll && !imageSpoilerRevealed,
+                                    spoilered = media.spoiler && !revealAll && !ui.imageSpoilerRevealed,
                                     modifier = Modifier
                                         .size(if (post.isOp) 140.dp else 100.dp)
                                         .combinedClickable(
@@ -176,7 +174,7 @@ fun PostCard(
                                             onLongClick = actions.onThumbnailLongPress,
                                         ),
                                 )
-                                saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
+                                ui.saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
                             }
                             Spacer(Modifier.width(spacing.md))
                             Column {
@@ -200,13 +198,14 @@ fun PostCard(
                 Spacer(Modifier.height(spacing.sm))
                 PostBody(
                     body = post.body,
-                    revealedSpoilerIds = revealedSpoilerIds,
+                    revealedSpoilerIds = ui.revealedSpoilerIds,
                     revealAll = revealAll,
                     onTap = actions.onBodyTap,
                     highlight = highlight,
                 )
             }
             val onBacklinksTap = actions.onBacklinksTap
+            val backlinkCount = ui.backlinks.size
             if (backlinkCount > 0 && onBacklinksTap != null) {
                 Spacer(Modifier.height(spacing.xs))
                 AssistChip(
@@ -244,10 +243,13 @@ fun PostCard(
 ) = PostCard(
     post = post,
     board = board,
-    backlinkCount = backlinkCount,
-    revealedSpoilerIds = revealedSpoilerIds,
+    ui = PostUiState(
+        revealedSpoilerIds = revealedSpoilerIds,
+        imageSpoilerRevealed = imageSpoilerRevealed,
+        backlinks = List(backlinkCount) { 0L }, // only the count is shown
+        saveStatus = saveStatus,
+    ),
     revealAll = revealAll,
-    imageSpoilerRevealed = imageSpoilerRevealed,
     darkTheme = darkTheme,
     actions = PostCardActions(
         onBodyTap = onBodyTap,
@@ -256,7 +258,6 @@ fun PostCard(
         onBacklinksTap = onBacklinksTap,
         onCopyPostNo = onCopyPostNo,
     ),
-    saveStatus = saveStatus,
     modifier = modifier,
     highlight = highlight,
 )

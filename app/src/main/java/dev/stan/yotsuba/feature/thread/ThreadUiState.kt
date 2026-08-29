@@ -12,9 +12,8 @@ data class ThreadContent(
     val board: Board?,
     val bookmarked: Boolean,
     val revealAllSpoilers: Boolean,
-    /** Post numbers revealed by tapping their spoiler. Key: postNo to spoiler id. */
-    val revealedSpoilers: Set<Pair<Long, Int>>,
-    val revealedImageSpoilers: Set<Long>,
+    /** Per-post display state, keyed by post number; missing means [PostUiState.Default]. */
+    val postStates: Map<Long, PostUiState>,
     /** What the list shows, top to bottom: posts with the "N new posts" divider in place. */
     val rows: List<ThreadRow>,
     val autoRefreshEnabled: Boolean,
@@ -29,13 +28,20 @@ data class ThreadContent(
     /** Stack of preview cards (D11); each entry is a post in this thread. */
     val previewStack: List<List<ThreadPost>>,
     val pendingExternalUrl: String?,
-    val confirmBeforeOpeningLinks: Boolean,
-    val trustedDomains: Set<String>,
-    /** Media URL → vault status, for the thumbnail download badges. */
-    val mediaSaveStatuses: Map<String, MediaSaveStatus> = emptyMap(),
-    /** Long-pressing a thumbnail saves it to the vault. */
-    val holdToSave: Boolean = true,
 )
+
+/** What one post card needs beyond the post itself, computed once per emission. */
+data class PostUiState(
+    val revealedSpoilerIds: Set<Int> = emptySet(),
+    val imageSpoilerRevealed: Boolean = false,
+    /** Posts quoting this one, in thread order. */
+    val backlinks: List<Long> = emptyList(),
+    val saveStatus: MediaSaveStatus? = null,
+) {
+    companion object {
+        val Default = PostUiState()
+    }
+}
 
 /** One list item on the thread screen; the VM decides the order, the screen only draws. */
 sealed interface ThreadRow {

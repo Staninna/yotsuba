@@ -123,8 +123,7 @@ class ThreadViewModel @AssistedInject constructor(
                         board = board,
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
-                        revealedSpoilers = session.revealedText,
-                        revealedImageSpoilers = session.revealedImages,
+                        postStates = postStates(details, session, saveStatuses),
                         rows = rows(details.posts, session.newPostsAfter),
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
@@ -137,10 +136,6 @@ class ThreadViewModel @AssistedInject constructor(
                             .map { group -> group.mapNotNull { byNo[it] } }
                             .filter { it.isNotEmpty() },
                         pendingExternalUrl = session.pendingExternalUrl,
-                        confirmBeforeOpeningLinks = settings.confirmBeforeOpeningLinks,
-                        trustedDomains = settings.trustedDomains,
-                        mediaSaveStatuses = saveStatuses,
-                        holdToSave = settings.holdToSave,
                     )
                 )
             }
@@ -434,6 +429,22 @@ class ThreadViewModel @AssistedInject constructor(
                     }
                 }
             }
+
+        fun postStates(
+            details: ThreadDetails,
+            session: Session,
+            saveStatuses: Map<String, MediaSaveStatus>,
+        ): Map<Long, PostUiState> {
+            val revealedText = session.revealedText.groupBy({ it.first }, { it.second })
+            return details.posts.associate { post ->
+                post.no to PostUiState(
+                    revealedSpoilerIds = revealedText[post.no]?.toSet().orEmpty(),
+                    imageSpoilerRevealed = post.no in session.revealedImages,
+                    backlinks = details.backlinks[post.no].orEmpty(),
+                    saveStatus = post.presentMedia?.fullUrl?.let { saveStatuses[it] },
+                )
+            }
+        }
 
         /** The post at a row index, or the nearest post above a divider. */
         fun List<ThreadRow>.postAt(index: Int): ThreadPost? =

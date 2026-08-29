@@ -208,12 +208,8 @@ fun ThreadScreen(
                     PostCard(
                         post = post,
                         board = s.board,
-                        backlinkCount = s.details.backlinks[post.no]?.size ?: 0,
-                        saveStatus = post.presentMedia?.fullUrl?.let { s.mediaSaveStatuses[it] },
-                        revealedSpoilerIds = s.revealedSpoilers
-                            .filter { it.first == post.no }.map { it.second }.toSet(),
+                        ui = s.postStates[post.no] ?: PostUiState.Default,
                         revealAll = s.revealAllSpoilers,
-                        imageSpoilerRevealed = post.no in s.revealedImageSpoilers,
                         darkTheme = dark,
                         actions = if (inPreview) actions.forPreview() else actions,
                         highlight = if (inPreview) null else s.searchQuery,
