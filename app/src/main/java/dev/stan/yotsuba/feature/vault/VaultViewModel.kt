@@ -23,6 +23,9 @@ import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -234,6 +237,8 @@ class VaultViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val boardRepository: BoardRepository,
     private val savedState: SavedStateHandle = SavedStateHandle(),
+    /** Where the sort/group pipeline runs; tests pass their scheduler's dispatcher. */
+    private val compute: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     init {
@@ -426,6 +431,7 @@ class VaultViewModel @Inject constructor(
         val viewing = args[3] as Viewing
         val activity = args[4] as Activity
         val editing = args[5] as Editing
+        val urls = entries.mapTo(HashSet(entries.size)) { it.url }
         val visible = arrangeEntries(entries, editing.view.sort, editing.view.filter, editing.view.reversed)
         val recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT).let { newest ->
             // Newest 200 by save date, then shown in the chosen order.
@@ -453,15 +459,19 @@ class VaultViewModel @Inject constructor(
             deleting = activity.deleting,
             undo = activity.undo,
             // Selection follows the entries: a deleted or rescanned-away file drops out.
-            selected = editing.selected.filterTo(mutableSetOf()) { url -> entries.any { it.url == url } },
+            selected = editing.selected.filterTo(mutableSetOf()) { it in urls },
             inspecting = editing.inspecting?.let { url -> entries.firstOrNull { it.url == url } },
             threadEdit = editing.threadEdit,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
+    }
+        // Sorting and grouping the whole vault is real work; keep it off the main thread.
+        .flowOn(compute)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
     /** The statistics sheet's numbers, recomputed whenever the vault changes. */
     val stats: StateFlow<VaultStats> = mediaVault.entries()
         .map { VaultStats.of(it, System.currentTimeMillis()) }
+        .flowOn(compute)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultStats.of(emptyList(), 0L))
 
     fun openBoard(board: String) = selection.update { VaultSelection(board = board) }
