@@ -4,6 +4,7 @@ import dev.stan.yotsuba.core.database.entity.BookmarkEntity
 import dev.stan.yotsuba.core.database.entity.HistoryEntity
 import dev.stan.yotsuba.core.network.dto.BoardDto
 import dev.stan.yotsuba.core.network.dto.PostDto
+import dev.stan.yotsuba.core.media.SoundPost
 import dev.stan.yotsuba.core.text.PostAnnotation
 import dev.stan.yotsuba.core.text.PostHtmlParser
 import dev.stan.yotsuba.core.util.Urls
@@ -76,11 +77,13 @@ fun PostDto.toPostMedia(board: String): PostMedia? {
     }
     val t = tim ?: return null
     val e = ext ?: return null
+    val sound = SoundPost.parse(filename ?: t.toString())
     return PostMedia.Present(
         MediaItem(
             postNo = no,
-            filename = filename ?: t.toString(),
+            filename = sound.name,
             ext = e,
+            soundUrl = sound.url,
             sizeBytes = fsize ?: 0,
             width = w ?: 0,
             height = h ?: 0,

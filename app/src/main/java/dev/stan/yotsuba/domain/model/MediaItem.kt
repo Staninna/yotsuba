@@ -21,7 +21,11 @@ data class MediaItem(
     val thumbnailUrl: String,
     val fullUrl: String,
     val spoiler: Boolean,
+    /** External audio for a "sound post", played alongside the visual. Null for most files. */
+    val soundUrl: String? = null,
 ) {
+    val hasSound: Boolean get() = soundUrl != null
+
     val isVideo: Boolean get() = ext == ".webm" || ext == ".mp4"
     val isAnimated: Boolean get() = isVideo || ext == ".gif"
     val displayName: String get() = "$filename$ext"

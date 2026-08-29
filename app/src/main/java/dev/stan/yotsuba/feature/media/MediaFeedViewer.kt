@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.FileSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -41,6 +43,8 @@ sealed interface ViewerPage {
     /** Free text the chrome appends after size and dimensions, e.g. the thread subject. */
     val note: String?
     val contentDescription: String
+    /** External audio to play alongside the visual (a "sound post"); null for most files. */
+    val soundUrl: String? get() = null
 
     val isVideo: Boolean get() = this is Video
     val pipInfo: PipMediaInfo get() = PipMediaInfo(width, height, isVideo)
@@ -55,6 +59,9 @@ sealed interface ViewerPage {
         override val title: String = "",
         override val note: String? = null,
         override val contentDescription: String = "",
+        /** Data saver: show the thumbnail and fetch the full image only on a tap. */
+        val deferLoad: Boolean = false,
+        override val soundUrl: String? = null,
     ) : ViewerPage
 
     data class Video(
@@ -67,6 +74,7 @@ sealed interface ViewerPage {
         override val title: String = "",
         override val note: String? = null,
         override val contentDescription: String = "",
+        override val soundUrl: String? = null,
     ) : ViewerPage
 }
 
@@ -224,11 +232,18 @@ fun MediaFeedViewer(
                     onEnded = { feed.animateNextWrapping(pages.size) },
                     behaviour = behaviour,
                     onLongPress = { onLongPressPage(page) },
+                    soundUrl = p.soundUrl,
                 )
                 is ViewerPage.Image -> ImagePage(
                     model = p.model,
                     thumbnailModel = p.thumbnailModel,
                     contentDescription = p.contentDescription,
+                    deferLoad = p.deferLoad,
+                    sizeBytes = p.sizeBytes,
+                    soundUrl = p.soundUrl,
+                    selected = feed.currentPage == page && feedActive,
+                    playing = feed.playbackOn,
+                    muted = feed.muted,
                     onTap = { feed.chromeVisible = !feed.chromeVisible },
                     onLongPress = { onLongPressPage(page) },
                 )
@@ -243,6 +258,7 @@ fun MediaFeedViewer(
             title = current?.title.orEmpty(),
             subtitle = current?.let { viewerSubtitle(it, feed.currentPage, pages.size, activeDownloads) },
             onClose = onDismiss,
+            badge = if (current?.soundUrl != null) stringResource(R.string.media_sound_badge) else null,
             modifier = Modifier.align(Alignment.TopCenter).notifyOnPress(feed::touchChrome),
         ) {
             AutoAdvanceButton(autoAdvance, onToggleAutoAdvance)

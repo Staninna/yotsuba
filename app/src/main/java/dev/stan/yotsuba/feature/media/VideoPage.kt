@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +51,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem as ExoMediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
@@ -94,6 +97,8 @@ fun VideoPage(
     onControlTouched: () -> Unit = {},
     /** True from the first drag of the seek bar until it is released. */
     onScrubbing: (Boolean) -> Unit = {},
+    /** A sound post's external audio, kept in step with the video. */
+    soundUrl: String? = null,
 ) {
     val context = LocalContext.current
     val player = remember(videoUri) {
@@ -103,12 +108,22 @@ fun VideoPage(
             prepare()
         }
     }
+    val soundPlayer = rememberSoundPlayer(soundUrl)
+    DisposableEffect(player, soundPlayer) {
+        val listener = soundPlayer?.followVisual(player)
+        onDispose { listener?.let(player::removeListener) }
+    }
     var isPlaying by remember { mutableStateOf(false) }
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var firstFrameRendered by remember(videoUri) { mutableStateOf(false) }
+    var buffering by remember(videoUri) { mutableStateOf(true) }
+    // A failed webm used to sit there as a silent black rectangle; now it says so.
+    var failed by remember(videoUri) { mutableStateOf(false) }
     // Assumed until the tracks arrive, so the mute button does not flicker into disabled.
+    // A sound post always has something to mute, whatever the webm's own tracks say.
     var hasAudio by remember(videoUri) { mutableStateOf(true) }
+    val canMute = hasAudio || soundPlayer != null
     var aspect by remember(videoUri) {
         mutableFloatStateOf(
             if (initialWidth > 0 && initialHeight > 0) initialWidth.toFloat() / initialHeight else 16f / 9f,
@@ -116,9 +131,15 @@ fun VideoPage(
     }
 
     LaunchedEffect(selected, playing) { player.playWhenReady = selected && playing }
-    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
-    LaunchedEffect(autoAdvance) {
-        player.repeatMode = if (autoAdvance) ExoPlayer.REPEAT_MODE_OFF else ExoPlayer.REPEAT_MODE_ONE
+    LaunchedEffect(muted, soundPlayer) {
+        val volume = if (muted) 0f else 1f
+        player.volume = volume
+        soundPlayer?.volume = volume
+    }
+    LaunchedEffect(autoAdvance, soundPlayer) {
+        val mode = if (autoAdvance) ExoPlayer.REPEAT_MODE_OFF else ExoPlayer.REPEAT_MODE_ONE
+        player.repeatMode = mode
+        soundPlayer?.repeatMode = mode
     }
     // Closing the app or the PiP window stops the activity — audio must not keep running.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -134,12 +155,16 @@ fun VideoPage(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(videoUri) {
-        while (true) {
+    // The transport bar is the only reader of the position, so the poll runs only while
+    // it is on screen and the position is moving. One read on entry keeps a paused or
+    // freshly revealed bar accurate; [isPlaying] itself comes from the player's listener.
+    LaunchedEffect(videoUri, isPlaying, chromeVisible) {
+        positionMs = player.currentPosition.coerceAtLeast(0)
+        durationMs = player.duration.coerceAtLeast(0)
+        while (isPlaying && chromeVisible) {
+            delay(250)
             positionMs = player.currentPosition.coerceAtLeast(0)
             durationMs = player.duration.coerceAtLeast(0)
-            isPlaying = player.isPlaying
-            delay(250)
         }
     }
     val autoAdvanceNow = rememberUpdatedState(autoAdvance)
@@ -148,9 +173,19 @@ fun VideoPage(
     DisposableEffect(videoUri) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
+                buffering = playbackState == Player.STATE_BUFFERING
                 if (playbackState == Player.STATE_ENDED && autoAdvanceNow.value && selectedNow.value) {
                     onEndedNow.value()
                 }
+            }
+
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                failed = true
+                buffering = false
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -170,6 +205,7 @@ fun VideoPage(
         player.addListener(listener)
         // The player may have prepared before this effect ran.
         player.currentTracks.audioPresence()?.let { hasAudio = it }
+        isPlaying = player.isPlaying
         onDispose {
             player.removeListener(listener)
             player.release()
@@ -253,8 +289,27 @@ fun VideoPage(
                     .padding(horizontal = 48.dp),
             )
         }
-        if (!firstFrameRendered) {
-            CircularProgressIndicator(
+        when {
+            failed -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    stringResource(R.string.media_video_failed),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(
+                    onClick = {
+                        failed = false
+                        buffering = true
+                        player.prepare()
+                        player.playWhenReady = selected && playing
+                    },
+                ) {
+                    Text(stringResource(R.string.action_retry), color = Color.White)
+                }
+            }
+            // Before the first frame the thumbnail is up and the spinner says "loading";
+            // after it, the spinner only appears while the stream has actually stalled.
+            !firstFrameRendered || buffering -> CircularProgressIndicator(
                 modifier = Modifier.size(40.dp),
                 color = Color.White.copy(alpha = 0.8f),
             )
@@ -307,21 +362,21 @@ fun VideoPage(
                 )
                 // A silent video has nothing to unmute: the button goes dead and says so,
                 // rather than leaving a live-looking control that does nothing.
-                IconButton(onClick = onToggleMute, enabled = hasAudio) {
+                IconButton(onClick = onToggleMute, enabled = canMute) {
                     Icon(
                         when {
-                            !hasAudio -> Icons.Filled.VolumeMute
+                            !canMute -> Icons.Filled.VolumeMute
                             muted -> Icons.Filled.VolumeOff
                             else -> Icons.Filled.VolumeUp
                         },
                         stringResource(
                             when {
-                                !hasAudio -> R.string.media_no_audio
+                                !canMute -> R.string.media_no_audio
                                 muted -> R.string.media_unmute
                                 else -> R.string.media_mute
                             },
                         ),
-                        tint = Color.White.copy(alpha = if (hasAudio) 1f else 0.4f),
+                        tint = Color.White.copy(alpha = if (canMute) 1f else 0.4f),
                     )
                 }
             }
