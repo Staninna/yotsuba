@@ -53,7 +53,7 @@ internal fun SubThreadPanel(
     val spacing = LocalSpacing.current
     val darkTheme = isSystemInDarkTheme()
     val root = state.posts[rootPostNo]
-    val replies = state.repliesUnder(rootPostNo)
+    val replies = state.graph.descendantsOf(rootPostNo)
     var revealedSpoilers by remember { mutableStateOf(setOf<Int>()) }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {

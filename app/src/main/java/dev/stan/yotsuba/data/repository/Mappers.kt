@@ -16,6 +16,7 @@ import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.domain.model.backlinksOf
 
 fun BoardDto.toDomain(): Board = Board(
     code = board,
@@ -97,19 +98,13 @@ fun buildThreadDetails(
     archived: Boolean = false,
     closed: Boolean = false,
 ): ThreadDetails {
-    val backlinks = mutableMapOf<Long, MutableList<Long>>()
-    for (post in posts) {
-        for (quoted in post.quotedPostNos) {
-            backlinks.getOrPut(quoted) { mutableListOf() } += post.no
-        }
-    }
     return ThreadDetails(
         board = board,
         threadNo = threadNo,
         posts = posts,
         archived = archived,
         closed = closed,
-        backlinks = backlinks,
+        backlinks = backlinksOf(posts),
     )
 }
 
