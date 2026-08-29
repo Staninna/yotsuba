@@ -31,6 +31,7 @@
     <string name="vault_open_thread">Open thread</string>
     <string name="vault_go_to_post">Go to post</string>
     <string name="vault_sort_saved">Date saved</string>
+    <string name="vault_sort_reversed">Reversed</string>
     <string name="vault_sort_size">Size</string>
     <string name="vault_sort_name">Name</string>
     <string name="vault_sort_post">Post number</string>

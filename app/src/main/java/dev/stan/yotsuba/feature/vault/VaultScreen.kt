@@ -371,6 +371,7 @@ fun VaultScreen(
                 onRenameThread = viewModel::requestRename,
                 onMergeThread = viewModel::requestMerge,
                 onSort = viewModel::setSort,
+                onToggleReversed = viewModel::toggleReversed,
                 onFilter = viewModel::setFilter,
                 onMode = viewModel::setMode,
             )

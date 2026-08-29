@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.CallMerge
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
@@ -96,6 +97,7 @@ internal fun VaultExplorer(
     onRenameThread: (VaultLocation) -> Unit,
     onMergeThread: (VaultLocation) -> Unit,
     onSort: (VaultSort) -> Unit,
+    onToggleReversed: () -> Unit,
     onFilter: (VaultFilter) -> Unit,
     onMode: (VaultMode) -> Unit,
 ) {
@@ -130,7 +132,7 @@ internal fun VaultExplorer(
             }
 
             state.results != null -> Column(Modifier.fillMaxSize()) {
-                VaultChipRow(state.sort, state.filter, onSort, onFilter)
+                VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
                 if (state.results.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
@@ -159,7 +161,7 @@ internal fun VaultExplorer(
                 ) { mode ->
                     if (mode == VaultMode.RECENT) {
                         Column(Modifier.fillMaxSize()) {
-                            VaultChipRow(state.sort, state.filter, onSort, onFilter)
+                            VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
                             MediaGrid(
                                 entries = state.recent,
                                 selected = state.selected,
@@ -185,7 +187,7 @@ internal fun VaultExplorer(
             )
 
             else -> Column(Modifier.fillMaxSize()) {
-                VaultChipRow(state.sort, state.filter, onSort, onFilter)
+                VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
                 MediaGrid(
                     entries = state.openThread?.entries.orEmpty(),
                     selected = state.selected,
@@ -344,8 +346,10 @@ private fun ModeSwitch(mode: VaultMode, onMode: (VaultMode) -> Unit) {
 @Composable
 internal fun VaultChipRow(
     sort: VaultSort,
+    reversed: Boolean,
     filter: VaultFilter,
     onSort: (VaultSort) -> Unit,
+    onToggleReversed: () -> Unit,
     onFilter: (VaultFilter) -> Unit,
 ) {
     val spacing = LocalSpacing.current
@@ -374,6 +378,12 @@ internal fun VaultChipRow(
                 }
             }
         }
+        FilterChip(
+            selected = reversed,
+            onClick = onToggleReversed,
+            label = { Text(stringResource(R.string.vault_sort_reversed)) },
+            leadingIcon = { Icon(Icons.Filled.SwapVert, contentDescription = null) },
+        )
         VaultFilter.entries.forEach { option ->
             FilterChip(
                 selected = filter == option,

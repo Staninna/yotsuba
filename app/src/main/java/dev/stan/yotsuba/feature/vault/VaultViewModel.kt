@@ -39,6 +39,7 @@ const val UNDO_WINDOW_MS = 30_000L
 
 private const val KEY_SORT = "vault_sort"
 private const val KEY_FILTER = "vault_filter"
+private const val KEY_REVERSED = "vault_reversed"
 
 /** Grid order. Each is a total order so paging in the viewer matches the grid. */
 enum class VaultSort {
@@ -70,18 +71,24 @@ enum class VaultMode { RECENT, BROWSE }
 const val RECENT_LIMIT = 200
 
 /** [entries] in [sort] order with [filter] applied, the shape every level of the explorer shows. */
-fun arrangeEntries(entries: List<VaultEntry>, sort: VaultSort, filter: VaultFilter): List<VaultEntry> {
+fun arrangeEntries(
+    entries: List<VaultEntry>,
+    sort: VaultSort,
+    filter: VaultFilter,
+    reversed: Boolean = false,
+): List<VaultEntry> {
     val kept = when (filter) {
         VaultFilter.ALL -> entries
         VaultFilter.IMAGES -> entries.filterNot { it.isVideo }
         VaultFilter.VIDEOS -> entries.filter { it.isVideo }
     }
-    return when (sort) {
+    val ordered = when (sort) {
         VaultSort.SAVED -> kept.sortedByDescending { it.savedAt }
         VaultSort.SIZE -> kept.sortedByDescending { it.sizeBytes ?: 0L }
         VaultSort.NAME -> kept.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayName })
         VaultSort.POST -> kept.sortedWith(compareBy(nullsLast()) { it.postNo })
     }
+    return if (reversed) ordered.asReversed() else ordered
 }
 
 /** Explorer drill-down position: root → board → thread. */
@@ -164,6 +171,8 @@ data class VaultUiState(
     /** [entries] after the sort and filter chips; what every level of the explorer shows. */
     val visible: List<VaultEntry> = emptyList(),
     val sort: VaultSort = VaultSort.SAVED,
+    /** Flip whatever [sort] produces: oldest first, smallest first, Z to A. */
+    val reversed: Boolean = false,
     val filter: VaultFilter = VaultFilter.ALL,
     val mode: VaultMode = VaultMode.RECENT,
     /** The newest [RECENT_LIMIT] of [visible], the Recent feed. */
@@ -320,17 +329,25 @@ class VaultViewModel @Inject constructor(
     )
 
     /** How the entries are arranged on screen. */
-    private data class View(val sort: VaultSort, val filter: VaultFilter, val mode: VaultMode, val query: String)
+    private data class View(
+        val sort: VaultSort,
+        val reversed: Boolean,
+        val filter: VaultFilter,
+        val mode: VaultMode,
+        val query: String,
+    )
 
     // Sort and filter outlive the process: they are the kind of thing a user sets once.
     private val sort = savedState.getStateFlow(KEY_SORT, VaultSort.SAVED.name)
+    private val reversed = savedState.getStateFlow(KEY_REVERSED, false)
     private val filter = savedState.getStateFlow(KEY_FILTER, VaultFilter.ALL.name)
     private val mode = MutableStateFlow(VaultMode.RECENT)
     private val query = MutableStateFlow("")
 
-    private val view = combine(sort, filter, mode, query) { sort, filter, mode, query ->
+    private val view = combine(sort, reversed, filter, mode, query) { sort, reversed, filter, mode, query ->
         View(
             VaultSort.entries.firstOrNull { it.name == sort } ?: VaultSort.SAVED,
+            reversed,
             VaultFilter.entries.firstOrNull { it.name == filter } ?: VaultFilter.ALL,
             mode,
             query,
@@ -391,6 +408,10 @@ class VaultViewModel @Inject constructor(
         savedState[KEY_SORT] = sort.name
     }
 
+    fun toggleReversed() {
+        savedState[KEY_REVERSED] = !(savedState.get<Boolean>(KEY_REVERSED) ?: false)
+    }
+
     fun setFilter(filter: VaultFilter) {
         savedState[KEY_FILTER] = filter.name
     }
@@ -405,10 +426,10 @@ class VaultViewModel @Inject constructor(
         val viewing = args[3] as Viewing
         val activity = args[4] as Activity
         val editing = args[5] as Editing
-        val visible = arrangeEntries(entries, editing.view.sort, editing.view.filter)
+        val visible = arrangeEntries(entries, editing.view.sort, editing.view.filter, editing.view.reversed)
         val recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT).let { newest ->
             // Newest 200 by save date, then shown in the chosen order.
-            arrangeEntries(newest, editing.view.sort, editing.view.filter)
+            arrangeEntries(newest, editing.view.sort, editing.view.filter, editing.view.reversed)
         }
         val results = editing.view.query.takeIf { it.isNotBlank() }?.let { searchEntries(visible, it) }
         val feed = results ?: if (sel.board == null && editing.view.mode == VaultMode.RECENT) recent else null
@@ -416,6 +437,7 @@ class VaultViewModel @Inject constructor(
             entries = entries,
             visible = visible,
             sort = editing.view.sort,
+            reversed = editing.view.reversed,
             filter = editing.view.filter,
             mode = editing.view.mode,
             recent = recent,
