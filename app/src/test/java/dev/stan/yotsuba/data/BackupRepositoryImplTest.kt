@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.stan.yotsuba.core.backup.BackupFile
+import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.data.repository.BackupRepositoryImpl
 import dev.stan.yotsuba.data.repository.VaultStore
 import dev.stan.yotsuba.domain.model.Bookmark
@@ -94,8 +95,11 @@ class BackupRepositoryImplTest {
         val settings: FakeSettings = FakeSettings(),
         val prefs: FakePreferences = FakePreferences(),
         scope: CoroutineScope = CoroutineScope(Job()),
+        access: Boolean = true,
     ) {
-        val repo = BackupRepositoryImpl(VaultStore(), bookmarks, hidden, settings, prefs, scope).apply {
+        val repo = BackupRepositoryImpl(
+            VaultStore(), bookmarks, hidden, settings, prefs, StorageAccessCheck { access }, scope,
+        ).apply {
             rootOverride = root
             ioDispatcher = UnconfinedTestDispatcher()
         }
@@ -204,5 +208,21 @@ class BackupRepositoryImplTest {
         runCurrent()
         assertTrue(file.exists())
         assertTrue(file.readText().contains("\"threadNo\": 2"))
+    }
+
+    @Test
+    fun `without storage access nothing is read or written`() = runTest {
+        val root = folder.newFolder()
+        File(root, BackupFile.FILE_NAME).writeText("{}")
+        val env = Env(root, bookmarks = FakeBookmarks(listOf(bookmark("g", 1))), access = false, scope = backgroundScope)
+        assertEquals(BackupResult.NoAccess, env.repo.export())
+        assertEquals(BackupResult.NoAccess, env.repo.import())
+        assertNull(env.repo.available())
+        assertEquals("{}", File(root, BackupFile.FILE_NAME).readText())
+
+        env.bookmarks.add(bookmark("g", 2))
+        advanceTimeBy(6_000)
+        runCurrent()
+        assertEquals("{}", File(root, BackupFile.FILE_NAME).readText())
     }
 }

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import dev.stan.yotsuba.core.backup.ApplicationScope
 import dev.stan.yotsuba.core.backup.BackupCodec
 import dev.stan.yotsuba.core.backup.BackupFile
+import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.domain.repository.BackupInfo
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BackupResult
@@ -37,6 +38,7 @@ class BackupRepositoryImpl @Inject constructor(
     private val hiddenThreads: HiddenThreadsRepository,
     private val settings: SettingsRepository,
     private val preferences: DataStore<Preferences>,
+    private val storageAccess: StorageAccessCheck,
     @ApplicationScope scope: CoroutineScope,
 ) : BackupRepository {
 
@@ -62,6 +64,7 @@ class BackupRepositoryImpl @Inject constructor(
 
     override suspend fun export(): BackupResult = withContext(ioDispatcher) {
         lock.withLock {
+            if (!storageAccess.granted()) return@withLock BackupResult.NoAccess
             try {
                 val now = System.currentTimeMillis()
                 val snapshot = BackupCodec.build(
@@ -88,6 +91,7 @@ class BackupRepositoryImpl @Inject constructor(
 
     override suspend fun import(): BackupResult = withContext(ioDispatcher) {
         lock.withLock {
+            if (!storageAccess.granted()) return@withLock BackupResult.NoAccess
             val backup = try {
                 if (!file.isFile) return@withLock BackupResult.NoBackup
                 BackupCodec.decode(file.readText())
@@ -106,6 +110,7 @@ class BackupRepositoryImpl @Inject constructor(
     }
 
     override suspend fun available(): BackupInfo? = withContext(ioDispatcher) {
+        if (!storageAccess.granted()) return@withContext null
         runCatching {
             if (!file.isFile) null else BackupInfo(BackupCodec.decode(file.readText()).exportedAt)
         }.getOrNull()
