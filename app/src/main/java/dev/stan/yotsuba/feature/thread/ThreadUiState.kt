@@ -28,7 +28,12 @@ data class ThreadContent(
     /** Stack of preview cards (D11); each entry is a post in this thread. */
     val previewStack: List<List<ThreadPost>>,
     val pendingExternalUrl: String?,
+    /** Suffix shown after a quotelink to these posts, e.g. ">>123 (OP)". */
+    val quoteLabels: Map<Long, QuoteLabel> = emptyMap(),
 )
+
+/** Why a quotelink target is special; the screen picks the words. */
+enum class QuoteLabel { OP, YOU }
 
 /** What one post card needs beyond the post itself, computed once per emission. */
 data class PostUiState(

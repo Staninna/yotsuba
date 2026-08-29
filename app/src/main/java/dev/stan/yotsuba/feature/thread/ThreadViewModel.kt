@@ -137,6 +137,7 @@ class ThreadViewModel @AssistedInject constructor(
                             .map { group -> group.mapNotNull { byNo[it] } }
                             .filter { it.isNotEmpty() },
                         pendingExternalUrl = session.pendingExternalUrl,
+                        quoteLabels = quoteLabels(details, emptySet()),
                     )
                 )
             }
@@ -450,6 +451,12 @@ class ThreadViewModel @AssistedInject constructor(
                     }
                 }
             }
+
+        /** The OP is labelled first; a claimed OP still reads as yours. */
+        fun quoteLabels(details: ThreadDetails, claimed: Set<Long>): Map<Long, QuoteLabel> = buildMap {
+            details.posts.firstOrNull { it.isOp }?.let { put(it.no, QuoteLabel.OP) }
+            claimed.forEach { put(it, QuoteLabel.YOU) }
+        }
 
         fun postStates(
             details: ThreadDetails,

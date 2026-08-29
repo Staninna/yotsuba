@@ -51,13 +51,15 @@ fun PostBody(
     modifier: Modifier = Modifier,
     highlight: String? = null,
     onLongPress: ((BodyTap) -> Unit)? = null,
+    /** Text appended to a same-thread quotelink, keyed by the quoted post. */
+    quoteLabels: Map<Long, String> = emptyMap(),
 ) {
     val colors = LocalYotsubaColors.current
     val scheme = MaterialTheme.colorScheme
     // The link listeners read the latest handler, so the string need not rebuild when it changes.
     val currentOnTap = rememberUpdatedState(onTap)
     val currentOnLongPress = rememberUpdatedState(onLongPress)
-    val built = remember(body, revealedSpoilerIds, revealAll, highlight, colors, scheme) {
+    val built = remember(body, revealedSpoilerIds, revealAll, highlight, quoteLabels, colors, scheme) {
         val taps = mutableListOf<Pair<IntRange, BodyTap>>()
         val annotated = buildAnnotatedString {
             body.segments.forEach { seg ->
@@ -65,16 +67,20 @@ fun PostBody(
                 val hiddenSpoiler = spoilerId != null && !revealAll && spoilerId !in revealedSpoilerIds
                 val style = segmentStyle(seg, hiddenSpoiler, colors, scheme)
                 val tap = tapFor(seg, hiddenSpoiler)
+                val label = (seg.annotation as? PostAnnotation.QuotelinkSameThread)
+                    ?.let { quoteLabels[it.postNo] }
+                    ?.takeUnless { hiddenSpoiler }
+                val text = if (label == null) seg.text else "${'$'}{seg.text} ${'$'}label"
                 if (tap == null) {
-                    withStyle(style) { append(seg.text) }
+                    withStyle(style) { append(text) }
                 } else {
-                    taps += (length until length + seg.text.length) to tap
+                    taps += (length until length + text.length) to tap
                     val link = LinkAnnotation.Clickable(
-                        tag = seg.text,
+                        tag = text,
                         styles = TextLinkStyles(style = style),
                         linkInteractionListener = { currentOnTap.value(tap) },
                     )
-                    withLink(link) { append(seg.text) }
+                    withLink(link) { append(text) }
                 }
             }
         }

@@ -209,6 +209,16 @@ fun ThreadScreen(
                     },
                 )
 
+                val opLabel = stringResource(R.string.thread_quote_label_op)
+                val youLabel = stringResource(R.string.thread_quote_label_you)
+                val quoteLabels = remember(s.quoteLabels, opLabel, youLabel) {
+                    s.quoteLabels.mapValues { (_, label) ->
+                        when (label) {
+                            QuoteLabel.OP -> opLabel
+                            QuoteLabel.YOU -> youLabel
+                        }
+                    }
+                }
                 val postCard: @Composable (ThreadPost, Boolean) -> Unit = { post, inPreview ->
                     val actions = actionsFor(post)
                     PostCard(
@@ -219,6 +229,7 @@ fun ThreadScreen(
                         darkTheme = dark,
                         actions = if (inPreview) actions.forPreview() else actions,
                         highlight = if (inPreview) null else s.searchQuery,
+                        quoteLabels = quoteLabels,
                     )
                 }
 

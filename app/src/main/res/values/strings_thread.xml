@@ -4,4 +4,6 @@
     <string name="thread_refresh_failed">Refresh failed: %1$s</string>
     <string name="thread_search_close">Close search</string>
     <string name="thread_go_to_post">Go to</string>
+    <string name="thread_quote_label_op">(OP)</string>
+    <string name="thread_quote_label_you">(You)</string>
 </resources>

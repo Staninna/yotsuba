@@ -28,6 +28,7 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import dev.stan.yotsuba.feature.thread.LinkAction
+import dev.stan.yotsuba.feature.thread.QuoteLabel
 import dev.stan.yotsuba.feature.thread.Session
 import dev.stan.yotsuba.feature.thread.ThreadRow
 import dev.stan.yotsuba.feature.thread.ThreadContent
@@ -300,6 +301,14 @@ class ThreadViewModelTest {
             vm.onJumpToPost(999) // not in the thread: ignored
             assertEquals(103L, vm.scrollTarget.value?.postNo)
         }
+
+    @Test fun `the OP gets an OP quote label`() = runTest(dispatcher.scheduler) {
+        val env = Env(posts = listOf(Env.post(100).copy(isOp = true)) + (101L..103L).map { Env.post(it) })
+        val vm = env.vm()
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(mapOf(100L to QuoteLabel.OP), content(vm).quoteLabels)
+    }
 
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = Env().vm()

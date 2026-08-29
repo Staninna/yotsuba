@@ -86,6 +86,7 @@ fun PostCard(
     actions: PostCardActions,
     modifier: Modifier = Modifier,
     highlight: String? = null,
+    quoteLabels: Map<Long, String> = emptyMap(),
 ) {
     val spacing = LocalSpacing.current
     Card(
@@ -205,6 +206,7 @@ fun PostCard(
                     onTap = actions.onBodyTap,
                     highlight = highlight,
                     onLongPress = actions.onBodyLongPress,
+                    quoteLabels = quoteLabels,
                 )
             }
             val onBacklinksTap = actions.onBacklinksTap
