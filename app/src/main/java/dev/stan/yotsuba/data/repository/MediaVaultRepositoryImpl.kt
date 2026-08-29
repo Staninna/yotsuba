@@ -38,6 +38,7 @@ import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -66,11 +67,13 @@ class MediaVaultRepositoryImpl @Inject constructor(
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
         }
 
-    private val storageAccessState = MutableStateFlow(hasStorageAccess())
-    override val storageAccess: Flow<Boolean> = storageAccessState
+    // Starts false and is filled in on the first refresh: the check itself needs a real
+    // Android runtime, and this singleton is built at process start (and under Robolectric).
+    private val storageAccessState = MutableStateFlow(false)
+    override val storageAccess: Flow<Boolean> = storageAccessState.onStart { refreshStorageAccess() }
 
     override fun refreshStorageAccess() {
-        storageAccessState.value = hasStorageAccess()
+        storageAccessState.value = runCatching { hasStorageAccess() }.getOrDefault(false)
     }
 
     override fun entries(): Flow<List<VaultEntry>> = savedMediaDao.all().map { rows ->

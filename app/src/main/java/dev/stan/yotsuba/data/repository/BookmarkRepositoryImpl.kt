@@ -6,7 +6,6 @@ import dev.stan.yotsuba.core.network.dto.ThreadDto
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.apiResult
-import dev.stan.yotsuba.core.work.BookmarkRefreshScheduler
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.CatalogThread
@@ -24,17 +23,10 @@ class BookmarkRepositoryImpl @Inject constructor(
     private val dao: BookmarkDao,
     private val api: FourChanApi,
     private val catalogRepository: CatalogRepository,
-    scheduler: BookmarkRefreshScheduler,
 ) : BookmarkRepository {
 
     /** Test seam; the injected constructor keeps wall-clock time. */
     internal var clock: () -> Long = System::currentTimeMillis
-
-    init {
-        // The Application class isn't ours to edit, so the periodic worker is registered the
-        // first time the repository is built (KEEP policy: a no-op once it exists).
-        scheduler.ensureScheduled()
-    }
 
     override val bookmarks: Flow<List<Bookmark>> =
         dao.all().map { list -> list.map { it.toDomain() } }

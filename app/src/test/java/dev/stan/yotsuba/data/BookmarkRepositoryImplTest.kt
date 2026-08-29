@@ -9,7 +9,6 @@ import dev.stan.yotsuba.core.network.dto.PostDto
 import dev.stan.yotsuba.core.network.dto.ThreadDto
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
-import dev.stan.yotsuba.core.work.BookmarkRefreshScheduler
 import dev.stan.yotsuba.data.repository.BookmarkRepositoryImpl
 import dev.stan.yotsuba.data.repository.toDomain
 import dev.stan.yotsuba.data.repository.toEntity
@@ -113,9 +112,6 @@ class BookmarkRepositoryImplTest {
         }
     }
 
-    private object NoScheduler : BookmarkRefreshScheduler {
-        override fun ensureScheduled() {}
-    }
 
     private fun bookmark(
         no: Long = 100,
@@ -145,7 +141,7 @@ class BookmarkRepositoryImplTest {
         api: FourChanApi,
         dao: FakeBookmarkDao = FakeBookmarkDao(),
         catalog: CatalogRepository = FakeCatalog(emptyMap()),
-    ) = BookmarkRepositoryImpl(dao, api, catalog, NoScheduler).also { it.clock = { 42L } }
+    ) = BookmarkRepositoryImpl(dao, api, catalog).also { it.clock = { 42L } }
 
     // --- unread derivation -------------------------------------------------------------
 

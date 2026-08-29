@@ -26,6 +26,9 @@ class WorkManagerBookmarkRefreshScheduler @Inject constructor(
 ) : BookmarkRefreshScheduler {
 
     override fun ensureScheduled() {
+        // The App Startup provider initialises WorkManager before Application.onCreate on a
+        // device; under Robolectric nothing does, and scheduling is not what those tests check.
+        if (!WorkManager.isInitialized()) return
         val request = PeriodicWorkRequestBuilder<BookmarkRefreshWorker>(
             BookmarkRefreshWorker.DEFAULT_INTERVAL_MINUTES, TimeUnit.MINUTES,
         )

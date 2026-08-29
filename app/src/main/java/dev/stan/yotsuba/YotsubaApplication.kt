@@ -12,6 +12,8 @@ import coil3.gif.GifDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import dagger.hilt.android.HiltAndroidApp
+import dev.stan.yotsuba.core.work.BookmarkRefreshScheduler
+import dev.stan.yotsuba.domain.repository.BackupRepository
 import javax.inject.Inject
 import okhttp3.OkHttpClient
 
@@ -19,6 +21,17 @@ import okhttp3.OkHttpClient
 class YotsubaApplication : Application(), SingletonImageLoader.Factory {
 
     @Inject lateinit var okHttpClient: OkHttpClient
+
+    /** Injected only so the singleton exists from process start and its auto-export observer runs. */
+    @Inject lateinit var backupRepository: BackupRepository
+
+    @Inject lateinit var bookmarkRefreshScheduler: BookmarkRefreshScheduler
+
+    override fun onCreate() {
+        super.onCreate()
+        // KEEP policy: a no-op once the periodic work exists.
+        bookmarkRefreshScheduler.ensureScheduled()
+    }
 
     /**
      * Coil shares the app's OkHttp client (pool, dispatcher, cookie jar) but keeps its own
