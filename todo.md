@@ -2,7 +2,7 @@
 
 ## 0. Testing
 
-- [ ] 100% unit test coverage — not met; honest state as of 2026-08-29: 22.8% line / 20.1% instruction / 21.8% branch (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`, up from 20.1% line on 2026-08-25). 269 JVM tests pass, up from 176. Near-100% where JVM-testable: domain/model 99.4%, core/text 98.5%, core/vault 97.6%, core/util 97.1%, network DTOs 96.1%. `feature/thread` 55.9%, `data/repository` 43.9%. The remainder is mostly Compose UI (designsystem, screens, navigation) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource, SettingsDataStore) whose sandbox classloader bypasses JaCoCo, so they record 0% despite passing — `core/datastore` reads 0% for that reason alone. `feature/media` is 4.7%: the viewer VMs depend on Context/ExoPlayer, though `ViewerBehaviour` and `PostGraph` are now pure and fully covered
+- [ ] 100% unit test coverage — not met; last measured 2026-08-29 at 22.8% line / 20.1% instruction / 21.8% branch (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`). 391 JVM tests pass as of 2026-08-30 (up from 269); the percentage has not been re-measured since the overhaul and is due. One unit-test run failed once and passed on three reruns without a code change, so there is a flaky test somewhere in the suite; not yet identified. Near-100% where JVM-testable: domain/model 99.4%, core/text 98.5%, core/vault 97.6%, core/util 97.1%, network DTOs 96.1%. `feature/thread` 55.9%, `data/repository` 43.9%. The remainder is mostly Compose UI (designsystem, screens, navigation) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource, SettingsDataStore) whose sandbox classloader bypasses JaCoCo, so they record 0% despite passing — `core/datastore` reads 0% for that reason alone. `feature/media` is 4.7%: the viewer VMs depend on Context/ExoPlayer, though `ViewerBehaviour` and `PostGraph` are now pure and fully covered
 - [ ] 100% e2e test coverage — 8 instrumented Compose tests in `app/src/androidTest/` cover every screen's primary flow (boards → catalog → thread → media viewer, bookmark add/remove, history, vault, settings toggle) with Hilt `@TestInstallIn` fake repositories, no network. They compile (`:app:compileDebugAndroidTestKotlin`) but need a device: `./gradlew :app:connectedDebugAndroidTest`. Attempted on hardware 2026-08-29 and did not run: the test APK failed to link against the installed app APK (`NoSuchMethodError: kotlinx.coroutines.BuildersKt.runBlockingK`), a stale-artifact mismatch rather than a test failure — unresolved. Secondary flows (search, spoilers, PiP, downloads, hold-to-save, edge-seek) are uncovered, and the gesture work in particular cannot be trusted without a device
 
 ## 1. Release safety
@@ -66,28 +66,53 @@
 - [x] `OnResumeEffect` helper (Bookmarks hand-rolled observer, ThreadScreen's DisposableEffect variant)
 - [x] Unify `hasStorageAccess` polarity (MediaViewModel vs VaultViewModel); delete duplicate `findActivity`; `SavedMediaEntity` factory functions; `VaultSaveContext` → `domain/model/`; VaultScreen O(n²) `keys.sorted()` in `items()`; `Urls.parseInternal` slash contortion; `BoardRepositoryImpl` board lookup via `Map`
 
-## 5. Feature ideas (vs Readchan)
+## 5. Overhaul of 2026-08-30
+
+Plan and review notes in `.scratch/next-level/plan.md`. Shipped in 148 commits: bookmarks became a
+thread watcher; Saved became a saved-media tab (trash with undo, multi-select, open thread, totals,
+sort/filter, local video stills, Recent feed, search, rename/merge, statistics); thread reader
+(jump-to-quote, (OP)/(You), quoted-by row, ID filter, gallery, tree view, closed/sticky, long-press
+sheet, jump FABs); shell (Home + Boards + Threads + Saved tabs, Settings behind a gear, one outer
+Scaffold, bounded back stack, transitions, deep links, share target, widget); backup/restore of
+bookmarks + settings + hidden threads into the vault root; filters; archive fallthrough; sound posts;
+data saver; widget. Debt burned: `Repositories.kt`/`Daos.kt` split per declaration, settings as one
+serialized blob, `SettingsSectionId` carries its own title/icon, catalog combine typed, `ViewerPage`
+sealed, thread session state folded into one flow, `MediaSaveQueue` domain interface, deprecated
+vault members deleted.
+
+Known gaps from that pass, none verified on a device yet:
+- Imported-thread merge collides on synthetic post numbers (both sides number 1..n), so the fake
+  conversation of the source overwrites the target's; files and metadata merge correctly
+- Trash entries live in memory; a process death empties the trash on next launch
+- Restored bookmarks show 0 unread until the next refresh (no `postNos` until then)
+- Sort order in the Threads tab is not persisted
+- `tab_bookmarks`, `tab_history`, `settings_summary_boards`, `settings_summary_storage`,
+  `vault_rescan`, `vault_open_external` in `strings.xml` are unused now
+- Instrumented flows were updated for the new shell (Threads tab, Boards tab, gear) and compile,
+  but have not run on hardware since the 2026-08-29 link failure
+
+## 6. Feature ideas (vs Readchan)
 
 ### Reading loop
-- [ ] Tree/reply-chain view (linear ↔ threaded toggle; `SubThreadPanel` BFS is 80% of the model)
-- [ ] "(You)" without posting — claim posts, highlight/count replies to claimed posts
-- [ ] Cross-thread ghost quotes — resolve `>>>/board/no` and dead backlinks against history/archive cache
-- [ ] Thread watcher diff view — collapse above `maxReadPostNo`, background refresh + new-reply notifications
+- [x] Tree/reply-chain view — menu toggle, `PostGraph.tree()`, depth capped at 4 with an expandable "N more replies" row
+- [x] "(You)" without posting — `claimed_posts` table (DB 9), long-press "Mark as mine", quotelinks read (You), "N replies to you" under the title
+- [ ] Cross-thread ghost quotes — resolve `>>>/board/no` and dead backlinks against history/archive cache (the archive client now exists in `core/network/ArchiveHosts.kt`; wiring is the remaining half)
+- [~] Thread watcher — background refresh (WorkManager, per-board catalog fetch, one `readUpTo` mark) and new-reply notifications shipped 2026-08-30; the "collapse everything above the read mark" view is still open
 
 ### Media
 - [x] Hold to save — long-press a thumbnail in a thread or an open image/video in the viewer. Uses telephoto's `onLongClick`, no gesture overlay. The catalogue is deliberately excluded: long-press there already hides a thread
 - [x] Double-tap the edges of a video to skip, with a configurable step. Implemented as a `DoubleClickToZoomListener`, so the middle third keeps zoom and the pager's drag is untouched. The jump is capped at a quarter of the running time, so a 10 s step does not overshoot a 2 s webm
 - [x] Keep the screen on while a video plays — one owner in `MediaFeedViewer` via `View.keepScreenOn`; the window flag is not refcounted and several `VideoPage`s are composed at once
 - [x] Import local files or a folder as an offline thread, filed under a reserved `_local` board. Files are copied, never referenced: a SAF grant can be revoked. `rescan()` needed no change — imports key on `file://<path>` like unsorted migration leftovers already did
-- [ ] Vault dedup by MD5 (API provides it); mark already-saved media in threads
-- [ ] Gallery prefetch + one-tap "save whole thread's media" batch
-- [ ] Sound-post support (`[sound=...]`)
+- [ ] Vault dedup by MD5 (API provides it); already-saved media is marked in threads through `MediaSaveQueue.statuses`, dedup on save is not done
+- [x] Thread gallery grid with "Save all" (no prefetch; each save goes through the normal queue)
+- [x] Sound-post support — `core/media/SoundPost.kt` parses the filename tag, a second ExoPlayer follows the visual; images with sound have no mute button of their own and follow the feed's shared mute
 
 ### Archival (the killer read-only feature)
-- [~] Full offline thread snapshots — **mostly done.** Saving media writes `posts.json` beside it with the saved post's transitive parents and replies, as parsed segments so greentext, quotelinks and spoilers survive. The vault's Sync button then walks every saved thread, fetches the live one and merges its **whole** comment section in — while the thread still exists, that is the only chance to take it. `MediaVaultRepository.savedThread()` rebuilds a `ThreadDetails` from the sidecar, and the media viewer falls back to it when the live fetch fails, so a 404'd thread stays readable. Sync is rate-limited to ~1 thread/second by `RateLimitInterceptor` and reports a `done / total` counter; a `RateLimited` response stops the pass rather than hammering. Still missing: bookmarked threads snapshotting without a save, thumbnails for unsaved posts, background/periodic sync rather than a manual tap, and any pruning story for a sidecar that only grows
-- [ ] Archive fallthrough — desuarchive/warosu/b4k per board when a thread 404s
+- [~] Full offline thread snapshots — **mostly done.** Saving media writes `posts.json` beside it with the saved post's transitive parents and replies, as parsed segments so greentext, quotelinks and spoilers survive. The vault's Sync button then walks every saved thread, fetches the live one and merges its **whole** comment section in — while the thread still exists, that is the only chance to take it. `MediaVaultRepository.savedThread()` rebuilds a `ThreadDetails` from the sidecar, and the media viewer falls back to it when the live fetch fails, so a 404'd thread stays readable. Sync is rate-limited to ~1 thread/second by `RateLimitInterceptor` and reports a `done / total` counter; a `RateLimited` response stops the pass rather than hammering. Still missing: bookmarked threads snapshotting without a save, thumbnails for unsaved posts, background/periodic sync rather than a manual tap (the button is now split into Rescan and Fetch new replies), and any pruning story for a sidecar that only grows. The thread screen itself opens the sidecar copy when live and archive both fail ("Offline copy from <date>")
+- [~] Archive fallthrough — desuarchive and arch.b4k.co through the FoolFuuka JSON API, order live → vault snapshot → archive. Warosu has no JSON API and is a documented hook only. The media viewer still does live → vault, no archive
 
 ### Filtering & comfort
-- [ ] Regex/keyword/name/flag filters, per-board scoping, "filtered, tap to reveal" stub
-- [ ] Board favorites + catalog re-ordering; per-board theme accents
-- [ ] Data-saver mode (thumbnails only on metered, via `NetworkMonitor`)
+- [x] Regex/keyword/name/flag/ID/filename filters, per-board scoping, Hide or Stub, Settings > Filters with live regex validation and a test field; applied to catalog and thread
+- [~] Favourite boards are the Home tab (swipeable catalog pages, first tab, start destination). Re-ordering favourites and per-board accents are not done
+- [x] Data-saver mode — `Settings.dataSaver` + `NetworkMonitor.metered`; videos stop autoplaying and full images wait behind a "Load (N MB)" pill. Catalog/thread thumbnails still load
