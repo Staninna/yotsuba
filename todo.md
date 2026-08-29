@@ -5,6 +5,18 @@
 - [ ] 100% unit test coverage — not met; honest state as of 2026-08-29: 22.8% line / 20.1% instruction / 21.8% branch (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`, up from 20.1% line on 2026-08-25). 269 JVM tests pass, up from 176. Near-100% where JVM-testable: domain/model 99.4%, core/text 98.5%, core/vault 97.6%, core/util 97.1%, network DTOs 96.1%. `feature/thread` 55.9%, `data/repository` 43.9%. The remainder is mostly Compose UI (designsystem, screens, navigation) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource, SettingsDataStore) whose sandbox classloader bypasses JaCoCo, so they record 0% despite passing — `core/datastore` reads 0% for that reason alone. `feature/media` is 4.7%: the viewer VMs depend on Context/ExoPlayer, though `ViewerBehaviour` and `PostGraph` are now pure and fully covered
 - [ ] 100% e2e test coverage — 8 instrumented Compose tests in `app/src/androidTest/` cover every screen's primary flow (boards → catalog → thread → media viewer, bookmark add/remove, history, vault, settings toggle) with Hilt `@TestInstallIn` fake repositories, no network. They compile (`:app:compileDebugAndroidTestKotlin`) but need a device: `./gradlew :app:connectedDebugAndroidTest`. Attempted on hardware 2026-08-29 and did not run: the test APK failed to link against the installed app APK (`NoSuchMethodError: kotlinx.coroutines.BuildersKt.runBlockingK`), a stale-artifact mismatch rather than a test failure — unresolved. Secondary flows (search, spoilers, PiP, downloads, hold-to-save, edge-seek) are uncovered, and the gesture work in particular cannot be trusted without a device
 
+## 1. Release safety
+
+- [ ] Nothing launches the release APK. CI builds it, verifies it is release-signed, and
+  publishes it, but never starts it, so 1.1.1 shipped a build that crashed before its first
+  frame: R8 renamed an enum used as a navigation argument, and type-safe routes look
+  argument types up by name. Debug is not minified, so no amount of dev-build testing could
+  have caught it. Until something smoke-launches the minified build, every release-only
+  crash class is discovered by installing it
+- [ ] The @Serializable sealed PostAnnotation hierarchy in the vault sidecar has the same
+  shape of risk and has not been exercised from a minified build: serialNames are baked at
+  compile time so the JSON is stable, but decoding a saved posts.json under R8 is untested
+
 ## 1. Code quality — blockers
 
 - [x] Unify the two media viewers: extract shared `MediaFeedViewer` (pager + chrome + playback + PiP) and `PipController`; `VaultViewer` becomes a thin mapping. Kills ~350 duplicated lines, brings `MediaScreen.kt` (717) and `VaultScreen.kt` (545) under the 500-line limit
