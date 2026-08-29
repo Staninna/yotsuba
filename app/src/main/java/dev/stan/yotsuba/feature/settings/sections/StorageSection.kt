@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.core.designsystem.component.TextRow
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.Settings
@@ -44,6 +45,12 @@ fun StorageSection(
     TextRow(stringResource(R.string.settings_clear_trusted)) {
         clear(R.string.settings_confirm_clear_trusted_body) { update { it.copy(trustedDomains = emptySet()) } }
     }
+    SwitchRow(
+        title = stringResource(R.string.settings_confirm_vault_delete),
+        summary = stringResource(R.string.settings_confirm_vault_delete_summary),
+        checked = settings.confirmVaultDelete,
+        onToggle = { v -> update { it.copy(confirmVaultDelete = v) } },
+    )
     TextRow(stringResource(R.string.settings_hidden_threads, hiddenThreads.size)) {
         showHidden = true
     }

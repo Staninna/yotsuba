@@ -20,6 +20,13 @@ import dev.stan.yotsuba.feature.settings.labelRes
 fun MediaSection(settings: Settings, update: ((Settings) -> Settings) -> Unit) {
     val spacing = LocalSpacing.current
 
+    SwitchRow(
+        title = stringResource(R.string.settings_data_saver),
+        summary = stringResource(R.string.settings_data_saver_summary),
+        checked = settings.dataSaver,
+        onToggle = { v -> update { it.copy(dataSaver = v) } },
+    )
+
     SectionHeader(stringResource(R.string.settings_video))
     ChipRow(
         label = stringResource(R.string.settings_media_autoplay),

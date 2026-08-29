@@ -71,9 +71,17 @@ class SettingsDataStoreTest {
                     holdToSave = false,
                     saveRepliesWithMedia = false,
                     mediaAutoplay = MediaAutoplay.NEVER,
+                    confirmVaultDelete = false,
+                    bookmarkRefreshMinutes = 180,
+                    bookmarkNotifications = false,
+                    dataSaver = true,
                 )
             }
             val next = awaitItem()
+            assertEquals(false, next.confirmVaultDelete)
+            assertEquals(180, next.bookmarkRefreshMinutes)
+            assertEquals(false, next.bookmarkNotifications)
+            assertEquals(true, next.dataSaver)
             assertEquals(false, next.keepScreenOnWhileWatching)
             assertEquals(false, next.doubleTapSeekEnabled)
             assertEquals(SeekStep.THIRTY, next.seekStep)
