@@ -1,5 +1,10 @@
 package dev.stan.yotsuba.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -30,6 +36,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowWidthSizeClass
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.util.Urls.InternalLink
 import dev.stan.yotsuba.feature.boards.BoardsScreen
 import dev.stan.yotsuba.feature.catalog.CatalogScreen
@@ -104,10 +111,17 @@ fun AppNavHost() {
                 }
             },
         ) { padding ->
+            val motion = LocalMotion.current
+            val fade = tween<Float>(motion.medium)
+            val slide = tween<IntOffset>(motion.medium)
             NavHost(
                 navController = navController,
                 startDestination = Route.Boards,
                 modifier = Modifier.fillMaxSize().padding(padding),
+                enterTransition = { fadeIn(fade) + slideInHorizontally(slide) { it / 8 } },
+                exitTransition = { fadeOut(tween(motion.short)) },
+                popEnterTransition = { fadeIn(fade) },
+                popExitTransition = { fadeOut(fade) + slideOutHorizontally(slide) { it / 8 } },
             ) {
                 composable<Route.Boards> {
                     BoardsScreen(
