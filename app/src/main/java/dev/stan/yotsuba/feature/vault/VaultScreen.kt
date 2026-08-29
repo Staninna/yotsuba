@@ -259,7 +259,11 @@ private fun VaultViewer(
     BackHandler { onDismiss() }
 
     val feed = rememberMediaFeedState(initialIndex = viewer.index) { entries.size }
-    val pip = rememberPipController(feed) { entries.lastIndex }
+    val pip = rememberPipController(
+        onPrev = { feed.previous() },
+        onNext = { feed.next(entries.lastIndex) },
+        onTogglePlayPause = { feed.playbackOn = !feed.playbackOn },
+    )
 
     MediaFeedViewer(
         pages = entries.map { it.toViewerPage() },
