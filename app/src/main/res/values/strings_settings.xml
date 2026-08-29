@@ -8,5 +8,7 @@
     <string name="settings_bookmark_notifications">Notify on new replies</string>
     <string name="settings_bookmark_notifications_summary">Show a notification when a bookmarked thread gets replies</string>
     <string name="settings_data_saver">Data saver</string>
+    <string name="settings_summary_boards_and_threads">%1$d boards hidden · %2$d threads hidden</string>
+    <string name="settings_summary_storage_data">Cache, history, bookmarks</string>
     <string name="settings_data_saver_summary">Load thumbnails only; full images and videos wait until opened</string>
 </resources>

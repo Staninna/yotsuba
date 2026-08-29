@@ -67,9 +67,11 @@ private fun SettingsSectionId.summary(state: SettingsUiState): String {
         SettingsSectionId.MEDIA ->
             stringResource(s.mediaAutoplay.labelRes) + separator +
                 stringResource(R.string.settings_seek_step_seconds, s.seekStep.seconds)
-        SettingsSectionId.BOARDS -> stringResource(R.string.settings_summary_boards, s.hiddenBoards.size)
+        SettingsSectionId.BOARDS -> stringResource(
+            R.string.settings_summary_boards_and_threads, s.hiddenBoards.size, state.hiddenThreads.size,
+        )
         SettingsSectionId.LINKS -> stringResource(R.string.settings_summary_links, s.trustedDomains.size)
-        SettingsSectionId.STORAGE -> stringResource(R.string.settings_summary_storage, state.hiddenThreads.size)
+        SettingsSectionId.STORAGE -> stringResource(R.string.settings_summary_storage_data)
         SettingsSectionId.UPDATES -> stringResource(R.string.settings_version, state.versionName)
         SettingsSectionId.ABOUT -> stringResource(R.string.settings_summary_about)
     }

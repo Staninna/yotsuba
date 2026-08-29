@@ -86,16 +86,19 @@ fun SettingsSectionScreen(
                 SettingsSectionId.APPEARANCE -> AppearanceSection(settings, update)
                 SettingsSectionId.READING -> ReadingSection(settings, update)
                 SettingsSectionId.MEDIA -> MediaSection(settings, update)
-                SettingsSectionId.BOARDS -> BoardsSection(viewModel::onHideNsfwBoards, confirmThen)
+                SettingsSectionId.BOARDS -> BoardsSection(
+                    hiddenThreads = state.hiddenThreads,
+                    onHideNsfwBoards = viewModel::onHideNsfwBoards,
+                    onUnhideThread = viewModel::onUnhideThread,
+                    confirmThen = confirmThen,
+                )
                 SettingsSectionId.LINKS -> LinksSection(settings, update)
                 SettingsSectionId.STORAGE -> StorageSection(
                     settings = settings,
                     update = update,
-                    hiddenThreads = state.hiddenThreads,
                     onClearCache = viewModel::onClearCache,
                     onClearHistory = viewModel::onClearHistory,
                     onClearBookmarks = viewModel::onClearBookmarks,
-                    onUnhideThread = viewModel::onUnhideThread,
                     confirmThen = confirmThen,
                     showMessage = showMessage,
                 )
