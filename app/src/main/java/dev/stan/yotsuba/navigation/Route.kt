@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.navigation
 
+import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
 
 sealed interface Route {
@@ -18,7 +19,15 @@ sealed interface Route {
     @Serializable data class SettingsSection(val id: SettingsSectionId) : Route
 }
 
-/** The subscreens reachable from the settings index. */
+/**
+ * The subscreens reachable from the settings index.
+ *
+ * [Keep] is load-bearing, not decoration: navigation resolves a route's argument types by
+ * fully qualified name at graph-construction time, so R8 renaming this enum crashes the
+ * app on launch in a minified build -- and only in a minified build, which is why debug
+ * never shows it.
+ */
+@Keep
 enum class SettingsSectionId {
     APPEARANCE,
     READING,
