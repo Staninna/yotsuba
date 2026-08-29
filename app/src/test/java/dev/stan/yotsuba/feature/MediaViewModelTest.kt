@@ -108,11 +108,6 @@ class MediaViewModelTest {
         override val storageAccess: Flow<Boolean> = access
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
         override fun saved(): Flow<Map<String, String?>> = paths
-        @Deprecated("Use saved().keys")
-        override fun savedUrls(): Flow<Set<String>> = paths.map { it.keys }
-        @Deprecated("Use saved()")
-        override fun savedPaths(): Flow<Map<String, String>> =
-            paths.map { m -> m.filterValues { it != null }.mapValues { it.value!! } }
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             saved += item to context
             firstSave.complete(context)

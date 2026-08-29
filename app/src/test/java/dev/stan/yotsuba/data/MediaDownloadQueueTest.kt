@@ -51,8 +51,6 @@ class MediaDownloadQueueTest {
         override fun hasStorageAccess() = true
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
         override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
-        override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
-        override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             val gate = CompletableDeferred<VaultError?>()
             lock.withLock { saveCalls += item.fullUrl }

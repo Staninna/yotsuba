@@ -77,8 +77,7 @@ class VaultViewModelTest {
         override fun hasStorageAccess() = access.value
         override val storageAccess: Flow<Boolean> = access
         override fun entries(): Flow<List<VaultEntry>> = state
-        override fun savedUrls(): Flow<Set<String>> = state.map { list -> list.map { it.url }.toSet() }
-        override fun savedPaths(): Flow<Map<String, String>> =
+        override fun saved(): Flow<Map<String, String?>> =
             state.map { list -> list.associate { it.url to it.absolutePath } }
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
         var deleteError: VaultError? = null

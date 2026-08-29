@@ -63,8 +63,7 @@ class ThreadRefreshFailureTest {
     private val vault = object : MediaVaultRepository {
         override fun hasStorageAccess() = false
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-        override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
-        override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
+        override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
         override suspend fun delete(url: String): VaultError? = null
         override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()

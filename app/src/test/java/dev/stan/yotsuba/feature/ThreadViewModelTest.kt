@@ -143,8 +143,7 @@ class ThreadViewModelTest {
         private val savedUrls = java.util.concurrent.CopyOnWriteArrayList<String>()
         override fun hasStorageAccess() = false
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-        override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
-        override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
+        override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             firstSave.complete(item to context)
             savedUrls += item.fullUrl

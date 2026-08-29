@@ -277,8 +277,7 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
 
     override fun hasStorageAccess(): Boolean = true
     override fun entries(): Flow<List<VaultEntry>> = state
-    override fun savedUrls(): Flow<Set<String>> = state.map { list -> list.map { it.url }.toSet() }
-    override fun savedPaths(): Flow<Map<String, String>> =
+    override fun saved(): Flow<Map<String, String?>> =
         state.map { list -> list.associate { it.url to it.absolutePath } }
 
     /** Mirrors production: a successful save lands in the entries flow, so badges flip to SAVED. */
