@@ -151,17 +151,26 @@ internal fun VaultExplorer(
 
             state.selection.board == null -> Column(Modifier.fillMaxSize()) {
                 ModeSwitch(state.mode, onMode)
-                if (state.mode == VaultMode.RECENT) {
-                    VaultChipRow(state.sort, state.filter, onSort, onFilter)
-                    MediaGrid(
-                        entries = state.recent,
-                        selected = state.selected,
-                        onOpen = onOpenEntry,
-                        onLongPress = onLongPressEntry,
-                        onToggleSelected = { onToggleSelected(listOf(it.url)) },
-                    )
-                } else {
-                    BoardList(state.boards, onOpenBoard, onDeleteBoard)
+                Crossfade(
+                    targetState = state.mode,
+                    animationSpec = rememberMotionSpec(LocalMotion.current.medium),
+                    label = "vaultMode",
+                    modifier = Modifier.fillMaxSize(),
+                ) { mode ->
+                    if (mode == VaultMode.RECENT) {
+                        Column(Modifier.fillMaxSize()) {
+                            VaultChipRow(state.sort, state.filter, onSort, onFilter)
+                            MediaGrid(
+                                entries = state.recent,
+                                selected = state.selected,
+                                onOpen = onOpenEntry,
+                                onLongPress = onLongPressEntry,
+                                onToggleSelected = { onToggleSelected(listOf(it.url)) },
+                            )
+                        }
+                    } else {
+                        BoardList(state.boards, onOpenBoard, onDeleteBoard)
+                    }
                 }
             }
 
@@ -217,7 +226,7 @@ private fun BoardList(
                         )
                     }
                 },
-                modifier = Modifier.clickable { onOpen(section.board) },
+                modifier = animatedListItem().clickable { onOpen(section.board) },
             )
         }
     }

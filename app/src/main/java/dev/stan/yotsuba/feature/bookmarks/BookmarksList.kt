@@ -105,7 +105,7 @@ fun BookmarksList(
                     key = { state.bookmarks[it].board + "/" + state.bookmarks[it].threadNo },
                 ) { i ->
                     val bookmark = state.bookmarks[i]
-                    SwipeToDeleteRow(onDelete = {
+                    SwipeToDeleteRow(modifier = animatedListItem(), onDelete = {
                         viewModel.onRemove(bookmark)
                         scope.launch {
                             snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
@@ -219,15 +219,21 @@ private fun BookmarkCard(bookmark: Bookmark, onClick: () -> Unit, onTogglePinned
                 }
                 if (bookmark.unread > 0) {
                     val a11y = pluralStringResource(R.plurals.bookmarks_unread_a11y, bookmark.unread, bookmark.unread)
-                    Text(
-                        stringResource(R.string.bookmarks_unread_pill, bookmark.unread),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimary,
+                    AnimatedContent(
+                        targetState = bookmark.unread,
+                        transitionSpec = rememberCountTransition(),
+                        label = "unread",
                         modifier = Modifier
                             .semantics { contentDescription = a11y }
                             .background(MaterialTheme.colorScheme.primary, CircleShape)
                             .padding(horizontal = spacing.sm, vertical = 2.dp),
-                    )
+                    ) { unread ->
+                        Text(
+                            stringResource(R.string.bookmarks_unread_pill, unread),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    }
                 }
                 when (bookmark.state) {
                     BookmarkState.ARCHIVED -> StateBadge(stringResource(R.string.bookmarks_badge_archived))

@@ -182,7 +182,11 @@ fun ThreadScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         floatingActionButton = {
-            if (scrolled || firstNewIndex != null) {
+            AnimatedVisibility(
+                visible = scrolled || firstNewIndex != null,
+                enter = motionEnter(),
+                exit = motionExit(),
+            ) {
                 JumpButtons(
                     onTop = { scope.launch { listState.animateScrollToItem(0) } },
                     onFirstNew = firstNewIndex?.let { index -> { scope.launch { listState.animateScrollToItem(index) } } },
@@ -338,6 +342,7 @@ fun ThreadScreen(
                                     }
                                 },
                             ) { i ->
+                                Box(animatedListItem()) {
                                 when (val row = s.rows[i]) {
                                     is ThreadRow.Post -> Box(Modifier.padding(start = treeIndent * row.depth)) {
                                         postCard(row.post, false)
@@ -356,6 +361,7 @@ fun ThreadScreen(
                                         modifier = Modifier.padding(start = treeIndent * row.depth),
                                         onTap = { viewModel.onExpandFiltered(row.postNo) },
                                     )
+                                }
                                 }
                             }
                         }
@@ -549,6 +555,9 @@ private fun FilteredRow(pattern: String, modifier: Modifier, onTap: () -> Unit) 
 @Composable
 private fun NewPostsDivider(count: Int, onTap: () -> Unit) {
     val spacing = LocalSpacing.current
+    // Grows in when the row first lands; the list's item animation handles its removal.
+    val shown = remember { MutableTransitionState(false).apply { targetState = true } }
+    AnimatedVisibility(visibleState = shown, enter = motionEnter(), exit = motionExit()) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable(onClick = onTap).padding(vertical = spacing.xs),
@@ -561,5 +570,6 @@ private fun NewPostsDivider(count: Int, onTap: () -> Unit) {
             modifier = Modifier.padding(horizontal = spacing.md),
         )
         HorizontalDivider(Modifier.weight(1f), color = MaterialTheme.colorScheme.primary)
+    }
     }
 }

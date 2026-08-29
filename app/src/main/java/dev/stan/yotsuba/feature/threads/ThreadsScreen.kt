@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.threads
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.TabChrome
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
+import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.feature.bookmarks.BookmarksCheckingSubtitle
 import dev.stan.yotsuba.feature.bookmarks.BookmarksList
@@ -132,19 +135,26 @@ fun ThreadsScreen(
                     ) { Text(stringResource(s.labelRes)) }
                 }
             }
-            when (segment) {
-                ThreadsSegment.WATCHED -> BookmarksList(
-                    viewModel = bookmarksViewModel,
-                    snackbar = snackbar,
-                    onOpenThread = { board, no -> onOpenThread(board, no, null) },
-                    modifier = Modifier.fillMaxSize(),
-                )
-                ThreadsSegment.RECENT -> HistoryList(
-                    viewModel = historyViewModel,
-                    snackbar = snackbar,
-                    onOpenThread = onOpenThread,
-                    modifier = Modifier.fillMaxSize(),
-                )
+            Crossfade(
+                targetState = segment,
+                animationSpec = rememberMotionSpec(LocalMotion.current.medium),
+                label = "segment",
+                modifier = Modifier.fillMaxSize(),
+            ) { shown ->
+                when (shown) {
+                    ThreadsSegment.WATCHED -> BookmarksList(
+                        viewModel = bookmarksViewModel,
+                        snackbar = snackbar,
+                        onOpenThread = { board, no -> onOpenThread(board, no, null) },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    ThreadsSegment.RECENT -> HistoryList(
+                        viewModel = historyViewModel,
+                        snackbar = snackbar,
+                        onOpenThread = onOpenThread,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
     }
 

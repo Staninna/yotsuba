@@ -1,5 +1,11 @@
 package dev.stan.yotsuba.core.designsystem.component
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,13 +31,20 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.rememberReducedMotion
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
@@ -173,17 +186,45 @@ fun OfflineBanner(cachedAtLabel: String?, onRetry: () -> Unit, modifier: Modifie
 @Composable
 fun LoadingSkeleton(modifier: Modifier = Modifier, rows: Int = 8) {
     val spacing = LocalSpacing.current
+    val brush = shimmerBrush()
     Column(modifier = modifier.fillMaxSize().padding(spacing.lg), verticalArrangement = Arrangement.spacedBy(spacing.md)) {
         repeat(rows) {
             Box(
                 Modifier
                     .fillMaxWidth()
                     .height(72.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        MaterialTheme.shapes.medium,
-                    )
+                    .background(brush, MaterialTheme.shapes.medium)
             )
         }
     }
 }
+
+/**
+ * A highlight sweeping left to right over the skeleton's base colour. Under reduced
+ * motion the sweep stops and the brush is the flat base colour.
+ */
+@Composable
+private fun shimmerBrush(): Brush {
+    val base = MaterialTheme.colorScheme.surfaceVariant
+    if (rememberReducedMotion()) return SolidColor(base)
+    val highlight = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f).compositeOver(base)
+    val motion = LocalMotion.current
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val x by transition.animateFloat(
+        initialValue = -SHIMMER_WIDTH,
+        targetValue = SHIMMER_TRAVEL,
+        animationSpec = infiniteRepeatable(
+            animation = tween(motion.long * 3, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "shimmerOffset",
+    )
+    return Brush.linearGradient(
+        colors = listOf(base, highlight, base),
+        start = Offset(x, 0f),
+        end = Offset(x + SHIMMER_WIDTH, SHIMMER_WIDTH / 2f),
+    )
+}
+
+private const val SHIMMER_WIDTH = 600f
+private const val SHIMMER_TRAVEL = 1800f

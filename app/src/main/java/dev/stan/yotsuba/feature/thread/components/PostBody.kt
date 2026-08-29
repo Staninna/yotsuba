@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.thread.components
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -11,8 +12,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -25,8 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.theme.LocalYotsubaColors
 import dev.stan.yotsuba.core.designsystem.theme.YotsubaColors
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.text.PostAnnotation
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostStyle
@@ -53,6 +56,31 @@ fun PostBody(
     onLongPress: ((BodyTap) -> Unit)? = null,
     /** Text appended to a same-thread quotelink, keyed by the quoted post. */
     quoteLabels: Map<Long, String> = emptyMap(),
+) {
+    // Revealing a spoiler crossfades the old string into the new one rather than snapping.
+    // Both strings share every glyph except the scrim, so only the spoiler appears to change.
+    Crossfade(
+        targetState = SpoilerState(revealedSpoilerIds, revealAll),
+        animationSpec = rememberMotionSpec(LocalMotion.current.short),
+        label = "spoiler",
+        modifier = modifier,
+    ) { spoilers ->
+        BodyText(body, spoilers.revealedIds, spoilers.revealAll, onTap, highlight, onLongPress, quoteLabels)
+    }
+}
+
+/** The spoiler-visibility half of the body's inputs; a value class would not survive Crossfade's keying. */
+private data class SpoilerState(val revealedIds: Set<Int>, val revealAll: Boolean)
+
+@Composable
+private fun BodyText(
+    body: PostText,
+    revealedSpoilerIds: Set<Int>,
+    revealAll: Boolean,
+    onTap: (BodyTap) -> Unit,
+    highlight: String?,
+    onLongPress: ((BodyTap) -> Unit)?,
+    quoteLabels: Map<Long, String>,
 ) {
     val colors = LocalYotsubaColors.current
     val scheme = MaterialTheme.colorScheme
@@ -101,7 +129,7 @@ fun PostBody(
         text = built.display,
         style = MaterialTheme.typography.bodyMedium.copy(color = scheme.onSurface),
         onTextLayout = { layout = it },
-        modifier = modifier.then(longPressModifier),
+        modifier = longPressModifier,
     )
 }
 

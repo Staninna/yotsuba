@@ -213,11 +213,13 @@ fun CatalogPane(
                 }
             }
         }
-        if (showScrollTop) {
-            FloatingActionButton(
-                onClick = { scope.launch { gridState.animateScrollToItem(0) } },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(spacing.lg),
-            ) {
+        AnimatedVisibility(
+            visible = showScrollTop,
+            enter = motionEnter(),
+            exit = motionExit(),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(spacing.lg),
+        ) {
+            FloatingActionButton(onClick = { scope.launch { gridState.animateScrollToItem(0) } }) {
                 Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.catalog_scroll_to_top))
             }
         }

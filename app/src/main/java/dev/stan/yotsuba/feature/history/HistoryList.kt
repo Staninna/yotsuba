@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
 import dev.stan.yotsuba.core.designsystem.component.SectionHeader
@@ -96,7 +97,7 @@ fun HistoryList(
                 item(key = "header_${bucket.name}") { SectionHeader(stringResource(bucket.labelRes)) }
                 items(entries.size, key = { entries[it].board + "/" + entries[it].threadNo }) { i ->
                     val entry = entries[i]
-                    SwipeToDeleteRow(onDelete = {
+                    SwipeToDeleteRow(modifier = animatedListItem(), onDelete = {
                         viewModel.onRemove(entry)
                         scope.launch {
                             snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(entry) }
