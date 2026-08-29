@@ -12,6 +12,9 @@ import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.Filter
+import dev.stan.yotsuba.domain.model.FilterAction
+import dev.stan.yotsuba.domain.model.FilterField
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
@@ -248,6 +251,46 @@ class CatalogViewModelTest {
             vm.onCycleLayout()
             vm.onCycleLayout()
             assertEquals(CatalogLayout.COMFORTABLE, ((latest() as UiState.Success).data).layout)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `a hide filter drops the thread and counts it`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.settings.state.value = Settings(filters = listOf(
+            Filter(id = "1", pattern = "ALPHA", field = FilterField.SUBJECT, action = FilterAction.HIDE),
+        ))
+        env.vm().uiState.test {
+            val content = (latest() as UiState.Success).data
+            assertEquals(listOf(2L, 3L), content.threads.map { it.no })
+            assertEquals(1, content.filteredCount)
+            assertEquals(emptyMap<Long, Filter>(), content.stubs)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `a stub filter keeps the thread but marks it`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        val stub = Filter(id = "1", pattern = "excerpt 2", action = FilterAction.STUB)
+        env.settings.state.value = Settings(filters = listOf(stub))
+        env.vm().uiState.test {
+            val content = (latest() as UiState.Success).data
+            assertEquals(listOf(1L, 2L, 3L), content.threads.map { it.no })
+            assertEquals(mapOf(2L to stub), content.stubs)
+            assertEquals(1, content.filteredCount)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `filters scoped to another board leave this catalog alone`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.settings.state.value = Settings(filters = listOf(
+            Filter(id = "1", pattern = "excerpt", boards = setOf("a")),
+        ))
+        env.vm().uiState.test {
+            val content = (latest() as UiState.Success).data
+            assertEquals(listOf(1L, 2L, 3L), content.threads.map { it.no })
+            assertEquals(0, content.filteredCount)
             cancelAndIgnoreRemainingEvents()
         }
     }

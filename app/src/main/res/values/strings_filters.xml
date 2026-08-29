@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Catalog -->
+    <plurals name="filters_filtered_count">
+        <item quantity="one">%1$d filtered</item>
+        <item quantity="other">%1$d filtered</item>
+    </plurals>
+    <string name="filters_stub_label">Filtered: %1$s</string>
+</resources>
