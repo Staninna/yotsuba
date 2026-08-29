@@ -24,6 +24,13 @@ import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.FilterChip
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PlayCircle
@@ -71,6 +78,8 @@ internal fun VaultExplorer(
     onToggleSelected: (Collection<String>) -> Unit,
     onDeleteThread: (VaultLocation) -> Unit,
     onDeleteBoard: (String) -> Unit,
+    onSort: (VaultSort) -> Unit,
+    onFilter: (VaultFilter) -> Unit,
 ) {
     val spacing = LocalSpacing.current
     val context = LocalContext.current
@@ -112,13 +121,16 @@ internal fun VaultExplorer(
                 onDelete = onDeleteThread,
             )
 
-            else -> MediaGrid(
-                entries = state.openThread?.entries.orEmpty(),
-                selected = state.selected,
-                onOpen = onOpenEntry,
-                onLongPress = onLongPressEntry,
-                onToggleSelected = { onToggleSelected(listOf(it.url)) },
-            )
+            else -> Column(Modifier.fillMaxSize()) {
+                VaultChipRow(state.sort, state.filter, onSort, onFilter)
+                MediaGrid(
+                    entries = state.openThread?.entries.orEmpty(),
+                    selected = state.selected,
+                    onOpen = onOpenEntry,
+                    onLongPress = onLongPressEntry,
+                    onToggleSelected = { onToggleSelected(listOf(it.url)) },
+                )
+            }
         }
     }
 }
@@ -215,6 +227,63 @@ private fun ThreadList(
             )
         }
     }
+}
+
+/** Sort and type filter, one row of chips, above every grid. The sort chip cycles through a menu. */
+@Composable
+internal fun VaultChipRow(
+    sort: VaultSort,
+    filter: VaultFilter,
+    onSort: (VaultSort) -> Unit,
+    onFilter: (VaultFilter) -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = spacing.md, vertical = spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+    ) {
+        var sortMenu by remember { mutableStateOf(false) }
+        Box {
+            FilterChip(
+                selected = true,
+                onClick = { sortMenu = true },
+                label = { Text(stringResource(sortLabel(sort))) },
+                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
+                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+            )
+            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                VaultSort.entries.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(sortLabel(option))) },
+                        onClick = { sortMenu = false; onSort(option) },
+                    )
+                }
+            }
+        }
+        VaultFilter.entries.forEach { option ->
+            FilterChip(
+                selected = filter == option,
+                onClick = { onFilter(option) },
+                label = { Text(stringResource(filterLabel(option))) },
+            )
+        }
+    }
+}
+
+private fun sortLabel(sort: VaultSort): Int = when (sort) {
+    VaultSort.SAVED -> R.string.vault_sort_saved
+    VaultSort.SIZE -> R.string.vault_sort_size
+    VaultSort.NAME -> R.string.vault_sort_name
+    VaultSort.POST -> R.string.vault_sort_post
+}
+
+private fun filterLabel(filter: VaultFilter): Int = when (filter) {
+    VaultFilter.ALL -> R.string.vault_filter_all
+    VaultFilter.IMAGES -> R.string.vault_filter_images
+    VaultFilter.VIDEOS -> R.string.vault_filter_videos
 }
 
 /** A three-dot button and its menu; items call the passed closer before acting. */

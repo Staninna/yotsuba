@@ -3,6 +3,7 @@ package dev.stan.yotsuba.feature.vault
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,6 +36,38 @@ import kotlinx.coroutines.launch
 
 /** How long a grid delete can be undone before the trash is emptied. */
 const val UNDO_WINDOW_MS = 30_000L
+
+private const val KEY_SORT = "vault_sort"
+private const val KEY_FILTER = "vault_filter"
+
+/** Grid order. Each is a total order so paging in the viewer matches the grid. */
+enum class VaultSort {
+    /** Newest save first. */
+    SAVED,
+    /** Largest first. */
+    SIZE,
+    /** File name, A to Z. */
+    NAME,
+    /** Post number, lowest first; files without one go last. */
+    POST,
+}
+
+enum class VaultFilter { ALL, IMAGES, VIDEOS }
+
+/** [entries] in [sort] order with [filter] applied, the shape every level of the explorer shows. */
+fun arrangeEntries(entries: List<VaultEntry>, sort: VaultSort, filter: VaultFilter): List<VaultEntry> {
+    val kept = when (filter) {
+        VaultFilter.ALL -> entries
+        VaultFilter.IMAGES -> entries.filterNot { it.isVideo }
+        VaultFilter.VIDEOS -> entries.filter { it.isVideo }
+    }
+    return when (sort) {
+        VaultSort.SAVED -> kept.sortedByDescending { it.savedAt }
+        VaultSort.SIZE -> kept.sortedByDescending { it.sizeBytes ?: 0L }
+        VaultSort.NAME -> kept.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayName })
+        VaultSort.POST -> kept.sortedWith(compareBy(nullsLast()) { it.postNo })
+    }
+}
 
 /** Explorer drill-down position: root → board → thread. */
 data class VaultSelection(
@@ -99,6 +132,10 @@ data class VaultSyncState(
 data class VaultUiState(
     /** Entries with a real file on disk, newest first. */
     val entries: List<VaultEntry> = emptyList(),
+    /** [entries] after the sort and filter chips; what every level of the explorer shows. */
+    val visible: List<VaultEntry> = emptyList(),
+    val sort: VaultSort = VaultSort.SAVED,
+    val filter: VaultFilter = VaultFilter.ALL,
     val boards: List<VaultBoardSection> = emptyList(),
     val selection: VaultSelection = VaultSelection(),
     val viewer: VaultViewerState? = null,
@@ -130,7 +167,7 @@ data class VaultUiState(
     /** Whatever level is on screen: everything, one board, or one thread. */
     val scopeEntries: List<VaultEntry>
         get() = when {
-            selection.board == null -> entries
+            selection.board == null -> visible
             selection.thread == null -> openBoard?.entries.orEmpty()
             else -> openThread?.entries.orEmpty()
         }
@@ -141,6 +178,7 @@ class VaultViewModel @Inject constructor(
     private val mediaVault: MediaVaultRepository,
     private val settingsRepository: SettingsRepository,
     private val boardRepository: BoardRepository,
+    private val savedState: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
 
     init {
@@ -227,9 +265,32 @@ class VaultViewModel @Inject constructor(
     }
 
     /** Everything the user is in the middle of editing on the explorer itself. */
-    private data class Editing(val selected: Set<String>, val inspecting: String?)
+    private data class Editing(
+        val selected: Set<String>,
+        val inspecting: String?,
+        val sort: VaultSort,
+        val filter: VaultFilter,
+    )
 
-    private val editing = combine(selected, inspectingUrl) { s, i -> Editing(s, i) }
+    // Sort and filter outlive the process: they are the kind of thing a user sets once.
+    private val sort = savedState.getStateFlow(KEY_SORT, VaultSort.SAVED.name)
+    private val filter = savedState.getStateFlow(KEY_FILTER, VaultFilter.ALL.name)
+
+    private val editing = combine(selected, inspectingUrl, sort, filter) { s, i, sort, filter ->
+        Editing(
+            s, i,
+            VaultSort.entries.firstOrNull { it.name == sort } ?: VaultSort.SAVED,
+            VaultFilter.entries.firstOrNull { it.name == filter } ?: VaultFilter.ALL,
+        )
+    }
+
+    fun setSort(sort: VaultSort) {
+        savedState[KEY_SORT] = sort.name
+    }
+
+    fun setFilter(filter: VaultFilter) {
+        savedState[KEY_FILTER] = filter.name
+    }
 
     @Suppress("UNCHECKED_CAST")
     val uiState: StateFlow<VaultUiState> = combine(
@@ -241,11 +302,15 @@ class VaultViewModel @Inject constructor(
         val viewing = args[3] as Viewing
         val activity = args[4] as Activity
         val editing = args[5] as Editing
+        val visible = arrangeEntries(entries, editing.sort, editing.filter)
         VaultUiState(
             entries = entries,
-            boards = groupByBoard(entries),
+            visible = visible,
+            sort = editing.sort,
+            filter = editing.filter,
+            boards = groupByBoard(visible),
             selection = sel,
-            viewer = viewerState(entries, sel, viewing.url, viewing.shuffle),
+            viewer = viewerState(visible, sel, viewing.url, viewing.shuffle),
             sync = sync,
             hasStorageAccess = activity.access,
             importing = activity.importing,

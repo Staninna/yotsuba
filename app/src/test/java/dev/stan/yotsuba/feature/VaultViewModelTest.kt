@@ -25,6 +25,9 @@ import dev.stan.yotsuba.feature.vault.VaultUiState
 import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultViewModel
 import dev.stan.yotsuba.feature.vault.UNDO_WINDOW_MS
+import dev.stan.yotsuba.feature.vault.VaultFilter
+import dev.stan.yotsuba.feature.vault.VaultSort
+import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -387,6 +390,41 @@ class VaultViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test fun `sort and filter shape the visible entries and survive in saved state`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(
+                entry("g/b.jpg", threadG, savedAt = 1, sizeBytes = 10, postNo = 3),
+                entry("g/a.webm", threadG, savedAt = 3, sizeBytes = 30, postNo = 1),
+                entry("g/c.jpg", threadG, savedAt = 2, sizeBytes = 20, postNo = null),
+            ))
+            val saved = SavedStateHandle()
+            val vm = VaultViewModel(vault, FakeSettings(), boards, saved)
+            vm.uiState.test {
+                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().visible.map { it.url })
+                vm.setSort(VaultSort.NAME)
+                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                vm.setSort(VaultSort.SIZE)
+                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().visible.map { it.url })
+                vm.setSort(VaultSort.POST)
+                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                vm.setFilter(VaultFilter.IMAGES)
+                assertEquals(listOf("g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                vm.setFilter(VaultFilter.VIDEOS)
+                val videos = latest()
+                assertEquals(listOf("g/a.webm"), videos.visible.map { it.url })
+                assertEquals(1, videos.boards.single().threads.single().entries.size)
+                assertEquals(3, videos.entries.size)
+                cancelAndIgnoreRemainingEvents()
+            }
+            // A fresh VM over the same handle -- process death -- picks the choice back up.
+            VaultViewModel(vault, FakeSettings(), boards, saved).uiState.test {
+                val restored = latest()
+                assertEquals(VaultSort.POST, restored.sort)
+                assertEquals(VaultFilter.VIDEOS, restored.filter)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `playback follows the autoplay setting and the board's webm audio`() =
         runTest(dispatcher.scheduler) {
