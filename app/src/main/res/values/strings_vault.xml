@@ -39,4 +39,8 @@
     <string name="vault_filter_videos">Videos</string>
     <string name="vault_mode_recent">Recent</string>
     <string name="vault_mode_browse">Browse</string>
+    <string name="vault_search">Search</string>
+    <string name="vault_search_hint">File name or thread subject</string>
+    <string name="vault_search_clear">Clear</string>
+    <string name="vault_search_empty">Nothing matches</string>
 </resources>

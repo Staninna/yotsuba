@@ -54,6 +54,15 @@ enum class VaultSort {
 
 enum class VaultFilter { ALL, IMAGES, VIDEOS }
 
+/** Entries whose file name or thread subject contains [query], case-insensitively. */
+fun searchEntries(entries: List<VaultEntry>, query: String): List<VaultEntry> {
+    val q = query.trim()
+    if (q.isEmpty()) return entries
+    return entries.filter {
+        it.displayName.contains(q, ignoreCase = true) || it.subject?.contains(q, ignoreCase = true) == true
+    }
+}
+
 /** The root view: a flat feed of the newest saves, or the board → thread drill-down. */
 enum class VaultMode { RECENT, BROWSE }
 
@@ -145,6 +154,9 @@ data class VaultUiState(
     val mode: VaultMode = VaultMode.RECENT,
     /** The newest [RECENT_LIMIT] of [visible], the Recent feed. */
     val recent: List<VaultEntry> = emptyList(),
+    val query: String = "",
+    /** Matches for [query] across the whole vault, or null when not searching. */
+    val results: List<VaultEntry>? = null,
     val boards: List<VaultBoardSection> = emptyList(),
     val selection: VaultSelection = VaultSelection(),
     val viewer: VaultViewerState? = null,
@@ -176,6 +188,7 @@ data class VaultUiState(
     /** Whatever level is on screen: the feed, everything, one board, or one thread. */
     val scopeEntries: List<VaultEntry>
         get() = when {
+            results != null -> results
             selection.board == null && mode == VaultMode.RECENT -> recent
             selection.board == null -> visible
             selection.thread == null -> openBoard?.entries.orEmpty()
@@ -282,19 +295,26 @@ class VaultViewModel @Inject constructor(
     )
 
     /** How the entries are arranged on screen. */
-    private data class View(val sort: VaultSort, val filter: VaultFilter, val mode: VaultMode)
+    private data class View(val sort: VaultSort, val filter: VaultFilter, val mode: VaultMode, val query: String)
 
     // Sort and filter outlive the process: they are the kind of thing a user sets once.
     private val sort = savedState.getStateFlow(KEY_SORT, VaultSort.SAVED.name)
     private val filter = savedState.getStateFlow(KEY_FILTER, VaultFilter.ALL.name)
     private val mode = MutableStateFlow(VaultMode.RECENT)
+    private val query = MutableStateFlow("")
 
-    private val view = combine(sort, filter, mode) { sort, filter, mode ->
+    private val view = combine(sort, filter, mode, query) { sort, filter, mode, query ->
         View(
             VaultSort.entries.firstOrNull { it.name == sort } ?: VaultSort.SAVED,
             VaultFilter.entries.firstOrNull { it.name == filter } ?: VaultFilter.ALL,
             mode,
+            query,
         )
+    }
+
+    /** Searches file names and thread subjects across the whole vault; blank ends the search. */
+    fun setQuery(query: String) {
+        this.query.value = query
     }
 
     private val editing = combine(selected, inspectingUrl, view) { s, i, v -> Editing(s, i, v) }
@@ -327,7 +347,8 @@ class VaultViewModel @Inject constructor(
             // Newest 200 by save date, then shown in the chosen order.
             arrangeEntries(newest, editing.view.sort, editing.view.filter)
         }
-        val feed = if (sel.board == null && editing.view.mode == VaultMode.RECENT) recent else null
+        val results = editing.view.query.takeIf { it.isNotBlank() }?.let { searchEntries(visible, it) }
+        val feed = results ?: if (sel.board == null && editing.view.mode == VaultMode.RECENT) recent else null
         VaultUiState(
             entries = entries,
             visible = visible,
@@ -335,6 +356,8 @@ class VaultViewModel @Inject constructor(
             filter = editing.view.filter,
             mode = editing.view.mode,
             recent = recent,
+            query = editing.view.query,
+            results = results,
             boards = groupByBoard(visible),
             selection = sel,
             viewer = viewerState(visible, feed, sel, viewing.url, viewing.shuffle),

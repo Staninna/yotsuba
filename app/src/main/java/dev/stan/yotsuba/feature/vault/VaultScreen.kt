@@ -19,6 +19,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SaveAlt
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
@@ -89,6 +95,7 @@ fun VaultScreen(
     val snackbar = remember { SnackbarHostState() }
     val resources = context.resources
     var importMenuOpen by remember { mutableStateOf(false) }
+    var searchOpen by remember { mutableStateOf(state.query.isNotEmpty()) }
 
     state.notice?.let { notice ->
         val message = when (notice) {
@@ -165,6 +172,10 @@ fun VaultScreen(
     // later, so it wins while enabled), then the viewer, then the drill-down.
     BackHandler(enabled = state.selection.board != null && state.viewer == null) { viewModel.navigateUp() }
     BackHandler(enabled = state.selecting && state.viewer == null) { viewModel.clearSelection() }
+    BackHandler(enabled = searchOpen && !state.selecting && state.viewer == null) {
+        searchOpen = false
+        viewModel.setQuery("")
+    }
     BackHandler(enabled = state.viewer != null) { viewModel.closeViewer() }
 
     Box(Modifier.fillMaxSize()) {
@@ -178,6 +189,12 @@ fun VaultScreen(
                         onShare = { shareVaultEntries(context, state.selectedEntries) },
                         onSaveToGallery = viewModel::exportSelected,
                         onDelete = viewModel::deleteSelected,
+                    )
+                } else if (searchOpen) {
+                    SearchTopBar(
+                        query = state.query,
+                        onQuery = viewModel::setQuery,
+                        onClose = { searchOpen = false; viewModel.setQuery("") },
                     )
                 } else TopAppBar(
                     title = {
@@ -201,6 +218,11 @@ fun VaultScreen(
                         }
                     },
                     actions = {
+                        if (state.hasStorageAccess && state.entries.isNotEmpty()) {
+                            IconButton(onClick = { searchOpen = true }) {
+                                Icon(Icons.Filled.Search, stringResource(R.string.vault_search))
+                            }
+                        }
                         if (state.hasStorageAccess) {
                             Box {
                                 IconButton(
@@ -317,6 +339,41 @@ fun VaultScreen(
             onCancel = viewModel::cancelDelete,
         )
     }
+}
+
+/** The top bar as a search field; the query lives in the VM so rotation keeps it. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchTopBar(query: String, onQuery: (String) -> Unit, onClose: () -> Unit) {
+    val focus = remember { FocusRequester() }
+    TopAppBar(
+        title = {
+            TextField(
+                value = query,
+                onValueChange = onQuery,
+                placeholder = { Text(stringResource(R.string.vault_search_hint)) },
+                singleLine = true,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                ),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = onClose) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.media_back))
+            }
+        },
+        actions = {
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQuery("") }) {
+                    Icon(Icons.Filled.Close, stringResource(R.string.vault_search_clear))
+                }
+            }
+        },
+    )
+    LaunchedEffect(Unit) { focus.requestFocus() }
 }
 
 /** Replaces the top bar while items are ticked: the count, and what can be done with them. */

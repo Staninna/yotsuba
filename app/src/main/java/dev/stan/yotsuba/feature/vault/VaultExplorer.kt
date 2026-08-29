@@ -116,6 +116,26 @@ internal fun VaultExplorer(
                 )
             }
 
+            state.results != null -> Column(Modifier.fillMaxSize()) {
+                VaultChipRow(state.sort, state.filter, onSort, onFilter)
+                if (state.results.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            stringResource(R.string.vault_search_empty),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    MediaGrid(
+                        entries = state.results,
+                        selected = state.selected,
+                        onOpen = onOpenEntry,
+                        onLongPress = onLongPressEntry,
+                        onToggleSelected = { onToggleSelected(listOf(it.url)) },
+                    )
+                }
+            }
+
             state.selection.board == null -> Column(Modifier.fillMaxSize()) {
                 ModeSwitch(state.mode, onMode)
                 if (state.mode == VaultMode.RECENT) {

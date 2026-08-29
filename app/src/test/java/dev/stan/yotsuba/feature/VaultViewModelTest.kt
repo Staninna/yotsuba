@@ -452,6 +452,32 @@ class VaultViewModelTest {
             }
         }
 
+    @Test fun `search matches file names and thread subjects across the vault`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(
+                entry("g/cat_photo.jpg", threadG, subject = "Pets general"),
+                entry("g/dog.jpg", threadG, subject = "Pets general"),
+                entry("a/CAT.webm", threadA, subject = "Anime"),
+                entry("a/other.jpg", threadA, subject = null),
+            ))
+            val vm = VaultViewModel(vault, FakeSettings(), boards)
+            vm.openBoard("a") // search reaches past the drill-down
+            vm.uiState.test {
+                assertNull(latest().results)
+                vm.setQuery("cat")
+                val byName = latest()
+                assertEquals(setOf("g/cat_photo.jpg", "a/CAT.webm"), byName.results?.map { it.url }?.toSet())
+                assertEquals(byName.results, byName.scopeEntries)
+                vm.setQuery("pets")
+                assertEquals(setOf("g/cat_photo.jpg", "g/dog.jpg"), latest().results?.map { it.url }?.toSet())
+                vm.setQuery("zzz")
+                assertEquals(emptyList<VaultEntry>(), latest().results)
+                vm.setQuery("  ")
+                assertNull(latest().results)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `playback follows the autoplay setting and the board's webm audio`() =
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("wsg/1.webm", VaultLocation("wsg", 5))))
