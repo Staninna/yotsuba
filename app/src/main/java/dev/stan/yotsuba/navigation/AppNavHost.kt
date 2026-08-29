@@ -21,6 +21,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,6 +30,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowWidthSizeClass
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
+import dev.stan.yotsuba.core.util.Urls.InternalLink
 import dev.stan.yotsuba.feature.boards.BoardsScreen
 import dev.stan.yotsuba.feature.catalog.CatalogScreen
 import dev.stan.yotsuba.feature.media.MediaScreen
@@ -134,14 +136,7 @@ fun AppNavHost() {
                         onOpenMedia = { postNo ->
                             navController.navigate(Route.Media(route.board, route.threadNo, postNo))
                         },
-                        onOpenInternal = { link ->
-                            when (link) {
-                                is dev.stan.yotsuba.core.util.Urls.InternalLink.Catalog ->
-                                    navController.navigate(Route.Catalog(link.board, link.searchQuery))
-                                is dev.stan.yotsuba.core.util.Urls.InternalLink.Thread ->
-                                    navController.navigate(Route.Thread(link.board, link.threadNo, link.postNo))
-                            }
-                        },
+                        onOpenInternal = { link -> navController.openInternal(link, from = route) },
                     )
                 }
                 composable<Route.Media> { entry ->
@@ -184,3 +179,35 @@ fun AppNavHost() {
         }
     }
 }
+
+/**
+ * Follows a quote or board link from inside a thread without letting a chain of quotes
+ * pile up entries:
+ *
+ * - a link to the thread already open just scrolls (single-top swaps the post argument);
+ * - a link to a thread on a board whose catalog is on the stack pops back to that catalog
+ *   first, so catalog -> A -> B -> C stays catalog -> C;
+ * - a link to a catalog already on the stack pops back to it instead of pushing a twin;
+ * - anything else pushes normally.
+ */
+private fun NavController.openInternal(link: InternalLink, from: Route.Thread) {
+    when (link) {
+        is InternalLink.Catalog -> {
+            val onStack = link.searchQuery == null && popBackStack(Route.Catalog(link.board), inclusive = false)
+            if (!onStack) navigate(Route.Catalog(link.board, link.searchQuery))
+        }
+        is InternalLink.Thread -> {
+            val target = Route.Thread(link.board, link.threadNo, link.postNo)
+            val catalog = Route.Catalog(link.board)
+            when {
+                link.board == from.board && link.threadNo == from.threadNo ->
+                    navigate(target) { launchSingleTop = true }
+                hasEntry(catalog) -> navigate(target) { popUpTo(catalog) { inclusive = false } }
+                else -> navigate(target)
+            }
+        }
+    }
+}
+
+private fun NavController.hasEntry(route: Route): Boolean =
+    runCatching { getBackStackEntry(route) }.isSuccess
