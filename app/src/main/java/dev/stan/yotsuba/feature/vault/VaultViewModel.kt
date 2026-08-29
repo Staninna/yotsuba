@@ -437,6 +437,11 @@ class VaultViewModel @Inject constructor(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
+    /** The statistics sheet's numbers, recomputed whenever the vault changes. */
+    val stats: StateFlow<VaultStats> = mediaVault.entries()
+        .map { VaultStats.of(it, System.currentTimeMillis()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultStats.of(emptyList(), 0L))
+
     fun openBoard(board: String) = selection.update { VaultSelection(board = board) }
 
     fun openThread(location: VaultLocation) = selection.update { it.copy(thread = location) }
