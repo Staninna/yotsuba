@@ -19,12 +19,15 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavController
@@ -38,6 +41,7 @@ import androidx.window.core.layout.WindowWidthSizeClass
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.util.Urls.InternalLink
+import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.feature.boards.BoardsScreen
 import dev.stan.yotsuba.feature.catalog.CatalogScreen
 import dev.stan.yotsuba.feature.media.MediaScreen
@@ -53,7 +57,7 @@ import dev.stan.yotsuba.feature.vault.VaultScreen
  * and the shell hides its chrome while they are on top.
  */
 @Composable
-fun AppNavHost() {
+fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
@@ -72,6 +76,23 @@ fun AppNavHost() {
         currentDestination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true
 
     val showChrome = TopLevelDestination.entries.any(::isSelected)
+
+    // Targets that arrive from outside the graph: a browser link, shared text, a widget tap.
+    val pendingLink by shell.pendingLink.collectAsStateWithLifecycle()
+    LaunchedEffect(pendingLink) {
+        val link = pendingLink ?: return@LaunchedEffect
+        when (link) {
+            is InternalLink.Catalog -> navController.navigate(Route.Catalog(link.board, link.searchQuery))
+            is InternalLink.Thread -> navController.navigate(Route.Thread(link.board, link.threadNo, link.postNo))
+        }
+        shell.linkConsumed()
+    }
+    val widgetTarget by WidgetDeepLink.pending.collectAsStateWithLifecycle()
+    LaunchedEffect(widgetTarget) {
+        val target = widgetTarget ?: return@LaunchedEffect
+        navController.navigate(Route.Thread(target.board, target.threadNo))
+        WidgetDeepLink.clear()
+    }
     val openSettings = { navController.navigate(Route.Settings) }
 
     Row(Modifier.fillMaxSize()) {

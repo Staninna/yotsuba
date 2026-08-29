@@ -36,6 +36,25 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Thread and catalog links from a browser. autoVerify is deliberately
+                 absent: we do not control 4chan's assetlinks, so this stays a chooser. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:scheme="http" />
+                <data android:host="boards.4chan.org" />
+                <data android:host="boards.4channel.org" />
+                <data android:pathPattern="/.*/thread/.*" />
+                <data android:pathPattern="/.*/catalog" />
+            </intent-filter>
+            <!-- Share target: text containing a thread or catalog URL. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
         <receiver
             android:name=".core.widget.WatchedThreadsWidgetReceiver"
