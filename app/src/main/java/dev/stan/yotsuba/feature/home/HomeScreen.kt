@@ -97,7 +97,15 @@ fun HomeScreen(
         val list = boards
         when {
             list == null -> Unit
-            list.isEmpty() -> Unit
+            list.isEmpty() -> EmptyState(
+                title = stringResource(R.string.home_empty_title),
+                explanation = stringResource(R.string.home_empty_explanation),
+                icon = Icons.Filled.Star,
+                action = {
+                    Button(onClick = onOpenBoards) { Text(stringResource(R.string.home_pick_boards)) }
+                },
+                modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()),
+            )
             else -> Column(Modifier.padding(padding).fillMaxSize()) {
                 ScrollableTabRow(
                     selectedTabIndex = pagerState.currentPage.coerceIn(0, list.size - 1),
