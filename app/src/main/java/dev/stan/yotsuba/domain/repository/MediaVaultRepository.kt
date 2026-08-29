@@ -5,6 +5,7 @@ import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import kotlinx.coroutines.flow.Flow
@@ -79,6 +80,32 @@ interface MediaVaultRepository {
      * reports `(done, total)` for a caller that needs to show it going.
      */
     suspend fun syncSavedThreads(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): VaultSyncSummary
+
+    /**
+     * [syncSavedThreads], leaving out [skip]: a caller that has just snapshotted those
+     * threads has no reason to fetch them twice.
+     */
+    suspend fun syncSavedThreads(
+        onProgress: (done: Int, total: Int) -> Unit,
+        skip: Set<VaultLocation>,
+    ): VaultSyncSummary = syncSavedThreads(onProgress)
+
+    /**
+     * Captures the whole live thread into its vault sidecars without saving any media --
+     * the bookmark case: watched, not yet saved from. Merges into an existing directory
+     * or creates one carrying only `meta.json` and `posts.json`. [VaultError.NotFound]
+     * when the thread is gone.
+     */
+    suspend fun snapshotThread(board: String, threadNo: Long): VaultError? = VaultError.Io("not supported")
+
+    /**
+     * [snapshotThread] over many, paced like [syncSavedThreads] and stopping the same way
+     * on a rate limit. Threads that turned out gone count as [VaultSyncSummary.gone].
+     */
+    suspend fun snapshotThreads(
+        targets: List<VaultLocation>,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): VaultSyncSummary = VaultSyncSummary()
 
     /**
      * Gives an imported thread a new subject: the sidecar and the directory name both

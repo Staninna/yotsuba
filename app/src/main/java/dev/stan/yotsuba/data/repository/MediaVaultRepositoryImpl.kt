@@ -374,9 +374,14 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     override suspend fun syncSavedThreads(
         onProgress: (done: Int, total: Int) -> Unit,
+    ): VaultSyncSummary = syncSavedThreads(onProgress, emptySet())
+
+    override suspend fun syncSavedThreads(
+        onProgress: (done: Int, total: Int) -> Unit,
+        skip: Set<VaultLocation>,
     ): VaultSyncSummary = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext VaultSyncSummary()
-        val targets = savedThreads()
+        val targets = savedThreads().filterNot { VaultLocation(it.board, it.threadNo) in skip }
         runPass(targets.map { VaultLocation(it.board, it.threadNo) }, onProgress) { location, thread ->
             val dir = store.threadDir(location.board, location.threadNo) ?: return@runPass
             // The whole comment section, not just the conversation around what was
@@ -388,6 +393,47 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 incoming = thread.posts.map { it.toVaultMeta() },
             )
         }
+    }
+
+    override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? =
+        withContext(Dispatchers.IO) {
+            if (!hasStorageAccess()) return@withContext VaultError.NoAccess
+            when (val result = threadRepository.thread(board, threadNo, forceRefresh = true)) {
+                is DataResult.Success -> attempt {
+                    store.ensureRoot()
+                    store.lock.withLock { writeSnapshot(board, threadNo, result.value) }
+                }
+                is DataResult.Failure -> when (result.error) {
+                    NetworkError.NotFound -> {
+                        store.lock.withLock { pruneIfDead(board, threadNo) }
+                        VaultError.NotFound
+                    }
+                    else -> VaultError.Io(result.error.toString())
+                }
+            }
+        }
+
+    override suspend fun snapshotThreads(
+        targets: List<VaultLocation>,
+        onProgress: (done: Int, total: Int) -> Unit,
+    ): VaultSyncSummary = withContext(Dispatchers.IO) {
+        if (!hasStorageAccess()) return@withContext VaultSyncSummary()
+        store.ensureRoot()
+        runPass(targets.filter { it.isRemote }, onProgress) { location, thread ->
+            writeSnapshot(location.board, location.threadNo, thread)
+        }
+    }
+
+    /** Under the store lock. */
+    private fun writeSnapshot(board: String, threadNo: Long, thread: ThreadDetails) {
+        val op = thread.posts.firstOrNull { it.isOp } ?: thread.posts.firstOrNull()
+        store.snapshot(
+            board = board,
+            threadNo = threadNo,
+            subject = op?.subject,
+            opExcerpt = op?.body?.plainText?.take(60),
+            posts = thread.posts.map { it.toVaultMeta() },
+        )
     }
 
     /**

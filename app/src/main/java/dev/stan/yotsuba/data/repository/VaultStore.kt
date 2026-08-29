@@ -8,6 +8,7 @@ import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultPostsCodec
 import dev.stan.yotsuba.core.vault.VaultThreadPosts
 import dev.stan.yotsuba.core.vault.VaultThreadMeta
+import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostGraph
@@ -107,6 +108,33 @@ class VaultStore(private val rootOverride: File?) {
     }
 
     /**
+     * Writes the whole live thread into the sidecars, creating the directory when this is
+     * the first thing captured for it. Same merge as a save: posts already recorded are
+     * replaced, never duplicated. Refuses a pruned thread, which is final.
+     */
+    fun snapshot(board: String, threadNo: Long, subject: String?, opExcerpt: String?, posts: List<VaultPostMeta>): File? {
+        val dir = threadDir(board, threadNo) ?: File(
+            File(root, VaultPaths.sanitizeSegment(board)),
+            VaultPaths.threadDirName(threadNo, subject, opExcerpt),
+        )
+        val current = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
+            ?.let { VaultMetaCodec.decode(it.readText()) }
+        if (current?.isPruned == true) return null
+        dir.mkdirs()
+        updatePosts(dir, board, threadNo, posts)
+        updateMeta(dir) {
+            it.copy(
+                board = board,
+                threadNo = threadNo,
+                subject = subject ?: it.subject,
+                threadUrl = Urls.threadWebUrl(board, threadNo),
+                snapshotAt = System.currentTimeMillis(),
+            )
+        }
+        return dir
+    }
+
+    /**
      * Compacts a dead thread's posts.json to the OP plus the conversation around every post
      * that has a saved file on disk, and marks meta.json so it never happens twice. Returns
      * how many posts were dropped, or null when there was nothing to do: already pruned, no
@@ -151,8 +179,10 @@ class VaultStore(private val rootOverride: File?) {
         val remaining = dir.listFiles() ?: return
         val sidecars = setOf(VaultPaths.META_FILE_NAME, VaultPaths.POSTS_FILE_NAME, VaultPaths.THUMBS_DIR_NAME)
         val onlyMeta = remaining.all { it.name in sidecars }
-        val metaEmpty = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
-            ?.let { VaultMetaCodec.decode(it.readText())?.files?.isEmpty() } ?: true
+        val meta = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
+            ?.let { VaultMetaCodec.decode(it.readText()) }
+        // A snapshot without files is not an emptied directory; the sidecar is the point.
+        val metaEmpty = meta?.let { it.files.isEmpty() && it.snapshotAt == null } ?: true
         if (onlyMeta && metaEmpty) {
             dir.deleteRecursively()
             dir.parentFile?.takeIf { it != root && it.listFiles()?.isEmpty() == true }?.delete()

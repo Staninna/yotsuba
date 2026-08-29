@@ -15,6 +15,12 @@ data class VaultThreadMeta(
     val subject: String? = null,
     val threadUrl: String? = null,
     val files: List<VaultFileMeta> = emptyList(),
+    /**
+     * When the whole live thread was last written into posts.json without a media save,
+     * unix millis. A directory carrying this is kept even when it holds no files: the
+     * sidecar is the point.
+     */
+    val snapshotAt: Long? = null,
     /** When posts.json was compacted to the saved conversations, unix millis. Set once, never merged into again. */
     val prunedAt: Long? = null,
     /** How many posts the compaction dropped. */
