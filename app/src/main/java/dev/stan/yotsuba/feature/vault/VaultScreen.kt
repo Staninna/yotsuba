@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
@@ -101,6 +102,7 @@ fun VaultScreen(
     var importMenuOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(state.query.isNotEmpty()) }
     var syncMenuOpen by remember { mutableStateOf(false) }
+    var statsOpen by remember { mutableStateOf(false) }
 
     state.notice?.let { notice ->
         val message = when (notice) {
@@ -308,6 +310,16 @@ fun VaultScreen(
                                             viewModel.fetchReplies { summary -> reportSync(summary) }
                                         },
                                     )
+                                    DropdownMenuItem(
+                                        text = {
+                                            MenuLabel(R.string.vault_stats_label, R.string.vault_stats_explanation)
+                                        },
+                                        leadingIcon = { Icon(Icons.Filled.BarChart, contentDescription = null) },
+                                        onClick = {
+                                            syncMenuOpen = false
+                                            statsOpen = true
+                                        },
+                                    )
                                 }
                             }
                         }
@@ -353,6 +365,19 @@ fun VaultScreen(
                 onOpenThread = onOpenThread,
             )
         }
+    }
+
+    if (statsOpen) {
+        val stats by viewModel.stats.collectAsStateWithLifecycle()
+        VaultStatsSheet(
+            stats = stats,
+            onDismiss = { statsOpen = false },
+            onOpenThread = { location ->
+                statsOpen = false
+                viewModel.openBoard(location.board)
+                viewModel.openThread(location)
+            },
+        )
     }
 
     state.inspecting?.let { entry ->

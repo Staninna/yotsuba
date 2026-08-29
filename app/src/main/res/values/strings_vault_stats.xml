@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vault_stats_label">Statistics</string>
+    <string name="vault_stats_explanation">What the vault holds, by board and thread</string>
+    <string name="vault_stats_title">Vault statistics</string>
+    <string name="vault_stats_empty">Nothing saved yet</string>
+    <string name="vault_stats_files">Files</string>
+    <string name="vault_stats_size">Size</string>
+    <string name="vault_stats_images">Images</string>
+    <string name="vault_stats_videos">Videos</string>
+    <string name="vault_stats_threads">Threads</string>
+    <string name="vault_stats_boards">Boards</string>
+    <string name="vault_stats_per_board">By board</string>
+    <string name="vault_stats_board_detail">%1$d files · %2$s</string>
+    <string name="vault_stats_biggest_threads">Biggest threads</string>
+    <string name="vault_stats_untitled">Untitled</string>
+    <string name="vault_stats_thread_detail">/%1$s/ · %2$d files · %3$s</string>
+    <string name="vault_stats_per_week">Saved per week</string>
+    <string name="vault_stats_per_week_range">Last %1$d weeks</string>
+    <string name="vault_stats_dates">Dates</string>
+    <string name="vault_stats_oldest">Oldest save</string>
+    <string name="vault_stats_newest">Newest save</string>
+</resources>
