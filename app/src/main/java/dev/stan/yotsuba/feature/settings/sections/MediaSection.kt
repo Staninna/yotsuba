@@ -13,41 +13,46 @@ import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.SeekStep
-import dev.stan.yotsuba.feature.settings.SettingsUiState
-import dev.stan.yotsuba.feature.settings.SettingsViewModel
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.labelRes
 
 @Composable
-fun MediaSection(state: SettingsUiState, viewModel: SettingsViewModel) {
-    val s = state.settings
+fun MediaSection(settings: Settings, update: ((Settings) -> Settings) -> Unit) {
     val spacing = LocalSpacing.current
+
+    SwitchRow(
+        title = stringResource(R.string.settings_data_saver),
+        summary = stringResource(R.string.settings_data_saver_summary),
+        checked = settings.dataSaver,
+        onToggle = { v -> update { it.copy(dataSaver = v) } },
+    )
 
     SectionHeader(stringResource(R.string.settings_video))
     ChipRow(
         label = stringResource(R.string.settings_media_autoplay),
         options = MediaAutoplay.entries,
-        selected = s.mediaAutoplay,
-        onSelect = { v -> viewModel.update { it.copy(mediaAutoplay = v) } },
+        selected = settings.mediaAutoplay,
+        onSelect = { v -> update { it.copy(mediaAutoplay = v) } },
         labelOf = { stringResource(it.labelRes) },
     )
     SwitchRow(
         title = stringResource(R.string.settings_keep_screen_on),
         summary = stringResource(R.string.settings_keep_screen_on_summary),
-        checked = s.keepScreenOnWhileWatching,
-        onToggle = { v -> viewModel.update { it.copy(keepScreenOnWhileWatching = v) } },
+        checked = settings.keepScreenOnWhileWatching,
+        onToggle = { v -> update { it.copy(keepScreenOnWhileWatching = v) } },
     )
     SwitchRow(
         title = stringResource(R.string.settings_double_tap_seek),
         summary = stringResource(R.string.settings_double_tap_seek_summary),
-        checked = s.doubleTapSeekEnabled,
-        onToggle = { v -> viewModel.update { it.copy(doubleTapSeekEnabled = v) } },
+        checked = settings.doubleTapSeekEnabled,
+        onToggle = { v -> update { it.copy(doubleTapSeekEnabled = v) } },
     )
     ChipRow(
         label = stringResource(R.string.settings_seek_step),
         options = SeekStep.entries,
-        selected = s.seekStep,
-        onSelect = { v -> viewModel.update { it.copy(seekStep = v) } },
-        enabled = s.doubleTapSeekEnabled,
+        selected = settings.seekStep,
+        onSelect = { v -> update { it.copy(seekStep = v) } },
+        enabled = settings.doubleTapSeekEnabled,
         labelOf = { stringResource(R.string.settings_seek_step_seconds, it.seconds) },
     )
     Text(
@@ -61,8 +66,8 @@ fun MediaSection(state: SettingsUiState, viewModel: SettingsViewModel) {
     SwitchRow(
         title = stringResource(R.string.settings_hold_to_save),
         summary = stringResource(R.string.settings_hold_to_save_summary),
-        checked = s.holdToSave,
-        onToggle = { v -> viewModel.update { it.copy(holdToSave = v) } },
+        checked = settings.holdToSave,
+        onToggle = { v -> update { it.copy(holdToSave = v) } },
     )
     Text(
         stringResource(R.string.settings_hold_to_save_note),
@@ -73,7 +78,7 @@ fun MediaSection(state: SettingsUiState, viewModel: SettingsViewModel) {
     SwitchRow(
         title = stringResource(R.string.settings_save_replies),
         summary = stringResource(R.string.settings_save_replies_summary),
-        checked = s.saveRepliesWithMedia,
-        onToggle = { v -> viewModel.update { it.copy(saveRepliesWithMedia = v) } },
+        checked = settings.saveRepliesWithMedia,
+        onToggle = { v -> update { it.copy(saveRepliesWithMedia = v) } },
     )
 }

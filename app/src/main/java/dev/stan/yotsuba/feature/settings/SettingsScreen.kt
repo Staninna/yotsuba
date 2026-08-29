@@ -5,15 +5,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.MenuBook
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.PlayCircleOutline
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material.icons.outlined.SystemUpdateAlt
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -21,7 +12,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,30 +52,6 @@ fun SettingsScreen(
     }
 }
 
-private val SettingsSectionId.icon: ImageVector
-    get() = when (this) {
-        SettingsSectionId.APPEARANCE -> Icons.Outlined.Palette
-        SettingsSectionId.READING -> Icons.Outlined.MenuBook
-        SettingsSectionId.MEDIA -> Icons.Outlined.PlayCircleOutline
-        SettingsSectionId.BOARDS -> Icons.Outlined.GridView
-        SettingsSectionId.LINKS -> Icons.Outlined.Shield
-        SettingsSectionId.STORAGE -> Icons.Outlined.Storage
-        SettingsSectionId.UPDATES -> Icons.Outlined.SystemUpdateAlt
-        SettingsSectionId.ABOUT -> Icons.Outlined.Info
-    }
-
-internal val SettingsSectionId.titleRes: Int
-    get() = when (this) {
-        SettingsSectionId.APPEARANCE -> R.string.settings_appearance
-        SettingsSectionId.READING -> R.string.settings_reading
-        SettingsSectionId.MEDIA -> R.string.settings_media
-        SettingsSectionId.BOARDS -> R.string.settings_boards
-        SettingsSectionId.LINKS -> R.string.settings_links
-        SettingsSectionId.STORAGE -> R.string.settings_storage
-        SettingsSectionId.UPDATES -> R.string.settings_updates
-        SettingsSectionId.ABOUT -> R.string.settings_about
-    }
-
 @Composable
 private fun SettingsSectionId.summary(state: SettingsUiState): String {
     val s = state.settings
@@ -101,9 +67,11 @@ private fun SettingsSectionId.summary(state: SettingsUiState): String {
         SettingsSectionId.MEDIA ->
             stringResource(s.mediaAutoplay.labelRes) + separator +
                 stringResource(R.string.settings_seek_step_seconds, s.seekStep.seconds)
-        SettingsSectionId.BOARDS -> stringResource(R.string.settings_summary_boards, s.hiddenBoards.size)
+        SettingsSectionId.BOARDS -> stringResource(
+            R.string.settings_summary_boards_and_threads, s.hiddenBoards.size, state.hiddenThreads.size,
+        )
         SettingsSectionId.LINKS -> stringResource(R.string.settings_summary_links, s.trustedDomains.size)
-        SettingsSectionId.STORAGE -> stringResource(R.string.settings_summary_storage, state.hiddenThreads.size)
+        SettingsSectionId.STORAGE -> stringResource(R.string.settings_summary_storage_data)
         SettingsSectionId.UPDATES -> stringResource(R.string.settings_version, state.versionName)
         SettingsSectionId.ABOUT -> stringResource(R.string.settings_summary_about)
     }

@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.BuildConfig
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.update.Updater
 
@@ -37,8 +36,6 @@ fun UpdatesSection(
 ) {
     val spacing = LocalSpacing.current
     var needsPermission by remember { mutableStateOf(false) }
-
-    SectionHeader(stringResource(R.string.settings_updates))
 
     // A dev build cannot update itself: the release APK has a different
     // package id, so installing it would add a second app rather than replace

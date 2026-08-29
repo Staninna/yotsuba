@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.sections.AboutSection
 import dev.stan.yotsuba.feature.settings.sections.AppearanceSection
 import dev.stan.yotsuba.feature.settings.sections.BoardsSection
@@ -55,9 +56,9 @@ fun SettingsSectionScreen(
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var confirmAction by remember { mutableStateOf<Pair<Int, () -> Unit>?>(null) }
+    var confirmAction by remember { mutableStateOf<ConfirmAction?>(null) }
 
-    val confirmThen: (Int, () -> Unit) -> Unit = { body, action -> confirmAction = body to action }
+    val confirmThen: (Int, () -> Unit) -> Unit = { body, action -> confirmAction = ConfirmAction(body, action) }
     val showMessage: (String) -> Unit = { message -> scope.launch { snackbar.showSnackbar(message) } }
 
     Scaffold(
@@ -79,13 +80,28 @@ fun SettingsSectionScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
+            val settings = state.settings
+            val update: ((Settings) -> Settings) -> Unit = { viewModel.update(it) }
             when (section) {
-                SettingsSectionId.APPEARANCE -> AppearanceSection(state, viewModel)
-                SettingsSectionId.READING -> ReadingSection(state, viewModel)
-                SettingsSectionId.MEDIA -> MediaSection(state, viewModel)
-                SettingsSectionId.BOARDS -> BoardsSection(viewModel, confirmThen)
-                SettingsSectionId.LINKS -> LinksSection(state, viewModel)
-                SettingsSectionId.STORAGE -> StorageSection(state, viewModel, confirmThen, showMessage)
+                SettingsSectionId.APPEARANCE -> AppearanceSection(settings, update)
+                SettingsSectionId.READING -> ReadingSection(settings, update)
+                SettingsSectionId.MEDIA -> MediaSection(settings, update)
+                SettingsSectionId.BOARDS -> BoardsSection(
+                    hiddenThreads = state.hiddenThreads,
+                    onHideNsfwBoards = viewModel::onHideNsfwBoards,
+                    onUnhideThread = viewModel::onUnhideThread,
+                    confirmThen = confirmThen,
+                )
+                SettingsSectionId.LINKS -> LinksSection(settings, update)
+                SettingsSectionId.STORAGE -> StorageSection(
+                    settings = settings,
+                    update = update,
+                    onClearCache = viewModel::onClearCache,
+                    onClearHistory = viewModel::onClearHistory,
+                    onClearBookmarks = viewModel::onClearBookmarks,
+                    confirmThen = confirmThen,
+                    showMessage = showMessage,
+                )
                 SettingsSectionId.UPDATES -> UpdatesSection(
                     state = updateState,
                     onCheck = viewModel::onCheckForUpdates,
@@ -93,18 +109,18 @@ fun SettingsSectionScreen(
                     canInstallPackages = viewModel::canInstallPackages,
                     onRequestInstallPermission = { context.startActivity(viewModel.unknownSourcesIntent()) },
                 )
-                SettingsSectionId.ABOUT -> AboutSection(state)
+                SettingsSectionId.ABOUT -> AboutSection(state.versionName)
             }
         }
     }
 
-    confirmAction?.let { (bodyRes, action) ->
+    confirmAction?.let { pending ->
         AlertDialog(
             onDismissRequest = { confirmAction = null },
             title = { Text(stringResource(R.string.settings_confirm_title)) },
-            text = { Text(stringResource(bodyRes)) },
+            text = { Text(stringResource(pending.bodyRes)) },
             confirmButton = {
-                TextButton(onClick = { action(); confirmAction = null }) {
+                TextButton(onClick = { pending.action(); confirmAction = null }) {
                     Text(stringResource(R.string.action_confirm))
                 }
             },
@@ -116,3 +132,6 @@ fun SettingsSectionScreen(
         )
     }
 }
+
+/** A destructive action waiting behind the "are you sure?" dialog. */
+private class ConfirmAction(val bodyRes: Int, val action: () -> Unit)

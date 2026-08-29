@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.domain.model
 
+import kotlinx.serialization.Serializable
+
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class CatalogLayout { COMFORTABLE, COMPACT, LIST }
 enum class MediaAutoplay { ALWAYS, UNMETERED_ONLY, NEVER }
@@ -13,6 +15,11 @@ enum class SeekStep(val seconds: Int) {
     THIRTY(30),
 }
 
+/**
+ * Persisted as one JSON blob. Every field needs a default: the serializer coerces missing
+ * keys and unknown enum names to it, which is how old installs survive new fields.
+ */
+@Serializable
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
@@ -35,6 +42,14 @@ data class Settings(
     val saveRepliesWithMedia: Boolean = true,
     val recordHistory: Boolean = true,
     val historyRetention: HistoryRetention = HistoryRetention.FOREVER,
+    /** Ask before removing a saved thread from the vault. */
+    val confirmVaultDelete: Boolean = true,
+    /** How often bookmarked threads are polled for new replies in the background. */
+    val bookmarkRefreshMinutes: Int = 30,
+    /** Post a notification when a bookmarked thread gains replies. */
+    val bookmarkNotifications: Boolean = true,
+    /** Prefer thumbnails and skip prefetching full media until it is opened. */
+    val dataSaver: Boolean = false,
     val favouriteBoards: Set<String> = emptySet(),
     val hiddenBoards: Set<String> = emptySet(),
     val hiddenCategories: Set<String> = emptySet(),

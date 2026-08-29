@@ -6,38 +6,36 @@ import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.ChipRow
 import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
-import dev.stan.yotsuba.feature.settings.SettingsUiState
-import dev.stan.yotsuba.feature.settings.SettingsViewModel
 import dev.stan.yotsuba.feature.settings.labelRes
 
 @Composable
-fun AppearanceSection(state: SettingsUiState, viewModel: SettingsViewModel) {
-    val s = state.settings
+fun AppearanceSection(settings: Settings, update: ((Settings) -> Settings) -> Unit) {
     ChipRow(
         label = stringResource(R.string.settings_theme),
         options = ThemeMode.entries,
-        selected = s.themeMode,
-        onSelect = { mode -> viewModel.update { it.copy(themeMode = mode) } },
+        selected = settings.themeMode,
+        onSelect = { mode -> update { it.copy(themeMode = mode) } },
         labelOf = { stringResource(it.labelRes) },
     )
     SwitchRow(
         title = stringResource(R.string.settings_dynamic_color),
         summary = stringResource(R.string.settings_dynamic_color_summary),
-        checked = s.dynamicColor,
-        onToggle = { v -> viewModel.update { it.copy(dynamicColor = v) } },
+        checked = settings.dynamicColor,
+        onToggle = { v -> update { it.copy(dynamicColor = v) } },
     )
     ChipRow(
         label = stringResource(R.string.settings_catalog_layout),
         options = CatalogLayout.entries,
-        selected = s.catalogLayout,
-        onSelect = { layout -> viewModel.update { it.copy(catalogLayout = layout) } },
+        selected = settings.catalogLayout,
+        onSelect = { layout -> update { it.copy(catalogLayout = layout) } },
         labelOf = { stringResource(it.labelRes) },
     )
     SwitchRow(
         title = stringResource(R.string.settings_reveal_spoilers),
         summary = stringResource(R.string.settings_reveal_spoilers_summary),
-        checked = s.revealAllSpoilers,
-        onToggle = { v -> viewModel.update { it.copy(revealAllSpoilers = v) } },
+        checked = settings.revealAllSpoilers,
+        onToggle = { v -> update { it.copy(revealAllSpoilers = v) } },
     )
 }

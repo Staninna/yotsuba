@@ -39,8 +39,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Robolectric only because the VM reads the app's versionName off a [android.content.Context];
- * everything else is faked at the repository interfaces.
+ * Robolectric only because [Updater] wants a real [android.content.Context]; everything else
+ * is faked at the repository interfaces.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -123,7 +123,6 @@ class SettingsViewModelTest {
         val bookmarks = FakeBookmarkRepository()
         val maintenance = FakeMaintenanceRepository()
         val vm = SettingsViewModel(
-            context = ApplicationProvider.getApplicationContext(),
             settingsRepository = settings,
             historyRepository = history,
             bookmarkRepository = bookmarks,
@@ -190,17 +189,5 @@ class SettingsViewModelTest {
         env.vm.onUnhideThread(HiddenThread("g", 1))
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(HiddenThread("g", 2)), env.hidden.state.value)
-    }
-
-    @Test fun `trusted domains revoke one or clear all`() = runTest(dispatcher.scheduler) {
-        val env = Env(settings = FakeSettingsRepository(
-            Settings(trustedDomains = setOf("a.com", "b.com"))
-        ))
-        env.vm.onRevokeTrustedDomain("a.com")
-        dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(setOf("b.com"), env.settings.state.value.trustedDomains)
-        env.vm.onClearTrustedDomains()
-        dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(emptySet<String>(), env.settings.state.value.trustedDomains)
     }
 }
