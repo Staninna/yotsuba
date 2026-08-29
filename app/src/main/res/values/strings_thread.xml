@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Thread screen strings added after strings.xml; %1$s is the network error copy. -->
+    <string name="thread_refresh_failed">Refresh failed: %1$s</string>
+</resources>

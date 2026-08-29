@@ -52,6 +52,7 @@ import dev.stan.yotsuba.feature.media.saveToVault
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -115,6 +116,15 @@ fun ThreadScreen(
             if (target.animate) listState.animateScrollToItem(index) else listState.scrollToItem(index)
         }
         viewModel.onScrollTargetConsumed()
+    }
+
+    // A failed refresh leaves the thread up and says so once.
+    val refreshError = (state as? UiState.Success)?.data?.refreshError
+    val refreshErrorMessage = refreshError?.let { refreshErrorMessage(it) }
+    LaunchedEffect(refreshError) {
+        if (refreshError == null || refreshErrorMessage == null) return@LaunchedEffect
+        viewModel.onRefreshErrorShown()
+        snackbar.showSnackbar(refreshErrorMessage)
     }
 
     // Report the visible index range; the VM owns read position and unread counts.
@@ -293,6 +303,19 @@ private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel) {
         }
     }
 }
+
+@Composable
+private fun refreshErrorMessage(error: NetworkError): String = stringResource(
+    R.string.thread_refresh_failed,
+    when (error) {
+        NetworkError.Offline -> stringResource(R.string.error_offline)
+        NetworkError.Timeout -> stringResource(R.string.error_timeout)
+        NetworkError.RateLimited -> stringResource(R.string.error_rate_limited)
+        NetworkError.NotFound -> stringResource(R.string.error_not_found)
+        is NetworkError.Server -> stringResource(R.string.error_server, error.code)
+        is NetworkError.Unknown -> stringResource(R.string.error_unknown)
+    },
+)
 
 @Composable
 private fun NewPostsDivider(count: Int, onTap: () -> Unit) {
