@@ -1,11 +1,8 @@
 package dev.stan.yotsuba.feature.home
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -19,9 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
@@ -35,16 +30,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
-import dev.stan.yotsuba.core.designsystem.component.showUndo
-import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.feature.catalog.CatalogActions
 import dev.stan.yotsuba.feature.catalog.CatalogPane
 import dev.stan.yotsuba.feature.catalog.catalogViewModel
@@ -66,7 +57,6 @@ fun HomeScreen(
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val haptics = rememberHaptics()
     var savedPage by rememberSaveable { mutableIntStateOf(0) }
     val pageCount = boards?.size ?: 0
     val pagerState = rememberPagerState(
@@ -76,8 +66,6 @@ fun HomeScreen(
     LaunchedEffect(pagerState.currentPage) { savedPage = pagerState.currentPage }
     val current = boards?.getOrNull(pagerState.currentPage)
     val currentViewModel = current?.let { catalogViewModel(it) }
-    val removedTemplate = stringResource(R.string.home_board_removed)
-    val undoLabel = stringResource(R.string.action_undo)
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -111,31 +99,19 @@ fun HomeScreen(
                 modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()),
             )
             else -> Column(Modifier.padding(padding).fillMaxSize()) {
-                ScrollableTabRow(
-                    selectedTabIndex = pagerState.currentPage.coerceIn(0, list.size - 1),
-                    edgePadding = 0.dp,
-                ) {
-                    list.forEachIndexed { index, board ->
-                        // Not a Tab: its own click handling would swallow the long press.
-                        BoardTab(
-                            board = board,
-                            selected = index == pagerState.currentPage,
-                            onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
-                            onLongClick = {
-                                haptics.longPress()
-                                val undo = viewModel.removeFavourite(board)
-                                scope.launch {
-                                    snackbar.showUndo(removedTemplate.format(board), undoLabel, undo)
-                                }
-                            },
+                ReorderableTabRow(
+                    boards = list,
+                    selectedIndex = pagerState.currentPage.coerceIn(0, list.size - 1),
+                    onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                    onMove = { _, _ -> },
+                    trailing = {
+                        Tab(
+                            selected = false,
+                            onClick = onOpenBoards,
+                            icon = { Icon(Icons.Filled.Add, stringResource(R.string.home_add_board)) },
                         )
-                    }
-                    Tab(
-                        selected = false,
-                        onClick = onOpenBoards,
-                        icon = { Icon(Icons.Filled.Add, stringResource(R.string.home_add_board)) },
-                    )
-                }
+                    },
+                )
                 HorizontalPager(
                     state = pagerState,
                     key = { list[it] },
@@ -152,23 +128,5 @@ fun HomeScreen(
                 }
             }
         }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun BoardTab(board: String, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .height(48.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 16.dp),
-    ) {
-        Text(
-            "/$board/",
-            style = MaterialTheme.typography.titleSmall,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
