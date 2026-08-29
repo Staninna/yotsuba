@@ -54,10 +54,13 @@ data class MediaUiState(
     /** URL → queue state for saves in flight. */
     val downloadStates: Map<String, DownloadState> = emptyMap(),
     /**
-     * URL → absolute path in the vault. Membership is "already saved"; the path plays the
-     * file from disk without buffering. Empty while storage access is missing.
+     * URL → absolute path in the vault, or null for a legacy row whose file was never
+     * located. Membership is "already saved"; a path plays the file from disk without
+     * buffering. Empty while storage access is missing.
      */
-    val savedPaths: Map<String, String> = emptyMap(),
+    val saved: Map<String, String?> = emptyMap(),
+    /** Whether the app may touch the vault directory right now. */
+    val hasStorageAccess: Boolean = false,
     /** Whether a save also captures the post's conversation. */
     val saveReplies: Boolean = false,
     val initialIndex: Int = 0,
@@ -67,7 +70,9 @@ data class MediaUiState(
     val defaultUnmuted: Boolean = false,
 ) {
     val loaded: Boolean get() = phase == ViewerPhase.Ready
-    fun isSaved(url: String): Boolean = url in savedPaths
+    fun isSaved(url: String): Boolean = url in saved
+    /** The vault file for [url], when it is saved and its file is known. */
+    fun savedPath(url: String): String? = saved[url]
 
     val posts: Map<Long, ThreadPost> get() = thread.posts
     val backlinks: Map<Long, List<Long>> get() = thread.backlinks
@@ -133,14 +138,14 @@ class MediaViewModel @AssistedInject constructor(
         }
     }
 
-    /** Persisted saves + in-flight queue, paired so the combine below stays at five flows. */
-    private val saves = combine(mediaVault.savedPaths(), downloadQueue.statuses) { paths, states ->
-        paths to states
-    }
+    /** Persisted saves, storage access and the in-flight queue, grouped so the combine below stays at five flows. */
+    private val saves = combine(
+        mediaVault.saved(), mediaVault.storageAccess, downloadQueue.statuses,
+    ) { saved, access, states -> Triple(saved, access, states) }
 
     val uiState: StateFlow<MediaUiState> = combine(
         source, boardInfo, settingsRepository.settings, networkMonitor.status, saves,
-    ) { src, info, settings, status, (paths, states) ->
+    ) { src, info, settings, status, (saved, access, states) ->
         val d = (src as? Source.Loaded)?.details
         val list = d?.posts.orEmpty().mapNotNull { it.presentMedia }
         MediaUiState(
@@ -152,7 +157,8 @@ class MediaViewModel @AssistedInject constructor(
             items = list,
             thread = ViewerThread.of(d, info),
             downloadStates = states,
-            savedPaths = if (mediaVault.hasStorageAccess()) paths else emptyMap(),
+            saved = if (access) saved else emptyMap(),
+            hasStorageAccess = access,
             saveReplies = settings.saveRepliesWithMedia,
             initialIndex = list.indexOfFirst { it.postNo == initialPostNo }.coerceAtLeast(0),
             autoplay = when (settings.mediaAutoplay) {
@@ -172,7 +178,8 @@ class MediaViewModel @AssistedInject constructor(
 
     fun onMediaViewed(postNo: Long) = sessionStore.setLastViewed(board, threadNo, postNo)
 
-    fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
+    /** Re-reads the all-files grant; the screen calls this when it resumes. */
+    fun refreshStorageAccess() = mediaVault.refreshStorageAccess()
 
     /** Queues a vault save with full thread/post context; returns immediately. */
     fun enqueueSave(item: MediaItem) {
@@ -224,7 +231,7 @@ class MediaViewModel @AssistedInject constructor(
      * fresh download into the share cache. Null when it couldn't be fetched.
      */
     suspend fun prepareShare(item: MediaItem): File? = withContext(Dispatchers.IO) {
-        uiState.value.savedPaths[item.fullUrl]
+        uiState.value.savedPath(item.fullUrl)
             ?.let(::File)
             ?.takeIf { it.isFile }
             ?: runCatching {

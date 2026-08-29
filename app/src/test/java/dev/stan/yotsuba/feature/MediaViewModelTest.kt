@@ -38,6 +38,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -98,16 +99,20 @@ class MediaViewModelTest {
 
     /** Saves resolve into [saved]; the first save completes [firstSave] for await-style asserts. */
     private class FakeVault : MediaVaultRepository {
-        var access = true
+        val access = MutableStateFlow(true)
         val saved = mutableListOf<Pair<MediaItem, VaultSaveContext>>()
         val firstSave = CompletableDeferred<VaultSaveContext>()
         val deleted = mutableListOf<String>()
-        val urls = MutableStateFlow(emptySet<String>())
-        val paths = MutableStateFlow(emptyMap<String, String>())
-        override fun hasStorageAccess() = access
+        val paths = MutableStateFlow(emptyMap<String, String?>())
+        override fun hasStorageAccess() = access.value
+        override val storageAccess: Flow<Boolean> = access
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-        override fun savedUrls(): Flow<Set<String>> = urls
-        override fun savedPaths(): Flow<Map<String, String>> = paths
+        override fun saved(): Flow<Map<String, String?>> = paths
+        @Deprecated("Use saved().keys")
+        override fun savedUrls(): Flow<Set<String>> = paths.map { it.keys }
+        @Deprecated("Use saved()")
+        override fun savedPaths(): Flow<Map<String, String>> =
+            paths.map { m -> m.filterValues { it != null }.mapValues { it.value!! } }
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             saved += item to context
             firstSave.complete(context)
@@ -294,13 +299,12 @@ class MediaViewModelTest {
         vm.uiState.test {
             val withAccess = latest()
             assertTrue(withAccess.isSaved("https://i/100.jpg"))
-            assertEquals("/vault/100.jpg", withAccess.savedPaths["https://i/100.jpg"])
-            env.vault.access = false
-            assertFalse(vm.hasStorageAccess())
-            // Access isn't a flow; nudge an upstream so the combine re-evaluates.
-            env.vault.paths.value = env.vault.paths.value + ("https://i/101.jpg" to "/vault/101.jpg")
+            assertEquals("/vault/100.jpg", withAccess.savedPath("https://i/100.jpg"))
+            assertTrue(withAccess.hasStorageAccess)
+            env.vault.access.value = false
             val withoutAccess = latest()
-            assertTrue(withoutAccess.savedPaths.isEmpty())
+            assertFalse(withoutAccess.hasStorageAccess)
+            assertTrue(withoutAccess.saved.isEmpty())
             assertFalse(withoutAccess.isSaved("https://i/100.jpg"))
             cancelAndIgnoreRemainingEvents()
         }

@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.data.repository.DownloadState
 import dev.stan.yotsuba.domain.model.MediaItem
@@ -60,6 +61,8 @@ fun MediaScreen(
     ),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // The grant happens in a system settings page; re-check it every time we come back.
+    OnResumeEffect(viewModel::refreshStorageAccess)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -131,7 +134,7 @@ fun MediaScreen(
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 saveToVault(
                     context = context,
-                    hasAccess = viewModel.hasStorageAccess(),
+                    hasAccess = state.hasStorageAccess,
                     onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
                     save = { viewModel.enqueueSave(item) },
                 )
@@ -150,7 +153,7 @@ fun MediaScreen(
             interceptClick = {
                 when {
                     item == null -> true
-                    !viewModel.hasStorageAccess() -> {
+                    !state.hasStorageAccess -> {
                         requestAllFilesAccess(context)
                         scope.launch { snackbar.showSnackbar(grantAccessMessage) }
                         true
@@ -221,7 +224,7 @@ private fun errorMessage(error: NetworkError): String = when (error) {
 @Composable
 private fun MediaItem.toViewerPage(context: android.content.Context, state: MediaUiState): ViewerPage {
     // Already-saved media plays straight from the vault file — no buffering.
-    val localPath = state.savedPaths[fullUrl]
+    val localPath = state.savedPath(fullUrl)
     val description = stringResource(R.string.media_image_description, displayName, width, height)
     return if (isVideo) {
         ViewerPage.Video(
