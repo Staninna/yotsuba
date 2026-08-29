@@ -52,6 +52,12 @@ data class VaultViewerState(val entries: List<VaultEntry>, val index: Int) {
     val current: VaultEntry get() = entries[index]
 }
 
+/** One-shot messages for the screen to show; it calls [VaultViewModel.noticeShown] after. */
+sealed interface VaultNotice {
+    data object ImportEmpty : VaultNotice
+    data class ImportFailed(val error: VaultError) : VaultNotice
+}
+
 /** Progress of a vault sync: local rebuild, then one live thread at a time. */
 data class VaultSyncState(
     val running: Boolean = false,
@@ -68,6 +74,9 @@ data class VaultUiState(
     val sync: VaultSyncState = VaultSyncState(),
     /** False until "All files access" is granted; the explorer shows the grant prompt instead. */
     val hasStorageAccess: Boolean = false,
+    /** True while an import is copying, so the screen blocks a second one. */
+    val importing: Boolean = false,
+    val notice: VaultNotice? = null,
 ) {
     val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.board == selection.board }
     val openThread: VaultThreadSection?
@@ -116,22 +125,31 @@ class VaultViewModel @Inject constructor(
     /** Viewer toggle: advance to the next item when a video ends instead of looping it. */
     var autoAdvance by mutableStateOf(false)
 
-    /** Non-null while an import is copying, so the screen can block a second one. */
-    var importing by mutableStateOf(false)
-        private set
+    private val importing = MutableStateFlow(false)
+    private val notice = MutableStateFlow<VaultNotice?>(null)
 
     /**
-     * Copies the picked files into a new local thread. Returns the error to report, or null
-     * when it worked. The explorer refreshes itself: the DB rows land as part of the import.
+     * Copies the picked files into a new local thread. The explorer refreshes itself: the
+     * DB rows land as part of the import. Failure surfaces as a [VaultNotice].
      */
-    suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? {
-        if (sources.isEmpty() || importing) return null
-        importing = true
-        return try {
-            mediaVault.importLocalThread(name, sources)
-        } finally {
-            importing = false
+    fun importLocalThread(name: String, sources: List<ImportSource>) {
+        if (importing.value) return
+        if (sources.isEmpty()) {
+            notice.value = VaultNotice.ImportEmpty
+            return
         }
+        viewModelScope.launch {
+            importing.value = true
+            try {
+                mediaVault.importLocalThread(name, sources)?.let { notice.value = VaultNotice.ImportFailed(it) }
+            } finally {
+                importing.value = false
+            }
+        }
+    }
+
+    fun noticeShown() {
+        notice.value = null
     }
 
     /** The viewer's inputs, folded into one so the outer combine stays within five flows. */
@@ -139,16 +157,23 @@ class VaultViewModel @Inject constructor(
 
     private val viewing = combine(viewingUrl, shuffleOrder) { url, shuffle -> Viewing(url, shuffle) }
 
+    /** Transient screen-level flags, folded for the same reason. */
+    private data class Activity(val importing: Boolean, val notice: VaultNotice?, val access: Boolean)
+
+    private val activity = combine(importing, notice, mediaVault.storageAccess) { i, n, a -> Activity(i, n, a) }
+
     val uiState: StateFlow<VaultUiState> = combine(
-        mediaVault.entries(), syncState, selection, viewing, mediaVault.storageAccess,
-    ) { entries, sync, sel, viewing, access ->
+        mediaVault.entries(), syncState, selection, viewing, activity,
+    ) { entries, sync, sel, viewing, activity ->
         VaultUiState(
             entries = entries,
             boards = groupByBoard(entries),
             selection = sel,
             viewer = viewerState(entries, sel, viewing.url, viewing.shuffle),
             sync = sync,
-            hasStorageAccess = access,
+            hasStorageAccess = activity.access,
+            importing = activity.importing,
+            notice = activity.notice,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
@@ -222,7 +247,9 @@ class VaultViewModel @Inject constructor(
         }
     }
 
-    suspend fun delete(url: String): VaultError? = mediaVault.delete(url)
+    fun delete(url: String) {
+        viewModelScope.launch { mediaVault.delete(url) }
+    }
 
     /** Boards sort by directory name, which puts the `_`-prefixed reserved ones first. */
     private fun groupByBoard(entries: List<VaultEntry>): List<VaultBoardSection> =

@@ -13,6 +13,7 @@ import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.feature.vault.VaultNotice
 import dev.stan.yotsuba.feature.vault.VaultUiState
 import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultViewModel
@@ -82,8 +83,12 @@ class VaultViewModelTest {
             return syncSummary
         }
         var imported: Pair<String, List<ImportSource>>? = null
+        var imports = 0
+        var importGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
         override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? {
+            imports++
             imported = name to sources
+            importGate?.await()
             return importError
         }
         var importError: VaultError? = null
@@ -179,7 +184,7 @@ class VaultViewModelTest {
         vm.openViewer("g/1.jpg")
         vm.uiState.test {
             assertEquals("g/1.jpg", latest().viewer?.current?.url)
-            assertNull(vm.delete("g/1.jpg"))
+            vm.delete("g/1.jpg")
             assertNull(latest().viewer)
             assertEquals(listOf("g/1.jpg"), vault.deleted)
             cancelAndIgnoreRemainingEvents()
@@ -302,17 +307,48 @@ class VaultViewModelTest {
         val vm = VaultViewModel(vault, FakeSettings())
         val picked = listOf(ImportSource("content://a", "a.jpg"), ImportSource("content://b", "b.webm"))
 
-        assertEquals(null, vm.importLocalThread("Holiday", picked))
-        assertEquals("Holiday" to picked, vault.imported)
+        vm.uiState.test {
+            vm.importLocalThread("Holiday", picked)
+            val done = latest()
+            assertEquals("Holiday" to picked, vault.imported)
+            assertEquals(false, done.importing)
+            assertNull(done.notice)
 
-        vault.importError = VaultError.NoAccess
-        assertEquals(VaultError.NoAccess, vm.importLocalThread("Holiday", picked))
+            vault.importError = VaultError.NoAccess
+            vm.importLocalThread("Holiday", picked)
+            assertEquals(VaultNotice.ImportFailed(VaultError.NoAccess), latest().notice)
+            vm.noticeShown()
+            assertNull(latest().notice)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test fun `an empty selection is not an import`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
-        assertEquals(null, VaultViewModel(vault, FakeSettings()).importLocalThread("Empty", emptyList()))
-        assertEquals(null, vault.imported)
+        val vm = VaultViewModel(vault, FakeSettings())
+        vm.uiState.test {
+            vm.importLocalThread("Empty", emptyList())
+            assertEquals(VaultNotice.ImportEmpty, latest().notice)
+            assertEquals(null, vault.imported)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `a second import is ignored while one is copying`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        vault.importGate = gate
+        val vm = VaultViewModel(vault, FakeSettings())
+        val picked = listOf(ImportSource("content://a", "a.jpg"))
+        vm.uiState.test {
+            vm.importLocalThread("One", picked)
+            assertTrue(latest().importing)
+            vm.importLocalThread("Two", picked)
+            gate.complete(Unit)
+            assertEquals(false, latest().importing)
+            assertEquals(1, vault.imports)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test fun `sync shows a live progress counter and clears it when done`() =

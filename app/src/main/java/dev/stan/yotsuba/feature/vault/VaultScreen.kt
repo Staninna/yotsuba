@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -77,6 +78,18 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val importFailed = stringResource(R.string.vault_import_failed)
     val importEmpty = stringResource(R.string.vault_import_empty)
 
+    state.notice?.let { notice ->
+        LaunchedEffect(notice) {
+            snackbar.showSnackbar(
+                when (notice) {
+                    VaultNotice.ImportEmpty -> importEmpty
+                    is VaultNotice.ImportFailed -> importFailed
+                },
+            )
+            viewModel.noticeShown()
+        }
+    }
+
     val syncNothing = stringResource(R.string.vault_sync_nothing)
     val syncRateLimited = stringResource(R.string.vault_sync_rate_limited)
 
@@ -91,22 +104,11 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
         scope.launch { snackbar.showSnackbar(message) }
     }
 
-    fun runImport(name: String, sources: List<ImportSource>) {
-        scope.launch {
-            if (sources.isEmpty()) {
-                snackbar.showSnackbar(importEmpty)
-                return@launch
-            }
-            val error = viewModel.importLocalThread(name, sources)
-            if (error != null) snackbar.showSnackbar(importFailed)
-        }
-    }
-
     val pickFiles = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
         if (uris.isNotEmpty()) {
-            runImport(
+            viewModel.importLocalThread(
                 name = defaultImportName(uris.size),
                 sources = ImportPicker.sourcesFrom(context, uris),
             )
@@ -116,7 +118,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
         ActivityResultContracts.OpenDocumentTree(),
     ) { tree ->
         if (tree != null) {
-            runImport(
+            viewModel.importLocalThread(
                 name = ImportPicker.treeName(context, tree) ?: defaultImportName(0),
                 sources = ImportPicker.sourcesFromTree(context, tree),
             )
@@ -144,7 +146,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                         if (state.hasStorageAccess) {
                             Box {
                                 IconButton(
-                                    enabled = !viewModel.importing,
+                                    enabled = !state.importing,
                                     onClick = { importMenuOpen = true },
                                 ) {
                                     Icon(Icons.Filled.Add, stringResource(R.string.vault_import))
@@ -234,7 +236,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
             confirmButton = {
                 TextButton(onClick = {
                     deleting = null
-                    scope.launch { viewModel.delete(entry.url) }
+                    viewModel.delete(entry.url)
                 }) { Text(stringResource(R.string.vault_delete)) }
             },
             dismissButton = {
