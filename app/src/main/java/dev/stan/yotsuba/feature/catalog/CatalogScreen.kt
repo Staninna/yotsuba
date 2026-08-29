@@ -1,6 +1,8 @@
 package dev.stan.yotsuba.feature.catalog
 
+import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,20 +23,25 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -44,14 +51,20 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
@@ -65,6 +78,7 @@ import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
 import dev.stan.yotsuba.core.designsystem.component.OfflineBanner
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.TimeFormat
+import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogThread
 import kotlinx.coroutines.launch
@@ -91,6 +105,34 @@ fun CatalogScreen(
     }
     val hiddenMessage = stringResource(R.string.catalog_thread_hidden)
     val undoLabel = stringResource(R.string.action_undo)
+    val linkCopiedMessage = stringResource(R.string.catalog_thread_link_copied)
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    var sheetThread by remember { mutableStateOf<CatalogThread?>(null) }
+
+    sheetThread?.let { thread ->
+        ThreadActionsSheet(
+            thread = thread,
+            onDismiss = { sheetThread = null },
+            onHide = {
+                sheetThread = null
+                viewModel.onHideThread(thread.no)
+                scope.launch {
+                    snackbar.showUndo(hiddenMessage, undoLabel) { viewModel.onUndoHide(thread.no) }
+                }
+            },
+            onCopyLink = {
+                sheetThread = null
+                clipboard.setText(AnnotatedString(Urls.threadWebUrl(thread.board, thread.no)))
+                scope.launch { snackbar.showSnackbar(linkCopiedMessage) }
+            },
+            onOpenInBrowser = {
+                sheetThread = null
+                val url = Urls.threadWebUrl(thread.board, thread.no)
+                runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
+            },
+        )
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -179,12 +221,7 @@ fun CatalogScreen(
                                     thread = thread,
                                     layout = s.layout,
                                     onClick = { onOpenThread(thread.no) },
-                                    onLongClick = {
-                                        viewModel.onHideThread(thread.no)
-                                        scope.launch {
-                                            snackbar.showUndo(hiddenMessage, undoLabel) { viewModel.onUndoHide(thread.no) }
-                                        }
-                                    },
+                                    onLongClick = { sheetThread = thread },
                                 )
                             }
                         }
@@ -201,6 +238,43 @@ fun CatalogScreen(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ThreadActionsSheet(
+    thread: CatalogThread,
+    onDismiss: () -> Unit,
+    onHide: () -> Unit,
+    onCopyLink: () -> Unit,
+    onOpenInBrowser: () -> Unit,
+) {
+    val spacing = LocalSpacing.current
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(
+            thread.displayTitle,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = spacing.lg, vertical = spacing.sm),
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.catalog_hide_thread)) },
+            leadingContent = { Icon(Icons.Filled.VisibilityOff, contentDescription = null) },
+            modifier = Modifier.clickable(onClick = onHide),
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.catalog_thread_copy_link)) },
+            leadingContent = { Icon(Icons.Filled.Link, contentDescription = null) },
+            modifier = Modifier.clickable(onClick = onCopyLink),
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.catalog_thread_open_in_browser)) },
+            leadingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+            modifier = Modifier.clickable(onClick = onOpenInBrowser),
+        )
+        Spacer(Modifier.height(spacing.lg))
     }
 }
 
