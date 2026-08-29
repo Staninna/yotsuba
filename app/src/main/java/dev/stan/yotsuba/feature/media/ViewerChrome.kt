@@ -60,6 +60,8 @@ fun ViewerTopChrome(
     subtitle: String?,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /** A short tag drawn beside the title, e.g. "sound" for a sound post. */
+    badge: String? = null,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val spacing = LocalSpacing.current
@@ -76,12 +78,26 @@ fun ViewerTopChrome(
                     Icon(Icons.Filled.Close, stringResource(R.string.media_close), tint = Color.White)
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        title,
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelMedium,
-                        maxLines = 1,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            title,
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        badge?.let {
+                            Text(
+                                it,
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier
+                                    .padding(start = spacing.xs)
+                                    .background(Color.White.copy(alpha = 0.25f), CircleShape)
+                                    .padding(horizontal = spacing.xs, vertical = 1.dp),
+                            )
+                        }
+                    }
                     subtitle?.let {
                         Text(
                             it,
@@ -172,8 +188,14 @@ fun ImagePage(
     /** Data saver: hold the full image behind a "Load (N MB)" tap over the thumbnail. */
     deferLoad: Boolean = false,
     sizeBytes: Long? = null,
+    /** A sound post's audio: loops while this page is [selected] and [playing]. */
+    soundUrl: String? = null,
+    selected: Boolean = false,
+    playing: Boolean = false,
+    muted: Boolean = true,
 ) {
     val zoomState = rememberZoomableImageState()
+    SoundTrack(soundUrl = soundUrl, playWhenReady = selected && playing, muted = muted)
     // Once tapped the image stays loaded for this page's lifetime, even if the connection
     // flips back to metered mid-thread: the bytes are already spent.
     var loadRequested by remember(model) { mutableStateOf(false) }

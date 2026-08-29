@@ -94,6 +94,8 @@ fun VideoPage(
     onControlTouched: () -> Unit = {},
     /** True from the first drag of the seek bar until it is released. */
     onScrubbing: (Boolean) -> Unit = {},
+    /** A sound post's external audio, kept in step with the video. */
+    soundUrl: String? = null,
 ) {
     val context = LocalContext.current
     val player = remember(videoUri) {
@@ -103,12 +105,19 @@ fun VideoPage(
             prepare()
         }
     }
+    val soundPlayer = rememberSoundPlayer(soundUrl)
+    DisposableEffect(player, soundPlayer) {
+        val listener = soundPlayer?.followVisual(player)
+        onDispose { listener?.let(player::removeListener) }
+    }
     var isPlaying by remember { mutableStateOf(false) }
     var positionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
     var firstFrameRendered by remember(videoUri) { mutableStateOf(false) }
     // Assumed until the tracks arrive, so the mute button does not flicker into disabled.
+    // A sound post always has something to mute, whatever the webm's own tracks say.
     var hasAudio by remember(videoUri) { mutableStateOf(true) }
+    val canMute = hasAudio || soundPlayer != null
     var aspect by remember(videoUri) {
         mutableFloatStateOf(
             if (initialWidth > 0 && initialHeight > 0) initialWidth.toFloat() / initialHeight else 16f / 9f,
@@ -116,9 +125,15 @@ fun VideoPage(
     }
 
     LaunchedEffect(selected, playing) { player.playWhenReady = selected && playing }
-    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
-    LaunchedEffect(autoAdvance) {
-        player.repeatMode = if (autoAdvance) ExoPlayer.REPEAT_MODE_OFF else ExoPlayer.REPEAT_MODE_ONE
+    LaunchedEffect(muted, soundPlayer) {
+        val volume = if (muted) 0f else 1f
+        player.volume = volume
+        soundPlayer?.volume = volume
+    }
+    LaunchedEffect(autoAdvance, soundPlayer) {
+        val mode = if (autoAdvance) ExoPlayer.REPEAT_MODE_OFF else ExoPlayer.REPEAT_MODE_ONE
+        player.repeatMode = mode
+        soundPlayer?.repeatMode = mode
     }
     // Closing the app or the PiP window stops the activity — audio must not keep running.
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -307,21 +322,21 @@ fun VideoPage(
                 )
                 // A silent video has nothing to unmute: the button goes dead and says so,
                 // rather than leaving a live-looking control that does nothing.
-                IconButton(onClick = onToggleMute, enabled = hasAudio) {
+                IconButton(onClick = onToggleMute, enabled = canMute) {
                     Icon(
                         when {
-                            !hasAudio -> Icons.Filled.VolumeMute
+                            !canMute -> Icons.Filled.VolumeMute
                             muted -> Icons.Filled.VolumeOff
                             else -> Icons.Filled.VolumeUp
                         },
                         stringResource(
                             when {
-                                !hasAudio -> R.string.media_no_audio
+                                !canMute -> R.string.media_no_audio
                                 muted -> R.string.media_unmute
                                 else -> R.string.media_mute
                             },
                         ),
-                        tint = Color.White.copy(alpha = if (hasAudio) 1f else 0.4f),
+                        tint = Color.White.copy(alpha = if (canMute) 1f else 0.4f),
                     )
                 }
             }
