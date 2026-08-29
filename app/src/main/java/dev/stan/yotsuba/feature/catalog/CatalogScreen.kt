@@ -21,12 +21,14 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -118,7 +120,14 @@ fun CatalogScreen(
                         )
                     }
                     IconButton(onClick = viewModel::onCycleLayout) {
-                        Icon(Icons.Filled.GridView, stringResource(R.string.catalog_layout_switch))
+                        Icon(
+                            when ((state as? UiState.Success)?.data?.layout) {
+                                CatalogLayout.COMPACT -> Icons.Filled.GridView
+                                CatalogLayout.LIST -> Icons.AutoMirrored.Filled.ViewList
+                                CatalogLayout.COMFORTABLE, null -> Icons.Filled.ViewAgenda
+                            },
+                            stringResource(R.string.catalog_layout_switch),
+                        )
                     }
                 },
             )
