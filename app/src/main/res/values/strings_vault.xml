@@ -28,4 +28,6 @@
         <item quantity="other">Saved %1$d files to the gallery</item>
     </plurals>
     <string name="vault_saved_to_gallery_failed">Couldn\'t save %1$d of them</string>
+    <string name="vault_open_thread">Open thread</string>
+    <string name="vault_go_to_post">Go to post</string>
 </resources>

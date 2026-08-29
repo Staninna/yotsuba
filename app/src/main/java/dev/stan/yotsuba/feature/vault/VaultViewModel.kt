@@ -107,6 +107,8 @@ data class VaultUiState(
     val undo: List<VaultEntry>? = null,
     /** URLs ticked in multi-select; empty means not selecting. */
     val selected: Set<String> = emptySet(),
+    /** The entry whose long-press sheet is open. */
+    val inspecting: VaultEntry? = null,
 ) {
     val selecting: Boolean get() = selected.isNotEmpty()
     val selectedEntries: List<VaultEntry> get() = entries.filter { it.url in selected }
@@ -169,6 +171,7 @@ class VaultViewModel @Inject constructor(
     private val deleting = MutableStateFlow<VaultDeleteRequest?>(null)
     private val undo = MutableStateFlow<List<VaultEntry>?>(null)
     private val selected = MutableStateFlow<Set<String>>(emptySet())
+    private val inspectingUrl = MutableStateFlow<String?>(null)
     private var undoWindow: Job? = null
 
     /**
@@ -214,9 +217,9 @@ class VaultViewModel @Inject constructor(
     }
 
     /** Everything the user is in the middle of editing on the explorer itself. */
-    private data class Editing(val selected: Set<String>)
+    private data class Editing(val selected: Set<String>, val inspecting: String?)
 
-    private val editing = selected.map { Editing(it) }
+    private val editing = combine(selected, inspectingUrl) { s, i -> Editing(s, i) }
 
     @Suppress("UNCHECKED_CAST")
     val uiState: StateFlow<VaultUiState> = combine(
@@ -241,6 +244,7 @@ class VaultViewModel @Inject constructor(
             undo = activity.undo,
             // Selection follows the entries: a deleted or rescanned-away file drops out.
             selected = editing.selected.filterTo(mutableSetOf()) { url -> entries.any { it.url == url } },
+            inspecting = editing.inspecting?.let { url -> entries.firstOrNull { it.url == url } },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
@@ -262,6 +266,15 @@ class VaultViewModel @Inject constructor(
     }
 
     fun toggleSelected(entry: VaultEntry) = toggleSelected(listOf(entry.url))
+
+    /** Opens the long-press sheet for [entry]; [closeInspector] dismisses it. */
+    fun inspect(entry: VaultEntry) {
+        inspectingUrl.value = entry.url
+    }
+
+    fun closeInspector() {
+        inspectingUrl.value = null
+    }
 
     fun clearSelection() {
         selected.value = emptySet()

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Comment
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -74,7 +75,11 @@ import kotlinx.coroutines.launch
 /** In-app explorer over the on-disk vault: boards → threads → media grid. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
+fun VaultScreen(
+    viewModel: VaultViewModel = hiltViewModel(),
+    /** Leaves the vault for the live thread; [postNo] scrolls to that post when given. */
+    onOpenThread: (board: String, threadNo: Long, postNo: Long?) -> Unit = { _, _, _ -> },
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val viewerThread by viewModel.viewerThread.collectAsStateWithLifecycle()
@@ -251,7 +256,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                     onOpenBoard = viewModel::openBoard,
                     onOpenThread = viewModel::openThread,
                     onOpenEntry = { viewModel.openViewer(it.url) },
-                    onLongPressEntry = viewModel::toggleSelected,
+                    onLongPressEntry = viewModel::inspect,
                     onToggleSelected = viewModel::toggleSelected,
                     onDeleteThread = viewModel::deleteThread,
                     onDeleteBoard = viewModel::deleteBoard,
@@ -270,8 +275,24 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                 onPageViewed = { viewModel.onViewerPage(it.url) },
                 onDismiss = { viewModel.closeViewer() },
                 onDelete = { viewModel.requestDelete(it, undoable = false) },
+                onOpenThread = onOpenThread,
             )
         }
+    }
+
+    state.inspecting?.let { entry ->
+        VaultEntrySheet(
+            entry = entry,
+            onDismiss = viewModel::closeInspector,
+            onSelect = { viewModel.closeInspector(); viewModel.toggleSelected(entry) },
+            onOpenThread = { postNo ->
+                viewModel.closeInspector()
+                onOpenThread(entry.location.board, entry.location.threadNo, postNo)
+            },
+            onShare = { viewModel.closeInspector(); shareVaultEntries(context, listOf(entry)) },
+            onSaveToGallery = { viewModel.closeInspector(); viewModel.exportToGallery(listOf(entry)) },
+            onDelete = { viewModel.closeInspector(); viewModel.requestDelete(entry, undoable = true) },
+        )
     }
 
     state.deleting?.let { request ->
@@ -361,6 +382,7 @@ private fun VaultViewer(
     onPageViewed: (VaultEntry) -> Unit,
     onDismiss: () -> Unit,
     onDelete: (VaultEntry) -> Unit,
+    onOpenThread: (board: String, threadNo: Long, postNo: Long?) -> Unit,
 ) {
     val context = LocalContext.current
     val entries = viewer.entries
@@ -401,6 +423,15 @@ private fun VaultViewer(
         }
         IconButton(onClick = { entries.getOrNull(page)?.let(onDelete) }) {
             Icon(Icons.Filled.Delete, stringResource(R.string.vault_delete), tint = Color.White)
+        }
+        val current = entries.getOrNull(page)
+        if (current != null && current.location.isRemote) {
+            IconButton(onClick = {
+                onDismiss()
+                onOpenThread(current.location.board, current.location.threadNo, current.postNo)
+            }) {
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.vault_open_thread), tint = Color.White)
+            }
         }
     }
 }
