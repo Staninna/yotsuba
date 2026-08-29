@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.thread
 
 import dev.stan.yotsuba.core.util.NetworkError
+import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -11,12 +12,10 @@ data class ThreadContent(
     val board: Board?,
     val bookmarked: Boolean,
     val revealAllSpoilers: Boolean,
-    /** Post numbers revealed by tapping their spoiler. Key: postNo to spoiler id. */
-    val revealedSpoilers: Set<Pair<Long, Int>>,
-    val revealedImageSpoilers: Set<Long>,
-    /** First post number after the "N new posts" divider; null = no divider. */
-    val newPostsAfter: Long?,
-    val newPostsCount: Int,
+    /** Per-post display state, keyed by post number; missing means [PostUiState.Default]. */
+    val postStates: Map<Long, PostUiState>,
+    /** What the list shows, top to bottom: posts with the "N new posts" divider in place. */
+    val rows: List<ThreadRow>,
     val autoRefreshEnabled: Boolean,
     val archivedNotice: Boolean,
     /** A refresh failed while a thread was already on screen; shown once, then cleared. */
@@ -29,52 +28,99 @@ data class ThreadContent(
     /** Stack of preview cards (D11); each entry is a post in this thread. */
     val previewStack: List<List<ThreadPost>>,
     val pendingExternalUrl: String?,
-    val confirmBeforeOpeningLinks: Boolean,
-    val trustedDomains: Set<String>,
-    /** Media URL → vault status, for the thumbnail download badges. */
-    val mediaSaveStatuses: Map<String, MediaSaveStatus> = emptyMap(),
-    /** Long-pressing a thumbnail saves it to the vault. */
-    val holdToSave: Boolean = true,
+    /** Suffix shown after a quotelink to these posts, e.g. ">>123 (OP)". */
+    val quoteLabels: Map<Long, QuoteLabel> = emptyMap(),
+    /** Posts the user marked as theirs. */
+    val claimedPostNos: Set<Long> = emptySet(),
+    /** Posts (not themselves claimed) that quote a claimed post. */
+    val repliesToMe: Int = 0,
+    /** Only posts by this poster ID are in [rows]; null shows everything. */
+    val filterPosterId: String? = null,
+    /** The thread gallery sheet is up; [mediaPosts] feeds it. */
+    val galleryOpen: Boolean = false,
+    /** The post whose long-press sheet is up. */
+    val postSheet: ThreadPost? = null,
+    val treeView: Boolean = false,
+    /** Posts with a present attachment, in thread order. */
+    val mediaPosts: List<ThreadPost> = emptyList(),
 )
+
+/** Why a quotelink target is special; the screen picks the words. */
+enum class QuoteLabel { OP, YOU }
+
+/** What one post card needs beyond the post itself, computed once per emission. */
+data class PostUiState(
+    val revealedSpoilerIds: Set<Int> = emptySet(),
+    val imageSpoilerRevealed: Boolean = false,
+    /** Posts quoting this one, in thread order. */
+    val backlinks: List<Long> = emptyList(),
+    val saveStatus: MediaSaveStatus? = null,
+    /** Briefly true after a quotelink jump landed on this post. */
+    val highlighted: Boolean = false,
+    /** How many posts in the thread share this post's poster ID; 0 without an ID. */
+    val posterIdCount: Int = 0,
+    /** OP only: the thread is closed / stickied. */
+    val closed: Boolean = false,
+    val sticky: Boolean = false,
+) {
+    companion object {
+        val Default = PostUiState()
+    }
+}
+
+/** One list item on the thread screen; the VM decides the order, the screen only draws. */
+sealed interface ThreadRow {
+    /** [depth] is the tree-view indent level; always 0 in the linear view. */
+    data class Post(val post: ThreadPost, val depth: Int = 0) : ThreadRow
+
+    /** Sits before the first post that arrived in a refresh; tapping it dismisses it. */
+    data class NewPostsDivider(val count: Int) : ThreadRow
+
+    /** Tree view: [count] replies nested deeper than the cap under [parentNo]; tap expands them. */
+    data class MoreReplies(val parentNo: Long, val count: Int) : ThreadRow
+}
+
+/** Where a tapped link goes; the VM applies the trusted-domain policy (D26). */
+sealed interface LinkAction {
+    data class Internal(val link: Urls.InternalLink) : LinkAction
+    data class External(val url: String) : LinkAction
+
+    /** The confirmation dialog is now pending in the session; nothing to open yet. */
+    data object Confirm : LinkAction
+}
 
 /** One-shot scroll request resolved by the ViewModel; the screen obeys and reports back. */
 data class ScrollTarget(val postNo: Long, val animate: Boolean)
 
-/** Text and image spoilers the user has revealed by tapping. */
-data class SpoilerState(
-    val revealedText: Set<Pair<Long, Int>>,
-    val revealedImages: Set<Long>,
-)
-
-/** Raw in-thread search input; matches are derived against the loaded posts. */
-data class SearchInput(val query: String?, val index: Int)
-
-/** Quotelink preview stack (post numbers) and the pending external-link confirmation. */
-data class OverlayState(
-    val previewPostNos: List<List<Long>>,
-    val pendingExternalUrl: String?,
-)
-
-/** Auto-refresh bookkeeping: the new-posts divider, archived flag, and the user's override. */
-data class RefreshState(
-    val newPostsAfter: Pair<Long, Int>?,
-    val archived: Boolean,
-    val autoRefreshOverride: Boolean?,
-    val error: NetworkError?,
-    val refreshing: Boolean,
-)
-
-/** Slow-changing companions of the thread itself. */
-data class MetaState(
-    val board: Board?,
-    val bookmarked: Boolean,
-    val mediaSaveStatuses: Map<String, MediaSaveStatus>,
-)
-
-/** Everything the user has done in this session, grouped for one typed top-level combine. */
-data class SessionState(
-    val spoilers: SpoilerState,
-    val search: SearchInput,
-    val overlays: OverlayState,
-    val refresh: RefreshState,
+/**
+ * Everything the user has done in this thread since opening it. One flow, mutated with
+ * `update { it.copy(...) }`, so related fields (a new query and its reset index) change
+ * in a single emission.
+ */
+data class Session(
+    /** Text spoilers revealed by tapping, as (postNo, spoiler id). */
+    val revealedText: Set<Pair<Long, Int>> = emptySet(),
+    val revealedImages: Set<Long> = emptySet(),
+    val searchQuery: String? = null,
+    val searchIndex: Int = 0,
+    /** Quotelink preview stack, each entry a group of post numbers. */
+    val previewPostNos: List<List<Long>> = emptyList(),
+    val pendingExternalUrl: String? = null,
+    /** (last post before the divider, count of posts after it); null = no divider. */
+    val newPostsAfter: Pair<Long, Int>? = null,
+    /** The thread 404ed during a refresh. */
+    val archived: Boolean = false,
+    val autoRefreshOverride: Boolean? = null,
+    /** The post a quotelink jump just landed on; cleared after a short delay. */
+    val highlightedPostNo: Long? = null,
+    /** Show only this poster ID's posts. */
+    val filterPosterId: String? = null,
+    val galleryOpen: Boolean = false,
+    val postSheetFor: Long? = null,
+    /** Threaded (indented) layout instead of the flat list. */
+    val treeView: Boolean = false,
+    /** Depth-capped subtrees the user expanded, by the post at the cap. */
+    val expandedTails: Set<Long> = emptySet(),
+    val refreshError: NetworkError? = null,
+    val refreshing: Boolean = false,
 )

@@ -60,3 +60,14 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
         db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `durationMs` INTEGER")
     }
 }
+
+/** Posts the user marked as theirs, for "(You)" labels without ever posting. */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `claimed_posts` (" +
+                "`board` TEXT NOT NULL, `threadNo` INTEGER NOT NULL, `postNo` INTEGER NOT NULL, " +
+                "`claimedAt` INTEGER NOT NULL, PRIMARY KEY(`board`, `threadNo`, `postNo`))",
+        )
+    }
+}

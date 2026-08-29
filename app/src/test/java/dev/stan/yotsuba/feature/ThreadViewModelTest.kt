@@ -20,12 +20,18 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
+import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
+import dev.stan.yotsuba.feature.thread.LinkAction
+import dev.stan.yotsuba.feature.thread.QuoteLabel
+import dev.stan.yotsuba.feature.thread.Session
+import dev.stan.yotsuba.feature.thread.ThreadRow
 import dev.stan.yotsuba.feature.thread.ThreadContent
 import dev.stan.yotsuba.feature.thread.ThreadViewModel
 import kotlinx.coroutines.Dispatchers
@@ -79,9 +85,16 @@ class ThreadViewModelTest {
         }
         override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> = bookmarkedFlow
         override suspend fun refreshOne(bookmark: Bookmark) = bookmark
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-        var unread: Int? = null
-        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) { this.unread = unread }
+        override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
+        /** Every markSeen call, in order; the repository itself never lowers the mark. */
+        val seen = mutableListOf<Long>()
+        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {
+            seen += lastSeenPostNo
+        }
+        @Deprecated("Unread is derived from readUpTo; use markSeen")
+        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) = Unit
+        override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
+        override suspend fun removeDead() {}
         override suspend fun clearAll() {}
     }
 
@@ -111,12 +124,18 @@ class ThreadViewModelTest {
     /** Records the first save so a test can await it; `statuses` is too transient to assert on. */
     private class FakeVault : MediaVaultRepository {
         val firstSave = kotlinx.coroutines.CompletableDeferred<Pair<MediaItem, VaultSaveContext>>()
+        /** Completes once [expectedSaves] items have arrived; the queue runs on a real IO thread. */
+        val allSaved = kotlinx.coroutines.CompletableDeferred<List<String>>()
+        var expectedSaves = 1
+        private val savedUrls = java.util.concurrent.CopyOnWriteArrayList<String>()
         override fun hasStorageAccess() = false
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
         override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
         override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             firstSave.complete(item to context)
+            savedUrls += item.fullUrl
+            if (savedUrls.size >= expectedSaves) allSaved.complete(savedUrls.sorted())
             return null
         }
         override suspend fun delete(url: String): VaultError? = null
@@ -127,6 +146,14 @@ class ThreadViewModelTest {
         override suspend fun migrateLegacyIfNeeded() {}
     }
 
+
+    private class FakeClaimedPosts : ClaimedPostRepository {
+        val state = MutableStateFlow<Set<Long>>(emptySet())
+        override fun claimed(board: String, threadNo: Long): Flow<Set<Long>> = state
+        override suspend fun claim(board: String, threadNo: Long, postNo: Long) { state.value += postNo }
+        override suspend fun unclaim(board: String, threadNo: Long, postNo: Long) { state.value -= postNo }
+    }
+
     private class Env(
         posts: List<ThreadPost> = (100L..104L).map { post(it) },
         backlinks: Map<Long, List<Long>> = emptyMap(),
@@ -134,6 +161,7 @@ class ThreadViewModelTest {
         val sessionStore: MediaSessionStore = MediaSessionStore(),
         val bookmarks: FakeBookmarkRepository = FakeBookmarkRepository(),
         val settings: FakeSettingsRepository = FakeSettingsRepository(),
+        val claimed: FakeClaimedPosts = FakeClaimedPosts(),
     ) {
         val threads = FakeThreadRepository(
             ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks)
@@ -155,6 +183,7 @@ class ThreadViewModelTest {
             mediaSessionStore = sessionStore,
             mediaVault = vault,
             downloadQueue = queue,
+            claimedPosts = claimed,
         )
 
         companion object {
@@ -213,6 +242,209 @@ class ThreadViewModelTest {
             assertEquals(104L, vm.scrollTarget.value?.postNo)
         }
 
+    @Test fun `a new query and its reset index arrive in one session emission`() =
+        runTest(dispatcher.scheduler) {
+            val vm = Env().vm()
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.onSearchChange("match")
+            vm.onSearchStep(1)
+            vm.onSearchStep(1) // index 2
+            val seen = mutableListOf<Session>()
+            val job = launch(Dispatchers.Unconfined) { vm.session.collect { seen += it } }
+            vm.onSearchChange("other")
+            job.cancel()
+            // Never (query = "other", index = 2): the two fields changed together.
+            assertEquals(listOf(2, 0), seen.map { it.searchIndex })
+            assertEquals(listOf("match", "other"), seen.map { it.searchQuery })
+        }
+
+    @Test fun `a spoilered thumbnail reveals on the first tap and opens on the second`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+            val spoilered = Env.postWithMedia(100).let {
+                it.copy(media = PostMedia.Present((it.media as PostMedia.Present).item.copy(spoiler = true)))
+            }
+            vm.onThumbnailTap(spoilered)
+            assertNull(vm.mediaToOpen.value)
+            assertTrue(100L in vm.session.value.revealedImages)
+            vm.onThumbnailTap(spoilered)
+            assertEquals(100L, vm.mediaToOpen.value)
+            vm.onMediaOpened()
+            assertNull(vm.mediaToOpen.value)
+        }
+
+    @Test fun `hold to save is gated by the setting and by having media`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue(vm.onThumbnailLongPress(Env.postWithMedia(100)))
+            assertFalse(vm.onThumbnailLongPress(Env.post(101)))
+            env.settings.state.value = Settings(holdToSave = false)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertFalse(vm.onThumbnailLongPress(Env.postWithMedia(100)))
+        }
+
+    @Test fun `links route to the app, straight out, or to the confirmation dialog`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue(vm.onLinkTap("https://boards.4chan.org/g/thread/100") is LinkAction.Internal)
+            assertEquals(LinkAction.Confirm, vm.onLinkTap("https://example.com/page"))
+            assertEquals("https://example.com/page", vm.session.value.pendingExternalUrl)
+            vm.onTrustDomain("https://example.com/page")
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(LinkAction.External("https://example.com/other"), vm.onLinkTap("https://example.com/other"))
+        }
+
+    @Test fun `jumping to a post closes previews, scrolls, and highlights briefly`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.onOpenPreview(101)
+            vm.onJumpToPost(103)
+            dispatcher.scheduler.runCurrent()
+            assertEquals(0, content(vm).previewStack.size)
+            assertEquals(103L, vm.scrollTarget.value?.postNo)
+            assertTrue(content(vm).postStates.getValue(103L).highlighted)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertFalse(content(vm).postStates.getValue(103L).highlighted)
+
+            vm.onJumpToPost(999) // not in the thread: ignored
+            assertEquals(103L, vm.scrollTarget.value?.postNo)
+        }
+
+    @Test fun `the OP gets an OP quote label`() = runTest(dispatcher.scheduler) {
+        val env = Env(posts = listOf(Env.post(100).copy(isOp = true)) + (101L..103L).map { Env.post(it) })
+        val vm = env.vm()
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(mapOf(100L to QuoteLabel.OP), content(vm).quoteLabels)
+    }
+
+    @Test fun `claimed posts read as You and their replies are counted`() = runTest(dispatcher.scheduler) {
+        // 102 quotes 100 and 101; 103 quotes 102; 104 quotes nothing.
+        val posts = listOf(
+            Env.post(100).copy(isOp = true), Env.post(101),
+            Env.post(102).copy(quotedPostNos = listOf(100, 101)),
+            Env.post(103).copy(quotedPostNos = listOf(102)), Env.post(104),
+        )
+        val env = Env(posts = posts)
+        val vm = env.vm()
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, content(vm).repliesToMe)
+
+        vm.onToggleClaimed(101)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(mapOf(100L to QuoteLabel.OP, 101L to QuoteLabel.YOU), content(vm).quoteLabels)
+        assertEquals(setOf(101L), content(vm).claimedPostNos)
+        assertEquals(1, content(vm).repliesToMe) // only 102
+
+        vm.onToggleClaimed(102) // a claimed reply to a claimed post is not a reply "to you"
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, content(vm).repliesToMe) // only 103 now
+        assertEquals(QuoteLabel.YOU, content(vm).quoteLabels[102L])
+
+        vm.onToggleClaimed(101)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertNull(content(vm).quoteLabels[101L])
+    }
+
+    @Test fun `filtering by poster ID keeps the OP and that ID's posts, and counts the ID`() =
+        runTest(dispatcher.scheduler) {
+            val posts = listOf(
+                Env.post(100).copy(isOp = true, posterId = "AAAA"),
+                Env.post(101).copy(posterId = "BBBB"),
+                Env.post(102).copy(posterId = "AAAA"),
+                Env.post(103).copy(posterId = "BBBB"),
+                Env.post(104).copy(posterId = "BBBB"),
+            )
+            val env = Env(posts = posts)
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(3, content(vm).postStates.getValue(101L).posterIdCount)
+
+            vm.onFilterPosterId("BBBB")
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals("BBBB", content(vm).filterPosterId)
+            assertEquals(listOf(100L, 101L, 103L, 104L), content(vm).rows.map { (it as ThreadRow.Post).post.no })
+
+            vm.onFilterPosterId("BBBB") // same ID again toggles the filter off
+            dispatcher.scheduler.advanceUntilIdle()
+            assertNull(content(vm).filterPosterId)
+            assertEquals(5, content(vm).rows.size)
+        }
+
+    @Test fun `closed and sticky flags land on the OP card only`() = runTest(dispatcher.scheduler) {
+        val env = Env(posts = listOf(Env.post(100).copy(isOp = true), Env.post(101)))
+        env.threads.result = DataResult.Success(
+            env.details(listOf(Env.post(100).copy(isOp = true), Env.post(101))).copy(closed = true, sticky = true),
+        )
+        val vm = env.vm()
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        val op = content(vm).postStates.getValue(100L)
+        assertTrue(op.closed && op.sticky)
+        val reply = content(vm).postStates.getValue(101L)
+        assertFalse(reply.closed || reply.sticky)
+    }
+
+    @Test fun `save all queues every attachment once`() = runTest(dispatcher.scheduler) {
+        val env = Env(posts = listOf(Env.postWithMedia(100), Env.post(101), Env.postWithMedia(102)))
+        val vm = env.vm()
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(100L, 102L), content(vm).mediaPosts.map { it.no })
+        env.vault.expectedSaves = 2
+        vm.onSaveAllMedia()
+        assertEquals(
+            listOf("https://i.4cdn.org/g/100.jpg", "https://i.4cdn.org/g/102.jpg"),
+            env.vault.allSaved.await(),
+        )
+    }
+
+    @Test fun `tree view nests replies, caps the depth behind a more row, and expands it`() =
+        runTest(dispatcher.scheduler) {
+            // 100 <- 101 <- 102 <- 103 <- 104 <- 105 <- 106 (a chain), plus 107 replying to the OP.
+            val chain = (101L..106L).map { Env.post(it).copy(quotedPostNos = listOf(it - 1)) }
+            val posts = listOf(Env.post(100).copy(isOp = true)) + chain +
+                Env.post(107).copy(quotedPostNos = listOf(100))
+            val env = Env(posts = posts)
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            vm.onToggleTreeView()
+            dispatcher.scheduler.advanceUntilIdle()
+            val rows = content(vm).rows
+            assertEquals(
+                listOf(
+                    ThreadRow.Post(posts[0], 0), ThreadRow.Post(posts[1], 1), ThreadRow.Post(posts[2], 2),
+                    ThreadRow.Post(posts[3], 3), ThreadRow.Post(posts[4], 4),
+                    ThreadRow.MoreReplies(parentNo = 104, count = 2),
+                    ThreadRow.Post(posts[7], 1),
+                ),
+                rows,
+            )
+
+            vm.onExpandTail(104)
+            dispatcher.scheduler.advanceUntilIdle()
+            val expanded = content(vm).rows
+            assertEquals(listOf(100L, 101L, 102L, 103L, 104L, 105L, 106L, 107L), expanded.map { (it as ThreadRow.Post).post.no })
+            assertEquals(listOf(0, 1, 2, 3, 4, 4, 4, 1), expanded.map { (it as ThreadRow.Post).depth })
+
+            vm.onToggleTreeView() // back to linear: flat, chronological
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(List(8) { 0 }, content(vm).rows.map { (it as ThreadRow.Post).depth })
+        }
+
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = Env().vm()
         dispatcher.scheduler.advanceUntilIdle()
@@ -259,19 +491,20 @@ class ThreadViewModelTest {
             assertNull(vm.scrollTarget.value)
         }
 
-    @Test fun `read mark only rises and updates the bookmark unread count`() =
+    @Test fun `read mark only rises and is forwarded to the bookmark`() =
         runTest(dispatcher.scheduler) {
             val env = Env()
             val vm = env.vm()
             dispatcher.scheduler.advanceUntilIdle()
-            vm.onVisiblePostsChanged(0, 3) // bottom post 103 -> 1 unread below
+            assertEquals(emptyList<Long>(), env.bookmarks.seen) // opening marks nothing read
+            vm.onVisiblePostsChanged(0, 3) // bottom post 103
             dispatcher.scheduler.runCurrent()
             assertEquals(103L, env.history.readMark)
-            assertEquals(1, env.bookmarks.unread)
+            assertEquals(listOf(103L), env.bookmarks.seen)
             vm.onVisiblePostsChanged(0, 1) // scrolling back up must not lower the mark
             dispatcher.scheduler.runCurrent()
             assertEquals(103L, env.history.readMark)
-            assertEquals(1, env.bookmarks.unread)
+            assertEquals(listOf(103L), env.bookmarks.seen)
         }
 
     private fun content(vm: ThreadViewModel): ThreadContent =
@@ -290,7 +523,6 @@ class ThreadViewModelTest {
             assertEquals(100L, added.threadNo)
             assertEquals(4, added.replyCount) // 5 posts minus the OP
             assertEquals(0, added.imageCount)
-            assertEquals(104L, added.lastSeenPostNo)
             assertEquals("match 100", added.opExcerpt)
 
             vm.onToggleBookmark()
@@ -309,12 +541,15 @@ class ThreadViewModelTest {
             vm.load(forceRefresh = true)
             dispatcher.scheduler.advanceUntilIdle()
 
-            assertEquals(104L, content(vm).newPostsAfter)
-            assertEquals(2, content(vm).newPostsCount)
+            val rows = content(vm).rows
+            assertEquals(8, rows.size)
+            assertEquals(ThreadRow.Post(Env.post(104)), rows[4])
+            assertEquals(ThreadRow.NewPostsDivider(2), rows[5])
+            assertEquals(ThreadRow.Post(Env.post(105)), rows[6])
 
             vm.onDismissNewPostsDivider()
             dispatcher.scheduler.advanceUntilIdle()
-            assertNull(content(vm).newPostsAfter)
+            assertTrue(content(vm).rows.none { it is ThreadRow.NewPostsDivider })
         }
 
     @Test fun `404 during refresh keeps the loaded posts and shows the archived notice`() =

@@ -14,10 +14,10 @@ import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
-import dev.stan.yotsuba.domain.model.backlinksOf
 
 fun BoardDto.toDomain(): Board = Board(
     code = board,
@@ -100,6 +100,7 @@ fun buildThreadDetails(
     posts: List<ThreadPost>,
     archived: Boolean = false,
     closed: Boolean = false,
+    sticky: Boolean = false,
 ): ThreadDetails {
     return ThreadDetails(
         board = board,
@@ -107,7 +108,8 @@ fun buildThreadDetails(
         posts = posts,
         archived = archived,
         closed = closed,
-        backlinks = backlinksOf(posts),
+        backlinks = PostGraph.backlinksOf(posts),
+        sticky = sticky,
     )
 }
 

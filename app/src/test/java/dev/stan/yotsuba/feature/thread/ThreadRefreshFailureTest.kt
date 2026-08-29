@@ -20,6 +20,7 @@ import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
@@ -87,7 +88,10 @@ class ThreadRefreshFailureTest {
             override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> = flowOf(false)
             override suspend fun refreshOne(bookmark: Bookmark) = bookmark
             override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-            override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {}
+            @Deprecated("Unread is derived from readUpTo; use markSeen")
+            override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) = Unit
+            override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
+            override suspend fun removeDead() {}
             override suspend fun clearAll() {}
         },
         historyRepository = object : HistoryRepository {
@@ -109,6 +113,11 @@ class ThreadRefreshFailureTest {
         mediaSessionStore = MediaSessionStore(),
         mediaVault = vault,
         downloadQueue = MediaDownloadQueue(vault),
+        claimedPosts = object : ClaimedPostRepository {
+            override fun claimed(board: String, threadNo: Long): Flow<Set<Long>> = flowOf(emptySet())
+            override suspend fun claim(board: String, threadNo: Long, postNo: Long) {}
+            override suspend fun unclaim(board: String, threadNo: Long, postNo: Long) {}
+        },
     )
 
     private fun content(vm: ThreadViewModel) = (vm.uiState.value as UiState.Success<ThreadContent>).data

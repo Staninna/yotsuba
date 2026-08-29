@@ -6,13 +6,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -26,7 +30,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.AnnotatedString
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.Urls
@@ -39,10 +45,18 @@ fun ThreadTopBar(
     title: String,
     bookmarked: Boolean,
     autoRefreshEnabled: Boolean,
+    /** Replies to the user's claimed posts; hidden when zero. */
+    repliesToMe: Int,
+    /** Active poster-ID filter; the chip clears it. */
+    filterPosterId: String?,
+    onClearFilter: () -> Unit,
     onBack: () -> Unit,
     onToggleBookmark: () -> Unit,
     onRefresh: () -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenGallery: () -> Unit,
+    treeView: Boolean,
+    onToggleTreeView: () -> Unit,
     onToggleAutoRefresh: () -> Unit,
     onOpenExternal: (String) -> Unit,
 ) {
@@ -50,7 +64,25 @@ fun ThreadTopBar(
     val clipboard = LocalClipboardManager.current
     var menuOpen by remember { mutableStateOf(false) }
     TopAppBar(
-        title = { Text(title, maxLines = 1) },
+        title = {
+            Column {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (filterPosterId != null) {
+                    InputChip(
+                        selected = true,
+                        onClick = onClearFilter,
+                        label = { Text(stringResource(R.string.thread_filter_id, filterPosterId)) },
+                        trailingIcon = { Icon(Icons.Filled.Close, stringResource(R.string.thread_filter_clear)) },
+                    )
+                } else if (repliesToMe > 0) {
+                    Text(
+                        pluralStringResource(R.plurals.thread_replies_to_you, repliesToMe, repliesToMe),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
@@ -96,8 +128,18 @@ fun ThreadTopBar(
                     onClick = { menuOpen = false; onOpenSearch() },
                 )
                 DropdownMenuItem(
+                    text = { Text(stringResource(R.string.thread_gallery)) },
+                    onClick = { menuOpen = false; onOpenGallery() },
+                )
+                DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_open_in_browser)) },
                     onClick = { menuOpen = false; onOpenExternal(webUrl) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.thread_tree_view)) },
+                    trailingIcon = { if (treeView) Icon(Icons.Filled.Check, contentDescription = null) },
+                    onClick = { menuOpen = false; onToggleTreeView() },
+                    modifier = Modifier.semantics { toggleableState = ToggleableState(treeView) },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_auto_refresh)) },

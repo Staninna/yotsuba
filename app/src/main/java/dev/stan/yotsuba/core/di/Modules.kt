@@ -19,6 +19,7 @@ import dev.stan.yotsuba.core.database.MIGRATION_4_5
 import dev.stan.yotsuba.core.database.MIGRATION_5_6
 import dev.stan.yotsuba.core.database.MIGRATION_6_7
 import dev.stan.yotsuba.core.database.MIGRATION_7_8
+import dev.stan.yotsuba.core.database.MIGRATION_8_9
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
 import dev.stan.yotsuba.core.network.CachePolicyInterceptor
@@ -33,6 +34,7 @@ import dev.stan.yotsuba.data.repository.BackupRepositoryImpl
 import dev.stan.yotsuba.data.repository.BoardRepositoryImpl
 import dev.stan.yotsuba.data.repository.BookmarkRepositoryImpl
 import dev.stan.yotsuba.data.repository.CatalogRepositoryImpl
+import dev.stan.yotsuba.data.repository.ClaimedPostRepositoryImpl
 import dev.stan.yotsuba.data.repository.HiddenThreadsRepositoryImpl
 import dev.stan.yotsuba.data.repository.HistoryRepositoryImpl
 import dev.stan.yotsuba.data.repository.MaintenanceRepositoryImpl
@@ -42,6 +44,7 @@ import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
+import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
@@ -101,7 +104,7 @@ object DatabaseModule {
     @Singleton
     fun database(@ApplicationContext context: Context): YotsubaDatabase =
         Room.databaseBuilder(context, YotsubaDatabase::class.java, "yotsuba.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
             .build()
 
     @Provides fun bookmarkDao(db: YotsubaDatabase) = db.bookmarkDao()
@@ -109,6 +112,7 @@ object DatabaseModule {
     @Provides fun hiddenThreadDao(db: YotsubaDatabase) = db.hiddenThreadDao()
     @Provides fun downloadedMediaDao(db: YotsubaDatabase) = db.downloadedMediaDao()
     @Provides fun savedMediaDao(db: YotsubaDatabase) = db.savedMediaDao()
+    @Provides fun claimedPostDao(db: YotsubaDatabase) = db.claimedPostDao()
 }
 
 @Module
@@ -133,4 +137,5 @@ abstract class RepositoryModule {
     @Binds abstract fun hiddenThreadsRepository(impl: HiddenThreadsRepositoryImpl): HiddenThreadsRepository
     @Binds abstract fun maintenanceRepository(impl: MaintenanceRepositoryImpl): MaintenanceRepository
     @Binds abstract fun backupRepository(impl: BackupRepositoryImpl): BackupRepository
+    @Binds abstract fun claimedPostRepository(impl: ClaimedPostRepositoryImpl): ClaimedPostRepository
 }

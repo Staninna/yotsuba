@@ -24,11 +24,13 @@ import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,6 +41,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel(assistedFactory = ThreadViewModel.Factory::class)
@@ -54,6 +57,7 @@ class ThreadViewModel @AssistedInject constructor(
     private val mediaSessionStore: MediaSessionStore,
     private val mediaVault: MediaVaultRepository,
     private val downloadQueue: MediaDownloadQueue,
+    private val claimedPosts: ClaimedPostRepository,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -66,38 +70,30 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     private val result = MutableStateFlow<DataResult<ThreadDetails>?>(null)
+    private val settingsState = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
     private val boardInfo = MutableStateFlow<Board?>(null)
-    private val revealedSpoilers = MutableStateFlow<Set<Pair<Long, Int>>>(emptySet())
-    private val revealedImageSpoilers = MutableStateFlow<Set<Long>>(emptySet())
-    private val newPostsAfter = MutableStateFlow<Pair<Long, Int>?>(null)
-    private val archivedNotice = MutableStateFlow(false)
-    private val refreshError = MutableStateFlow<NetworkError?>(null)
-    private val refreshing = MutableStateFlow(false)
-    private val searchQuery = MutableStateFlow<String?>(null)
-    private val searchIndex = MutableStateFlow(0)
-    private val previewStack = MutableStateFlow<List<List<Long>>>(emptyList())
-    private val pendingExternalUrl = MutableStateFlow<String?>(null)
-    private val autoRefreshUserOverride = MutableStateFlow<Boolean?>(null)
+    /** Exposed for tests: every change to it is one atomic emission. */
+    val session = MutableStateFlow(Session())
 
     private val scrollTargetFlow = MutableStateFlow<ScrollTarget?>(null)
+    private val mediaToOpenFlow = MutableStateFlow<Long?>(null)
     private val topVisiblePostNo = MutableStateFlow<Long?>(null)
     private val bottomVisiblePostNo = MutableStateFlow<Long?>(null)
 
-    private var lastKnownPostNo = 0L
     private var restoredScroll = false
 
     private val poller = ThreadPoller(
+        // A closed or archived thread will never gain posts; polling it is pure waste.
         isEnabled = {
-            !archivedNotice.value &&
-                (autoRefreshUserOverride.value ?: settingsRepository.settings.first().autoRefreshEnabled)
+            val details = (result.value as? DataResult.Success)?.value
+            !session.value.archived && details?.closed != true && details?.archived != true &&
+                autoRefreshOn(session.value, settingsState.value)
         },
         poll = { load(forceRefresh = true, quiet = true) },
     )
 
     private val bookmarked = bookmarkRepository.isBookmarked(board, threadNo)
-
-    private val settingsState = settingsRepository.settings
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
 
     /** URL → vault status for the thumbnail badges; saved wins over any queue state. */
     private val mediaSaveStatuses = combine(mediaVault.savedUrls(), downloadQueue.statuses) { saved, queue ->
@@ -116,48 +112,56 @@ class ThreadViewModel @AssistedInject constructor(
         }
     }
 
-    private val spoilerState = combine(revealedSpoilers, revealedImageSpoilers, ::SpoilerState)
-    private val searchInput = combine(searchQuery, searchIndex, ::SearchInput)
-    private val overlayState = combine(previewStack, pendingExternalUrl, ::OverlayState)
-    private val refreshState = combine(newPostsAfter, archivedNotice, autoRefreshUserOverride, refreshError, refreshing, ::RefreshState)
-    private val metaState = combine(boardInfo, bookmarked, mediaSaveStatuses, ::MetaState)
-    private val sessionState = combine(spoilerState, searchInput, overlayState, refreshState, ::SessionState)
+    private val claimed = claimedPosts.claimed(board, threadNo)
+
+    /** Slow-changing companions of the thread, folded so the top-level combine stays typed. */
+    private val meta = combine(boardInfo, bookmarked, mediaSaveStatuses, claimed, ::Meta)
+    private data class Meta(
+        val board: Board?,
+        val bookmarked: Boolean,
+        val saveStatuses: Map<String, MediaSaveStatus>,
+        val claimed: Set<Long>,
+    )
 
     val uiState: StateFlow<UiState<ThreadContent>> = combine(
-        result, settingsRepository.settings, metaState, sessionState,
-    ) { res, settings, meta, session ->
+        result, settingsRepository.settings, meta, session,
+    ) { res, settings, (board, bookmarked, saveStatuses, claimed), session ->
         when (res) {
             null -> UiState.Loading
             is DataResult.Failure -> UiState.Error(res.error)
             is DataResult.Success -> {
                 val details = res.value
-                val matches = searchMatches(details.posts, session.search.query)
+                val matches = searchMatches(details.posts, session.searchQuery)
                 val byNo = details.posts.associateBy { it.no }
                 UiState.Success(
                     ThreadContent(
                         details = details,
-                        board = meta.board,
-                        bookmarked = meta.bookmarked,
+                        board = board,
+                        bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
-                        revealedSpoilers = session.spoilers.revealedText,
-                        revealedImageSpoilers = session.spoilers.revealedImages,
-                        newPostsAfter = session.refresh.newPostsAfter?.first,
-                        newPostsCount = session.refresh.newPostsAfter?.second ?: 0,
-                        autoRefreshEnabled = session.refresh.autoRefreshOverride ?: settings.autoRefreshEnabled,
-                        archivedNotice = session.refresh.archived || details.archived,
-                        refreshError = session.refresh.error,
-                        refreshing = session.refresh.refreshing,
-                        searchQuery = session.search.query,
+                        postStates = postStates(details, session, saveStatuses),
+                        rows = rows(details, session),
+                        treeView = session.treeView,
+                        autoRefreshEnabled = autoRefreshOn(session, settings),
+                        archivedNotice = session.archived || details.archived,
+                        refreshError = session.refreshError,
+                        refreshing = session.refreshing,
+                        searchQuery = session.searchQuery,
                         searchMatches = matches,
-                        searchIndex = if (matches.isEmpty()) 0 else session.search.index.coerceIn(0, matches.size - 1),
-                        previewStack = session.overlays.previewPostNos
+                        searchIndex = if (matches.isEmpty()) 0 else session.searchIndex.coerceIn(0, matches.size - 1),
+                        previewStack = session.previewPostNos
                             .map { group -> group.mapNotNull { byNo[it] } }
                             .filter { it.isNotEmpty() },
-                        pendingExternalUrl = session.overlays.pendingExternalUrl,
-                        confirmBeforeOpeningLinks = settings.confirmBeforeOpeningLinks,
-                        trustedDomains = settings.trustedDomains,
-                        mediaSaveStatuses = meta.mediaSaveStatuses,
-                        holdToSave = settings.holdToSave,
+                        pendingExternalUrl = session.pendingExternalUrl,
+                        filterPosterId = session.filterPosterId,
+                        galleryOpen = session.galleryOpen,
+                        postSheet = session.postSheetFor?.let { byNo[it] },
+                        mediaPosts = details.posts.filter { it.presentMedia != null },
+                        quoteLabels = quoteLabels(details, claimed),
+                        claimedPostNos = claimed,
+                        repliesToMe = details.posts.count { p ->
+                            p.no !in claimed && p.quotedPostNos.any { it in claimed }
+                        },
                     )
                 )
             }
@@ -166,6 +170,9 @@ class ThreadViewModel @AssistedInject constructor(
 
     /** One-shot: the screen scrolls to it, then calls [onScrollTargetConsumed]. */
     val scrollTarget: StateFlow<ScrollTarget?> = scrollTargetFlow
+
+    /** One-shot: the post whose media the viewer should open; the screen calls [onMediaOpened]. */
+    val mediaToOpen: StateFlow<Long?> = mediaToOpenFlow
 
     init {
         load()
@@ -183,27 +190,30 @@ class ThreadViewModel @AssistedInject constructor(
 
     private fun loadedPosts(): List<ThreadPost>? = (result.value as? DataResult.Success)?.value?.posts
 
+    /** Highest post number on screen right now; 0 before the first load. */
+    private val newestLoadedPostNo: Long get() = loadedPosts()?.maxOfOrNull { it.no } ?: 0L
+
     /** [quiet] refreshes without the spinner: auto-polls should not flicker the indicator. */
     fun load(forceRefresh: Boolean = false, quiet: Boolean = false) {
         viewModelScope.launch {
-            if (!forceRefresh) result.value = null else if (!quiet) refreshing.value = true
+            if (!forceRefresh) result.value = null else if (!quiet) session.update { it.copy(refreshing = true) }
             val r = threadRepository.thread(board, threadNo, forceRefresh)
-            refreshing.value = false
+            session.update { it.copy(refreshing = false) }
             when (r) {
                 is DataResult.Success -> {
-                    refreshError.value = null
+                    session.update { it.copy(refreshError = null) }
                     onLoaded(r.value)
                     result.value = r
                 }
                 is DataResult.Failure -> {
                     if (r.error == NetworkError.NotFound) {
-                        archivedNotice.value = true
+                        session.update { it.copy(archived = true) }
                         poller.stop()
                     }
                     if (result.value !is DataResult.Success) {
                         result.value = r // nothing to keep on screen
                     } else if (r.error != NetworkError.NotFound) {
-                        refreshError.value = r.error // keep content, report transiently
+                        session.update { it.copy(refreshError = r.error) } // keep content, report transiently
                     }
                 }
             }
@@ -211,23 +221,20 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     private suspend fun onLoaded(details: ThreadDetails) {
+        // Runs before [result] is replaced, so this is still the previous load's newest post.
+        val previous = newestLoadedPostNo
         val newest = details.posts.maxOfOrNull { it.no } ?: 0L
-        if (lastKnownPostNo != 0L && newest > lastKnownPostNo) {
-            val newOnes = details.posts.count { it.no > lastKnownPostNo }
-            newPostsAfter.value = lastKnownPostNo to newOnes
+        if (previous != 0L && newest > previous) {
+            val newOnes = details.posts.count { it.no > previous }
+            session.update { it.copy(newPostsAfter = previous to newOnes) }
             poller.resetBackoff()
         }
-        lastKnownPostNo = newest
         recordHistory(details)
-        // Viewing the thread clears its bookmark's unread badge (no-op if not bookmarked).
-        if (newest > 0) {
-            bookmarkRepository.markSeen(board, threadNo, newest, details.posts.size - 1)
-        }
         resolveScrollTarget(details)
     }
 
     /** The screen showed the refresh error; drop it so it is not shown again. */
-    fun onRefreshErrorShown() { refreshError.value = null }
+    fun onRefreshErrorShown() = session.update { it.copy(refreshError = null) }
 
     /**
      * Restore priority: explicit target (quote/history tap) > media last viewed in the
@@ -283,13 +290,13 @@ class ThreadViewModel @AssistedInject constructor(
         }
     }
 
-    fun onToggleAutoRefresh() = viewModelScope.launch {
-        val effective = autoRefreshUserOverride.value
-            ?: settingsRepository.settings.first().autoRefreshEnabled
-        autoRefreshUserOverride.value = !effective
+    fun onToggleAutoRefresh() {
+        val effective = autoRefreshOn(session.value, settingsState.value)
+        session.update { it.copy(autoRefreshOverride = !effective) }
         poller.resetBackoff()
     }
 
+    @Suppress("DEPRECATION") // lastSeenPostNo has no default; readUpTo is the live mark
     fun onToggleBookmark() = viewModelScope.launch {
         val posts = loadedPosts() ?: return@launch
         if (bookmarked.first()) {
@@ -307,46 +314,93 @@ class ThreadViewModel @AssistedInject constructor(
                     imageCount = posts.count { it.media != null },
                     bookmarkedAt = System.currentTimeMillis(),
                     lastCheckedAt = System.currentTimeMillis(),
-                    lastSeenPostNo = posts.maxOfOrNull { it.no },
+                    lastSeenPostNo = null,
                     state = BookmarkState.ALIVE,
+                    // Seed the read mark from history so the new bookmark does not start all-unread.
+                    readUpTo = historyRepository.readUpTo(board, threadNo),
                 )
             )
         }
     }
 
-    fun onRevealSpoiler(postNo: Long, spoilerId: Int) {
-        revealedSpoilers.value = revealedSpoilers.value + (postNo to spoilerId)
+    fun onRevealSpoiler(postNo: Long, spoilerId: Int) =
+        session.update { it.copy(revealedText = it.revealedText + (postNo to spoilerId)) }
+
+    fun onRevealImageSpoiler(postNo: Long) =
+        session.update { it.copy(revealedImages = it.revealedImages + postNo) }
+
+    /** A spoilered thumbnail reveals on the first tap and opens on the next. */
+    fun onThumbnailTap(post: ThreadPost) {
+        val media = post.presentMedia ?: return
+        val hidden = media.spoiler && !settingsState.value.revealAllSpoilers &&
+            post.no !in session.value.revealedImages
+        if (hidden) onRevealImageSpoiler(post.no) else mediaToOpenFlow.value = post.no
     }
 
-    fun onRevealImageSpoiler(postNo: Long) {
-        revealedImageSpoilers.value = revealedImageSpoilers.value + postNo
-    }
+    fun onMediaOpened() { mediaToOpenFlow.value = null }
 
-    fun onOpenPreview(postNo: Long) {
-        previewStack.value = previewStack.value + listOf(listOf(postNo))
-    }
+    /** True when the screen should save the attachment: the hold-to-save setting gates it. */
+    fun onThumbnailLongPress(post: ThreadPost): Boolean =
+        settingsState.value.holdToSave && post.presentMedia != null
+
+    fun onOpenPreview(postNo: Long) =
+        session.update { it.copy(previewPostNos = it.previewPostNos + listOf(listOf(postNo))) }
 
     fun onOpenBacklinks(postNo: Long) {
         val details = (result.value as? DataResult.Success)?.value ?: return
         val links = details.backlinks[postNo].orEmpty()
-        if (links.isNotEmpty()) previewStack.value = previewStack.value + listOf(links)
+        if (links.isNotEmpty()) session.update { it.copy(previewPostNos = it.previewPostNos + listOf(links)) }
     }
 
-    fun onClosePreview() {
-        previewStack.value = previewStack.value.dropLast(1)
+    fun onClosePreview() = session.update { it.copy(previewPostNos = it.previewPostNos.dropLast(1)) }
+
+    /** "Mark as mine" / "Not mine": flips whether [postNo] reads as the user's own post. */
+    fun onToggleClaimed(postNo: Long) = viewModelScope.launch {
+        if (postNo in claimed.first()) claimedPosts.unclaim(board, threadNo, postNo)
+        else claimedPosts.claim(board, threadNo, postNo)
     }
 
-    fun onSearchChange(query: String?) {
-        searchQuery.value = query
-        searchIndex.value = 0
+    /** Tap on a poster-ID pill: show only that ID; tapping the same ID again clears it. */
+    fun onFilterPosterId(posterId: String?) =
+        session.update { it.copy(filterPosterId = if (it.filterPosterId == posterId) null else posterId) }
+
+    private var highlightJob: Job? = null
+
+    /**
+     * Scrolls to [postNo] and flashes it (quotelink tap, backlink tap, preview "Go to").
+     * Closes any open previews first: the jump is what the user asked for. Unknown posts
+     * (a cross-thread stray, a pruned post) are ignored.
+     */
+    fun onJumpToPost(postNo: Long) {
+        if (loadedPosts()?.none { it.no == postNo } != false) return
+        session.update { it.copy(previewPostNos = emptyList(), highlightedPostNo = postNo) }
+        scrollTargetFlow.value = ScrollTarget(postNo, animate = true)
+        highlightJob?.cancel()
+        highlightJob = viewModelScope.launch {
+            delay(HIGHLIGHT_MS)
+            session.update { if (it.highlightedPostNo == postNo) it.copy(highlightedPostNo = null) else it }
+        }
     }
+
+    /** Query and index change together: a stale index must never meet a new query. */
+    fun onSearchChange(query: String?) = session.update { it.copy(searchQuery = query, searchIndex = 0) }
 
     fun onSearchStep(delta: Int) {
-        val matches = searchMatches(loadedPosts() ?: return, searchQuery.value)
+        val matches = searchMatches(loadedPosts() ?: return, session.value.searchQuery)
         if (matches.isEmpty()) return
-        val next = (searchIndex.value + delta).mod(matches.size)
-        searchIndex.value = next
+        val next = (session.value.searchIndex + delta).mod(matches.size)
+        session.update { it.copy(searchIndex = next) }
         scrollTargetFlow.value = ScrollTarget(matches[next], animate = true)
+    }
+
+    /** Routes a tapped link: 4chan links stay in the app, others go through [onExternalLink]. */
+    fun onLinkTap(url: String): LinkAction {
+        val internal = Urls.parseInternal(url)
+        return when {
+            internal != null -> LinkAction.Internal(internal)
+            onExternalLink(url) -> LinkAction.External(url)
+            else -> LinkAction.Confirm
+        }
     }
 
     /** External-link tap: trusted domains skip the dialog (D26). */
@@ -356,12 +410,12 @@ class ThreadViewModel @AssistedInject constructor(
         return if (!settings.confirmBeforeOpeningLinks || (domain != null && domain in settings.trustedDomains)) {
             true // open immediately
         } else {
-            pendingExternalUrl.value = url
+            session.update { it.copy(pendingExternalUrl = url) }
             false
         }
     }
 
-    fun onDismissLinkDialog() { pendingExternalUrl.value = null }
+    fun onDismissLinkDialog() = session.update { it.copy(pendingExternalUrl = null) }
 
     fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
 
@@ -387,38 +441,153 @@ class ThreadViewModel @AssistedInject constructor(
         )
     }
 
+    fun onOpenPostSheet(postNo: Long) = session.update { it.copy(postSheetFor = postNo) }
+    fun onClosePostSheet() = session.update { it.copy(postSheetFor = null) }
+
+    fun onToggleTreeView() = session.update { it.copy(treeView = !it.treeView) }
+
+    /** Expands the replies folded under [parentNo]'s "N more" row. */
+    fun onExpandTail(parentNo: Long) = session.update { it.copy(expandedTails = it.expandedTails + parentNo) }
+
+    fun onOpenGallery() = session.update { it.copy(galleryOpen = true) }
+    fun onCloseGallery() = session.update { it.copy(galleryOpen = false) }
+
+    /** Gallery tap: close the sheet and hand the post to the viewer. */
+    fun onOpenMediaFromGallery(post: ThreadPost) {
+        onCloseGallery()
+        if (post.presentMedia != null) mediaToOpenFlow.value = post.no
+    }
+
+    /** Queues every attachment in the thread; already saved or queued items are skipped by the queue. */
+    fun onSaveAllMedia() {
+        loadedPosts()?.filter { it.presentMedia != null }?.forEach(::onSaveMedia)
+    }
+
     fun onTrustDomain(url: String) = viewModelScope.launch {
         val domain = Urls.domainOf(url) ?: return@launch
         settingsRepository.update { it.copy(trustedDomains = it.trustedDomains + domain) }
-        pendingExternalUrl.value = null
+        session.update { it.copy(pendingExternalUrl = null) }
     }
 
-    /** The screen reports the visible index range; the VM owns what it means. */
+    /** The screen reports the visible row range; the VM owns what it means. */
     fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
-        val posts = loadedPosts() ?: return
+        val details = (result.value as? DataResult.Success)?.value ?: return
+        val rows = rows(details, session.value)
         // Top-of-screen post: the reading position restored when the thread is reopened.
-        posts.getOrNull(firstIndex)?.let { topVisiblePostNo.value = it.no }
+        rows.postAt(firstIndex)?.let { topVisiblePostNo.value = it.no }
         // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
-        if (lastIndex != null) posts.getOrNull(lastIndex)?.let { bottomVisiblePostNo.value = it.no }
+        if (lastIndex != null) rows.postAt(lastIndex)?.let { bottomVisiblePostNo.value = it.no }
     }
 
     /**
-     * Raises the "read up to" high-water mark and live-updates the bookmark's unread pill,
-     * so counts are correct the moment the user returns to the bookmarks tab.
+     * Raises the "read up to" high-water mark in history and on the bookmark (a no-op when
+     * the thread is not bookmarked), so unread counts are right the moment the user returns
+     * to the bookmarks tab.
      */
     private suspend fun raiseReadMark(postNo: Long) {
         // Scrolling back up must not inflate the count — the mark only ever rises.
         val current = historyRepository.readUpTo(board, threadNo)
         if (current != null && postNo < current) return
         historyRepository.updateReadUpTo(board, threadNo, postNo)
-        val remaining = loadedPosts()?.count { it.no > postNo } ?: return
-        bookmarkRepository.updateUnread(board, threadNo, remaining)
+        val replyCount = (loadedPosts()?.size ?: 1) - 1
+        bookmarkRepository.markSeen(board, threadNo, postNo, replyCount)
     }
 
-    fun onDismissNewPostsDivider() { newPostsAfter.value = null }
+    fun onDismissNewPostsDivider() = session.update { it.copy(newPostsAfter = null) }
 
-    private companion object {
-        fun searchMatches(posts: List<ThreadPost>, query: String?): List<Long> =
+    companion object {
+        private const val HIGHLIGHT_MS = 1_500L
+
+        /** The poster-ID filter applied; the OP always stays so the thread keeps its header. */
+        private fun visiblePosts(posts: List<ThreadPost>, session: Session): List<ThreadPost> {
+            val id = session.filterPosterId ?: return posts
+            return posts.filter { it.isOp || it.posterId == id }
+        }
+
+        /** Tree view indents this deep; anything deeper collapses into a "N more" row. */
+        const val MAX_TREE_DEPTH = 4
+
+        /** Linear: thread order with the new-posts divider. Tree: nested, capped, filtered. */
+        private fun rows(details: ThreadDetails, session: Session): List<ThreadRow> =
+            if (session.treeView) treeRows(details, session)
+            else linearRows(visiblePosts(details.posts, session), session.newPostsAfter)
+
+        /** Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post. */
+        private fun linearRows(posts: List<ThreadPost>, newPostsAfter: Pair<Long, Int>?): List<ThreadRow> =
+            buildList {
+                posts.forEach { post ->
+                    add(ThreadRow.Post(post))
+                    if (newPostsAfter != null && post.no == newPostsAfter.first) {
+                        add(ThreadRow.NewPostsDivider(newPostsAfter.second))
+                    }
+                }
+            }
+
+        /**
+         * Depth-first tree, indent capped at [MAX_TREE_DEPTH]. A capped post's deeper replies
+         * follow it directly in the walk, so they fold into one "N more" row until expanded,
+         * then show flattened at the cap. The ID filter applies as in the linear view; the
+         * new-posts divider does not exist here since the order is no longer chronological.
+         */
+        private fun treeRows(details: ThreadDetails, session: Session): List<ThreadRow> {
+            val visible = visiblePosts(details.posts, session).mapTo(HashSet()) { it.no }
+            val nodes = PostGraph.of(details).tree().filter { it.post.no in visible }
+            val out = mutableListOf<ThreadRow>()
+            var i = 0
+            while (i < nodes.size) {
+                val node = nodes[i]
+                out += ThreadRow.Post(node.post, node.depth.coerceAtMost(MAX_TREE_DEPTH))
+                i++
+                if (node.depth != MAX_TREE_DEPTH) continue
+                val tailStart = i
+                while (i < nodes.size && nodes[i].depth > MAX_TREE_DEPTH) i++
+                val tail = nodes.subList(tailStart, i)
+                if (tail.isEmpty()) continue
+                if (node.post.no in session.expandedTails) {
+                    tail.forEach { out += ThreadRow.Post(it.post, MAX_TREE_DEPTH) }
+                } else {
+                    out += ThreadRow.MoreReplies(node.post.no, tail.size)
+                }
+            }
+            return out
+        }
+
+        /** The OP is labelled first; a claimed OP still reads as yours. */
+        private fun quoteLabels(details: ThreadDetails, claimed: Set<Long>): Map<Long, QuoteLabel> = buildMap {
+            details.posts.firstOrNull { it.isOp }?.let { put(it.no, QuoteLabel.OP) }
+            claimed.forEach { put(it, QuoteLabel.YOU) }
+        }
+
+        private fun postStates(
+            details: ThreadDetails,
+            session: Session,
+            saveStatuses: Map<String, MediaSaveStatus>,
+        ): Map<Long, PostUiState> {
+            val revealedText = session.revealedText.groupBy({ it.first }, { it.second })
+            val idCounts = details.posts.mapNotNull { it.posterId }.groupingBy { it }.eachCount()
+            return details.posts.associate { post ->
+                post.no to PostUiState(
+                    posterIdCount = post.posterId?.let { idCounts[it] } ?: 0,
+                    closed = post.isOp && details.closed,
+                    sticky = post.isOp && details.sticky,
+                    revealedSpoilerIds = revealedText[post.no]?.toSet().orEmpty(),
+                    imageSpoilerRevealed = post.no in session.revealedImages,
+                    backlinks = details.backlinks[post.no].orEmpty(),
+                    saveStatus = post.presentMedia?.fullUrl?.let { saveStatuses[it] },
+                    highlighted = post.no == session.highlightedPostNo,
+                )
+            }
+        }
+
+        /** The post at a row index, or the nearest post above a divider. */
+        private fun List<ThreadRow>.postAt(index: Int): ThreadPost? =
+            (0..index).reversed().firstNotNullOfOrNull { (getOrNull(it) as? ThreadRow.Post)?.post }
+
+        /** The user's in-thread toggle wins over the setting. */
+        private fun autoRefreshOn(session: Session, settings: Settings): Boolean =
+            session.autoRefreshOverride ?: settings.autoRefreshEnabled
+
+        private fun searchMatches(posts: List<ThreadPost>, query: String?): List<Long> =
             if (query.isNullOrBlank()) emptyList()
             else posts.filter {
                 it.body.plainText.contains(query, true) || it.subject?.contains(query, true) == true

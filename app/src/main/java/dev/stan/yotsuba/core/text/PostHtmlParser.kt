@@ -63,13 +63,13 @@ object PostHtmlParser {
                             "pre" -> { flush(); stack.addLast(Frame("pre", PostStyle.CODE, null)) }
                             "span" -> {
                                 flush()
-                                val cls = attr(body, "class").orEmpty()
+                                val classes = classTokens(body)
                                 stack.addLast(
                                     when {
-                                        "quote" in cls.split(' ') -> Frame("span", PostStyle.GREENTEXT, null)
-                                        "deadlink" in cls -> Frame("span", PostStyle.DEADLINK, PostAnnotation.Deadlink)
-                                        "sjis" in cls -> Frame("span", PostStyle.SJIS, null)
-                                        "math" in cls -> Frame("span", PostStyle.MATH, null)
+                                        "quote" in classes -> Frame("span", PostStyle.GREENTEXT, null)
+                                        "deadlink" in classes -> Frame("span", PostStyle.DEADLINK, PostAnnotation.Deadlink)
+                                        "sjis" in classes -> Frame("span", PostStyle.SJIS, null)
+                                        "math" in classes -> Frame("span", PostStyle.MATH, null)
                                         // Unknown span class: content kept, no style.
                                         else -> Frame("span", null, null)
                                     },
@@ -77,11 +77,10 @@ object PostHtmlParser {
                             }
                             "a" -> {
                                 flush()
-                                val href = attr(body, "href")
-                                val cls = attr(body, "class").orEmpty()
+                                val href = HREF_ATTR.find(body)?.groupValues?.get(1)
                                 val annotation = when {
                                     href == null -> null
-                                    "quotelink" in cls -> parseQuotelink(href)
+                                    "quotelink" in classTokens(body) -> parseQuotelink(href)
                                     else -> PostAnnotation.Link(resolveUrl(href))
                                 }
                                 stack.addLast(Frame("a", null, annotation))
@@ -136,11 +135,9 @@ object PostHtmlParser {
     private fun resolveUrl(href: String): String =
         if (href.startsWith("//")) "https:$href" else href
 
-    private fun attr(tagBody: String, attrName: String): String? {
-        // Attribute order is not assumed (D10).
-        val regex = Regex("""$attrName\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)
-        return regex.find(tagBody)?.groupValues?.get(1)
-    }
+    /** Whitespace-separated class names; attribute order is not assumed (D10). */
+    private fun classTokens(tagBody: String): Set<String> =
+        CLASS_ATTR.find(tagBody)?.groupValues?.get(1)?.split(' ')?.filter { it.isNotEmpty() }?.toSet().orEmpty()
 
     private fun decodeEntity(entity: String): String? = when {
         entity == "gt" -> ">"
@@ -157,5 +154,7 @@ object PostHtmlParser {
     }
 
     private val FRAMED_TAGS = setOf("s", "b", "i", "u", "pre", "span", "a")
+    private val HREF_ATTR = Regex("""href\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)
+    private val CLASS_ATTR = Regex("""class\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)
     private val CROSS_THREAD = Regex("""(?:https?:)?(?://boards\.4chan(?:nel)?\.org)?/(\w+)/thread/(\d+)(?:#p(\d+))?""")
 }

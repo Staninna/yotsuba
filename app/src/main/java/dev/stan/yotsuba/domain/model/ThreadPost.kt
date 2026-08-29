@@ -28,7 +28,9 @@ data class ThreadDetails(
     val threadNo: Long,
     val posts: List<ThreadPost>,
     val archived: Boolean,
+    /** Closed by a moderator: readable, but no new posts will come, so polling stops. */
     val closed: Boolean,
     /** postNo -> posts that quote it, computed once per thread (D11). */
     val backlinks: Map<Long, List<Long>>,
+    val sticky: Boolean = false,
 )
