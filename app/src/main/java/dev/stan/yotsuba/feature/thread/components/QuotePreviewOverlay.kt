@@ -12,11 +12,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.ThreadPost
 
@@ -25,6 +29,7 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 fun QuotePreviewOverlay(
     group: List<ThreadPost>,
     onDismiss: () -> Unit,
+    onGoTo: (Long) -> Unit,
     postCard: @Composable (ThreadPost) -> Unit,
 ) {
     val spacing = LocalSpacing.current
@@ -48,7 +53,14 @@ fun QuotePreviewOverlay(
                     .padding(spacing.sm),
                 verticalArrangement = Arrangement.spacedBy(spacing.sm),
             ) {
-                group.forEach { post -> postCard(post) }
+                group.forEach { post ->
+                    Column {
+                        postCard(post)
+                        TextButton(onClick = { onGoTo(post.no) }, modifier = Modifier.align(Alignment.End)) {
+                            Text(stringResource(R.string.thread_go_to_post))
+                        }
+                    }
+                }
             }
         }
     }

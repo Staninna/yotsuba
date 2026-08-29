@@ -63,6 +63,8 @@ fun countryFlagEmoji(iso: String): String =
  */
 data class PostCardActions(
     val onBodyTap: (BodyTap) -> Unit,
+    /** A held quotelink; the tap on it jumps, the hold previews. */
+    val onBodyLongPress: ((BodyTap) -> Unit)? = null,
     val onThumbnailTap: () -> Unit,
     val onThumbnailLongPress: (() -> Unit)?,
     val onBacklinksTap: (() -> Unit)?,
@@ -70,7 +72,7 @@ data class PostCardActions(
 ) {
     /** A card inside the quote preview overlay: read-only apart from following links. */
     fun forPreview(): PostCardActions =
-        copy(onThumbnailLongPress = null, onBacklinksTap = null, onCopyPostNo = null)
+        copy(onBodyLongPress = null, onThumbnailLongPress = null, onBacklinksTap = null, onCopyPostNo = null)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -88,10 +90,10 @@ fun PostCard(
     val spacing = LocalSpacing.current
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = if (post.isOp) {
-            CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-        } else {
-            CardDefaults.cardColors()
+        colors = when {
+            ui.highlighted -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+            post.isOp -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+            else -> CardDefaults.cardColors()
         },
     ) {
         Column(Modifier.padding(spacing.md)) {
@@ -202,6 +204,7 @@ fun PostCard(
                     revealAll = revealAll,
                     onTap = actions.onBodyTap,
                     highlight = highlight,
+                    onLongPress = actions.onBodyLongPress,
                 )
             }
             val onBacklinksTap = actions.onBacklinksTap

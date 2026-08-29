@@ -1,16 +1,22 @@
 package dev.stan.yotsuba.feature.thread.components
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -33,6 +39,9 @@ sealed interface BodyTap {
     data class Spoiler(val id: Int) : BodyTap
 }
 
+/**
+ * @param onLongPress A held quotelink; null disables long-press handling entirely.
+ */
 @Composable
 fun PostBody(
     body: PostText,
@@ -41,12 +50,15 @@ fun PostBody(
     onTap: (BodyTap) -> Unit,
     modifier: Modifier = Modifier,
     highlight: String? = null,
+    onLongPress: ((BodyTap) -> Unit)? = null,
 ) {
     val colors = LocalYotsubaColors.current
     val scheme = MaterialTheme.colorScheme
     // The link listeners read the latest handler, so the string need not rebuild when it changes.
     val currentOnTap = rememberUpdatedState(onTap)
-    val display = remember(body, revealedSpoilerIds, revealAll, highlight, colors, scheme) {
+    val currentOnLongPress = rememberUpdatedState(onLongPress)
+    val built = remember(body, revealedSpoilerIds, revealAll, highlight, colors, scheme) {
+        val taps = mutableListOf<Pair<IntRange, BodyTap>>()
         val annotated = buildAnnotatedString {
             body.segments.forEach { seg ->
                 val spoilerId = seg.spoilerId
@@ -56,6 +68,7 @@ fun PostBody(
                 if (tap == null) {
                     withStyle(style) { append(seg.text) }
                 } else {
+                    taps += (length until length + seg.text.length) to tap
                     val link = LinkAnnotation.Clickable(
                         tag = seg.text,
                         styles = TextLinkStyles(style = style),
@@ -65,16 +78,29 @@ fun PostBody(
                 }
             }
         }
-        if (!highlight.isNullOrBlank()) {
+        val display = if (!highlight.isNullOrBlank()) {
             highlightMatches(annotated, highlight, scheme.tertiaryContainer)
         } else annotated
+        BuiltBody(display, taps)
+    }
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val longPressModifier = if (onLongPress == null) Modifier else Modifier.pointerInput(built) {
+        detectTapGestures(onLongPress = { position ->
+            val offset = layout?.getOffsetForPosition(position) ?: return@detectTapGestures
+            val tap = built.taps.firstOrNull { offset in it.first }?.second ?: return@detectTapGestures
+            currentOnLongPress.value?.invoke(tap)
+        })
     }
     Text(
-        text = display,
+        text = built.display,
         style = MaterialTheme.typography.bodyMedium.copy(color = scheme.onSurface),
-        modifier = modifier,
+        onTextLayout = { layout = it },
+        modifier = modifier.then(longPressModifier),
     )
 }
+
+/** The rendered string and which character ranges are tappable, for long-press lookup. */
+private class BuiltBody(val display: AnnotatedString, val taps: List<Pair<IntRange, BodyTap>>)
 
 /** What a tap on [seg] means, or null when the run is inert. */
 private fun tapFor(seg: PostSegment, hiddenSpoiler: Boolean): BodyTap? {

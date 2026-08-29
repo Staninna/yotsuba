@@ -3,4 +3,5 @@
     <!-- Thread screen strings added after strings.xml; %1$s is the network error copy. -->
     <string name="thread_refresh_failed">Refresh failed: %1$s</string>
     <string name="thread_search_close">Close search</string>
+    <string name="thread_go_to_post">Go to</string>
 </resources>

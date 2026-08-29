@@ -282,6 +282,25 @@ class ThreadViewModelTest {
             assertEquals(LinkAction.External("https://example.com/other"), vm.onLinkTap("https://example.com/other"))
         }
 
+    @Test fun `jumping to a post closes previews, scrolls, and highlights briefly`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.onOpenPreview(101)
+            vm.onJumpToPost(103)
+            dispatcher.scheduler.runCurrent()
+            assertEquals(0, content(vm).previewStack.size)
+            assertEquals(103L, vm.scrollTarget.value?.postNo)
+            assertTrue(content(vm).postStates.getValue(103L).highlighted)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertFalse(content(vm).postStates.getValue(103L).highlighted)
+
+            vm.onJumpToPost(999) // not in the thread: ignored
+            assertEquals(103L, vm.scrollTarget.value?.postNo)
+        }
+
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = Env().vm()
         dispatcher.scheduler.advanceUntilIdle()

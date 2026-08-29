@@ -37,6 +37,8 @@ data class PostUiState(
     /** Posts quoting this one, in thread order. */
     val backlinks: List<Long> = emptyList(),
     val saveStatus: MediaSaveStatus? = null,
+    /** Briefly true after a quotelink jump landed on this post. */
+    val highlighted: Boolean = false,
 ) {
     companion object {
         val Default = PostUiState()
@@ -82,6 +84,8 @@ data class Session(
     /** The thread 404ed during a refresh. */
     val archived: Boolean = false,
     val autoRefreshOverride: Boolean? = null,
+    /** The post a quotelink jump just landed on; cleared after a short delay. */
+    val highlightedPostNo: Long? = null,
     val refreshError: NetworkError? = null,
     val refreshing: Boolean = false,
 )

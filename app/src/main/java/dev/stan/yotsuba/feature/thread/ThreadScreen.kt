@@ -175,11 +175,17 @@ fun ThreadScreen(
                     onBodyTap = { tap ->
                         when (tap) {
                             is BodyTap.Spoiler -> viewModel.onRevealSpoiler(post.no, tap.id)
-                            is BodyTap.SameThreadQuote -> viewModel.onOpenPreview(tap.postNo)
+                            is BodyTap.SameThreadQuote -> viewModel.onJumpToPost(tap.postNo)
                             is BodyTap.CrossThreadQuote -> onOpenInternal(
                                 Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
                             )
                             is BodyTap.Link -> handleLink(tap.url)
+                        }
+                    },
+                    onBodyLongPress = { tap ->
+                        if (tap is BodyTap.SameThreadQuote) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.onOpenPreview(tap.postNo)
                         }
                     },
                     onThumbnailTap = { viewModel.onThumbnailTap(post) },
@@ -274,6 +280,7 @@ fun ThreadScreen(
                     QuotePreviewOverlay(
                         group = s.previewStack.last(),
                         onDismiss = viewModel::onClosePreview,
+                        onGoTo = viewModel::onJumpToPost,
                         postCard = { post -> postCard(post, true) },
                     )
                 }

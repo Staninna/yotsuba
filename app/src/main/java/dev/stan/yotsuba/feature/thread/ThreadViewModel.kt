@@ -29,6 +29,7 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -328,6 +329,24 @@ class ThreadViewModel @AssistedInject constructor(
 
     fun onClosePreview() = session.update { it.copy(previewPostNos = it.previewPostNos.dropLast(1)) }
 
+    private var highlightJob: Job? = null
+
+    /**
+     * Scrolls to [postNo] and flashes it (quotelink tap, backlink tap, preview "Go to").
+     * Closes any open previews first: the jump is what the user asked for. Unknown posts
+     * (a cross-thread stray, a pruned post) are ignored.
+     */
+    fun onJumpToPost(postNo: Long) {
+        if (loadedPosts()?.none { it.no == postNo } != false) return
+        session.update { it.copy(previewPostNos = emptyList(), highlightedPostNo = postNo) }
+        scrollTargetFlow.value = ScrollTarget(postNo, animate = true)
+        highlightJob?.cancel()
+        highlightJob = viewModelScope.launch {
+            delay(HIGHLIGHT_MS)
+            session.update { if (it.highlightedPostNo == postNo) it.copy(highlightedPostNo = null) else it }
+        }
+    }
+
     /** Query and index change together: a stale index must never meet a new query. */
     fun onSearchChange(query: String?) = session.update { it.copy(searchQuery = query, searchIndex = 0) }
 
@@ -419,6 +438,8 @@ class ThreadViewModel @AssistedInject constructor(
     fun onDismissNewPostsDivider() = session.update { it.copy(newPostsAfter = null) }
 
     private companion object {
+        const val HIGHLIGHT_MS = 1_500L
+
         /** Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post. */
         fun rows(posts: List<ThreadPost>, newPostsAfter: Pair<Long, Int>?): List<ThreadRow> =
             buildList {
@@ -442,6 +463,7 @@ class ThreadViewModel @AssistedInject constructor(
                     imageSpoilerRevealed = post.no in session.revealedImages,
                     backlinks = details.backlinks[post.no].orEmpty(),
                     saveStatus = post.presentMedia?.fullUrl?.let { saveStatuses[it] },
+                    highlighted = post.no == session.highlightedPostNo,
                 )
             }
         }
