@@ -5,6 +5,14 @@ enum class CatalogLayout { COMFORTABLE, COMPACT, LIST }
 enum class MediaAutoplay { ALWAYS, UNMETERED_ONLY, NEVER }
 enum class HistoryRetention { FOREVER, DAYS_30, DAYS_7 }
 
+/** How far one double-tap on a video's left or right edge jumps. */
+enum class SeekStep(val seconds: Int) {
+    FIVE(5),
+    TEN(10),
+    FIFTEEN(15),
+    THIRTY(30),
+}
+
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
@@ -14,6 +22,17 @@ data class Settings(
     val confirmBeforeOpeningLinks: Boolean = true,
     val trustedDomains: Set<String> = emptySet(),
     val mediaAutoplay: MediaAutoplay = MediaAutoplay.UNMETERED_ONLY,
+    /** Hold the display awake while a video is playing in the viewer. */
+    val keepScreenOnWhileWatching: Boolean = true,
+    val doubleTapSeekEnabled: Boolean = true,
+    val seekStep: SeekStep = SeekStep.TEN,
+    /** Long-press a thumbnail or an open image to send it to the vault. */
+    val holdToSave: Boolean = true,
+    /**
+     * Save the text of every transitive parent and reply of a post alongside its media,
+     * so the context survives the thread being pruned. Text only, never bytes.
+     */
+    val saveRepliesWithMedia: Boolean = true,
     val recordHistory: Boolean = true,
     val historyRetention: HistoryRetention = HistoryRetention.FOREVER,
     val favouriteBoards: Set<String> = emptySet(),

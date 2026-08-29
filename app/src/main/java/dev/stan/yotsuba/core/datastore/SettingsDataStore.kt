@@ -11,6 +11,7 @@ import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
+import dev.stan.yotsuba.domain.model.SeekStep
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,6 +32,11 @@ class SettingsDataStore @Inject constructor(
         val confirmBeforeOpeningLinks = booleanPreferencesKey("confirmBeforeOpeningLinks")
         val trustedDomains = stringSetPreferencesKey("trustedDomains")
         val mediaAutoplay = stringPreferencesKey("mediaAutoplay")
+        val keepScreenOnWhileWatching = booleanPreferencesKey("keepScreenOnWhileWatching")
+        val doubleTapSeekEnabled = booleanPreferencesKey("doubleTapSeekEnabled")
+        val seekStep = stringPreferencesKey("seekStep")
+        val holdToSave = booleanPreferencesKey("holdToSave")
+        val saveRepliesWithMedia = booleanPreferencesKey("saveRepliesWithMedia")
         val recordHistory = booleanPreferencesKey("recordHistory")
         val historyRetention = stringPreferencesKey("historyRetention")
         val favouriteBoards = stringSetPreferencesKey("favouriteBoards")
@@ -52,6 +58,11 @@ class SettingsDataStore @Inject constructor(
             p[Keys.confirmBeforeOpeningLinks] = next.confirmBeforeOpeningLinks
             p[Keys.trustedDomains] = next.trustedDomains
             p[Keys.mediaAutoplay] = next.mediaAutoplay.name
+            p[Keys.keepScreenOnWhileWatching] = next.keepScreenOnWhileWatching
+            p[Keys.doubleTapSeekEnabled] = next.doubleTapSeekEnabled
+            p[Keys.seekStep] = next.seekStep.name
+            p[Keys.holdToSave] = next.holdToSave
+            p[Keys.saveRepliesWithMedia] = next.saveRepliesWithMedia
             p[Keys.recordHistory] = next.recordHistory
             p[Keys.historyRetention] = next.historyRetention.name
             p[Keys.favouriteBoards] = next.favouriteBoards
@@ -71,6 +82,11 @@ class SettingsDataStore @Inject constructor(
             confirmBeforeOpeningLinks = p[Keys.confirmBeforeOpeningLinks] ?: d.confirmBeforeOpeningLinks,
             trustedDomains = p[Keys.trustedDomains] ?: d.trustedDomains,
             mediaAutoplay = p[Keys.mediaAutoplay]?.let { enumOr(it, d.mediaAutoplay) } ?: d.mediaAutoplay,
+            keepScreenOnWhileWatching = p[Keys.keepScreenOnWhileWatching] ?: d.keepScreenOnWhileWatching,
+            doubleTapSeekEnabled = p[Keys.doubleTapSeekEnabled] ?: d.doubleTapSeekEnabled,
+            seekStep = p[Keys.seekStep]?.let { enumOr(it, d.seekStep) } ?: d.seekStep,
+            holdToSave = p[Keys.holdToSave] ?: d.holdToSave,
+            saveRepliesWithMedia = p[Keys.saveRepliesWithMedia] ?: d.saveRepliesWithMedia,
             recordHistory = p[Keys.recordHistory] ?: d.recordHistory,
             historyRetention = p[Keys.historyRetention]?.let { enumOr(it, d.historyRetention) } ?: d.historyRetention,
             favouriteBoards = p[Keys.favouriteBoards] ?: d.favouriteBoards,
