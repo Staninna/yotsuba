@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vault_sync_snapshot_watched">Snapshot watched threads</string>
+    <string name="vault_sync_snapshot_watched_summary">Every few hours, copy the text of each bookmarked thread into the vault so it stays readable after it is gone</string>
+    <string name="vault_sync_prune_dead">Prune dead threads to saved conversations</string>
+    <string name="vault_sync_prune_dead_summary_off">Off: a thread that has died is kept whole in the vault</string>
+    <string name="vault_sync_prune_dead_summary_on">On: once a thread dies, keep only the OP and the replies around each saved file; threads with nothing saved are kept whole</string>
+</resources>

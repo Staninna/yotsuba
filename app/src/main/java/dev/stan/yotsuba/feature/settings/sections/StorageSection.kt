@@ -69,6 +69,21 @@ fun StorageSection(
         checked = settings.confirmVaultDelete,
         onToggle = { v -> update { it.copy(confirmVaultDelete = v) } },
     )
+    SwitchRow(
+        title = stringResource(R.string.vault_sync_snapshot_watched),
+        summary = stringResource(R.string.vault_sync_snapshot_watched_summary),
+        checked = settings.snapshotWatchedThreads,
+        onToggle = { v -> update { it.copy(snapshotWatchedThreads = v) } },
+    )
+    SwitchRow(
+        title = stringResource(R.string.vault_sync_prune_dead),
+        summary = stringResource(
+            if (settings.pruneDeadSidecars) R.string.vault_sync_prune_dead_summary_on
+            else R.string.vault_sync_prune_dead_summary_off,
+        ),
+        checked = settings.pruneDeadSidecars,
+        onToggle = { v -> update { it.copy(pruneDeadSidecars = v) } },
+    )
 
     SectionHeader(stringResource(R.string.backup_header))
     TextRow(
