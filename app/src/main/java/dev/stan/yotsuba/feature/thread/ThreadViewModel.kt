@@ -67,6 +67,8 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     private val result = MutableStateFlow<DataResult<ThreadDetails>?>(null)
+    private val settingsState = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
     private val boardInfo = MutableStateFlow<Board?>(null)
     /** Exposed for tests: every change to it is one atomic emission. */
     val session = MutableStateFlow(Session())
@@ -75,21 +77,14 @@ class ThreadViewModel @AssistedInject constructor(
     private val topVisiblePostNo = MutableStateFlow<Long?>(null)
     private val bottomVisiblePostNo = MutableStateFlow<Long?>(null)
 
-    private var lastKnownPostNo = 0L
     private var restoredScroll = false
 
     private val poller = ThreadPoller(
-        isEnabled = {
-            !session.value.archived &&
-                (session.value.autoRefreshOverride ?: settingsRepository.settings.first().autoRefreshEnabled)
-        },
+        isEnabled = { !session.value.archived && autoRefreshOn(session.value, settingsState.value) },
         poll = { load(forceRefresh = true, quiet = true) },
     )
 
     private val bookmarked = bookmarkRepository.isBookmarked(board, threadNo)
-
-    private val settingsState = settingsRepository.settings
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
 
     /** URL → vault status for the thumbnail badges; saved wins over any queue state. */
     private val mediaSaveStatuses = combine(mediaVault.savedUrls(), downloadQueue.statuses) { saved, queue ->
@@ -131,7 +126,7 @@ class ThreadViewModel @AssistedInject constructor(
                         revealedImageSpoilers = session.revealedImages,
                         newPostsAfter = session.newPostsAfter?.first,
                         newPostsCount = session.newPostsAfter?.second ?: 0,
-                        autoRefreshEnabled = session.autoRefreshOverride ?: settings.autoRefreshEnabled,
+                        autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
                         refreshError = session.refreshError,
                         refreshing = session.refreshing,
@@ -171,6 +166,9 @@ class ThreadViewModel @AssistedInject constructor(
 
     private fun loadedPosts(): List<ThreadPost>? = (result.value as? DataResult.Success)?.value?.posts
 
+    /** Highest post number on screen right now; 0 before the first load. */
+    private val newestLoadedPostNo: Long get() = loadedPosts()?.maxOfOrNull { it.no } ?: 0L
+
     /** [quiet] refreshes without the spinner: auto-polls should not flicker the indicator. */
     fun load(forceRefresh: Boolean = false, quiet: Boolean = false) {
         viewModelScope.launch {
@@ -199,13 +197,14 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     private suspend fun onLoaded(details: ThreadDetails) {
+        // Runs before [result] is replaced, so this is still the previous load's newest post.
+        val previous = newestLoadedPostNo
         val newest = details.posts.maxOfOrNull { it.no } ?: 0L
-        if (lastKnownPostNo != 0L && newest > lastKnownPostNo) {
-            val newOnes = details.posts.count { it.no > lastKnownPostNo }
-            session.update { it.copy(newPostsAfter = lastKnownPostNo to newOnes) }
+        if (previous != 0L && newest > previous) {
+            val newOnes = details.posts.count { it.no > previous }
+            session.update { it.copy(newPostsAfter = previous to newOnes) }
             poller.resetBackoff()
         }
-        lastKnownPostNo = newest
         recordHistory(details)
         resolveScrollTarget(details)
     }
@@ -267,9 +266,8 @@ class ThreadViewModel @AssistedInject constructor(
         }
     }
 
-    fun onToggleAutoRefresh() = viewModelScope.launch {
-        val effective = session.value.autoRefreshOverride
-            ?: settingsRepository.settings.first().autoRefreshEnabled
+    fun onToggleAutoRefresh() {
+        val effective = autoRefreshOn(session.value, settingsState.value)
         session.update { it.copy(autoRefreshOverride = !effective) }
         poller.resetBackoff()
     }
@@ -399,6 +397,10 @@ class ThreadViewModel @AssistedInject constructor(
     fun onDismissNewPostsDivider() = session.update { it.copy(newPostsAfter = null) }
 
     private companion object {
+        /** The user's in-thread toggle wins over the setting. */
+        fun autoRefreshOn(session: Session, settings: Settings): Boolean =
+            session.autoRefreshOverride ?: settings.autoRefreshEnabled
+
         fun searchMatches(posts: List<ThreadPost>, query: String?): List<Long> =
             if (query.isNullOrBlank()) emptyList()
             else posts.filter {
