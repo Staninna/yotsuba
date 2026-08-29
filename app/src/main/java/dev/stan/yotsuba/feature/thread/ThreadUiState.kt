@@ -38,6 +38,8 @@ data class ThreadContent(
     val filterPosterId: String? = null,
     /** The thread gallery sheet is up; [mediaPosts] feeds it. */
     val galleryOpen: Boolean = false,
+    /** The post whose long-press sheet is up. */
+    val postSheet: ThreadPost? = null,
     /** Posts with a present attachment, in thread order. */
     val mediaPosts: List<ThreadPost> = emptyList(),
 )
@@ -109,6 +111,7 @@ data class Session(
     /** Show only this poster ID's posts. */
     val filterPosterId: String? = null,
     val galleryOpen: Boolean = false,
+    val postSheetFor: Long? = null,
     val refreshError: NetworkError? = null,
     val refreshing: Boolean = false,
 )

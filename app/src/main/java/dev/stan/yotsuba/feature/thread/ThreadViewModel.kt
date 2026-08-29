@@ -154,6 +154,7 @@ class ThreadViewModel @AssistedInject constructor(
                         pendingExternalUrl = session.pendingExternalUrl,
                         filterPosterId = session.filterPosterId,
                         galleryOpen = session.galleryOpen,
+                        postSheet = session.postSheetFor?.let { byNo[it] },
                         mediaPosts = details.posts.filter { it.presentMedia != null },
                         quoteLabels = quoteLabels(details, claimed),
                         claimedPostNos = claimed,
@@ -438,6 +439,9 @@ class ThreadViewModel @AssistedInject constructor(
             ),
         )
     }
+
+    fun onOpenPostSheet(postNo: Long) = session.update { it.copy(postSheetFor = postNo) }
+    fun onClosePostSheet() = session.update { it.copy(postSheetFor = null) }
 
     fun onOpenGallery() = session.update { it.copy(galleryOpen = true) }
     fun onCloseGallery() = session.update { it.copy(galleryOpen = false) }

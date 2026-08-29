@@ -65,6 +65,7 @@ import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
+import dev.stan.yotsuba.feature.thread.components.PostActionSheet
 import dev.stan.yotsuba.feature.thread.components.PostCard
 import dev.stan.yotsuba.feature.thread.components.PostCardActions
 import dev.stan.yotsuba.feature.thread.components.QuotePreviewOverlay
@@ -98,6 +99,8 @@ fun ThreadScreen(
     val copiedMessage = stringResource(R.string.thread_post_number_copied)
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val saveAllMessage = stringResource(R.string.thread_gallery_save_all_queued)
+    val textCopiedMessage = stringResource(R.string.thread_text_copied)
+    val imageUrlCopiedMessage = stringResource(R.string.thread_image_url_copied)
     val haptics = LocalHapticFeedback.current
 
     fun closeSearch() {
@@ -229,6 +232,10 @@ fun ThreadScreen(
                     },
                     onBacklinkTap = viewModel::onJumpToPost,
                     onPosterIdTap = { viewModel.onFilterPosterId(post.posterId) },
+                    onLongPress = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.onOpenPostSheet(post.no)
+                    },
                     onCopyPostNo = {
                         clipboard.setText(AnnotatedString(post.no.toString()))
                         scope.launch { snackbar.showSnackbar(copiedMessage) }
@@ -319,6 +326,41 @@ fun ThreadScreen(
                         onDismiss = viewModel::onClosePreview,
                         onGoTo = viewModel::onJumpToPost,
                         postCard = { post -> postCard(post, true) },
+                    )
+                }
+
+                s.postSheet?.let { post ->
+                    PostActionSheet(
+                        post = post,
+                        claimed = post.no in s.claimedPostNos,
+                        showFilterById = s.board?.userIds == true,
+                        onCopyText = {
+                            viewModel.onClosePostSheet()
+                            clipboard.setText(AnnotatedString(post.body.plainText))
+                            scope.launch { snackbar.showSnackbar(textCopiedMessage) }
+                        },
+                        onShareLink = {
+                            viewModel.onClosePostSheet()
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, "${'$'}{Urls.threadWebUrl(board, threadNo)}#p${'$'}{post.no}")
+                            }
+                            runCatching { context.startActivity(Intent.createChooser(send, null)) }
+                        },
+                        onCopyImageUrl = {
+                            viewModel.onClosePostSheet()
+                            post.presentMedia?.let { clipboard.setText(AnnotatedString(it.fullUrl)) }
+                            scope.launch { snackbar.showSnackbar(imageUrlCopiedMessage) }
+                        },
+                        onToggleClaimed = {
+                            viewModel.onClosePostSheet()
+                            viewModel.onToggleClaimed(post.no)
+                        },
+                        onFilterById = {
+                            viewModel.onClosePostSheet()
+                            viewModel.onFilterPosterId(post.posterId)
+                        },
+                        onDismiss = viewModel::onClosePostSheet,
                     )
                 }
 

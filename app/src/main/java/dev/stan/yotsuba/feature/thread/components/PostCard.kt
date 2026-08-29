@@ -3,6 +3,7 @@ package dev.stan.yotsuba.feature.thread.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -82,11 +84,14 @@ data class PostCardActions(
     val onCopyPostNo: (() -> Unit)?,
     /** Tap on the poster-ID pill filters the thread to that ID. */
     val onPosterIdTap: (() -> Unit)? = null,
+    /** Long-press anywhere on the card that is not itself a control: the post action sheet. */
+    val onLongPress: (() -> Unit)? = null,
 ) {
     /** A card inside the quote preview overlay: read-only apart from following links. */
     fun forPreview(): PostCardActions = copy(
         onBodyLongPress = null, onThumbnailLongPress = null,
         onBacklinkTap = null, onBacklinksTap = null, onCopyPostNo = null, onPosterIdTap = null,
+        onLongPress = null,
     )
 }
 
@@ -104,8 +109,12 @@ fun PostCard(
     quoteLabels: Map<Long, String> = emptyMap(),
 ) {
     val spacing = LocalSpacing.current
+    val onLongPress = actions.onLongPress
+    val longPress = if (onLongPress == null) Modifier else Modifier.pointerInput(onLongPress) {
+        detectTapGestures(onLongPress = { onLongPress() })
+    }
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(longPress),
         colors = when {
             ui.highlighted -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
             post.isOp -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
