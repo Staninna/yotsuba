@@ -7,4 +7,5 @@
     <string name="widget_refresh">Refresh</string>
     <string name="widget_refreshing">Refreshing…</string>
     <string name="widget_row_unread">+%d</string>
+    <string name="widget_empty">No watched threads</string>
 </resources>

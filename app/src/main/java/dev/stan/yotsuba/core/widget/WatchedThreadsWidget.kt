@@ -138,7 +138,9 @@ private fun WidgetContent(rows: List<WidgetRow>, refreshing: Boolean) {
             .padding(12.dp),
     ) {
         Header(context, unreadTotal, refreshing)
-        if (limit == null) {
+        if (rows.isEmpty()) {
+            EmptyState(context)
+        } else if (limit == null) {
             LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                 items(visible, itemId = { it.threadNo }) { ThreadRow(context, it) }
             }
@@ -209,3 +211,16 @@ private fun ThreadRow(context: Context, row: WidgetRow) {
     }
 }
 
+@Composable
+private fun EmptyState(context: Context) {
+    Column(
+        modifier = GlanceModifier.fillMaxSize().clickable(actionStartActivity<MainActivity>()),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = context.getString(R.string.widget_empty),
+            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 13.sp),
+        )
+    }
+}
