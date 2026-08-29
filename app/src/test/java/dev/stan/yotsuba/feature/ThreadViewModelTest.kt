@@ -108,12 +108,17 @@ class ThreadViewModelTest {
         }
     }
 
-    private object FakeVault : MediaVaultRepository {
+    /** Records the first save so a test can await it; `statuses` is too transient to assert on. */
+    private class FakeVault : MediaVaultRepository {
+        val firstSave = kotlinx.coroutines.CompletableDeferred<Pair<MediaItem, VaultSaveContext>>()
         override fun hasStorageAccess() = false
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
         override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
         override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
-        override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
+        override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
+            firstSave.complete(item to context)
+            return null
+        }
         override suspend fun delete(url: String): VaultError? = null
         override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
         override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
@@ -137,7 +142,8 @@ class ThreadViewModelTest {
         fun details(posts: List<ThreadPost>) =
             ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = emptyMap())
 
-        val queue = MediaDownloadQueue(FakeVault)
+        val vault = FakeVault()
+        val queue = MediaDownloadQueue(vault)
 
         fun vm(initialPostNo: Long? = null) = ThreadViewModel(
             board = "g", threadNo = 100, initialPostNo = initialPostNo,
@@ -147,7 +153,7 @@ class ThreadViewModelTest {
             historyRepository = history,
             settingsRepository = settings,
             mediaSessionStore = sessionStore,
-            mediaVault = FakeVault,
+            mediaVault = vault,
             downloadQueue = queue,
         )
 
@@ -181,11 +187,13 @@ class ThreadViewModelTest {
             dispatcher.scheduler.advanceUntilIdle()
 
             vm.onSaveMedia(Env.post(101))
-            assertTrue(env.queue.statuses.value.isEmpty())
+            assertEquals(false, env.vault.firstSave.isCompleted)
 
             vm.onSaveMedia(Env.postWithMedia(100))
-            dispatcher.scheduler.advanceUntilIdle()
-            assertTrue("https://i.4cdn.org/g/100.jpg" in env.queue.statuses.value.keys)
+            val (item, context) = env.vault.firstSave.await()
+            assertEquals("https://i.4cdn.org/g/100.jpg", item.fullUrl)
+            assertEquals(100L, context.post?.no)
+            assertEquals("g", context.board)
         }
 
     @Test fun `search step wraps around the matches and emits an animated scroll target`() =
