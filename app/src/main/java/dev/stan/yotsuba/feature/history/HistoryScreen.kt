@@ -12,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,8 +25,11 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +37,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,15 +71,40 @@ fun HistoryScreen(
     val removedMessage = stringResource(R.string.history_entry_removed)
     val undoLabel = stringResource(R.string.action_undo)
 
+    var searching by remember { mutableStateOf(false) }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.tab_history)) },
+                title = {
+                    if (searching) {
+                        HistorySearchField(
+                            query = state.query,
+                            onQueryChange = viewModel::onQueryChange,
+                        )
+                    } else {
+                        Text(stringResource(R.string.tab_history))
+                    }
+                },
                 actions = {
                     IconButton(
+                        onClick = {
+                            if (searching) viewModel.onQueryChange("")
+                            searching = !searching
+                        },
+                        enabled = searching || state.totalCount > 0,
+                    ) {
+                        Icon(
+                            if (searching) Icons.Filled.Close else Icons.Filled.Search,
+                            stringResource(
+                                if (searching) R.string.history_search_close else R.string.history_search,
+                            ),
+                        )
+                    }
+                    IconButton(
                         onClick = { confirmClear = true },
-                        enabled = state.groups.isNotEmpty(),
+                        enabled = state.totalCount > 0,
                     ) {
                         Icon(Icons.Filled.DeleteSweep, stringResource(R.string.action_clear_all))
                     }
@@ -81,6 +114,12 @@ fun HistoryScreen(
     ) { padding ->
         when {
             !state.loaded -> LoadingSkeleton(Modifier.padding(padding))
+            state.groups.isEmpty() && state.query.isNotBlank() -> EmptyState(
+                title = stringResource(R.string.history_search_no_matches),
+                explanation = stringResource(R.string.history_search_no_matches_explanation, state.query),
+                icon = Icons.Filled.Search,
+                modifier = Modifier.padding(padding),
+            )
             state.groups.isEmpty() && state.recordingEnabled -> EmptyState(
                 title = stringResource(R.string.history_empty_title),
                 explanation = stringResource(R.string.history_empty_explanation),
@@ -149,6 +188,25 @@ private val HistoryBucket.labelRes: Int
         HistoryBucket.THIS_WEEK -> R.string.history_this_week
         HistoryBucket.OLDER -> R.string.history_older
     }
+
+@Composable
+private fun HistorySearchField(query: String, onQueryChange: (String) -> Unit) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    TextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = { Text(stringResource(R.string.history_search_hint)) },
+        singleLine = true,
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+        ),
+        modifier = Modifier.fillMaxWidth().focusRequester(focus),
+    )
+}
 
 /** Rows stay readable while recording is off; this just says why nothing new appears. */
 @Composable

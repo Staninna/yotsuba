@@ -169,6 +169,27 @@ class HistoryViewModelTest {
         }
     }
 
+    @Test fun `search filters by title and board but keeps the total count`() = runTest(dispatcher.scheduler) {
+        val repo = FakeHistoryRepository(listOf(
+            entry(1, startOfToday).copy(subject = "Rust thread"),
+            entry(2, startOfToday).copy(board = "a", subject = "Anime"),
+        ))
+        val vm = vm(repo)
+        vm.uiState.test {
+            latest()
+            vm.onQueryChange("rust")
+            var state = latest()
+            assertEquals(listOf(1L), state.groups.flatMap { it.entries }.map { it.threadNo })
+            assertEquals(2, state.totalCount)
+            vm.onQueryChange("/a/")
+            state = latest()
+            assertEquals(listOf(2L), state.groups.flatMap { it.entries }.map { it.threadNo })
+            vm.onQueryChange("zzz")
+            assertTrue(latest().groups.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test fun `clear all empties the repository`() = runTest(dispatcher.scheduler) {
         val repo = FakeHistoryRepository(listOf(entry(1, startOfToday), entry(2, startOfToday)))
         val vm = vm(repo)

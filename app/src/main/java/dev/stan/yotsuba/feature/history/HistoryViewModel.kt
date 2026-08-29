@@ -13,6 +13,7 @@ import java.time.ZonedDateTime
 import javax.inject.Inject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -53,8 +54,20 @@ fun midnightTicker(clock: Clock): Flow<Unit> = flow {
     }
 }
 
+/** True when [query] matches the subject, excerpt-derived title or board of the entry. */
+fun HistoryEntry.matches(query: String): Boolean {
+    if (query.isBlank()) return true
+    val q = query.trim()
+    return displayTitle.contains(q, ignoreCase = true) ||
+        board.contains(q.removePrefix("/").removeSuffix("/"), ignoreCase = true)
+}
+
 data class HistoryUiState(
+    /** Sections after [query] is applied. */
     val groups: List<HistoryGroup> = emptyList(),
+    val query: String = "",
+    /** Rows in the repository regardless of [query]; drives clear-all. */
+    val totalCount: Int = 0,
     val recordingEnabled: Boolean = true,
     val loaded: Boolean = false,
 )
@@ -82,15 +95,23 @@ class HistoryViewModel(
         .onStart { emit(Unit) }
         .map { LocalDate.now(clock).atStartOfDay(clock.zone).toInstant().toEpochMilli() }
 
+    private val query = MutableStateFlow("")
+
     val uiState: StateFlow<HistoryUiState> = combine(
-        historyRepository.history, settingsRepository.settings, startOfToday,
-    ) { entries, settings, today ->
+        historyRepository.history, settingsRepository.settings, startOfToday, query,
+    ) { entries, settings, today, q ->
         HistoryUiState(
-            groups = groupHistory(entries, today),
+            groups = groupHistory(entries.filter { it.matches(q) }, today),
+            query = q,
+            totalCount = entries.size,
             recordingEnabled = settings.recordHistory,
             loaded = true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HistoryUiState())
+
+    fun onQueryChange(value: String) {
+        query.value = value
+    }
 
     fun onRemove(entry: HistoryEntry) = viewModelScope.launch {
         historyRepository.remove(entry.board, entry.threadNo)
