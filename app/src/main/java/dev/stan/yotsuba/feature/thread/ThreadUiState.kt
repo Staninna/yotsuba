@@ -52,6 +52,9 @@ data class PostUiState(
     val highlighted: Boolean = false,
     /** How many posts in the thread share this post's poster ID; 0 without an ID. */
     val posterIdCount: Int = 0,
+    /** OP only: the thread is closed / stickied. */
+    val closed: Boolean = false,
+    val sticky: Boolean = false,
 ) {
     companion object {
         val Default = PostUiState()

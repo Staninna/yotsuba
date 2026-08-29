@@ -376,6 +376,20 @@ class ThreadViewModelTest {
             assertEquals(5, content(vm).rows.size)
         }
 
+    @Test fun `closed and sticky flags land on the OP card only`() = runTest(dispatcher.scheduler) {
+        val env = Env(posts = listOf(Env.post(100).copy(isOp = true), Env.post(101)))
+        env.threads.result = DataResult.Success(
+            env.details(listOf(Env.post(100).copy(isOp = true), Env.post(101))).copy(closed = true, sticky = true),
+        )
+        val vm = env.vm()
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        val op = content(vm).postStates.getValue(100L)
+        assertTrue(op.closed && op.sticky)
+        val reply = content(vm).postStates.getValue(101L)
+        assertFalse(reply.closed || reply.sticky)
+    }
+
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = Env().vm()
         dispatcher.scheduler.advanceUntilIdle()

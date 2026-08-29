@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -163,6 +166,13 @@ fun PostCard(
                     modifier = actions.onCopyPostNo?.let { Modifier.clickable(onClick = it) } ?: Modifier,
                 )
             }
+            if (ui.sticky || ui.closed) {
+                Spacer(Modifier.height(spacing.xs))
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    if (ui.sticky) ThreadBadge(Icons.Filled.PushPin, stringResource(R.string.thread_sticky))
+                    if (ui.closed) ThreadBadge(Icons.Filled.Lock, stringResource(R.string.thread_closed))
+                }
+            }
             post.subject?.let {
                 Spacer(Modifier.height(spacing.xs))
                 Text(it, style = MaterialTheme.typography.titleMedium)
@@ -287,6 +297,22 @@ fun PostCard(
     modifier = modifier,
     highlight = highlight,
 )
+
+/** "Closed" / "Sticky" on the OP card. */
+@Composable
+private fun ThreadBadge(icon: ImageVector, label: String) {
+    val spacing = LocalSpacing.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+            .padding(horizontal = spacing.sm, vertical = 2.dp),
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
+        Spacer(Modifier.width(spacing.xs))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+    }
+}
 
 /** "Quoted by: >>1 >>2" — each number jumps to that post. */
 @OptIn(ExperimentalLayoutApi::class)

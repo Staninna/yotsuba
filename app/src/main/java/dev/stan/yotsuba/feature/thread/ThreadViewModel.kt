@@ -84,7 +84,12 @@ class ThreadViewModel @AssistedInject constructor(
     private var restoredScroll = false
 
     private val poller = ThreadPoller(
-        isEnabled = { !session.value.archived && autoRefreshOn(session.value, settingsState.value) },
+        // A closed or archived thread will never gain posts; polling it is pure waste.
+        isEnabled = {
+            val details = (result.value as? DataResult.Success)?.value
+            !session.value.archived && details?.closed != true && details?.archived != true &&
+                autoRefreshOn(session.value, settingsState.value)
+        },
         poll = { load(forceRefresh = true, quiet = true) },
     )
 
@@ -499,6 +504,8 @@ class ThreadViewModel @AssistedInject constructor(
             return details.posts.associate { post ->
                 post.no to PostUiState(
                     posterIdCount = post.posterId?.let { idCounts[it] } ?: 0,
+                    closed = post.isOp && details.closed,
+                    sticky = post.isOp && details.sticky,
                     revealedSpoilerIds = revealedText[post.no]?.toSet().orEmpty(),
                     imageSpoilerRevealed = post.no in session.revealedImages,
                     backlinks = details.backlinks[post.no].orEmpty(),

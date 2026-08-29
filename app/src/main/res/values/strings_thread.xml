@@ -20,4 +20,6 @@
     <string name="thread_filter_id">ID: %1$s</string>
     <string name="thread_filter_clear">Clear filter</string>
     <string name="thread_filter_by_id">Filter by ID</string>
+    <string name="thread_closed">Closed</string>
+    <string name="thread_sticky">Sticky</string>
 </resources>

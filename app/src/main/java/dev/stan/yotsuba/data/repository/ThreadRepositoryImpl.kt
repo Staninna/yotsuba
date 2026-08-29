@@ -22,6 +22,7 @@ class ThreadRepositoryImpl @Inject constructor(
                 board, no, posts,
                 archived = op?.archived == 1,
                 closed = op?.closed == 1,
+                sticky = op?.sticky == 1,
             )
         }
 }

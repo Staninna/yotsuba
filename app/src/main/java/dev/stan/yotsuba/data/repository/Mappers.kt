@@ -97,6 +97,7 @@ fun buildThreadDetails(
     posts: List<ThreadPost>,
     archived: Boolean = false,
     closed: Boolean = false,
+    sticky: Boolean = false,
 ): ThreadDetails {
     return ThreadDetails(
         board = board,
@@ -105,6 +106,7 @@ fun buildThreadDetails(
         archived = archived,
         closed = closed,
         backlinks = PostGraph.backlinksOf(posts),
+        sticky = sticky,
     )
 }
 
