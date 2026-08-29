@@ -28,7 +28,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +46,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.feature.media.saveToVault
@@ -108,9 +108,10 @@ fun ThreadScreen(
         }
     }
 
-    DisposableEffect(Unit) {
+    // Polling follows the lifecycle: backgrounding the app or leaving the screen stops it.
+    LifecycleResumeEffect(Unit) {
         viewModel.onScreenVisibilityChanged(true)
-        onDispose { viewModel.onScreenVisibilityChanged(false) }
+        onPauseOrDispose { viewModel.onScreenVisibilityChanged(false) }
     }
 
     // The VM resolves where to scroll (restore priority, search steps); the screen obeys.
