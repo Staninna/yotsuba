@@ -1,6 +1,7 @@
 package dev.stan.yotsuba
 
 import android.app.Application
+import android.os.StrictMode
 import android.os.Build
 import coil3.ImageLoader
 import coil3.PlatformContext
@@ -31,6 +32,14 @@ class YotsubaApplication : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.DEBUG) {
+            // Dev builds log any disk or network access on the main thread; the release
+            // build never carries this.
+            StrictMode.setThreadPolicy(
+                StrictMode.ThreadPolicy.Builder().detectDiskReads().detectDiskWrites().detectNetwork()
+                    .detectCustomSlowCalls().penaltyLog().build(),
+            )
+        }
         // KEEP policy: a no-op once the periodic work exists.
         bookmarkRefreshScheduler.ensureScheduled()
         vaultSyncScheduler.ensureScheduled()
