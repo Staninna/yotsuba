@@ -1,5 +1,6 @@
 package dev.stan.yotsuba
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.stan.yotsuba.core.designsystem.theme.YotsubaTheme
+import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.navigation.AppNavHost
 
@@ -23,9 +25,16 @@ class MainActivity : ComponentActivity() {
         viewModel.onResumed()
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        WidgetDeepLink.consume(intent)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Widget tap: park the (board, threadNo) extras for navigation to pick up.
+        WidgetDeepLink.consume(intent)
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val dark = when (settings.themeMode) {

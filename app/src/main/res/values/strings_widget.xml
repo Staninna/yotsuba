@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_watched_name">Watched threads</string>
+    <string name="widget_watched_description">Your watched threads, unread first.</string>
+    <string name="widget_title">Watched</string>
+    <string name="widget_unread_total">%d unread</string>
+    <string name="widget_refresh">Refresh</string>
+    <string name="widget_row_unread">+%d</string>
+</resources>
