@@ -20,6 +20,7 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
+import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
@@ -79,9 +80,16 @@ class ThreadViewModelTest {
         }
         override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> = bookmarkedFlow
         override suspend fun refreshOne(bookmark: Bookmark) = bookmark
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-        var unread: Int? = null
-        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) { this.unread = unread }
+        override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
+        /** Every markSeen call, in order; the repository itself never lowers the mark. */
+        val seen = mutableListOf<Long>()
+        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {
+            seen += lastSeenPostNo
+        }
+        @Deprecated("Unread is derived from readUpTo; use markSeen")
+        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) = Unit
+        override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
+        override suspend fun removeDead() {}
         override suspend fun clearAll() {}
     }
 
@@ -259,19 +267,20 @@ class ThreadViewModelTest {
             assertNull(vm.scrollTarget.value)
         }
 
-    @Test fun `read mark only rises and updates the bookmark unread count`() =
+    @Test fun `read mark only rises and is forwarded to the bookmark`() =
         runTest(dispatcher.scheduler) {
             val env = Env()
             val vm = env.vm()
             dispatcher.scheduler.advanceUntilIdle()
-            vm.onVisiblePostsChanged(0, 3) // bottom post 103 -> 1 unread below
+            assertEquals(emptyList<Long>(), env.bookmarks.seen) // opening marks nothing read
+            vm.onVisiblePostsChanged(0, 3) // bottom post 103
             dispatcher.scheduler.runCurrent()
             assertEquals(103L, env.history.readMark)
-            assertEquals(1, env.bookmarks.unread)
+            assertEquals(listOf(103L), env.bookmarks.seen)
             vm.onVisiblePostsChanged(0, 1) // scrolling back up must not lower the mark
             dispatcher.scheduler.runCurrent()
             assertEquals(103L, env.history.readMark)
-            assertEquals(1, env.bookmarks.unread)
+            assertEquals(listOf(103L), env.bookmarks.seen)
         }
 
     private fun content(vm: ThreadViewModel): ThreadContent =
@@ -290,7 +299,6 @@ class ThreadViewModelTest {
             assertEquals(100L, added.threadNo)
             assertEquals(4, added.replyCount) // 5 posts minus the OP
             assertEquals(0, added.imageCount)
-            assertEquals(104L, added.lastSeenPostNo)
             assertEquals("match 100", added.opExcerpt)
 
             vm.onToggleBookmark()

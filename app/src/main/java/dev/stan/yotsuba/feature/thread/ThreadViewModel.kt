@@ -219,10 +219,6 @@ class ThreadViewModel @AssistedInject constructor(
         }
         lastKnownPostNo = newest
         recordHistory(details)
-        // Viewing the thread clears its bookmark's unread badge (no-op if not bookmarked).
-        if (newest > 0) {
-            bookmarkRepository.markSeen(board, threadNo, newest, details.posts.size - 1)
-        }
         resolveScrollTarget(details)
     }
 
@@ -290,6 +286,7 @@ class ThreadViewModel @AssistedInject constructor(
         poller.resetBackoff()
     }
 
+    @Suppress("DEPRECATION") // lastSeenPostNo has no default; readUpTo is the live mark
     fun onToggleBookmark() = viewModelScope.launch {
         val posts = loadedPosts() ?: return@launch
         if (bookmarked.first()) {
@@ -307,8 +304,10 @@ class ThreadViewModel @AssistedInject constructor(
                     imageCount = posts.count { it.media != null },
                     bookmarkedAt = System.currentTimeMillis(),
                     lastCheckedAt = System.currentTimeMillis(),
-                    lastSeenPostNo = posts.maxOfOrNull { it.no },
+                    lastSeenPostNo = null,
                     state = BookmarkState.ALIVE,
+                    // Seed the read mark from history so the new bookmark does not start all-unread.
+                    readUpTo = historyRepository.readUpTo(board, threadNo),
                 )
             )
         }
@@ -403,16 +402,17 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     /**
-     * Raises the "read up to" high-water mark and live-updates the bookmark's unread pill,
-     * so counts are correct the moment the user returns to the bookmarks tab.
+     * Raises the "read up to" high-water mark in history and on the bookmark (a no-op when
+     * the thread is not bookmarked), so unread counts are right the moment the user returns
+     * to the bookmarks tab.
      */
     private suspend fun raiseReadMark(postNo: Long) {
         // Scrolling back up must not inflate the count — the mark only ever rises.
         val current = historyRepository.readUpTo(board, threadNo)
         if (current != null && postNo < current) return
         historyRepository.updateReadUpTo(board, threadNo, postNo)
-        val remaining = loadedPosts()?.count { it.no > postNo } ?: return
-        bookmarkRepository.updateUnread(board, threadNo, remaining)
+        val replyCount = (loadedPosts()?.size ?: 1) - 1
+        bookmarkRepository.markSeen(board, threadNo, postNo, replyCount)
     }
 
     fun onDismissNewPostsDivider() { newPostsAfter.value = null }

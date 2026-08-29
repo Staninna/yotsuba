@@ -87,7 +87,10 @@ class ThreadRefreshFailureTest {
             override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> = flowOf(false)
             override suspend fun refreshOne(bookmark: Bookmark) = bookmark
             override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-            override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {}
+            @Deprecated("Unread is derived from readUpTo; use markSeen")
+            override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) = Unit
+            override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
+            override suspend fun removeDead() {}
             override suspend fun clearAll() {}
         },
         historyRepository = object : HistoryRepository {
