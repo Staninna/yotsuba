@@ -52,6 +52,8 @@ fun ReorderableTabRow(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
+    onRemove: (index: Int) -> Unit,
+    onDragState: (dragging: Boolean, overRemove: Boolean) -> Unit,
     trailing: @Composable () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -65,8 +67,15 @@ fun ReorderableTabRow(
 
     var dragging by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
-    var viewportWidth by remember { mutableIntStateOf(0) }
     val from = dragging
+    var dragY by remember { mutableFloatStateOf(0f) }
+    val removeThreshold = with(density) { 32.dp.toPx() }
+    val overRemove = from != null && dragY > removeThreshold
+    LaunchedEffect(from != null, overRemove) {
+        if (from != null && overRemove) haptics.reject()
+        onDragState(from != null, overRemove)
+    }
+    var viewportWidth by remember { mutableIntStateOf(0) }
     val target = if (from != null && from < widths.size) dropTarget(from, dragOffset, widths) else -1
 
     // Keep the dragged tab under the finger while the row scrolls beneath it.
@@ -136,6 +145,7 @@ fun ReorderableTabRow(
                         .onSizeChanged { widths[index] = it.width }
                         .graphicsLayer {
                             translationX = if (lifted) dragOffset else slide
+                            translationY = if (lifted) dragY.coerceAtLeast(0f) else 0f
                             scaleX = scale
                             scaleY = scale
                             shadowElevation = if (lifted) 8.dp.toPx() else 0f
@@ -147,24 +157,33 @@ fun ReorderableTabRow(
                                 onDragStart = {
                                     haptics.longPress()
                                     dragOffset = 0f
+                                    dragY = 0f
                                     dragging = index
                                 },
                                 onDrag = { change, amount ->
                                     change.consume()
                                     dragOffset += amount.x
+                                    dragY += amount.y
                                 },
                                 onDragEnd = {
                                     val f = dragging
                                     if (f != null) {
-                                        val t = dropTarget(f, dragOffset, widths)
-                                        if (t != f) onMove(f, t)
+                                        if (dragY > removeThreshold) {
+                                            haptics.confirm()
+                                            onRemove(f)
+                                        } else {
+                                            val t = dropTarget(f, dragOffset, widths)
+                                            if (t != f) onMove(f, t)
+                                        }
                                     }
                                     dragging = null
                                     dragOffset = 0f
+                                    dragY = 0f
                                 },
                                 onDragCancel = {
                                     dragging = null
                                     dragOffset = 0f
+                                    dragY = 0f
                                 },
                             )
                         },
