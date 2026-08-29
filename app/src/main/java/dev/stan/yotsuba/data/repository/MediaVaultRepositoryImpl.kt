@@ -1,6 +1,10 @@
 package dev.stan.yotsuba.data.repository
 
+import android.content.ContentValues
 import android.content.Context
+import android.media.MediaScannerConnection
+import android.os.Environment
+import android.provider.MediaStore
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.ContextCompat
@@ -60,7 +64,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     override fun hasStorageAccess(): Boolean =
         if (Build.VERSION.SDK_INT >= 30) {
-            android.os.Environment.isExternalStorageManager()
+            Environment.isExternalStorageManager()
         } else {
             ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
@@ -221,6 +225,60 @@ class MediaVaultRepositoryImpl @Inject constructor(
         trashed.clear()
         File(store.root, VaultPaths.TRASH_DIR_NAME).deleteRecursively()
         store.lock.withLock { dirs.forEach { if (it.isDirectory) store.pruneIfEmpty(it) } }
+    }
+
+    override suspend fun exportToGallery(url: String): VaultError? = withContext(Dispatchers.IO) {
+        val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
+        val file = File(entity.absolutePath).takeIf { it.isFile } ?: return@withContext VaultError.NotFound
+        attempt {
+            val video = entity.ext == ".webm" || entity.ext == ".mp4"
+            val mime = when (entity.ext) {
+                ".jpg", ".jpeg" -> "image/jpeg"
+                ".png" -> "image/png"
+                ".gif" -> "image/gif"
+                ".webp" -> "image/webp"
+                ".webm" -> "video/webm"
+                ".mp4" -> "video/mp4"
+                else -> "application/octet-stream"
+            }
+            if (Build.VERSION.SDK_INT >= 29) {
+                val collection = if (video) {
+                    MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                } else {
+                    MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                }
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(
+                        MediaStore.MediaColumns.RELATIVE_PATH,
+                        (if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES) +
+                            "/" + VaultPaths.ROOT_DIR_NAME,
+                    )
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val resolver = context.contentResolver
+                val uri = resolver.insert(collection, values) ?: throw java.io.IOException("MediaStore refused ${file.name}")
+                try {
+                    resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } }
+                        ?: throw java.io.IOException("cannot open $uri")
+                    resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+                } catch (e: Exception) {
+                    resolver.delete(uri, null, null)
+                    throw e
+                }
+            } else {
+                val dir = File(
+                    Environment.getExternalStoragePublicDirectory(
+                        if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES,
+                    ),
+                    VaultPaths.ROOT_DIR_NAME,
+                ).apply { mkdirs() }
+                val target = store.uniqueFile(dir, file.name)
+                file.copyTo(target)
+                MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf(mime), null)
+            }
+        }
     }
 
     override suspend fun importLocalThread(

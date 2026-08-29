@@ -66,6 +66,12 @@ interface MediaVaultRepository {
     suspend fun purgeTrash() {}
 
     /**
+     * Copies a saved file into the device gallery (MediaStore), so it shows up in other
+     * apps; the vault's own copy stays where it is. The default cannot.
+     */
+    suspend fun exportToGallery(url: String): VaultError? = VaultError.Io("not supported")
+
+    /**
      * The thread as it was saved, rebuilt from its sidecars — posts, quote graph and all.
      * Null when nothing was captured for it. `archived` and `closed` are unknowable from
      * disk and come back false, so nothing may present them as fact.

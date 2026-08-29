@@ -74,6 +74,7 @@ sealed interface VaultNotice {
     data object Deleted : VaultNotice
     data class DeleteFailed(val entry: VaultEntry, val error: VaultError) : VaultNotice
     data object Restored : VaultNotice
+    data class SavedToGallery(val count: Int, val failed: Int) : VaultNotice
 }
 
 /** Entries queued for deletion and whether the grid's undo window applies to them. */
@@ -104,7 +105,12 @@ data class VaultUiState(
     val deleting: VaultDeleteRequest? = null,
     /** Entries sitting in the trash behind an Undo snackbar; null once the window closes. */
     val undo: List<VaultEntry>? = null,
+    /** URLs ticked in multi-select; empty means not selecting. */
+    val selected: Set<String> = emptySet(),
 ) {
+    val selecting: Boolean get() = selected.isNotEmpty()
+    val selectedEntries: List<VaultEntry> get() = entries.filter { it.url in selected }
+
     val openBoard: VaultBoardSection? get() = boards.firstOrNull { it.board == selection.board }
     val openThread: VaultThreadSection?
         get() = openBoard?.threads?.firstOrNull { it.location == selection.thread }
@@ -162,6 +168,7 @@ class VaultViewModel @Inject constructor(
     private val notice = MutableStateFlow<VaultNotice?>(null)
     private val deleting = MutableStateFlow<VaultDeleteRequest?>(null)
     private val undo = MutableStateFlow<List<VaultEntry>?>(null)
+    private val selected = MutableStateFlow<Set<String>>(emptySet())
     private var undoWindow: Job? = null
 
     /**
@@ -206,9 +213,21 @@ class VaultViewModel @Inject constructor(
         Activity(i, n, a, d, u)
     }
 
+    /** Everything the user is in the middle of editing on the explorer itself. */
+    private data class Editing(val selected: Set<String>)
+
+    private val editing = selected.map { Editing(it) }
+
+    @Suppress("UNCHECKED_CAST")
     val uiState: StateFlow<VaultUiState> = combine(
-        mediaVault.entries(), syncState, selection, viewing, activity,
-    ) { entries, sync, sel, viewing, activity ->
+        mediaVault.entries(), syncState, selection, viewing, activity, editing,
+    ) { args ->
+        val entries = args[0] as List<VaultEntry>
+        val sync = args[1] as VaultSyncState
+        val sel = args[2] as VaultSelection
+        val viewing = args[3] as Viewing
+        val activity = args[4] as Activity
+        val editing = args[5] as Editing
         VaultUiState(
             entries = entries,
             boards = groupByBoard(entries),
@@ -220,6 +239,8 @@ class VaultViewModel @Inject constructor(
             notice = activity.notice,
             deleting = activity.deleting,
             undo = activity.undo,
+            // Selection follows the entries: a deleted or rescanned-away file drops out.
+            selected = editing.selected.filterTo(mutableSetOf()) { url -> entries.any { it.url == url } },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
@@ -228,9 +249,48 @@ class VaultViewModel @Inject constructor(
     fun openThread(location: VaultLocation) = selection.update { it.copy(thread = location) }
 
     /** One step up the drill-down: thread → board → root. */
-    fun navigateUp() = selection.update {
-        if (it.thread != null) it.copy(thread = null) else VaultSelection()
+    fun navigateUp() {
+        selected.value = emptySet()
+        selection.update { if (it.thread != null) it.copy(thread = null) else VaultSelection() }
     }
+
+    // Multi-select. A thread row toggles all its entries at once, so one set of URLs
+    // serves the grid and the thread list alike.
+
+    fun toggleSelected(urls: Collection<String>) = selected.update { current ->
+        if (current.containsAll(urls)) current - urls.toSet() else current + urls
+    }
+
+    fun toggleSelected(entry: VaultEntry) = toggleSelected(listOf(entry.url))
+
+    fun clearSelection() {
+        selected.value = emptySet()
+    }
+
+    fun deleteSelected() {
+        val entries = uiState.value.selectedEntries
+        selected.value = emptySet()
+        requestDelete(entries, undoable = true)
+    }
+
+    fun deleteThread(location: VaultLocation) =
+        requestDelete(uiState.value.entries.filter { it.location == location }, undoable = false)
+
+    fun deleteBoard(board: String) =
+        requestDelete(uiState.value.entries.filter { it.location.board == board }, undoable = false)
+
+    /** Copies [entries] into the gallery and reports how many made it. */
+    fun exportToGallery(entries: List<VaultEntry>) {
+        if (entries.isEmpty()) return
+        selected.value = emptySet()
+        viewModelScope.launch {
+            var failed = 0
+            for (entry in entries) if (mediaVault.exportToGallery(entry.url) != null) failed++
+            notice.value = VaultNotice.SavedToGallery(count = entries.size - failed, failed = failed)
+        }
+    }
+
+    fun exportSelected() = exportToGallery(uiState.value.selectedEntries)
 
     /**
      * The saved conversation for whichever thread the viewer is showing, keyed off the

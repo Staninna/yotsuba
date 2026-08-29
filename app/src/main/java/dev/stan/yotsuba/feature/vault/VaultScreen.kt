@@ -15,7 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
@@ -91,6 +93,10 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
             is VaultNotice.DeleteFailed ->
                 stringResource(R.string.vault_delete_failed, notice.entry.displayName)
             VaultNotice.Restored -> stringResource(R.string.vault_restored)
+            is VaultNotice.SavedToGallery -> buildString {
+                append(pluralStringResource(R.plurals.vault_saved_to_gallery, notice.count, notice.count))
+                if (notice.failed > 0) append(" · ").append(stringResource(R.string.vault_saved_to_gallery_failed, notice.failed))
+            }
         }
         LaunchedEffect(notice) {
             snackbar.showSnackbar(message)
@@ -153,13 +159,22 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     // Back peels layers in order: the viewer's own reply panel (its BackHandler is composed
     // later, so it wins while enabled), then the viewer, then the drill-down.
     BackHandler(enabled = state.selection.board != null && state.viewer == null) { viewModel.navigateUp() }
+    BackHandler(enabled = state.selecting && state.viewer == null) { viewModel.clearSelection() }
     BackHandler(enabled = state.viewer != null) { viewModel.closeViewer() }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbar) },
             topBar = {
-                TopAppBar(
+                if (state.selecting) {
+                    SelectionTopBar(
+                        count = state.selected.size,
+                        onClear = viewModel::clearSelection,
+                        onShare = { shareVaultEntries(context, state.selectedEntries) },
+                        onSaveToGallery = viewModel::exportSelected,
+                        onDelete = viewModel::deleteSelected,
+                    )
+                } else TopAppBar(
                     title = { Text(vaultTitle(state), maxLines = 1) },
                     navigationIcon = {
                         if (state.selection.board != null) {
@@ -236,7 +251,10 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                     onOpenBoard = viewModel::openBoard,
                     onOpenThread = viewModel::openThread,
                     onOpenEntry = { viewModel.openViewer(it.url) },
-                    onLongPressEntry = { viewModel.requestDelete(it, undoable = true) },
+                    onLongPressEntry = viewModel::toggleSelected,
+                    onToggleSelected = viewModel::toggleSelected,
+                    onDeleteThread = viewModel::deleteThread,
+                    onDeleteBoard = viewModel::deleteBoard,
                 )
             }
         }
@@ -263,6 +281,33 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
             onCancel = viewModel::cancelDelete,
         )
     }
+}
+
+/** Replaces the top bar while items are ticked: the count, and what can be done with them. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionTopBar(
+    count: Int,
+    onClear: () -> Unit,
+    onShare: () -> Unit,
+    onSaveToGallery: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    TopAppBar(
+        title = { Text(pluralStringResource(R.plurals.vault_selected_count, count, count)) },
+        navigationIcon = {
+            IconButton(onClick = onClear) {
+                Icon(Icons.Filled.Close, stringResource(R.string.vault_clear_selection))
+            }
+        },
+        actions = {
+            IconButton(onClick = onShare) { Icon(Icons.Filled.Share, stringResource(R.string.thread_share)) }
+            IconButton(onClick = onSaveToGallery) {
+                Icon(Icons.Filled.SaveAlt, stringResource(R.string.vault_save_to_gallery))
+            }
+            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, stringResource(R.string.vault_delete)) }
+        },
+    )
 }
 
 /** Confirmation with a "don't ask again" box that turns the setting off for good. */

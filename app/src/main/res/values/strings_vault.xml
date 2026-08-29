@@ -13,4 +13,19 @@
         <item quantity="one">Delete %1$d file from the vault? The file on disk goes with it.</item>
         <item quantity="other">Delete %1$d files from the vault? The files on disk go with them.</item>
     </plurals>
+    <string name="vault_more">More</string>
+    <string name="vault_select">Select</string>
+    <string name="vault_delete_thread">Delete thread</string>
+    <string name="vault_delete_board">Delete board</string>
+    <string name="vault_save_to_gallery">Save to gallery</string>
+    <string name="vault_clear_selection">Clear selection</string>
+    <plurals name="vault_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="vault_saved_to_gallery">
+        <item quantity="one">Saved %1$d file to the gallery</item>
+        <item quantity="other">Saved %1$d files to the gallery</item>
+    </plurals>
+    <string name="vault_saved_to_gallery_failed">Couldn\'t save %1$d of them</string>
 </resources>
