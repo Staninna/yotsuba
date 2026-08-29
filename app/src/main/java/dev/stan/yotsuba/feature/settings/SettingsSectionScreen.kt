@@ -33,6 +33,7 @@ import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.sections.AboutSection
 import dev.stan.yotsuba.feature.settings.sections.AppearanceSection
 import dev.stan.yotsuba.feature.settings.sections.BoardsSection
+import dev.stan.yotsuba.feature.settings.sections.FiltersSection
 import dev.stan.yotsuba.feature.settings.sections.LinksSection
 import dev.stan.yotsuba.feature.settings.sections.MediaSection
 import dev.stan.yotsuba.feature.settings.sections.ReadingSection
@@ -95,6 +96,7 @@ fun SettingsSectionScreen(
                     confirmThen = confirmThen,
                 )
                 SettingsSectionId.LINKS -> LinksSection(settings, update)
+                SettingsSectionId.FILTERS -> FiltersSection(settings, update, snackbar)
                 SettingsSectionId.STORAGE -> StorageSection(
                     settings = settings,
                     update = update,

@@ -12,6 +12,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,6 +72,7 @@ private fun SettingsSectionId.summary(state: SettingsUiState): String {
             R.string.settings_summary_boards_and_threads, s.hiddenBoards.size, state.hiddenThreads.size,
         )
         SettingsSectionId.LINKS -> stringResource(R.string.settings_summary_links, s.trustedDomains.size)
+        SettingsSectionId.FILTERS -> pluralStringResource(R.plurals.settings_summary_filters, s.filters.size, s.filters.size)
         SettingsSectionId.STORAGE -> stringResource(R.string.settings_summary_storage_data)
         SettingsSectionId.UPDATES -> stringResource(R.string.settings_version, state.versionName)
         SettingsSectionId.ABOUT -> stringResource(R.string.settings_summary_about)

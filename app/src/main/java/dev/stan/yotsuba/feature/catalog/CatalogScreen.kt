@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -81,6 +82,7 @@ import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.Filter
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -109,6 +111,8 @@ fun CatalogScreen(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     var sheetThread by remember { mutableStateOf<CatalogThread?>(null) }
+    /** Stubbed threads the user tapped open; reset when the screen goes away. */
+    var expandedStubs by remember { mutableStateOf(emptySet<Long>()) }
 
     sheetThread?.let { thread ->
         ThreadActionsSheet(
@@ -141,8 +145,10 @@ fun CatalogScreen(
                 title = {
                     Column {
                         Text(boardInfo?.title ?: board)
+                        val filteredCount = (state as? UiState.Success)?.data?.filteredCount ?: 0
                         Text(
-                            "/$board/",
+                            if (filteredCount == 0) "/$board/"
+                            else "/$board/ \u00b7 " + pluralStringResource(R.plurals.filters_filtered_count, filteredCount, filteredCount),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -217,12 +223,17 @@ fun CatalogScreen(
                         ) {
                             items(s.threads.size, key = { s.threads[it].no }) { i ->
                                 val thread = s.threads[i]
-                                ThreadCard(
-                                    thread = thread,
-                                    layout = s.layout,
-                                    onClick = { onOpenThread(thread.no) },
-                                    onLongClick = { sheetThread = thread },
-                                )
+                                val stub = s.stubs[thread.no]
+                                if (stub != null && thread.no !in expandedStubs) {
+                                    FilteredStub(stub, onClick = { expandedStubs = expandedStubs + thread.no })
+                                } else {
+                                    ThreadCard(
+                                        thread = thread,
+                                        layout = s.layout,
+                                        onClick = { onOpenThread(thread.no) },
+                                        onLongClick = { sheetThread = thread },
+                                    )
+                                }
                             }
                         }
                         !s.searchQuery.isNullOrBlank() -> NoSearchResults(
@@ -275,6 +286,33 @@ private fun ThreadActionsSheet(
             modifier = Modifier.clickable(onClick = onOpenInBrowser),
         )
         Spacer(Modifier.height(spacing.lg))
+    }
+}
+
+/** One compact line standing in for a thread a Stub filter caught; tapping shows the real card. */
+@Composable
+private fun FilteredStub(filter: Filter, onClick: () -> Unit) {
+    val spacing = LocalSpacing.current
+    Card(modifier = Modifier.clickable(onClick = onClick)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.sm),
+        ) {
+            Icon(
+                Icons.Filled.FilterAlt,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(spacing.sm))
+            Text(
+                stringResource(R.string.filters_stub_label, filter.pattern),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

@@ -3,6 +3,8 @@ package dev.stan.yotsuba.feature.catalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.stan.yotsuba.core.filter.FilterMatcher
+import dev.stan.yotsuba.core.filter.FilterableFields
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.util.DataResult
@@ -10,6 +12,8 @@ import dev.stan.yotsuba.core.util.LoadableFlow
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.domain.model.Filter
+import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
@@ -19,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -71,27 +76,42 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
 
     private val layout = settingsRepository.settings.map { it.catalogLayout }
     private val offline = networkStatus.map { it == NetworkStatus.Offline }
+    /** Compiled once per change to the filter list, not once per thread. */
+    private val matcher = settingsRepository.settings.map { it.filters }.distinctUntilChanged()
+        .map { FilterMatcher(it) }
 
     val uiState: StateFlow<UiState<CatalogContent>> = combine(
-        result.flow, searchQuery, refreshing, layout, combine(hiddenNos, offline, ::Pair),
-    ) { res, query, isRefreshing, layout, (hidden, offline) ->
+        result.flow, searchQuery, refreshing, layout, combine(hiddenNos, offline, matcher, ::Triple),
+    ) { res, query, isRefreshing, layout, (hidden, offline, matcher) ->
         when (res) {
             null -> UiState.Loading
             is DataResult.Failure -> UiState.Error(res.error)
             is DataResult.Success -> {
-                val filtered = res.value
+                val searched = res.value
                     .filter { it.no !in hidden }
                     .filter {
                         query.isNullOrBlank() ||
                             it.subject?.contains(query, true) == true ||
                             it.excerpt.plainText.contains(query, true)
                     }
+                val stubs = mutableMapOf<Long, Filter>()
+                var hiddenByFilter = 0
+                val visible = searched.filter { thread ->
+                    val match = matcher.matches(FilterableFields.of(thread), board)
+                    when (match?.action) {
+                        null -> true
+                        FilterAction.STUB -> { stubs[thread.no] = match; true }
+                        FilterAction.HIDE -> { hiddenByFilter++; false }
+                    }
+                }
                 UiState.Success(CatalogContent(
-                    threads = filtered,
+                    threads = visible,
                     layout = layout,
                     searchQuery = query,
                     refreshing = isRefreshing,
                     offline = offline,
+                    stubs = stubs,
+                    filteredCount = hiddenByFilter + stubs.size,
                 ))
             }
         }

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Catalog -->
+    <plurals name="filters_filtered_count">
+        <item quantity="one">%1$d filtered</item>
+        <item quantity="other">%1$d filtered</item>
+    </plurals>
+    <string name="filters_stub_label">Filtered: %1$s</string>
+
+    <!-- Settings section -->
+    <string name="settings_filters">Filters</string>
+    <plurals name="settings_summary_filters">
+        <item quantity="one">%1$d filter</item>
+        <item quantity="other">%1$d filters</item>
+    </plurals>
+    <string name="filters_empty">No filters yet. Add one to hide threads and posts by subject, text, name, tripcode, flag, ID or filename.</string>
+    <string name="filters_add">Add filter</string>
+    <string name="filters_edit">Edit filter</string>
+    <string name="filters_deleted">Filter deleted</string>
+    <string name="filters_pattern">Pattern</string>
+    <string name="filters_regex">Regex</string>
+    <string name="filters_regex_summary">Off: plain text, case-insensitive. On: Java regular expression.</string>
+    <string name="filters_invalid_regex">Regex does not compile; this filter matches nothing.</string>
+    <string name="filters_field">Field</string>
+    <string name="filters_field_subject">Subject</string>
+    <string name="filters_field_comment">Comment</string>
+    <string name="filters_field_name">Name</string>
+    <string name="filters_field_tripcode">Tripcode</string>
+    <string name="filters_field_flag">Flag</string>
+    <string name="filters_field_poster_id">Poster ID</string>
+    <string name="filters_field_filename">Filename</string>
+    <string name="filters_boards">Boards</string>
+    <string name="filters_boards_hint">g, v, a (empty = all boards)</string>
+    <string name="filters_all_boards">All boards</string>
+    <string name="filters_action_hide">Hide</string>
+    <string name="filters_action_stub">Stub</string>
+    <string name="filters_enabled">Enabled</string>
+    <string name="filters_test">Test against sample text</string>
+    <string name="filters_test_match">Matches</string>
+    <string name="filters_test_no_match">No match</string>
+    <string name="filters_save">Save</string>
+</resources>

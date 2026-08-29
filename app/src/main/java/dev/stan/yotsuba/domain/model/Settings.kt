@@ -53,4 +53,6 @@ data class Settings(
     val favouriteBoards: Set<String> = emptySet(),
     val hiddenBoards: Set<String> = emptySet(),
     val hiddenCategories: Set<String> = emptySet(),
+    /** Content filters, applied in order; the first match wins. */
+    val filters: List<Filter> = emptyList(),
 )
