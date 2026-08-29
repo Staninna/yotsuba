@@ -49,6 +49,7 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
+import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostMedia
@@ -196,6 +197,15 @@ fun PostCard(
                     )
                     is PostMedia.Present -> {
                         val media = attachment.item
+                        // Only the list's own card shares with the viewer: a preview or the
+                        // viewer's reply panel would claim the same key twice on one screen.
+                        // The OP also answers to its thumbnail URL, the key the catalog card
+                        // uses (the catalog never learns the full URL).
+                        val shared = actions.onThumbnailLongPress != null
+                        val sharedWithViewer = if (shared) Modifier.sharedMedia(media.fullUrl) else Modifier
+                        val sharedWithCatalog = if (shared && post.isOp) {
+                            Modifier.sharedMedia(media.thumbnailUrl)
+                        } else Modifier
                         Row {
                             Box {
                                 MediaThumbnail(
@@ -207,6 +217,8 @@ fun PostCard(
                                     spoilered = media.spoiler && !revealAll && !ui.imageSpoilerRevealed,
                                     modifier = Modifier
                                         .size(if (post.isOp) 140.dp else 100.dp)
+                                        .then(sharedWithViewer)
+                                        .then(sharedWithCatalog)
                                         .combinedClickable(
                                             onClick = actions.onThumbnailTap,
                                             onLongClick = actions.onThumbnailLongPress,

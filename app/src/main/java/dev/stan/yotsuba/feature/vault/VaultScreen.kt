@@ -4,6 +4,10 @@ import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -49,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -79,6 +84,8 @@ import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerThread
 import dev.stan.yotsuba.feature.media.ViewerPage
+import dev.stan.yotsuba.core.designsystem.component.LocalAnimatedVisibilityScope
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.feature.media.shareMediaFile
 import java.io.File
 import kotlinx.coroutines.launch
@@ -357,19 +364,31 @@ fun VaultScreen(
             )
         }
 
-        state.viewer?.let { viewer ->
-            VaultViewer(
-                viewer = viewer,
-                thread = viewerThread,
-                behaviour = behaviour,
-                playback = playback,
-                autoAdvance = viewModel.autoAdvance,
-                onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
-                onPageViewed = { viewModel.onViewerPage(it.url) },
-                onDismiss = { viewModel.closeViewer() },
-                onDelete = { viewModel.requestDelete(it, undoable = false) },
-                onOpenThread = onOpenThread,
-            )
+        // The viewer is an overlay, not a route, so it brings its own visibility scope for
+        // the tile-to-page shared element; the last viewer state is kept through the fade-out.
+        var shownViewer by remember { mutableStateOf(state.viewer) }
+        if (state.viewer != null) shownViewer = state.viewer
+        val motion = LocalMotion.current
+        AnimatedVisibility(
+            visible = state.viewer != null,
+            enter = fadeIn(tween(motion.medium)),
+            exit = fadeOut(tween(motion.medium)),
+        ) {
+            val viewer = shownViewer ?: return@AnimatedVisibility
+            CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
+                VaultViewer(
+                    viewer = viewer,
+                    thread = viewerThread,
+                    behaviour = behaviour,
+                    playback = playback,
+                    autoAdvance = viewModel.autoAdvance,
+                    onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
+                    onPageViewed = { viewModel.onViewerPage(it.url) },
+                    onDismiss = { viewModel.closeViewer() },
+                    onDelete = { viewModel.requestDelete(it, undoable = false) },
+                    onOpenThread = onOpenThread,
+                )
+            }
         }
     }
 
@@ -666,16 +685,19 @@ private fun VaultEntry.toViewerPage(): ViewerPage = if (isVideo) {
         title = displayName,
         note = subject,
         contentDescription = displayName,
+        sharedKey = absolutePath,
     )
 } else {
     ViewerPage.Image(
         model = File(absolutePath),
+        thumbnailModel = File(absolutePath),
         width = width ?: 0,
         height = height ?: 0,
         sizeBytes = sizeBytes,
         title = displayName,
         note = subject,
         contentDescription = displayName,
+        sharedKey = absolutePath,
     )
 }
 

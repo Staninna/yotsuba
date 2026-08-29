@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
+import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
 import dev.stan.yotsuba.core.designsystem.component.OfflineBanner
 import dev.stan.yotsuba.core.designsystem.component.SearchField
@@ -288,13 +289,15 @@ private fun ThreadCard(
     onLongClick: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
+    // The OP card in the thread carries the same key, so opening the thread carries the image.
+    val shared = thread.thumbnailUrl?.let { Modifier.sharedMedia(it) } ?: Modifier
     Card(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         when (layout) {
             CatalogLayout.LIST -> Row(Modifier.padding(spacing.md)) {
                 MediaThumbnail(
                     url = thread.thumbnailUrl,
                     contentDescription = null,
-                    modifier = Modifier.size(72.dp),
+                    modifier = Modifier.size(72.dp).then(shared),
                 )
                 Spacer(Modifier.width(spacing.md))
                 Column(Modifier.weight(1f)) {
@@ -313,7 +316,7 @@ private fun ThreadCard(
                     MediaThumbnail(
                         url = thread.thumbnailUrl,
                         contentDescription = null,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(1.2f),
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1.2f).then(shared),
                     )
                 }
                 Column(Modifier.padding(spacing.sm)) {
@@ -326,7 +329,7 @@ private fun ThreadCard(
                     MediaThumbnail(
                         url = thread.thumbnailUrl,
                         contentDescription = null,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f),
+                        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f).then(shared),
                     )
                 }
                 Column(Modifier.padding(spacing.md)) {

@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
@@ -175,7 +176,9 @@ fun DownloadIndicator(count: Int, visible: Boolean, modifier: Modifier = Modifie
 
 /**
  * One zoomable image page. [thumbnailModel] (usually the already-cached thumbnail) sits
- * underneath until the full image draws, so swiping never lands on a black page.
+ * underneath until the full image draws, so swiping never lands on a black page. With a
+ * [sharedKey] that thumbnail is also the shared element the opening thumbnail morphs into,
+ * so it stays composed under the full image for the return trip.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -193,6 +196,7 @@ fun ImagePage(
     selected: Boolean = false,
     playing: Boolean = false,
     muted: Boolean = true,
+    sharedKey: String? = null,
 ) {
     val zoomState = rememberZoomableImageState()
     SoundTrack(soundUrl = soundUrl, playWhenReady = selected && playing, muted = muted)
@@ -201,12 +205,14 @@ fun ImagePage(
     var loadRequested by remember(model) { mutableStateOf(false) }
     val deferred = deferLoad && !loadRequested
     Box(Modifier.fillMaxSize()) {
-        if (thumbnailModel != null && (deferred || !zoomState.isImageDisplayed)) {
+        if (thumbnailModel != null && (sharedKey != null || deferred || !zoomState.isImageDisplayed)) {
             AsyncImage(
                 model = thumbnailModel,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().then(
+                    if (sharedKey != null) Modifier.sharedMedia(sharedKey) else Modifier,
+                ),
             )
         }
         if (deferred) {
