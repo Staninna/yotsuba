@@ -233,6 +233,7 @@ private fun MediaItem.toViewerPage(context: android.content.Context, state: Medi
             title = displayName,
             contentDescription = description,
             soundUrl = soundUrl,
+            sharedKey = fullUrl,
         )
     } else {
         ViewerPage.Image(
@@ -249,6 +250,7 @@ private fun MediaItem.toViewerPage(context: android.content.Context, state: Medi
             // A vault copy costs nothing to show; only the network fetch is deferred.
             deferLoad = state.deferHeavyMedia && localPath == null,
             soundUrl = soundUrl,
+            sharedKey = fullUrl,
         )
     }
 }

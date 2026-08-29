@@ -60,6 +60,12 @@ import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.sharedMedia
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -79,6 +85,8 @@ import me.saket.telephoto.zoomable.zoomable
 fun VideoPage(
     videoUri: String,
     thumbnailModel: Any?,
+    /** Shared-element key of the thumbnail this page was opened from; see [ImagePage]. */
+    sharedKey: String? = null,
     initialWidth: Int,
     initialHeight: Int,
     selected: Boolean,
@@ -263,19 +271,29 @@ fun VideoPage(
             // video letterboxes in landscape instead of filling the width and cropping.
             // TextureView (not the SurfaceView default) is required for zoom transforms to
             // actually render scaled.
+            val surfaceAlpha by animateFloatAsState(
+                targetValue = if (firstFrameRendered) 1f else 0f,
+                animationSpec = tween(LocalMotion.current.short),
+                label = "videoSurfaceFadeIn",
+            )
             PlayerSurface(
                 player = player,
                 surfaceType = SURFACE_TYPE_TEXTURE_VIEW,
-                modifier = Modifier.aspectRatio(aspect),
+                modifier = Modifier.aspectRatio(aspect).graphicsLayer { alpha = surfaceAlpha },
             )
             // Thumbnail stands in until the first video frame is on screen, so swiping to a
             // video shows a preview instead of a black page while it loads.
-            if (!firstFrameRendered) {
+            // With a shared key the still stays composed underneath so the closing transition
+            // has something to morph back into the thumbnail; the player fades in over it.
+            if (!firstFrameRendered || sharedKey != null) {
                 AsyncImage(
                     model = thumbnailModel,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.aspectRatio(aspect),
+                    modifier = Modifier
+                        .aspectRatio(aspect)
+                        .then(if (sharedKey != null) Modifier.sharedMedia(sharedKey) else Modifier)
+                        .zIndex(if (firstFrameRendered) -1f else 0f),
                 )
             }
         }

@@ -45,6 +45,11 @@ sealed interface ViewerPage {
     val contentDescription: String
     /** External audio to play alongside the visual (a "sound post"); null for most files. */
     val soundUrl: String? get() = null
+    /**
+     * Shared-element key matching the thumbnail this page was opened from (the media's
+     * full URL, or a vault file's path); null when nothing on the previous screen shares.
+     */
+    val sharedKey: String? get() = null
 
     val isVideo: Boolean get() = this is Video
     val pipInfo: PipMediaInfo get() = PipMediaInfo(width, height, isVideo)
@@ -62,6 +67,7 @@ sealed interface ViewerPage {
         /** Data saver: show the thumbnail and fetch the full image only on a tap. */
         val deferLoad: Boolean = false,
         override val soundUrl: String? = null,
+        override val sharedKey: String? = null,
     ) : ViewerPage
 
     data class Video(
@@ -75,6 +81,7 @@ sealed interface ViewerPage {
         override val note: String? = null,
         override val contentDescription: String = "",
         override val soundUrl: String? = null,
+        override val sharedKey: String? = null,
     ) : ViewerPage
 }
 
@@ -233,6 +240,7 @@ fun MediaFeedViewer(
                     behaviour = behaviour,
                     onLongPress = { onLongPressPage(page) },
                     soundUrl = p.soundUrl,
+                    sharedKey = p.sharedKey,
                 )
                 is ViewerPage.Image -> ImagePage(
                     model = p.model,
@@ -246,6 +254,7 @@ fun MediaFeedViewer(
                     muted = feed.muted,
                     onTap = { feed.chromeVisible = !feed.chromeVisible },
                     onLongPress = { onLongPressPage(page) },
+                    sharedKey = p.sharedKey,
                 )
             }
         }

@@ -49,6 +49,7 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
+import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostMedia
@@ -196,6 +197,9 @@ fun PostCard(
                     )
                     is PostMedia.Present -> {
                         val media = attachment.item
+                        // Only the list's own card shares with the viewer: a preview or the
+                        // viewer's reply panel would claim the same key twice on one screen.
+                        val shared = actions.onThumbnailLongPress != null
                         Row {
                             Box {
                                 MediaThumbnail(
@@ -207,6 +211,7 @@ fun PostCard(
                                     spoilered = media.spoiler && !revealAll && !ui.imageSpoilerRevealed,
                                     modifier = Modifier
                                         .size(if (post.isOp) 140.dp else 100.dp)
+                                        .then(if (shared) Modifier.sharedMedia(media.fullUrl) else Modifier)
                                         .combinedClickable(
                                             onClick = actions.onThumbnailTap,
                                             onLongClick = actions.onThumbnailLongPress,
