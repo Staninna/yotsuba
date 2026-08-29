@@ -34,6 +34,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -43,6 +44,9 @@ import dev.stan.yotsuba.MainActivity
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.work.BookmarkRefreshWorker
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 
 /**
@@ -61,12 +65,25 @@ class WatchedThreadsWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repository = EntryPointAccessors.fromApplication(context, Deps::class.java).bookmarkRepository()
         val rows = repository.bookmarks.map(::orderForWidget)
+        // Both the periodic pass and the header's one-off run: while either is running the
+        // header says so, and its completion writes the table, which re-emits `rows`. When
+        // no session is alive the launcher's updatePeriodMillis re-renders instead.
+        val refreshing = refreshRunning(context)
         provideContent {
             val list by rows.collectAsState(initial = emptyList())
+            val busy by refreshing.collectAsState(initial = false)
             GlanceTheme {
-                WidgetContent(list)
+                WidgetContent(list, busy)
             }
         }
+    }
+
+    private fun refreshRunning(context: Context): Flow<Boolean> {
+        if (!WorkManager.isInitialized()) return flowOf(false)
+        val manager = WorkManager.getInstance(context)
+        val periodic = manager.getWorkInfosForUniqueWorkFlow(BookmarkRefreshWorker.UNIQUE_NAME)
+        val oneOff = manager.getWorkInfosForUniqueWorkFlow(RefreshBookmarksAction.UNIQUE_NAME)
+        return combine(periodic, oneOff) { a, b -> (a + b).any { it.state == WorkInfo.State.RUNNING } }
     }
 
 }
@@ -94,7 +111,7 @@ private val boardKey = ActionParameters.Key<String>(WidgetDeepLink.EXTRA_BOARD)
 private val threadKey = ActionParameters.Key<Long>(WidgetDeepLink.EXTRA_THREAD_NO)
 
 @Composable
-private fun WidgetContent(rows: List<WidgetRow>) {
+private fun WidgetContent(rows: List<WidgetRow>, refreshing: Boolean) {
     val context = LocalContext.current
     val visible = rows.take(6)
     val unreadTotal = rows.sumOf { it.unread }
@@ -106,13 +123,13 @@ private fun WidgetContent(rows: List<WidgetRow>) {
             .cornerRadius(16.dp)
             .padding(12.dp),
     ) {
-        Header(context, unreadTotal)
+        Header(context, unreadTotal, refreshing)
         visible.forEach { ThreadRow(context, it) }
     }
 }
 
 @Composable
-private fun Header(context: Context, unreadTotal: Int) {
+private fun Header(context: Context, unreadTotal: Int, refreshing: Boolean) {
     Row(
         modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -128,7 +145,7 @@ private fun Header(context: Context, unreadTotal: Int) {
             modifier = GlanceModifier.defaultWeight(),
         )
         Text(
-            text = context.getString(R.string.widget_refresh),
+            text = context.getString(if (refreshing) R.string.widget_refreshing else R.string.widget_refresh),
             style = TextStyle(color = GlanceTheme.colors.primary, fontWeight = FontWeight.Medium, fontSize = 12.sp),
             modifier = GlanceModifier
                 .padding(horizontal = 6.dp, vertical = 2.dp)

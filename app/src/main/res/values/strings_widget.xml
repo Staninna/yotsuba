@@ -5,5 +5,6 @@
     <string name="widget_title">Watched</string>
     <string name="widget_unread_total">%d unread</string>
     <string name="widget_refresh">Refresh</string>
+    <string name="widget_refreshing">Refreshing…</string>
     <string name="widget_row_unread">+%d</string>
 </resources>
