@@ -219,14 +219,34 @@ class MediaViewModel @AssistedInject constructor(
 
     fun dismissFailed(url: String) = downloadQueue.dismissFailed(url)
 
-    /** Copies the media into the share cache; null when it couldn't be fetched. */
+    /**
+     * The file to hand to the share sheet: the vault copy when there is one, otherwise a
+     * fresh download into the share cache. Null when it couldn't be fetched.
+     */
     suspend fun prepareShare(item: MediaItem): File? = withContext(Dispatchers.IO) {
-        runCatching {
-            val dir = File(appContext.cacheDir, "shared_media").apply { mkdirs() }
-            val file = File(dir, item.displayName)
-            file.outputStream().use { byteSource.copyTo(item.fullUrl, it) }
-            file
-        }.getOrNull()
+        uiState.value.savedPaths[item.fullUrl]
+            ?.let(::File)
+            ?.takeIf { it.isFile }
+            ?: runCatching {
+                val dir = File(appContext.cacheDir, SHARE_CACHE_DIR).apply { mkdirs() }
+                val file = File(dir, item.displayName)
+                file.outputStream().use { byteSource.copyTo(item.fullUrl, it) }
+                trimShareCache(dir, keep = file)
+                file
+            }.getOrNull()
+    }
+
+    /** Keeps the share cache to the newest [SHARE_CACHE_LIMIT] files; [keep] always survives. */
+    private fun trimShareCache(dir: File, keep: File) {
+        dir.listFiles { f -> f.isFile }
+            ?.sortedByDescending { if (it == keep) Long.MAX_VALUE else it.lastModified() }
+            ?.drop(SHARE_CACHE_LIMIT)
+            ?.forEach { it.delete() }
+    }
+
+    private companion object {
+        const val SHARE_CACHE_DIR = "shared_media"
+        const val SHARE_CACHE_LIMIT = 20
     }
 
     @AssistedFactory

@@ -374,6 +374,47 @@ class MediaViewModelTest {
         }
     }
 
+    @Test fun `prepareShare hands over the vault file instead of downloading again`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(listOf(post(100)))
+            val saved = java.io.File.createTempFile("vault", ".jpg").apply { writeText("on disk") }
+            try {
+                env.vault.paths.value = mapOf("https://i/100.jpg" to saved.absolutePath)
+                val vm = env.vm()
+                vm.uiState.test {
+                    latest()
+                    assertEquals(saved, vm.prepareShare(media(100)))
+                    cancelAndIgnoreRemainingEvents()
+                }
+            } finally {
+                saved.delete()
+            }
+        }
+
+    @Test fun `prepareShare keeps only the newest twenty cached files`() = runTest(dispatcher.scheduler) {
+        val server = MockWebServer().apply { start() }
+        try {
+            val env = Env(listOf(post(100)))
+            val dir = java.io.File(env.context.cacheDir, "shared_media").apply { mkdirs() }
+            repeat(25) { i ->
+                java.io.File(dir, "old$i.jpg").apply {
+                    writeText("x")
+                    setLastModified(1_000_000L + i * 1_000)
+                }
+            }
+            val item = media(100).copy(fullUrl = server.url("/i/100.jpg").toString())
+            server.enqueue(MockResponse().setBody("jpeg-bytes"))
+            val file = env.vm().prepareShare(item)
+            val names = dir.list()!!.toSet()
+            assertEquals(20, names.size)
+            assertTrue(file!!.name in names)
+            assertTrue("old24.jpg" in names)
+            assertFalse("old0.jpg" in names)
+        } finally {
+            server.shutdown()
+        }
+    }
+
     @Test fun `prepareShare returns null when the fetch fails`() = runTest(dispatcher.scheduler) {
         val server = MockWebServer().apply { start() }
         try {
