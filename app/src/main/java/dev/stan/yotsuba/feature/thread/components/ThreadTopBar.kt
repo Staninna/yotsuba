@@ -54,6 +54,7 @@ fun ThreadTopBar(
     onToggleBookmark: () -> Unit,
     onRefresh: () -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenGallery: () -> Unit,
     onToggleAutoRefresh: () -> Unit,
     onOpenExternal: (String) -> Unit,
 ) {
@@ -123,6 +124,10 @@ fun ThreadTopBar(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_search_in_thread)) },
                     onClick = { menuOpen = false; onOpenSearch() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.thread_gallery)) },
+                    onClick = { menuOpen = false; onOpenGallery() },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_open_in_browser)) },

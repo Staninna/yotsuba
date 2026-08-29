@@ -36,6 +36,10 @@ data class ThreadContent(
     val repliesToMe: Int = 0,
     /** Only posts by this poster ID are in [rows]; null shows everything. */
     val filterPosterId: String? = null,
+    /** The thread gallery sheet is up; [mediaPosts] feeds it. */
+    val galleryOpen: Boolean = false,
+    /** Posts with a present attachment, in thread order. */
+    val mediaPosts: List<ThreadPost> = emptyList(),
 )
 
 /** Why a quotelink target is special; the screen picks the words. */
@@ -104,6 +108,7 @@ data class Session(
     val highlightedPostNo: Long? = null,
     /** Show only this poster ID's posts. */
     val filterPosterId: String? = null,
+    val galleryOpen: Boolean = false,
     val refreshError: NetworkError? = null,
     val refreshing: Boolean = false,
 )

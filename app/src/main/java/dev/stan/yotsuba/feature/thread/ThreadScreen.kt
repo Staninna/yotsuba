@@ -63,6 +63,7 @@ import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
 import dev.stan.yotsuba.feature.thread.components.PostCard
 import dev.stan.yotsuba.feature.thread.components.PostCardActions
 import dev.stan.yotsuba.feature.thread.components.QuotePreviewOverlay
+import dev.stan.yotsuba.feature.thread.components.ThreadGallerySheet
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
 import kotlinx.coroutines.launch
 
@@ -91,6 +92,7 @@ fun ThreadScreen(
     var searchOpen by remember { mutableStateOf(false) }
     val copiedMessage = stringResource(R.string.thread_post_number_copied)
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
+    val saveAllMessage = stringResource(R.string.thread_gallery_save_all_queued)
     val haptics = LocalHapticFeedback.current
 
     fun closeSearch() {
@@ -167,6 +169,7 @@ fun ThreadScreen(
                 onToggleBookmark = viewModel::onToggleBookmark,
                 onRefresh = { viewModel.load(forceRefresh = true) },
                 onOpenSearch = { searchOpen = true },
+                onOpenGallery = viewModel::onOpenGallery,
                 onToggleAutoRefresh = viewModel::onToggleAutoRefresh,
                 onOpenExternal = ::openExternal,
             )
@@ -297,6 +300,26 @@ fun ThreadScreen(
                         onDismiss = viewModel::onClosePreview,
                         onGoTo = viewModel::onJumpToPost,
                         postCard = { post -> postCard(post, true) },
+                    )
+                }
+
+                if (s.galleryOpen) {
+                    ThreadGallerySheet(
+                        posts = s.mediaPosts,
+                        revealAll = s.revealAllSpoilers,
+                        onOpen = viewModel::onOpenMediaFromGallery,
+                        onSaveAll = {
+                            saveToVault(
+                                context = context,
+                                hasAccess = viewModel.hasStorageAccess(),
+                                onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
+                                save = {
+                                    viewModel.onSaveAllMedia()
+                                    scope.launch { snackbar.showSnackbar(saveAllMessage) }
+                                },
+                            )
+                        },
+                        onDismiss = viewModel::onCloseGallery,
                     )
                 }
 

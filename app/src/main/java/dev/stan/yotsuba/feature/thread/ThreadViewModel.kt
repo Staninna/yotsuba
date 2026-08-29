@@ -153,6 +153,8 @@ class ThreadViewModel @AssistedInject constructor(
                             .filter { it.isNotEmpty() },
                         pendingExternalUrl = session.pendingExternalUrl,
                         filterPosterId = session.filterPosterId,
+                        galleryOpen = session.galleryOpen,
+                        mediaPosts = details.posts.filter { it.presentMedia != null },
                         quoteLabels = quoteLabels(details, claimed),
                         claimedPostNos = claimed,
                         repliesToMe = details.posts.count { p ->
@@ -435,6 +437,20 @@ class ThreadViewModel @AssistedInject constructor(
                 },
             ),
         )
+    }
+
+    fun onOpenGallery() = session.update { it.copy(galleryOpen = true) }
+    fun onCloseGallery() = session.update { it.copy(galleryOpen = false) }
+
+    /** Gallery tap: close the sheet and hand the post to the viewer. */
+    fun onOpenMediaFromGallery(post: ThreadPost) {
+        onCloseGallery()
+        if (post.presentMedia != null) mediaToOpenFlow.value = post.no
+    }
+
+    /** Queues every attachment in the thread; already saved or queued items are skipped by the queue. */
+    fun onSaveAllMedia() {
+        loadedPosts()?.filter { it.presentMedia != null }?.forEach(::onSaveMedia)
     }
 
     fun onTrustDomain(url: String) = viewModelScope.launch {

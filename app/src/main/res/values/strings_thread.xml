@@ -22,4 +22,11 @@
     <string name="thread_filter_by_id">Filter by ID</string>
     <string name="thread_closed">Closed</string>
     <string name="thread_sticky">Sticky</string>
+    <string name="thread_gallery">Gallery</string>
+    <plurals name="thread_gallery_title">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <string name="thread_gallery_save_all">Save all</string>
+    <string name="thread_gallery_save_all_queued">Saving every file in this thread</string>
 </resources>

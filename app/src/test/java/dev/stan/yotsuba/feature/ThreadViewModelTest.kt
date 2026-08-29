@@ -390,6 +390,19 @@ class ThreadViewModelTest {
         assertFalse(reply.closed || reply.sticky)
     }
 
+    @Test fun `save all queues every attachment once`() = runTest(dispatcher.scheduler) {
+        val env = Env(posts = listOf(Env.postWithMedia(100), Env.post(101), Env.postWithMedia(102)))
+        val vm = env.vm()
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(100L, 102L), content(vm).mediaPosts.map { it.no })
+        vm.onSaveAllMedia()
+        assertEquals(
+            setOf("https://i.4cdn.org/g/100.jpg", "https://i.4cdn.org/g/102.jpg"),
+            env.queue.statuses.value.keys,
+        )
+    }
+
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = Env().vm()
         dispatcher.scheduler.advanceUntilIdle()
