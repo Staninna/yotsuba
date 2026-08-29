@@ -34,9 +34,11 @@ class SettingsFlowTest {
         val fake = settingsRepository as FakeSettingsRepository
         assertTrue(fake.state.value.dynamicColor)
 
-        // Open the Settings tab and flip the "Dynamic color" switch row.
+        // Open the Settings tab, drill into Appearance, flip the "Dynamic color" switch row.
         composeRule.waitForText("Settings")
         composeRule.clickText("Settings")
+        composeRule.waitForText("Appearance")
+        composeRule.clickText("Appearance")
         composeRule.waitForText("Dynamic color")
         composeRule.clickText("Dynamic color")
 

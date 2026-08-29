@@ -15,4 +15,17 @@ sealed interface Route {
     @Serializable data object Vault : Route
     @Serializable data object History : Route
     @Serializable data object Settings : Route
+    @Serializable data class SettingsSection(val id: SettingsSectionId) : Route
+}
+
+/** The subscreens reachable from the settings index. */
+enum class SettingsSectionId {
+    APPEARANCE,
+    READING,
+    MEDIA,
+    BOARDS,
+    LINKS,
+    STORAGE,
+    UPDATES,
+    ABOUT,
 }

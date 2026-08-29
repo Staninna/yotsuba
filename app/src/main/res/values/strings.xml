@@ -152,6 +152,18 @@
     <string name="settings_reveal_spoilers">Reveal all spoilers</string>
     <string name="settings_reveal_spoilers_summary">Show text and image spoilers without tapping</string>
     <string name="settings_behavior">Behavior</string>
+    <string name="settings_reading">Reading</string>
+    <string name="settings_media">Media &amp; playback</string>
+    <string name="settings_boards">Boards</string>
+    <string name="settings_links">Links &amp; privacy</string>
+    <string name="settings_storage">Storage &amp; data</string>
+    <string name="settings_on">on</string>
+    <string name="settings_off">off</string>
+    <string name="settings_summary_reading">Auto-refresh %1$s \u00b7 history %2$s</string>
+    <string name="settings_summary_boards">%1$d hidden</string>
+    <string name="settings_summary_links">%1$d trusted domains</string>
+    <string name="settings_summary_storage">%1$d hidden threads</string>
+    <string name="settings_summary_about">Version and attribution</string>
     <string name="settings_auto_refresh">Auto-refresh threads</string>
     <string name="settings_auto_refresh_summary">Poll open threads with backoff while on screen</string>
     <string name="settings_confirm_links">Confirm before opening links</string>
@@ -236,4 +248,7 @@
     <string name="vault_shuffle_images">Images only</string>
     <string name="vault_auto_advance_on">Auto-advance on — tap to loop</string>
     <string name="vault_auto_advance_off">Looping — tap to auto-advance</string>
+        <item quantity="one">Refreshed %1$d thread, %2$d already gone.</item>
+        <item quantity="other">Refreshed %1$d threads, %2$d already gone.</item>
+    </plurals>
 </resources>
