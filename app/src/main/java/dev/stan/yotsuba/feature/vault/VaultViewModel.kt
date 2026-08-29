@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
@@ -101,6 +102,25 @@ class VaultViewModel @Inject constructor(
 
     /** Viewer toggle: advance to the next item when a video ends instead of looping it. */
     var autoAdvance by mutableStateOf(false)
+
+    /** Non-null while an import is copying, so the screen can block a second one. */
+    var importing by mutableStateOf(false)
+        private set
+
+    /**
+     * Copies the picked files into a new local thread. Returns the error to report, or null
+     * when it worked. The explorer refreshes itself: the DB rows land as part of the import.
+     */
+    suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? {
+        if (sources.isEmpty() || importing) return null
+        importing = true
+        return try {
+            mediaVault.importLocalThread(name, sources)
+        } finally {
+            importing = false
+        }
+    }
+
 
     val uiState: StateFlow<VaultUiState> = combine(
         mediaVault.entries(), rescanning, selection, viewingUrl, shuffleOrder,

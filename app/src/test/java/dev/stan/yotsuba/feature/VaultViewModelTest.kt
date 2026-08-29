@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature
 
 import app.cash.turbine.test
+import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
@@ -65,6 +66,12 @@ class VaultViewModelTest {
             return null
         }
         var rescanGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+        var imported: Pair<String, List<ImportSource>>? = null
+        override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? {
+            imported = name to sources
+            return importError
+        }
+        var importError: VaultError? = null
         override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
         override suspend fun rescan() { rescanGate?.await(); rescans++ }
         override suspend fun migrateLegacyIfNeeded() { migrations++ }

@@ -22,6 +22,35 @@ object VaultPaths {
     const val POSTS_FILE_NAME = "posts.json"
     const val UNSORTED_DIR_NAME = "_unsorted"
 
+    /**
+     * Board segment for threads the user assembled themselves from local files.
+     * Leading underscore matches [UNSORTED_DIR_NAME] and cannot collide with a real
+     * 4chan board code.
+     */
+    const val LOCAL_BOARD_NAME = "_local"
+
+    /** `".jpg"` from `"holiday.JPG"`; empty when the name carries no extension. */
+    fun extensionOf(displayName: String): String {
+        val dot = displayName.lastIndexOf('.')
+        if (dot <= 0 || dot == displayName.lastIndex) return ""
+        return displayName.substring(dot).lowercase()
+    }
+
+    /** FAT/exFAT-illegal characters plus control chars; replaced, never dropped, to keep names readable. */
+    private val ILLEGAL = Regex("""[\\/:*?"<>|\p{Cntrl}]""")
+
+    private const val MAX_SEGMENT_LENGTH = 80
+
+    /** Makes [raw] a safe single path segment; never empty (falls back to "_"). */
+    fun sanitizeSegment(raw: String): String {
+        val cleaned = ILLEGAL.replace(raw, "_")
+            .trim()
+            .trimEnd('.')
+            .take(MAX_SEGMENT_LENGTH)
+            .trim()
+        return cleaned.ifEmpty { "_" }
+    }
+
     /** FAT/exFAT-illegal characters plus control chars; replaced, never dropped, to keep names readable. */
     private val ILLEGAL = Regex("""[\\/:*?"<>|\p{Cntrl}]""")
 

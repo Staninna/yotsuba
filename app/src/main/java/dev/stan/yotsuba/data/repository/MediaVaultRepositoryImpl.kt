@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.data.repository
 
 import android.content.Context
+import android.net.Uri
 import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.datastore.core.DataStore
@@ -12,12 +13,19 @@ import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.core.vault.VaultMetaCodec
+import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
+import dev.stan.yotsuba.core.text.PostSegment
+import dev.stan.yotsuba.core.text.PostText
+import dev.stan.yotsuba.core.vault.VaultFileMeta
+import dev.stan.yotsuba.core.vault.VaultPostFile
+import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.core.vault.toVaultMeta
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
@@ -139,6 +147,166 @@ class MediaVaultRepositoryImpl @Inject constructor(
             savedMediaDao.delete(url)
         }
     }
+
+    override suspend fun importLocalThread(
+        name: String,
+        sources: List<ImportSource>,
+    ): VaultError? = withContext(Dispatchers.IO) {
+        if (!hasStorageAccess()) return@withContext VaultError.NoAccess
+        if (sources.isEmpty()) return@withContext null
+        attempt {
+            store.ensureRoot()
+            // Epoch millis is the thread number: monotonic, unique per import, and far
+            // outside the range of any real post number on the board it shares a namespace
+            // with -- which is none, since _local is ours.
+            val threadNo = System.currentTimeMillis()
+            val dir = File(
+                File(store.root, VaultPaths.LOCAL_BOARD_NAME),
+                VaultPaths.threadDirName(threadNo, name),
+            ).apply { mkdirs() }
+
+            val files = mutableListOf<VaultFileMeta>()
+            val posts = mutableListOf<VaultPostMeta>()
+            val rows = mutableListOf<SavedMediaEntity>()
+
+            sources.forEachIndexed { index, source ->
+                val postNo = (index + 1).toLong()
+                val ext = VaultPaths.extensionOf(source.displayName)
+                val base = source.displayName.removeSuffix(ext)
+                val target = store.uniqueFile(dir, VaultPaths.fileName(postNo, base, ext))
+                copyInto(source.uri, target)
+
+                // No CDN URL exists, so the file's own path is its key -- the same scheme
+                // rescan already uses for unsorted migration leftovers.
+                val url = "file://" + target.absolutePath
+                files += VaultFileMeta(
+                    fileName = target.name,
+                    postNo = postNo,
+                    originalFilename = base,
+                    ext = ext,
+                    sizeBytes = target.length(),
+                    savedAtMillis = threadNo,
+                )
+                posts += VaultPostMeta(
+                    no = postNo,
+                    isOp = index == 0,
+                    subject = if (index == 0) name else null,
+                    timeSeconds = threadNo / 1000,
+                    body = PostText(listOf(PostSegment(source.displayName))),
+                    file = VaultPostFile(
+                        filename = base,
+                        ext = ext,
+                        url = url,
+                        thumbnailUrl = "",
+                        sizeBytes = target.length(),
+                    ),
+                )
+                rows += SavedMediaEntity(
+                    url = url,
+                    board = VaultPaths.LOCAL_BOARD_NAME,
+                    threadNo = threadNo,
+                    postNo = postNo,
+                    subject = name,
+                    displayName = target.name,
+                    absolutePath = target.absolutePath,
+                    ext = ext,
+                    sizeBytes = target.length(),
+                    width = null,
+                    height = null,
+                    thumbnailUrl = null,
+                    savedAt = threadNo,
+                )
+            }
+
+            store.lock.withLock {
+                store.updateMeta(dir) { meta ->
+                    var next = meta.copy(
+                        board = VaultPaths.LOCAL_BOARD_NAME,
+                        threadNo = threadNo,
+                        subject = name,
+                        threadUrl = null,
+                    )
+                    files.forEach { next = next.upsert(it) }
+                    next
+                }
+                store.updatePosts(dir, VaultPaths.LOCAL_BOARD_NAME, threadNo, posts)
+            }
+            savedMediaDao.insertAll(rows)
+        }
+    }
+
+    /** Copies a picked file in whole; a partial copy is deleted rather than left to confuse. */
+    private fun copyInto(uri: String, target: File) {
+        val stream = context.contentResolver.openInputStream(Uri.parse(uri))
+            ?: throw java.io.IOException("cannot open $uri")
+        try {
+            stream.use { input -> target.outputStream().use { input.copyTo(it) } }
+        } catch (e: Exception) {
+            target.delete()
+            throw e
+        }
+    }
+
+    override suspend fun syncSavedThreads(
+        onProgress: (done: Int, total: Int) -> Unit,
+    ): VaultSyncSummary = withContext(Dispatchers.IO) {
+        if (!hasStorageAccess() || !store.root.isDirectory) return@withContext VaultSyncSummary()
+        val targets = savedThreads()
+        onProgress(0, targets.size)
+
+        var updated = 0
+        var gone = 0
+        var failed = 0
+        var rateLimited = false
+
+        for ((index, target) in targets.withIndex()) {
+            when (val result = threadRepository.thread(target.board, target.threadNo, forceRefresh = true)) {
+                is DataResult.Success -> {
+                    // The whole comment section, not just the conversation around what was
+                    // saved: while the thread is alive this is the only chance to take it.
+                    store.lock.withLock {
+                        store.updatePosts(
+                            dir = target.dir,
+                            board = target.board,
+                            threadNo = target.threadNo,
+                            incoming = result.value.posts.map { it.toVaultMeta() },
+                        )
+                    }
+                    updated++
+                }
+                is DataResult.Failure -> when (result.error) {
+                    // Already gone. Whatever was captured before is all there will ever be.
+                    NetworkError.NotFound -> gone++
+                    // Backing off is the whole point of a rate limit; finish another day.
+                    NetworkError.RateLimited -> {
+                        rateLimited = true
+                    }
+                    else -> failed++
+                }
+            }
+            onProgress(index + 1, targets.size)
+            if (rateLimited) break
+        }
+        VaultSyncSummary(updated = updated, gone = gone, failed = failed, rateLimited = rateLimited)
+    }
+
+    /** Saved threads that have an upstream to sync against; local imports do not. */
+    private fun savedThreads(): List<SavedThreadDir> =
+        store.root.walkTopDown()
+            .filter { it.isFile && it.name == VaultPaths.META_FILE_NAME }
+            .mapNotNull { metaFile ->
+                val meta = VaultMetaCodec.decode(metaFile.readText()) ?: return@mapNotNull null
+                val threadNo = meta.threadNo ?: return@mapNotNull null
+                val board = meta.board.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val dir = metaFile.parentFile ?: return@mapNotNull null
+                if (board == VaultPaths.LOCAL_BOARD_NAME || board == VaultPaths.UNSORTED_DIR_NAME) {
+                    return@mapNotNull null
+                }
+                SavedThreadDir(dir, board, threadNo)
+            }
+            .toList()
+
+    private data class SavedThreadDir(val dir: File, val board: String, val threadNo: Long)
 
     override suspend fun rescan() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext

@@ -1,6 +1,8 @@
 package dev.stan.yotsuba.feature.vault
 
 import android.net.Uri
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,14 +10,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -36,6 +43,7 @@ import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
+import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.feature.media.MediaFeedViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerPage
@@ -52,12 +60,52 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val snackbar = remember { SnackbarHostState() }
     var deleting by remember { mutableStateOf<VaultEntry?>(null) }
+    var importMenuOpen by remember { mutableStateOf(false) }
+    val importFailed = stringResource(R.string.vault_import_failed)
+    val importEmpty = stringResource(R.string.vault_import_empty)
+
+    fun runImport(name: String, sources: List<ImportSource>) {
+        scope.launch {
+            if (sources.isEmpty()) {
+                snackbar.showSnackbar(importEmpty)
+                return@launch
+            }
+            val error = viewModel.importLocalThread(name, sources)
+            if (error != null) snackbar.showSnackbar(importFailed)
+        }
+    }
+
+    val pickFiles = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            runImport(
+                name = defaultImportName(uris.size),
+                sources = ImportPicker.sourcesFrom(context, uris),
+            )
+        }
+    }
+    val pickFolder = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { tree ->
+        if (tree != null) {
+            runImport(
+                name = ImportPicker.treeName(context, tree) ?: defaultImportName(0),
+                sources = ImportPicker.sourcesFromTree(context, tree),
+            )
+        }
+    }
+
+
 
     BackHandler(enabled = state.selection.board != null) { viewModel.navigateUp() }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbar) },
             topBar = {
                 TopAppBar(
                     title = { Text(vaultTitle(state), maxLines = 1) },
@@ -69,6 +117,35 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
                         }
                     },
                     actions = {
+                        if (viewModel.hasStorageAccess()) {
+                            Box {
+                                IconButton(
+                                    enabled = !viewModel.importing,
+                                    onClick = { importMenuOpen = true },
+                                ) {
+                                    Icon(Icons.Filled.Add, stringResource(R.string.vault_import))
+                                }
+                                DropdownMenu(
+                                    expanded = importMenuOpen,
+                                    onDismissRequest = { importMenuOpen = false },
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.vault_import_files)) },
+                                        onClick = {
+                                            importMenuOpen = false
+                                            pickFiles.launch(arrayOf("image/*", "video/*"))
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.vault_import_folder)) },
+                                        onClick = {
+                                            importMenuOpen = false
+                                            pickFolder.launch(null)
+                                        },
+                                    )
+                                }
+                            }
+                        }
                         if (state.rescanning) {
                             CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
                         } else {
@@ -202,3 +279,8 @@ private fun vaultTitle(state: VaultUiState): String = when {
             )
     }
 }
+
+
+private fun defaultImportName(count: Int): String =
+    if (count > 0) "Imported ($count)" else "Imported"
+
