@@ -124,12 +124,18 @@ class ThreadViewModelTest {
     /** Records the first save so a test can await it; `statuses` is too transient to assert on. */
     private class FakeVault : MediaVaultRepository {
         val firstSave = kotlinx.coroutines.CompletableDeferred<Pair<MediaItem, VaultSaveContext>>()
+        /** Completes once [expectedSaves] items have arrived; the queue runs on a real IO thread. */
+        val allSaved = kotlinx.coroutines.CompletableDeferred<List<String>>()
+        var expectedSaves = 1
+        private val savedUrls = java.util.concurrent.CopyOnWriteArrayList<String>()
         override fun hasStorageAccess() = false
         override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
         override fun savedUrls(): Flow<Set<String>> = flowOf(emptySet())
         override fun savedPaths(): Flow<Map<String, String>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             firstSave.complete(item to context)
+            savedUrls += item.fullUrl
+            if (savedUrls.size >= expectedSaves) allSaved.complete(savedUrls.sorted())
             return null
         }
         override suspend fun delete(url: String): VaultError? = null
@@ -396,12 +402,48 @@ class ThreadViewModelTest {
         backgroundScope.launch { vm.uiState.collect {} }
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(100L, 102L), content(vm).mediaPosts.map { it.no })
+        env.vault.expectedSaves = 2
         vm.onSaveAllMedia()
         assertEquals(
-            setOf("https://i.4cdn.org/g/100.jpg", "https://i.4cdn.org/g/102.jpg"),
-            env.queue.statuses.value.keys,
+            listOf("https://i.4cdn.org/g/100.jpg", "https://i.4cdn.org/g/102.jpg"),
+            env.vault.allSaved.await(),
         )
     }
+
+    @Test fun `tree view nests replies, caps the depth behind a more row, and expands it`() =
+        runTest(dispatcher.scheduler) {
+            // 100 <- 101 <- 102 <- 103 <- 104 <- 105 <- 106 (a chain), plus 107 replying to the OP.
+            val chain = (101L..106L).map { Env.post(it).copy(quotedPostNos = listOf(it - 1)) }
+            val posts = listOf(Env.post(100).copy(isOp = true)) + chain +
+                Env.post(107).copy(quotedPostNos = listOf(100))
+            val env = Env(posts = posts)
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
+
+            vm.onToggleTreeView()
+            dispatcher.scheduler.advanceUntilIdle()
+            val rows = content(vm).rows
+            assertEquals(
+                listOf(
+                    ThreadRow.Post(posts[0], 0), ThreadRow.Post(posts[1], 1), ThreadRow.Post(posts[2], 2),
+                    ThreadRow.Post(posts[3], 3), ThreadRow.Post(posts[4], 4),
+                    ThreadRow.MoreReplies(parentNo = 104, count = 2),
+                    ThreadRow.Post(posts[7], 1),
+                ),
+                rows,
+            )
+
+            vm.onExpandTail(104)
+            dispatcher.scheduler.advanceUntilIdle()
+            val expanded = content(vm).rows
+            assertEquals(listOf(100L, 101L, 102L, 103L, 104L, 105L, 106L, 107L), expanded.map { (it as ThreadRow.Post).post.no })
+            assertEquals(listOf(0, 1, 2, 3, 4, 4, 4, 1), expanded.map { (it as ThreadRow.Post).depth })
+
+            vm.onToggleTreeView() // back to linear: flat, chronological
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(List(8) { 0 }, content(vm).rows.map { (it as ThreadRow.Post).depth })
+        }
 
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = Env().vm()
