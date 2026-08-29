@@ -1,13 +1,17 @@
 package dev.stan.yotsuba.feature.vault
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -15,6 +19,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
@@ -50,6 +56,8 @@ internal fun VaultStatsSheet(
                 return@LazyColumn
             }
             item { Totals(stats) }
+            item { SectionTitle(stringResource(R.string.vault_stats_per_board)) }
+            items(stats.perBoard, key = { it.board }) { BoardBar(it, stats.perBoard.first().bytes) }
             item { Spacer(Modifier.height(32.dp)) }
         }
     }
@@ -93,4 +101,37 @@ internal fun SectionTitle(text: String) {
     Spacer(Modifier.height(24.dp))
     Text(text, style = MaterialTheme.typography.titleMedium)
     Spacer(Modifier.height(8.dp))
+}
+
+/** Bar length is [stat] bytes against [largest], the biggest board, which fills the row. */
+@Composable
+private fun BoardBar(stat: BoardStat, largest: Long) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            Text("/${stat.board}/", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(
+                stringResource(R.string.vault_stats_board_detail, stat.files, FileSize.format(stat.bytes)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        WeightedBar(fraction = if (largest > 0) stat.bytes.toFloat() / largest else 0f)
+    }
+}
+
+/** A track with [fraction] of its width filled; the empty rest stays a Box so the Row keeps its shape. */
+@Composable
+private fun WeightedBar(fraction: Float, modifier: Modifier = Modifier) {
+    val filled = fraction.coerceIn(0f, 1f)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        if (filled > 0f) Box(Modifier.weight(filled).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+        if (filled < 1f) Box(Modifier.weight(1f - filled))
+    }
 }
