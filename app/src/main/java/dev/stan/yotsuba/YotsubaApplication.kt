@@ -13,6 +13,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import dagger.hilt.android.HiltAndroidApp
 import dev.stan.yotsuba.core.work.BookmarkRefreshScheduler
+import dev.stan.yotsuba.core.work.VaultSyncScheduler
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import javax.inject.Inject
 import okhttp3.OkHttpClient
@@ -26,11 +27,13 @@ class YotsubaApplication : Application(), SingletonImageLoader.Factory {
     @Inject lateinit var backupRepository: BackupRepository
 
     @Inject lateinit var bookmarkRefreshScheduler: BookmarkRefreshScheduler
+    @Inject lateinit var vaultSyncScheduler: VaultSyncScheduler
 
     override fun onCreate() {
         super.onCreate()
         // KEEP policy: a no-op once the periodic work exists.
         bookmarkRefreshScheduler.ensureScheduled()
+        vaultSyncScheduler.ensureScheduled()
     }
 
     /**

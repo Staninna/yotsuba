@@ -41,6 +41,12 @@ data class Settings(
      */
     val saveRepliesWithMedia: Boolean = true,
     /**
+     * Background pass writes every live bookmarked thread's comment section into the vault
+     * as a sidecar-only directory, so a watched thread is readable after it 404s even when
+     * nothing was saved from it.
+     */
+    val snapshotWatchedThreads: Boolean = true,
+    /**
      * Once a thread is gone, compact its posts.json to the OP plus the conversation around
      * each saved file. Off by default: the whole dead thread is kept. A thread with no
      * saved files is never pruned either way.

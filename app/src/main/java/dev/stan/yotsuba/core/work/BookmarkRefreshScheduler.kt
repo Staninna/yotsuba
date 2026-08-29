@@ -44,4 +44,5 @@ class WorkManagerBookmarkRefreshScheduler @Inject constructor(
 @InstallIn(SingletonComponent::class)
 abstract class WorkModule {
     @Binds abstract fun bookmarkRefreshScheduler(impl: WorkManagerBookmarkRefreshScheduler): BookmarkRefreshScheduler
+    @Binds abstract fun vaultSyncScheduler(impl: WorkManagerVaultSyncScheduler): VaultSyncScheduler
 }
