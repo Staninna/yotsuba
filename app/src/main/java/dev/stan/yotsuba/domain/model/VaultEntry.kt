@@ -40,6 +40,10 @@ data class VaultEntry(
     /** Remote thumbnail, used for video previews in the explorer grid. */
     val thumbnailUrl: String?,
     val savedAt: Long,
+    /** First-frame still on disk; the grid prefers it over [thumbnailUrl]. */
+    val localThumbnailPath: String? = null,
+    /** Video length, millis; null for images and for videos not yet probed. */
+    val durationMs: Long? = null,
 ) {
     val isVideo: Boolean get() = ext == ".webm" || ext == ".mp4"
 }

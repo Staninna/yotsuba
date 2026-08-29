@@ -1,6 +1,10 @@
 package dev.stan.yotsuba.data.repository
 
+import android.content.ContentValues
 import android.content.Context
+import android.media.MediaScannerConnection
+import android.os.Environment
+import android.provider.MediaStore
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.ContextCompat
@@ -17,7 +21,9 @@ import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.vault.VaultPostFile
 import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultFileMeta
+import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.vault.VaultPaths
+import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.core.vault.toVaultMeta
 import dev.stan.yotsuba.domain.model.MediaItem
@@ -60,7 +66,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     override fun hasStorageAccess(): Boolean =
         if (Build.VERSION.SDK_INT >= 30) {
-            android.os.Environment.isExternalStorageManager()
+            Environment.isExternalStorageManager()
         } else {
             ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
@@ -108,6 +114,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     dir, VaultPaths.fileName(item.postNo, item.filename, item.ext),
                 )
                 streamTo(item.fullUrl, target)
+                val still = captureStill(target)
 
                 val savedAt = System.currentTimeMillis()
                 store.lock.withLock {
@@ -117,7 +124,10 @@ class MediaVaultRepositoryImpl @Inject constructor(
                             threadNo = saveContext.threadNo,
                             subject = saveContext.threadSubject,
                             threadUrl = Urls.threadWebUrl(saveContext.board, saveContext.threadNo),
-                        ).upsert(store.fileMetaOf(target.name, item, saveContext.post, savedAt))
+                        ).upsert(
+                            store.fileMetaOf(target.name, item, saveContext.post, savedAt)
+                                .copy(durationMs = still?.durationMs),
+                        )
                     }
                     // Same lock as meta.json. The two writes are not one transaction, but
                     // each is atomic and a missing posts.json already means "no snapshot",
@@ -133,6 +143,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     savedMediaEntity(
                         item, saveContext.board, saveContext.threadNo,
                         saveContext.threadSubject, target, savedAt,
+                        thumbnailPath = still?.file?.absolutePath, durationMs = still?.durationMs,
                     ),
                 )
             }
@@ -165,6 +176,117 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 }
             }
             savedMediaDao.delete(url)
+        }
+    }
+
+    /** What [trash] set aside, kept in memory: a restart empties the trash anyway. */
+    private class Trashed(
+        val entity: SavedMediaEntity,
+        val fileMeta: VaultFileMeta?,
+        val dir: File,
+        val trashFile: File,
+    )
+
+    private val trashed = mutableMapOf<String, Trashed>()
+
+    override suspend fun trash(url: String): VaultError? = withContext(Dispatchers.IO) {
+        val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
+        if (entity.absolutePath.isEmpty()) return@withContext delete(url)
+        attempt {
+            val file = File(entity.absolutePath)
+            val dir = file.parentFile ?: throw java.io.IOException("no parent for ${file.name}")
+            val trashDir = File(store.root, VaultPaths.TRASH_DIR_NAME).apply { mkdirs() }
+            val target = store.uniqueFile(trashDir, "${System.nanoTime()}_${file.name}")
+            if (!store.moveFile(file, target)) throw java.io.IOException("Couldn't move ${file.name} to trash")
+            var removed: VaultFileMeta? = null
+            store.lock.withLock {
+                store.updateMeta(dir) { meta ->
+                    removed = meta.files.firstOrNull { it.fileName == file.name }
+                    meta.remove(file.name)
+                }
+            }
+            // The thread dir is deliberately not pruned here: an undo needs its sidecars
+            // intact. Emptied directories go with the trash in [purgeTrash].
+            trashed[url] = Trashed(entity, removed, dir, target)
+            savedMediaDao.delete(url)
+        }
+    }
+
+    override suspend fun restoreTrashed(url: String): VaultError? = withContext(Dispatchers.IO) {
+        val item = trashed[url] ?: return@withContext VaultError.NotFound
+        attempt {
+            item.dir.mkdirs()
+            val back = File(item.entity.absolutePath)
+            if (!store.moveFile(item.trashFile, back)) throw java.io.IOException("Couldn't restore ${back.name}")
+            store.lock.withLock {
+                store.updateMeta(item.dir) { meta ->
+                    item.fileMeta?.let { meta.upsert(it) } ?: meta
+                }
+            }
+            savedMediaDao.insert(item.entity)
+            trashed.remove(url)
+        }
+    }
+
+    override suspend fun purgeTrash() = withContext(Dispatchers.IO) {
+        if (!hasStorageAccess()) return@withContext
+        val dirs = trashed.values.map { it.dir }.toSet()
+        trashed.clear()
+        File(store.root, VaultPaths.TRASH_DIR_NAME).deleteRecursively()
+        store.lock.withLock { dirs.forEach { if (it.isDirectory) store.pruneIfEmpty(it) } }
+    }
+
+    override suspend fun exportToGallery(url: String): VaultError? = withContext(Dispatchers.IO) {
+        val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
+        val file = File(entity.absolutePath).takeIf { it.isFile } ?: return@withContext VaultError.NotFound
+        attempt {
+            val video = entity.ext == ".webm" || entity.ext == ".mp4"
+            val mime = when (entity.ext) {
+                ".jpg", ".jpeg" -> "image/jpeg"
+                ".png" -> "image/png"
+                ".gif" -> "image/gif"
+                ".webp" -> "image/webp"
+                ".webm" -> "video/webm"
+                ".mp4" -> "video/mp4"
+                else -> "application/octet-stream"
+            }
+            if (Build.VERSION.SDK_INT >= 29) {
+                val collection = if (video) {
+                    MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                } else {
+                    MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                }
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, file.name)
+                    put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                    put(
+                        MediaStore.MediaColumns.RELATIVE_PATH,
+                        (if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES) +
+                            "/" + VaultPaths.ROOT_DIR_NAME,
+                    )
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val resolver = context.contentResolver
+                val uri = resolver.insert(collection, values) ?: throw java.io.IOException("MediaStore refused ${file.name}")
+                try {
+                    resolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } }
+                        ?: throw java.io.IOException("cannot open $uri")
+                    resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+                } catch (e: Exception) {
+                    resolver.delete(uri, null, null)
+                    throw e
+                }
+            } else {
+                val dir = File(
+                    Environment.getExternalStoragePublicDirectory(
+                        if (video) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES,
+                    ),
+                    VaultPaths.ROOT_DIR_NAME,
+                ).apply { mkdirs() }
+                val target = store.uniqueFile(dir, file.name)
+                file.copyTo(target)
+                MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf(mime), null)
+            }
         }
     }
 
@@ -202,6 +324,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     url = "file://" + target.absolutePath,
                     sizeBytes = target.length(),
                     savedAtMillis = threadNo,
+                    durationMs = captureStill(target)?.durationMs,
                 )
             }
 
@@ -309,6 +432,59 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     private data class SavedThreadDir(val dir: File, val board: String, val threadNo: Long)
 
+    override suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? =
+        withContext(Dispatchers.IO) {
+            if (!hasStorageAccess()) return@withContext VaultError.NoAccess
+            if (!VaultLocation(board, threadNo).isLocal) return@withContext VaultError.Io("only imported threads can be renamed")
+            val dir = store.threadDir(board, threadNo) ?: return@withContext VaultError.NotFound
+            val trimmed = name.trim().ifEmpty { return@withContext VaultError.Io("empty name") }
+            attempt {
+                store.lock.withLock {
+                    store.updateMeta(dir) { it.copy(subject = trimmed) }
+                    store.updatePosts(
+                        dir, board, threadNo,
+                        // Only the OP carries the subject; a merge into an empty posts.json is a no-op.
+                        store.readPosts(dir)?.posts?.filter { it.isOp }?.map { it.copy(subject = trimmed) }.orEmpty(),
+                    )
+                    val target = File(dir.parentFile, VaultPaths.threadDirName(threadNo, trimmed))
+                    if (target != dir && !dir.renameTo(target)) throw java.io.IOException("Couldn't rename ${dir.name}")
+                }
+                rescan()
+            }
+        }
+
+    override suspend fun mergeThreads(
+        fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long,
+    ): VaultError? = withContext(Dispatchers.IO) {
+        if (!hasStorageAccess()) return@withContext VaultError.NoAccess
+        if (fromBoard == intoBoard && fromThreadNo == intoThreadNo) return@withContext null
+        val from = store.threadDir(fromBoard, fromThreadNo) ?: return@withContext VaultError.NotFound
+        val into = store.threadDir(intoBoard, intoThreadNo) ?: return@withContext VaultError.NotFound
+        attempt {
+            store.lock.withLock {
+                val fromMeta = store.updateMeta(from) { it }
+                for (f in fromMeta.files) {
+                    val source = File(from, f.fileName)
+                    if (!source.isFile) continue
+                    val target = store.uniqueFile(into, f.fileName)
+                    if (!store.moveFile(source, target)) throw java.io.IOException("Couldn't move ${f.fileName}")
+                    val still = VideoStills.stillFor(source)
+                    if (still.isFile) {
+                        VideoStills.stillFor(target).let { it.parentFile?.mkdirs(); store.moveFile(still, it) }
+                    }
+                    store.updateMeta(into) { it.upsert(f.copy(fileName = target.name)) }
+                    store.updateMeta(from) { it.remove(f.fileName) }
+                }
+                store.readPosts(from)?.let { posts ->
+                    store.updatePosts(into, intoBoard, intoThreadNo, posts.posts)
+                }
+                from.deleteRecursively()
+                from.parentFile?.takeIf { it != store.root && it.listFiles()?.isEmpty() == true }?.delete()
+            }
+            rescan()
+        }
+    }
+
     override suspend fun rescan() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext
         val rebuilt = store.lock.withLock {
@@ -319,8 +495,33 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 }
             }
         }
-        savedMediaDao.clearAll()
-        savedMediaDao.insertAll(rebuilt)
+        savedMediaDao.replaceAll(rebuilt)
+        // Stills for videos saved before there were any. Decoding is slow, so it happens
+        // after the index is usable and each row lands as its still does.
+        for (row in rebuilt) {
+            if (row.thumbnailPath != null || !isVideo(row.ext)) continue
+            val still = captureStill(File(row.absolutePath)) ?: continue
+            savedMediaDao.insert(row.copy(thumbnailPath = still.file.absolutePath, durationMs = still.durationMs))
+            recordDuration(File(row.absolutePath), still.durationMs)
+        }
+    }
+
+    private fun isVideo(ext: String?) = ext == ".webm" || ext == ".mp4"
+
+    /** A still and duration for a video; nothing for anything else, or when decoding fails. */
+    private fun captureStill(file: File): VideoStills.Still? =
+        if (isVideo(VaultPaths.extensionOf(file.name))) VideoStills.capture(file) else null
+
+    /** Writes a duration learned during rescan back into the sidecar, so the next rescan has it. */
+    private suspend fun recordDuration(file: File, durationMs: Long?) {
+        durationMs ?: return
+        val dir = file.parentFile ?: return
+        store.lock.withLock {
+            store.updateMeta(dir) { meta ->
+                val entry = meta.files.firstOrNull { it.fileName == file.name } ?: return@updateMeta meta
+                meta.upsert(entry.copy(durationMs = durationMs))
+            }
+        }
     }
 
     override suspend fun migrateLegacyIfNeeded() = withContext(Dispatchers.IO) {

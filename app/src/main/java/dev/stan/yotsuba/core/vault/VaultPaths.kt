@@ -22,6 +22,12 @@ object VaultPaths {
     const val POSTS_FILE_NAME = "posts.json"
     const val UNSORTED_DIR_NAME = "_unsorted"
 
+    /** Under the root: files a grid delete moved aside until its undo window closes. */
+    const val TRASH_DIR_NAME = ".trash"
+
+    /** Under a thread directory: first-frame stills for videos, `<file name>.jpg`. */
+    const val THUMBS_DIR_NAME = ".thumbs"
+
     /**
      * Board segment for threads the user assembled themselves from local files.
      * Leading underscore matches [UNSORTED_DIR_NAME] and cannot collide with a real

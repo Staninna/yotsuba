@@ -18,6 +18,7 @@ import dev.stan.yotsuba.core.database.MIGRATION_3_4
 import dev.stan.yotsuba.core.database.MIGRATION_4_5
 import dev.stan.yotsuba.core.database.MIGRATION_5_6
 import dev.stan.yotsuba.core.database.MIGRATION_6_7
+import dev.stan.yotsuba.core.database.MIGRATION_7_8
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
 import dev.stan.yotsuba.core.network.CachePolicyInterceptor
@@ -100,7 +101,7 @@ object DatabaseModule {
     @Singleton
     fun database(@ApplicationContext context: Context): YotsubaDatabase =
         Room.databaseBuilder(context, YotsubaDatabase::class.java, "yotsuba.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .build()
 
     @Provides fun bookmarkDao(db: YotsubaDatabase) = db.bookmarkDao()

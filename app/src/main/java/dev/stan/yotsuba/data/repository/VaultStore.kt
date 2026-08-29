@@ -115,7 +115,7 @@ class VaultStore @Inject constructor() {
     /** Removes a thread dir once only sidecars (with no entries) are left; then an emptied board dir. */
     fun pruneIfEmpty(dir: File) {
         val remaining = dir.listFiles() ?: return
-        val sidecars = setOf(VaultPaths.META_FILE_NAME, VaultPaths.POSTS_FILE_NAME)
+        val sidecars = setOf(VaultPaths.META_FILE_NAME, VaultPaths.POSTS_FILE_NAME, VaultPaths.THUMBS_DIR_NAME)
         val onlyMeta = remaining.all { it.name in sidecars }
         val metaEmpty = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
             ?.let { VaultMetaCodec.decode(it.readText())?.files?.isEmpty() } ?: true

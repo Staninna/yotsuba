@@ -112,7 +112,11 @@ fun AppNavHost() {
                     navController.navigate(Route.Thread(board, no, post))
                 })
             }
-            composable<Route.Vault> { VaultScreen() }
+            composable<Route.Vault> {
+                VaultScreen(onOpenThread = { board, no, post ->
+                    navController.navigate(Route.Thread(board, no, post))
+                })
+            }
             composable<Route.Settings> {
                 SettingsScreen(onOpenSection = { navController.navigate(Route.SettingsSection(it)) })
             }

@@ -2,4 +2,58 @@
 <resources>
     <string name="vault_delete_failed">Couldn\'t delete %1$s</string>
     <string name="vault_local_board">Imported</string>
+    <string name="vault_restored">Restored</string>
+    <string name="vault_undo">Undo</string>
+    <string name="vault_delete_dont_ask">Don\'t ask again</string>
+    <plurals name="vault_trashed">
+        <item quantity="one">Deleted %1$d file</item>
+        <item quantity="other">Deleted %1$d files</item>
+    </plurals>
+    <plurals name="vault_delete_many_body">
+        <item quantity="one">Delete %1$d file from the vault? The file on disk goes with it.</item>
+        <item quantity="other">Delete %1$d files from the vault? The files on disk go with them.</item>
+    </plurals>
+    <string name="vault_more">More</string>
+    <string name="vault_select">Select</string>
+    <string name="vault_delete_thread">Delete thread</string>
+    <string name="vault_delete_board">Delete board</string>
+    <string name="vault_save_to_gallery">Save to gallery</string>
+    <string name="vault_clear_selection">Clear selection</string>
+    <plurals name="vault_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="vault_saved_to_gallery">
+        <item quantity="one">Saved %1$d file to the gallery</item>
+        <item quantity="other">Saved %1$d files to the gallery</item>
+    </plurals>
+    <string name="vault_saved_to_gallery_failed">Couldn\'t save %1$d of them</string>
+    <string name="vault_open_thread">Open thread</string>
+    <string name="vault_go_to_post">Go to post</string>
+    <string name="vault_sort_saved">Date saved</string>
+    <string name="vault_sort_size">Size</string>
+    <string name="vault_sort_name">Name</string>
+    <string name="vault_sort_post">Post number</string>
+    <string name="vault_filter_all">All</string>
+    <string name="vault_filter_images">Images</string>
+    <string name="vault_filter_videos">Videos</string>
+    <string name="vault_mode_recent">Recent</string>
+    <string name="vault_mode_browse">Browse</string>
+    <string name="vault_search">Search</string>
+    <string name="vault_search_hint">File name or thread subject</string>
+    <string name="vault_search_clear">Clear</string>
+    <string name="vault_search_empty">Nothing matches</string>
+    <string name="vault_rename_thread">Rename</string>
+    <string name="vault_rename">Rename</string>
+    <string name="vault_renamed">Renamed</string>
+    <string name="vault_merge_thread">Merge into…</string>
+    <string name="vault_merge_into">Merge into</string>
+    <string name="vault_merge_none">No other thread on this board to merge into.</string>
+    <string name="vault_merged">Merged</string>
+    <string name="vault_edit_failed">Couldn\'t change the thread</string>
+    <string name="vault_rescan_label">Rescan</string>
+    <string name="vault_rescan_explanation">Rebuild the index from the files on disk</string>
+    <string name="vault_rescan_done">Index rebuilt</string>
+    <string name="vault_fetch_replies">Fetch new replies</string>
+    <string name="vault_fetch_replies_explanation">Refresh saved threads from 4chan, one a second</string>
 </resources>

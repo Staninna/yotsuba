@@ -53,6 +53,25 @@ interface MediaVaultRepository {
     suspend fun delete(url: String): VaultError?
 
     /**
+     * Like [delete] as far as the index is concerned, but the file is moved aside rather
+     * than removed, so [restoreTrashed] can bring it back until [purgeTrash] runs. The
+     * default cannot undo; real implementations override it.
+     */
+    suspend fun trash(url: String): VaultError? = delete(url)
+
+    /** Puts a [trash]ed file back where it was, sidecar entry and row included. */
+    suspend fun restoreTrashed(url: String): VaultError? = VaultError.NotFound
+
+    /** Empties the trash for good. Called at launch and once an undo window closes. */
+    suspend fun purgeTrash() {}
+
+    /**
+     * Copies a saved file into the device gallery (MediaStore), so it shows up in other
+     * apps; the vault's own copy stays where it is. The default cannot.
+     */
+    suspend fun exportToGallery(url: String): VaultError? = VaultError.Io("not supported")
+
+    /**
      * The thread as it was saved, rebuilt from its sidecars — posts, quote graph and all.
      * Null when nothing was captured for it. `archived` and `closed` are unknowable from
      * disk and come back false, so nothing may present them as fact.
@@ -74,6 +93,20 @@ interface MediaVaultRepository {
      * reports `(done, total)` for a caller that needs to show it going.
      */
     suspend fun syncSavedThreads(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): VaultSyncSummary
+
+    /**
+     * Gives an imported thread a new subject: the sidecar and the directory name both
+     * change. Only local threads can be renamed; a saved 4chan thread keeps its own.
+     */
+    suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? = VaultError.Io("not supported")
+
+    /**
+     * Moves every file and its sidecar entry from one thread into another, then drops the
+     * emptied directory and rebuilds the index. The two must share a board.
+     */
+    suspend fun mergeThreads(
+        fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long,
+    ): VaultError? = VaultError.Io("not supported")
 
     /** Rebuilds the saved-media DB purely from the meta.json sidecars on disk. */
     suspend fun rescan()
