@@ -43,7 +43,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.data.repository.DownloadState
 import dev.stan.yotsuba.domain.model.MediaItem
@@ -111,7 +110,7 @@ fun MediaScreen(
     val pending = state.downloadStates.count { (_, s) -> s !is DownloadState.Failed }
 
     ThreadMediaViewer(
-        pages = state.items.map { it.toViewerPage(context, state, pending) },
+        pages = state.items.map { it.toViewerPage(context, state) },
         thread = state.thread,
         behaviour = state.behaviour,
         initialIndex = state.initialIndex,
@@ -220,31 +219,32 @@ private fun errorMessage(error: NetworkError): String = when (error) {
 }
 
 @Composable
-private fun MediaItem.toViewerPage(
-    context: android.content.Context,
-    state: MediaUiState,
-    /** Saves in flight app-wide; surfaces in the chrome subtitle as "↓n". */
-    pending: Int,
-): ViewerPage {
+private fun MediaItem.toViewerPage(context: android.content.Context, state: MediaUiState): ViewerPage {
     // Already-saved media plays straight from the vault file — no buffering.
     val localPath = state.savedPaths[fullUrl]
-    return ViewerPage(
-        isVideo = isVideo,
-        videoUri = localPath?.let { Uri.fromFile(File(it)).toString() } ?: fullUrl,
-        imageModel = localPath?.let { File(it) } ?: ImageRequest.Builder(context)
-            .data(fullUrl)
-            .crossfade(false)
-            .build(),
-        thumbnailModel = thumbnailUrl,
-        width = width,
-        height = height,
-        title = displayName,
-        subtitle = buildString {
-            append(" · ${FileSize.format(sizeBytes)} · ${width}×${height}")
-            if (pending > 0) append(" · ↓$pending")
-        },
-        contentDescription = stringResource(
-            R.string.media_image_description, displayName, width, height,
-        ),
-    )
+    val description = stringResource(R.string.media_image_description, displayName, width, height)
+    return if (isVideo) {
+        ViewerPage.Video(
+            uri = localPath?.let { Uri.fromFile(File(it)).toString() } ?: fullUrl,
+            thumbnailModel = thumbnailUrl,
+            width = width,
+            height = height,
+            sizeBytes = sizeBytes,
+            title = displayName,
+            contentDescription = description,
+        )
+    } else {
+        ViewerPage.Image(
+            model = localPath?.let { File(it) } ?: ImageRequest.Builder(context)
+                .data(fullUrl)
+                .crossfade(false)
+                .build(),
+            thumbnailModel = thumbnailUrl,
+            width = width,
+            height = height,
+            sizeBytes = sizeBytes,
+            title = displayName,
+            contentDescription = description,
+        )
+    }
 }

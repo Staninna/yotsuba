@@ -22,27 +22,61 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
+import dev.stan.yotsuba.core.util.FileSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** One page of a full-screen vertical media feed. */
-data class ViewerPage(
-    val isVideo: Boolean,
-    /** Playable URI string for videos; unused for images. */
-    val videoUri: String = "",
-    /** Coil model for images; unused for videos. */
-    val imageModel: Any? = null,
-    val thumbnailModel: Any? = null,
-    val width: Int = 0,
-    val height: Int = 0,
-    val title: String = "",
-    /** Appended after the "n / total" prefix in the top chrome. */
-    val subtitle: String = "",
-    val contentDescription: String = "",
-) {
+/** One page of a full-screen vertical media feed: an image to zoom or a video to play. */
+sealed interface ViewerPage {
+    /** Usually the already-cached thumbnail, drawn underneath until the real thing loads. */
+    val thumbnailModel: Any?
+    val width: Int
+    val height: Int
+    /** Null when the size is unknown (a legacy vault row, say). */
+    val sizeBytes: Long?
+    val title: String
+    /** Free text the chrome appends after size and dimensions, e.g. the thread subject. */
+    val note: String?
+    val contentDescription: String
+
+    val isVideo: Boolean get() = this is Video
     val pipInfo: PipMediaInfo get() = PipMediaInfo(width, height, isVideo)
+
+    data class Image(
+        /** Coil model: a URL request or a [java.io.File] straight from the vault. */
+        val model: Any?,
+        override val thumbnailModel: Any? = null,
+        override val width: Int = 0,
+        override val height: Int = 0,
+        override val sizeBytes: Long? = null,
+        override val title: String = "",
+        override val note: String? = null,
+        override val contentDescription: String = "",
+    ) : ViewerPage
+
+    data class Video(
+        /** Playable URI string, remote or `file://`. */
+        val uri: String,
+        override val thumbnailModel: Any? = null,
+        override val width: Int = 0,
+        override val height: Int = 0,
+        override val sizeBytes: Long? = null,
+        override val title: String = "",
+        override val note: String? = null,
+        override val contentDescription: String = "",
+    ) : ViewerPage
 }
+
+/** "3 / 12 · 1.2 MB · 1920×1080 · subject · ↓2", dropping whatever is unknown. */
+internal fun viewerSubtitle(page: ViewerPage, index: Int, total: Int, activeDownloads: Int): String =
+    buildString {
+        append("${index + 1} / $total")
+        page.sizeBytes?.let { append(" · ${FileSize.format(it)}") }
+        if (page.width > 0 && page.height > 0) append(" · ${page.width}×${page.height}")
+        page.note?.takeIf { it.isNotBlank() }?.let { append(" · $it") }
+        if (activeDownloads > 0) append(" · ↓$activeDownloads")
+    }
 
 /** Pager position plus mute/playback/chrome state, shared by both viewers. */
 @Stable
@@ -154,10 +188,9 @@ fun MediaFeedViewer(
             modifier = Modifier.fillMaxSize(),
             userScrollEnabled = !pip.inPipMode && feedActive && !feed.pagerLocked,
         ) { page ->
-            val p = pages[page]
-            if (p.isVideo) {
-                VideoPage(
-                    videoUri = p.videoUri,
+            when (val p = pages[page]) {
+                is ViewerPage.Video -> VideoPage(
+                    videoUri = p.uri,
                     thumbnailModel = p.thumbnailModel,
                     initialWidth = p.width,
                     initialHeight = p.height,
@@ -173,9 +206,8 @@ fun MediaFeedViewer(
                     behaviour = behaviour,
                     onLongPress = { onLongPressPage(page) },
                 )
-            } else {
-                ImagePage(
-                    model = p.imageModel,
+                is ViewerPage.Image -> ImagePage(
+                    model = p.model,
                     thumbnailModel = p.thumbnailModel,
                     contentDescription = p.contentDescription,
                     onTap = { feed.chromeVisible = !feed.chromeVisible },
@@ -190,7 +222,7 @@ fun MediaFeedViewer(
         ViewerTopChrome(
             visible = chromeShown,
             title = current?.title.orEmpty(),
-            subtitle = current?.let { "${feed.currentPage + 1} / ${pages.size}${it.subtitle}" },
+            subtitle = current?.let { viewerSubtitle(it, feed.currentPage, pages.size, activeDownloads) },
             onClose = onDismiss,
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
