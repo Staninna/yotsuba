@@ -4,7 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,12 +32,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.theme.LocalYotsubaColors
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.util.TimeFormat
@@ -67,12 +72,17 @@ data class PostCardActions(
     val onBodyLongPress: ((BodyTap) -> Unit)? = null,
     val onThumbnailTap: () -> Unit,
     val onThumbnailLongPress: (() -> Unit)?,
-    val onBacklinksTap: (() -> Unit)?,
+    /** Tap on one number in the "quoted by" row. When null the row is not shown. */
+    val onBacklinkTap: ((Long) -> Unit)?,
+    /** Legacy count chip, shown only when [onBacklinkTap] is null (the media viewer's panel). */
+    val onBacklinksTap: (() -> Unit)? = null,
     val onCopyPostNo: (() -> Unit)?,
 ) {
     /** A card inside the quote preview overlay: read-only apart from following links. */
-    fun forPreview(): PostCardActions =
-        copy(onBodyLongPress = null, onThumbnailLongPress = null, onBacklinksTap = null, onCopyPostNo = null)
+    fun forPreview(): PostCardActions = copy(
+        onBodyLongPress = null, onThumbnailLongPress = null,
+        onBacklinkTap = null, onBacklinksTap = null, onCopyPostNo = null,
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -209,9 +219,13 @@ fun PostCard(
                     quoteLabels = quoteLabels,
                 )
             }
+            val onBacklinkTap = actions.onBacklinkTap
             val onBacklinksTap = actions.onBacklinksTap
             val backlinkCount = ui.backlinks.size
-            if (backlinkCount > 0 && onBacklinksTap != null) {
+            if (backlinkCount > 0 && onBacklinkTap != null) {
+                Spacer(Modifier.height(spacing.xs))
+                QuotedByRow(ui.backlinks, onBacklinkTap)
+            } else if (backlinkCount > 0 && onBacklinksTap != null) {
                 Spacer(Modifier.height(spacing.xs))
                 AssistChip(
                     onClick = onBacklinksTap,
@@ -260,12 +274,40 @@ fun PostCard(
         onBodyTap = onBodyTap,
         onThumbnailTap = onThumbnailTap,
         onThumbnailLongPress = onThumbnailLongPress,
+        onBacklinkTap = null,
         onBacklinksTap = onBacklinksTap,
         onCopyPostNo = onCopyPostNo,
     ),
     modifier = modifier,
     highlight = highlight,
 )
+
+/** "Quoted by: >>1 >>2" — each number jumps to that post. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit) {
+    val spacing = LocalSpacing.current
+    val colors = LocalYotsubaColors.current
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+    ) {
+        Text(
+            stringResource(R.string.thread_quoted_by),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        backlinks.forEach { no ->
+            Text(
+                ">>$no",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.quotelink,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable { onTap(no) },
+            )
+        }
+    }
+}
 
 /** Tiny vault-status badge overlaid on a post thumbnail's corner. */
 @Composable

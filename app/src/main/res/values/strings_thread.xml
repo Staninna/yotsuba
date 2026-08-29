@@ -12,4 +12,5 @@
     </plurals>
     <string name="thread_mark_as_mine">Mark as mine</string>
     <string name="thread_unmark_as_mine">Not mine</string>
+    <string name="thread_quoted_by">Quoted by:</string>
 </resources>

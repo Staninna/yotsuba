@@ -203,7 +203,7 @@ fun ThreadScreen(
                             )
                         }
                     },
-                    onBacklinksTap = { viewModel.onOpenBacklinks(post.no) },
+                    onBacklinkTap = viewModel::onJumpToPost,
                     onCopyPostNo = {
                         clipboard.setText(AnnotatedString(post.no.toString()))
                         scope.launch { snackbar.showSnackbar(copiedMessage) }
