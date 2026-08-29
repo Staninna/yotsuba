@@ -155,12 +155,16 @@ fun VideoPage(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(videoUri) {
-        while (true) {
+    // The transport bar is the only reader of the position, so the poll runs only while
+    // it is on screen and the position is moving. One read on entry keeps a paused or
+    // freshly revealed bar accurate; [isPlaying] itself comes from the player's listener.
+    LaunchedEffect(videoUri, isPlaying, chromeVisible) {
+        positionMs = player.currentPosition.coerceAtLeast(0)
+        durationMs = player.duration.coerceAtLeast(0)
+        while (isPlaying && chromeVisible) {
+            delay(250)
             positionMs = player.currentPosition.coerceAtLeast(0)
             durationMs = player.duration.coerceAtLeast(0)
-            isPlaying = player.isPlaying
-            delay(250)
         }
     }
     val autoAdvanceNow = rememberUpdatedState(autoAdvance)
@@ -173,6 +177,10 @@ fun VideoPage(
                 if (playbackState == Player.STATE_ENDED && autoAdvanceNow.value && selectedNow.value) {
                     onEndedNow.value()
                 }
+            }
+
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -197,6 +205,7 @@ fun VideoPage(
         player.addListener(listener)
         // The player may have prepared before this effect ran.
         player.currentTracks.audioPresence()?.let { hasAudio = it }
+        isPlaying = player.isPlaying
         onDispose {
             player.removeListener(listener)
             player.release()
