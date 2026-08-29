@@ -56,6 +56,8 @@ data class VaultViewerState(val entries: List<VaultEntry>, val index: Int) {
 sealed interface VaultNotice {
     data object ImportEmpty : VaultNotice
     data class ImportFailed(val error: VaultError) : VaultNotice
+    data object Deleted : VaultNotice
+    data class DeleteFailed(val entry: VaultEntry, val error: VaultError) : VaultNotice
 }
 
 /** Progress of a vault sync: local rebuild, then one live thread at a time. */
@@ -247,8 +249,13 @@ class VaultViewModel @Inject constructor(
         }
     }
 
-    fun delete(url: String) {
-        viewModelScope.launch { mediaVault.delete(url) }
+    fun delete(entry: VaultEntry) {
+        viewModelScope.launch {
+            notice.value = when (val error = mediaVault.delete(entry.url)) {
+                null -> VaultNotice.Deleted
+                else -> VaultNotice.DeleteFailed(entry, error)
+            }
+        }
     }
 
     /** Boards sort by directory name, which puts the `_`-prefixed reserved ones first. */

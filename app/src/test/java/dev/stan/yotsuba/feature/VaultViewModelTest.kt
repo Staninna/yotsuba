@@ -66,7 +66,9 @@ class VaultViewModelTest {
         override fun savedPaths(): Flow<Map<String, String>> =
             state.map { list -> list.associate { it.url to it.absolutePath } }
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
+        var deleteError: VaultError? = null
         override suspend fun delete(url: String): VaultError? {
+            deleteError?.let { return it }
             deleted += url
             state.value = state.value.filterNot { it.url == url }
             return null
@@ -184,8 +186,10 @@ class VaultViewModelTest {
         vm.openViewer("g/1.jpg")
         vm.uiState.test {
             assertEquals("g/1.jpg", latest().viewer?.current?.url)
-            vm.delete("g/1.jpg")
-            assertNull(latest().viewer)
+            vm.delete(entry("g/1.jpg", threadG))
+            val after = latest()
+            assertNull(after.viewer)
+            assertEquals(VaultNotice.Deleted, after.notice)
             assertEquals(listOf("g/1.jpg"), vault.deleted)
             cancelAndIgnoreRemainingEvents()
         }
@@ -233,6 +237,19 @@ class VaultViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    @Test fun `a failed delete keeps the entry and says so`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
+        vault.deleteError = VaultError.Io("disk")
+        val vm = VaultViewModel(vault, FakeSettings())
+        vm.uiState.test {
+            vm.delete(entry("g/1.jpg", threadG))
+            val after = latest()
+            assertEquals(1, after.entries.size)
+            assertEquals(VaultNotice.DeleteFailed(entry("g/1.jpg", threadG), VaultError.Io("disk")), after.notice)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 
     @Test fun `close viewer clears the url and any shuffle order`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))

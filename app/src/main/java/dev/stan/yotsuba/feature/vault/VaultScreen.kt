@@ -75,17 +75,17 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
     val resources = context.resources
     var deleting by remember { mutableStateOf<VaultEntry?>(null) }
     var importMenuOpen by remember { mutableStateOf(false) }
-    val importFailed = stringResource(R.string.vault_import_failed)
-    val importEmpty = stringResource(R.string.vault_import_empty)
 
     state.notice?.let { notice ->
+        val message = when (notice) {
+            VaultNotice.ImportEmpty -> stringResource(R.string.vault_import_empty)
+            is VaultNotice.ImportFailed -> stringResource(R.string.vault_import_failed)
+            VaultNotice.Deleted -> stringResource(R.string.vault_deleted)
+            is VaultNotice.DeleteFailed ->
+                stringResource(R.string.vault_delete_failed, notice.entry.displayName)
+        }
         LaunchedEffect(notice) {
-            snackbar.showSnackbar(
-                when (notice) {
-                    VaultNotice.ImportEmpty -> importEmpty
-                    is VaultNotice.ImportFailed -> importFailed
-                },
-            )
+            snackbar.showSnackbar(message)
             viewModel.noticeShown()
         }
     }
@@ -239,7 +239,7 @@ fun VaultScreen(viewModel: VaultViewModel = hiltViewModel()) {
             confirmButton = {
                 TextButton(onClick = {
                     deleting = null
-                    viewModel.delete(entry.url)
+                    viewModel.delete(entry)
                 }) { Text(stringResource(R.string.vault_delete)) }
             },
             dismissButton = {
