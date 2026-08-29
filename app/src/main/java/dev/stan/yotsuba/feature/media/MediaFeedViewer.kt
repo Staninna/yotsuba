@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -54,6 +55,9 @@ class MediaFeedState internal constructor(
     var muted by mutableStateOf(initialMuted)
     var playbackOn by mutableStateOf(initialPlaying)
     var chromeVisible by mutableStateOf(true)
+
+    /** Set for the length of a gesture that is clearly sideways, so the pager sits it out. */
+    var pagerLocked by mutableStateOf(false)
 
     val currentPage: Int get() = pager.currentPage
 
@@ -134,11 +138,21 @@ fun MediaFeedViewer(
         }
     }
 
-    Box(modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .pointerInput(Unit) {
+                lockPagerOnHorizontalIntent(
+                    onLock = { feed.pagerLocked = true },
+                    onRelease = { feed.pagerLocked = false },
+                )
+            },
+    ) {
         VerticalPager(
             state = feed.pager,
             modifier = Modifier.fillMaxSize(),
-            userScrollEnabled = !pip.inPipMode && feedActive,
+            userScrollEnabled = !pip.inPipMode && feedActive && !feed.pagerLocked,
         ) { page ->
             val p = pages[page]
             if (p.isVideo) {
