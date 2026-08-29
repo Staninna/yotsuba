@@ -25,6 +25,19 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /**
+     * Moves the favourite at [from] to slot [to], shifting the tabs between them by one. The
+     * order is the set's iteration order, so it is rewritten as a fresh [LinkedHashSet].
+     */
+    fun reorder(from: Int, to: Int) = viewModelScope.launch {
+        settingsRepository.update { s ->
+            val list = s.favouriteBoards.toMutableList()
+            if (from == to || from !in list.indices || to !in list.indices) return@update s
+            list.add(to, list.removeAt(from))
+            s.copy(favouriteBoards = LinkedHashSet(list))
+        }
+    }
+
+    /**
      * Drops [board] from the favourites and returns an undo that puts it back in its old
      * position rather than at the end.
      */

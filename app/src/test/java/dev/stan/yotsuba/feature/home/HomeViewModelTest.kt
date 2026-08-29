@@ -2,7 +2,10 @@ package dev.stan.yotsuba.feature.home
 
 import app.cash.turbine.test
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.fake.FakeSettings
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -44,5 +47,42 @@ class HomeViewModelTest {
         undo()
         advanceUntilIdle()
         assertEquals(listOf("g", "a", "v"), settings.state.value.favouriteBoards.toList())
+    }
+
+    @Test fun `reordering moves the board and persists the new order`() = runTest(dispatcher.scheduler) {
+        val settings = OrderedSettings(Settings(favouriteBoards = linkedSetOf("g", "a", "v", "k")))
+        val vm = HomeViewModel(settings)
+        vm.reorder(from = 0, to = 2)
+        advanceUntilIdle()
+        assertEquals(listOf("a", "v", "g", "k"), settings.current.favouriteBoards.toList())
+        vm.reorder(from = 3, to = 0)
+        advanceUntilIdle()
+        assertEquals(listOf("k", "a", "v", "g"), settings.current.favouriteBoards.toList())
+        assertEquals(2, settings.writes)
+    }
+
+    @Test fun `reordering out of range leaves the favourites alone`() = runTest(dispatcher.scheduler) {
+        val settings = OrderedSettings(Settings(favouriteBoards = linkedSetOf("g", "a")))
+        val vm = HomeViewModel(settings)
+        vm.reorder(from = 0, to = 5)
+        vm.reorder(from = 1, to = 1)
+        advanceUntilIdle()
+        assertEquals(listOf("g", "a"), settings.current.favouriteBoards.toList())
+    }
+
+    /**
+     * [FakeSettings] sits on a `MutableStateFlow`, which drops a value equal to the last one,
+     * and two sets with the same boards in a different order are equal. The real store writes
+     * a JSON string, so a reorder does reach disk; this double keeps the order visible.
+     */
+    private class OrderedSettings(var current: Settings) : SettingsRepository {
+        var writes = 0
+        private val emissions = MutableSharedFlow<Settings>(replay = 1).also { it.tryEmit(current) }
+        override val settings: Flow<Settings> = emissions
+        override suspend fun update(transform: (Settings) -> Settings) {
+            current = transform(current)
+            writes++
+            emissions.emit(current)
+        }
     }
 }

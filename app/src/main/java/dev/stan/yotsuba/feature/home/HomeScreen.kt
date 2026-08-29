@@ -103,7 +103,10 @@ fun HomeScreen(
                     boards = list,
                     selectedIndex = pagerState.currentPage.coerceIn(0, list.size - 1),
                     onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
-                    onMove = { _, _ -> },
+                    onMove = { from, to ->
+                        viewModel.reorder(from, to)
+                        scope.launch { pagerState.scrollToPage(remapPage(pagerState.currentPage, from, to)) }
+                    },
                     trailing = {
                         Tab(
                             selected = false,
