@@ -148,13 +148,24 @@ fun ErrorState(
 }
 
 @Composable
-private fun errorPresentation(error: NetworkError): Pair<ImageVector, String> = when (error) {
-    NetworkError.Offline -> Icons.Filled.WifiOff to stringResource(R.string.error_offline)
-    NetworkError.Timeout -> Icons.Filled.HourglassEmpty to stringResource(R.string.error_timeout)
-    NetworkError.RateLimited -> Icons.Filled.HourglassEmpty to stringResource(R.string.error_rate_limited)
-    NetworkError.NotFound -> Icons.Filled.ErrorOutline to stringResource(R.string.error_not_found)
-    is NetworkError.Server -> Icons.Filled.CloudOff to stringResource(R.string.error_server, error.code)
-    is NetworkError.Unknown -> Icons.Filled.ErrorOutline to stringResource(R.string.error_unknown)
+private fun errorPresentation(error: NetworkError): Pair<ImageVector, String> = errorIcon(error) to errorMessage(error)
+
+/** The one user-facing line for a [NetworkError]; every screen that names an error uses this. */
+@Composable
+fun errorMessage(error: NetworkError): String = when (error) {
+    NetworkError.Offline -> stringResource(R.string.error_offline)
+    NetworkError.Timeout -> stringResource(R.string.error_timeout)
+    NetworkError.RateLimited -> stringResource(R.string.error_rate_limited)
+    NetworkError.NotFound -> stringResource(R.string.error_not_found)
+    is NetworkError.Server -> stringResource(R.string.error_server, error.code)
+    is NetworkError.Unknown -> stringResource(R.string.error_unknown)
+}
+
+private fun errorIcon(error: NetworkError): ImageVector = when (error) {
+    NetworkError.Offline -> Icons.Filled.WifiOff
+    NetworkError.Timeout, NetworkError.RateLimited -> Icons.Filled.HourglassEmpty
+    NetworkError.NotFound, is NetworkError.Unknown -> Icons.Filled.ErrorOutline
+    is NetworkError.Server -> Icons.Filled.CloudOff
 }
 
 @Composable

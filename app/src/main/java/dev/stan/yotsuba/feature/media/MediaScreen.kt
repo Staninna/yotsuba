@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.media
 
+import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -13,8 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,10 +36,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -44,7 +49,8 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
-import dev.stan.yotsuba.core.util.NetworkError
+import dev.stan.yotsuba.core.designsystem.component.errorMessage
+import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.domain.model.MediaItem
 import java.io.File
 import kotlinx.coroutines.launch
@@ -67,6 +73,8 @@ fun MediaScreen(
     val snackbar = remember { SnackbarHostState() }
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val shareFailedMessage = stringResource(R.string.media_share_failed)
+    val shareLabel = stringResource(R.string.thread_share)
+    val sharePreparingLabel = stringResource(R.string.media_share_preparing)
 
     when (val phase = state.phase) {
         ViewerPhase.Loading -> {
@@ -107,12 +115,17 @@ fun MediaScreen(
     var autoAdvance by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
 
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberHaptics()
     // Queued + running saves. Failed ones are not "in progress"; they wait on the icon.
     val pending = state.saveStatuses.count { (_, s) -> s.inProgress }
 
+    // Rebuilt only when something a page reads changes, not on every save-status tick.
+    val pages = remember(state.items, state.saved, state.deferHeavyMedia, context) {
+        state.items.map { it.toViewerPage(context, state) }
+    }
+
     ThreadMediaViewer(
-        pages = state.items.map { it.toViewerPage(context, state) },
+        pages = pages,
         thread = state.thread,
         behaviour = state.behaviour,
         initialIndex = state.initialIndex,
@@ -130,7 +143,7 @@ fun MediaScreen(
         onLongPressPage = { page ->
             val item = state.items.getOrNull(page)
             if (state.behaviour.holdToSave && item != null) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                haptics.longPress()
                 saveToVault(
                     context = context,
                     hasAccess = state.hasStorageAccess,
@@ -142,8 +155,21 @@ fun MediaScreen(
         overlay = {
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
         },
-    ) { page, _ ->
+    ) { page, openReplies ->
         val item = state.items.getOrNull(page)
+        // The reply panel is also a swipe away, but nothing on screen says so.
+        if (state.thread.hasPosts && item != null) {
+            val replies = state.thread.graph.descendantsOf(item.postNo).size
+            IconButton(onClick = { openReplies(item.postNo) }) {
+                BadgedBox(badge = { if (replies > 0) Badge { Text(replies.toString()) } }) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Comment,
+                        stringResource(R.string.media_replies, replies),
+                        tint = Color.White,
+                    )
+                }
+            }
+        }
         DownloadAction(
             status = item?.let { state.saveStatuses[it.fullUrl] },
             interceptClick = {
@@ -164,18 +190,22 @@ fun MediaScreen(
             onRetry = { item?.let { viewModel.retryFailed(it.fullUrl) } },
             onDismissFailed = { item?.let { viewModel.dismissFailed(it.fullUrl) } },
         )
+        // The button keeps its name while it is busy, so a screen reader does not lose
+        // the control it just pressed; the spinner only adds a state.
         IconButton(
             enabled = !sharing,
+            modifier = Modifier.semantics {
+                contentDescription = shareLabel
+                if (sharing) stateDescription = sharePreparingLabel
+            },
             onClick = {
                 item?.let { m ->
                     scope.launch {
                         sharing = true
                         val file = viewModel.prepareShare(m)
                         sharing = false
-                        if (file == null) {
+                        if (file == null || !shareMediaFile(context, file, m.ext)) {
                             snackbar.showSnackbar(shareFailedMessage)
-                        } else {
-                            shareMediaFile(context, file, m.ext)
                         }
                     }
                 }
@@ -184,7 +214,7 @@ fun MediaScreen(
             if (sharing) {
                 CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = Color.White)
             } else {
-                Icon(Icons.Filled.Share, stringResource(R.string.thread_share), tint = Color.White)
+                Icon(Icons.Filled.Share, contentDescription = null, tint = Color.White)
             }
         }
     }
@@ -208,21 +238,10 @@ private fun ViewerPlaceholder(onClose: () -> Unit, content: @Composable ColumnSc
     }
 }
 
-@Composable
-private fun errorMessage(error: NetworkError): String = when (error) {
-    NetworkError.Offline -> stringResource(R.string.error_offline)
-    NetworkError.Timeout -> stringResource(R.string.error_timeout)
-    NetworkError.RateLimited -> stringResource(R.string.error_rate_limited)
-    NetworkError.NotFound -> stringResource(R.string.error_not_found)
-    is NetworkError.Server -> stringResource(R.string.error_server, error.code)
-    is NetworkError.Unknown -> stringResource(R.string.error_unknown)
-}
-
-@Composable
-private fun MediaItem.toViewerPage(context: android.content.Context, state: MediaUiState): ViewerPage {
+private fun MediaItem.toViewerPage(context: Context, state: MediaUiState): ViewerPage {
     // Already-saved media plays straight from the vault file — no buffering.
     val localPath = state.savedPath(fullUrl)
-    val description = stringResource(R.string.media_image_description, displayName, width, height)
+    val description = context.getString(R.string.media_image_description, displayName, width, height)
     return if (isVideo) {
         ViewerPage.Video(
             uri = localPath?.let { Uri.fromFile(File(it)).toString() } ?: fullUrl,

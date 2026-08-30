@@ -3,8 +3,8 @@ package dev.stan.yotsuba.feature.vault
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import dev.stan.yotsuba.core.media.mimeOf
 import dev.stan.yotsuba.domain.model.VaultEntry
-import dev.stan.yotsuba.feature.media.mimeOf
 import dev.stan.yotsuba.feature.media.shareMediaFile
 import java.io.File
 

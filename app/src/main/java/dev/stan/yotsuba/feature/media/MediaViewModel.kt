@@ -18,6 +18,7 @@ import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostGraph
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.VaultSaveContext
@@ -28,6 +29,7 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -71,17 +73,8 @@ data class MediaUiState(
     /** Unmuted by default only where the board declares webm_audio (D12). */
     val defaultUnmuted: Boolean = false,
 ) {
-    val loaded: Boolean get() = phase == ViewerPhase.Ready
-    fun isSaved(url: String): Boolean = url in saved
     /** The vault file for [url], when it is saved and its file is known. */
     fun savedPath(url: String): String? = saved[url]
-
-    val posts: Map<Long, ThreadPost> get() = thread.byNo
-    val backlinks: Map<Long, List<Long>> get() = thread.backlinks
-    val board: Board? get() = thread.board
-
-    /** The thread's quote graph, for walking replies and the posts they answer. */
-    val graph: PostGraph get() = thread.graph
 }
 
 @HiltViewModel(assistedFactory = MediaViewModel.Factory::class)
@@ -108,8 +101,13 @@ class MediaViewModel @AssistedInject constructor(
     }
 
     private val source = MutableStateFlow<Source>(Source.Loading)
-    private val details = MutableStateFlow<ThreadDetails?>(null)
     private val boardInfo = MutableStateFlow<Board?>(null)
+    /** Read directly for saves, which must not depend on whether the UI is collecting. */
+    private val settingsState = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
+
+    private val loadedDetails: ThreadDetails?
+        get() = (source.value as? Source.Loaded)?.details
 
     init {
         load()
@@ -123,6 +121,9 @@ class MediaViewModel @AssistedInject constructor(
     private fun load() {
         source.value = Source.Loading
         viewModelScope.launch {
+            // The board lookup can hit the network on a cold cache; it has nothing to
+            // wait for, so it runs beside the thread fetch.
+            val info = async { boardRepository.board(board) }
             // Live wins. The saved snapshot is the fallback for a pruned, 404'd or
             // offline thread, so a vault item still opens with its conversation intact.
             val r = threadRepository.thread(board, threadNo)
@@ -130,8 +131,7 @@ class MediaViewModel @AssistedInject constructor(
                 is DataResult.Success -> r.value
                 is DataResult.Failure -> mediaVault.savedThread(board, threadNo)
             }
-            boardInfo.value = boardRepository.board(board)
-            details.value = loaded
+            boardInfo.value = info.await()
             source.value = when {
                 loaded != null -> Source.Loaded(loaded)
                 r is DataResult.Failure -> Source.Failed(r.error)
@@ -187,7 +187,7 @@ class MediaViewModel @AssistedInject constructor(
 
     /** Queues a vault save with full thread/post context; returns immediately. */
     fun enqueueSave(item: MediaItem) {
-        val loaded = details.value
+        val loaded = loadedDetails
         val op = loaded?.posts?.firstOrNull { it.isOp }
         downloadQueue.enqueue(
             item,
@@ -207,7 +207,7 @@ class MediaViewModel @AssistedInject constructor(
      * quotes it, transitively. Empty when the user has reply capture off.
      */
     private fun conversationFor(postNo: Long, loaded: ThreadDetails?): List<ThreadPost> =
-        if (loaded == null || !uiState.value.saveReplies) {
+        if (loaded == null || !settingsState.value.saveRepliesWithMedia) {
             emptyList()
         } else {
             PostGraph.of(loaded).conversationAround(postNo)

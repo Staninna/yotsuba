@@ -15,6 +15,8 @@ import androidx.datastore.preferences.core.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.media.MediaByteSource
+import dev.stan.yotsuba.core.media.isVideoExt
+import dev.stan.yotsuba.core.media.mimeOf
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
@@ -234,16 +236,9 @@ class MediaVaultRepositoryImpl @Inject constructor(
         val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
         val file = File(entity.absolutePath).takeIf { it.isFile } ?: return@withContext VaultError.NotFound
         attempt {
-            val video = entity.ext == ".webm" || entity.ext == ".mp4"
-            val mime = when (entity.ext) {
-                ".jpg", ".jpeg" -> "image/jpeg"
-                ".png" -> "image/png"
-                ".gif" -> "image/gif"
-                ".webp" -> "image/webp"
-                ".webm" -> "video/webm"
-                ".mp4" -> "video/mp4"
-                else -> "application/octet-stream"
-            }
+            val ext = entity.ext.orEmpty()
+            val mime = mimeOf(ext)
+            val video = isVideoExt(ext)
             if (Build.VERSION.SDK_INT >= 29) {
                 val collection = if (video) {
                     MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)

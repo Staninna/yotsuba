@@ -26,8 +26,8 @@ import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
-import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
+import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import dev.stan.yotsuba.feature.media.MediaUiState
 import dev.stan.yotsuba.feature.media.MediaViewModel
@@ -89,14 +89,6 @@ class MediaViewModelTest {
         )
     }
 
-    private class FakeSettingsRepository : SettingsRepository {
-        val state = MutableStateFlow(Settings())
-        override val settings: Flow<Settings> = state
-        override suspend fun update(transform: (Settings) -> Settings) {
-            state.value = transform(state.value)
-        }
-    }
-
     /** Saves resolve into [saved]; the first save completes [firstSave] for await-style asserts. */
     private class FakeVault : MediaVaultRepository {
         val access = MutableStateFlow(true)
@@ -145,7 +137,7 @@ class MediaViewModelTest {
         posts: List<ThreadPost>,
         backlinks: Map<Long, List<Long>> = emptyMap(),
         val boards: FakeBoardRepository = FakeBoardRepository(),
-        val settings: FakeSettingsRepository = FakeSettingsRepository(),
+        val settings: FakeSettings = FakeSettings(),
         val vault: FakeVault = FakeVault(),
         val sessionStore: MediaSessionStore = MediaSessionStore(),
         val server: MockWebServer? = null,
@@ -188,8 +180,8 @@ class MediaViewModelTest {
             )
             env.vm().uiState.test {
                 val state = latest()
-                assertEquals(setOf(100L, 101L), state.posts.keys)
-                assertEquals(listOf(101L), state.graph.descendantsOf(100L).map { it.no })
+                assertEquals(setOf(100L, 101L), state.thread.byNo.keys)
+                assertEquals(listOf(101L), state.thread.graph.descendantsOf(100L).map { it.no })
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -220,8 +212,8 @@ class MediaViewModelTest {
                 val state = latest()
                 assertEquals(listOf(100L, 102L, 103L), state.items.map { it.postNo })
                 assertEquals(1, state.initialIndex)
-                assertTrue(state.loaded)
-                assertEquals(setOf(100L, 101L, 102L, 103L), state.posts.keys)
+                assertEquals(ViewerPhase.Ready, state.phase)
+                assertEquals(setOf(100L, 101L, 102L, 103L), state.thread.byNo.keys)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -233,7 +225,6 @@ class MediaViewModelTest {
                 assertEquals(ViewerPhase.Loading, awaitItem().phase)
                 val state = latest()
                 assertEquals(ViewerPhase.Empty, state.phase)
-                assertFalse(state.loaded)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -263,7 +254,7 @@ class MediaViewModelTest {
                 backlinks = mapOf(100L to listOf(104L, 102L), 102L to listOf(103L)),
             )
             env.vm().uiState.test {
-                assertEquals(listOf(102L, 103L, 104L), latest().graph.descendantsOf(100L).map { it.no })
+                assertEquals(listOf(102L, 103L, 104L), latest().thread.graph.descendantsOf(100L).map { it.no })
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -293,14 +284,14 @@ class MediaViewModelTest {
         val vm = env.vm()
         vm.uiState.test {
             val withAccess = latest()
-            assertTrue(withAccess.isSaved("https://i/100.jpg"))
+            assertTrue("https://i/100.jpg" in withAccess.saved)
             assertEquals("/vault/100.jpg", withAccess.savedPath("https://i/100.jpg"))
             assertTrue(withAccess.hasStorageAccess)
             env.vault.access.value = false
             val withoutAccess = latest()
             assertFalse(withoutAccess.hasStorageAccess)
             assertTrue(withoutAccess.saved.isEmpty())
-            assertFalse(withoutAccess.isSaved("https://i/100.jpg"))
+            assertFalse("https://i/100.jpg" in withoutAccess.saved)
             cancelAndIgnoreRemainingEvents()
         }
     }

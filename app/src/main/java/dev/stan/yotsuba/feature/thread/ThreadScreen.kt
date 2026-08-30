@@ -60,6 +60,7 @@ import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
+import dev.stan.yotsuba.core.designsystem.component.errorMessage
 import dev.stan.yotsuba.core.designsystem.motionEnter
 import dev.stan.yotsuba.core.designsystem.motionExit
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
@@ -506,17 +507,8 @@ private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel, onClose: () 
 }
 
 @Composable
-private fun refreshErrorMessage(error: NetworkError): String = stringResource(
-    R.string.thread_refresh_failed,
-    when (error) {
-        NetworkError.Offline -> stringResource(R.string.error_offline)
-        NetworkError.Timeout -> stringResource(R.string.error_timeout)
-        NetworkError.RateLimited -> stringResource(R.string.error_rate_limited)
-        NetworkError.NotFound -> stringResource(R.string.error_not_found)
-        is NetworkError.Server -> stringResource(R.string.error_server, error.code)
-        is NetworkError.Unknown -> stringResource(R.string.error_unknown)
-    },
-)
+private fun refreshErrorMessage(error: NetworkError): String =
+    stringResource(R.string.thread_refresh_failed, errorMessage(error))
 
 /** Jump to top / first new post / bottom. */
 @Composable

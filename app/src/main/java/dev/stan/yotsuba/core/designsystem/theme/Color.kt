@@ -17,6 +17,10 @@ data class YotsubaColors(
     val quotelink: Color,
     val spoilerScrim: Color,
     val deadThread: Color,
+    /** A save that landed; drawn over the viewer's black chrome and thumbnail scrims. */
+    val saveSuccess: Color,
+    /** A save that failed; same ground as [saveSuccess]. */
+    val saveError: Color,
 )
 
 /** Outside [dev.stan.yotsuba.core.designsystem.theme.YotsubaTheme] (a bare preview) the light values apply; the function is the one definition. */
@@ -27,4 +31,12 @@ fun yotsubaColors(scheme: ColorScheme, dark: Boolean): YotsubaColors = YotsubaCo
     quotelink = scheme.primary,
     spoilerScrim = scheme.surfaceVariant,
     deadThread = scheme.outline,
+    // Both always sit on black, whatever the theme, so a light scheme's roles would lose
+    // their contrast there. They take the dark scheme's tones in either theme: the dark
+    // greentext green, and the dark scheme's error red.
+    saveSuccess = Color(0xFFA6C761),
+    saveError = if (dark) scheme.error else DarkErrorTone,
 )
+
+/** M3's error role at tone 80, what a dark scheme's `error` resolves to. */
+private val DarkErrorTone = Color(0xFFF2B8B5)

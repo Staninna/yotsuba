@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
 import androidx.core.content.FileProvider
+import dev.stan.yotsuba.core.media.mimeOf
 import java.io.File
 
 /** Opens the system "All files access" toggle for this app so the vault becomes writable. */
@@ -23,23 +24,16 @@ fun requestAllFilesAccess(context: Context) {
     }
 }
 
-fun mimeOf(ext: String): String = when (ext.lowercase()) {
-    ".jpg", ".jpeg" -> "image/jpeg"
-    ".png" -> "image/png"
-    ".gif" -> "image/gif"
-    ".webp" -> "image/webp"
-    ".webm" -> "video/webm"
-    ".mp4" -> "video/mp4"
-    else -> "application/octet-stream"
-}
-
-/** Fires a share chooser over [file] through the app's FileProvider. */
-fun shareMediaFile(context: Context, file: File, ext: String) {
+/**
+ * Fires a share chooser over [file] through the app's FileProvider. False when the chooser
+ * could not be started, so the caller can say so instead of leaving a dead tap.
+ */
+fun shareMediaFile(context: Context, file: File, ext: String): Boolean {
     val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = mimeOf(ext)
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    runCatching { context.startActivity(Intent.createChooser(intent, null)) }
+    return runCatching { context.startActivity(Intent.createChooser(intent, null)) }.isSuccess
 }

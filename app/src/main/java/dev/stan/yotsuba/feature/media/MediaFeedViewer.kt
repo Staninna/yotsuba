@@ -3,6 +3,7 @@ package dev.stan.yotsuba.feature.media
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.PagerState
@@ -24,7 +25,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.util.FileSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -172,11 +172,13 @@ fun MediaFeedViewer(
     onLongPressPage: (Int) -> Unit = {},
     /** Saves still queued or running; kept on screen after the chrome hides. */
     activeDownloads: Int = 0,
+    /** Inline actions, at most about three: past that the title gets no room. */
     topBarActions: @Composable RowScope.() -> Unit = {},
+    /** Everything else, in the overflow menu after auto-advance and picture-in-picture. */
+    topBarMenu: @Composable ColumnScope.(close: () -> Unit) -> Unit = {},
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val chromeShown = feed.chromeVisible && !pip.inPipMode && feedActive
-    val haptics = rememberHaptics()
 
     // Restarts on every control tap and waits out a scrub, so the bar never vanishes
     // under a finger that is still using it.
@@ -240,7 +242,7 @@ fun MediaFeedViewer(
                     autoAdvance = autoAdvance,
                     onEnded = { feed.animateNextWrapping(pages.size) },
                     behaviour = behaviour,
-                    onLongPress = { haptics.longPress(); onLongPressPage(page) },
+                    onLongPress = { onLongPressPage(page) },
                     soundUrl = p.soundUrl,
                     sharedKey = p.sharedKey,
                 )
@@ -255,7 +257,7 @@ fun MediaFeedViewer(
                     playing = feed.playbackOn,
                     muted = feed.muted,
                     onTap = { feed.chromeVisible = !feed.chromeVisible },
-                    onLongPress = { haptics.longPress(); onLongPressPage(page) },
+                    onLongPress = { onLongPressPage(page) },
                     sharedKey = p.sharedKey,
                 )
             }
@@ -272,9 +274,12 @@ fun MediaFeedViewer(
             badge = if (current?.soundUrl != null) stringResource(R.string.media_sound_badge) else null,
             modifier = Modifier.align(Alignment.TopCenter).notifyOnPress(feed::touchChrome),
         ) {
-            AutoAdvanceButton(autoAdvance, onToggleAutoAdvance)
-            PipButton { pip.enter(current?.pipInfo, feed.playbackOn) }
             topBarActions()
+            ViewerOverflowMenu { close ->
+                AutoAdvanceMenuItem(autoAdvance) { close(); onToggleAutoAdvance() }
+                PipMenuItem { close(); pip.enter(current?.pipInfo, feed.playbackOn) }
+                topBarMenu(close)
+            }
         }
 
         DownloadIndicator(
