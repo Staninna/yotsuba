@@ -34,6 +34,13 @@ import dev.stan.yotsuba.domain.model.VaultLocation
 import java.text.DateFormat
 import java.util.Date
 
+/**
+ * Lazy item key for a thread. Compose stores item keys in the saved-state Bundle, so a
+ * [VaultLocation] itself would throw the moment the row composes; the rest of the app keys
+ * threads as `board/threadNo` too.
+ */
+internal fun lazyKey(location: VaultLocation): String = location.board + "/" + location.threadNo
+
 /** A full-height sheet reading [stats]. Tapping a thread hands its location to [onOpenThread]. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,7 +73,7 @@ internal fun VaultStatsSheet(
             item { SectionTitle(stringResource(R.string.vault_stats_per_board)) }
             items(stats.perBoard, key = { it.board }) { BoardBar(it, stats.perBoard.first().bytes) }
             item { SectionTitle(stringResource(R.string.vault_stats_biggest_threads)) }
-            items(stats.biggestThreads, key = { it.location }) { ThreadRow(it) { onOpenThread(it.location) } }
+            items(stats.biggestThreads, key = { lazyKey(it.location) }) { ThreadRow(it) { onOpenThread(it.location) } }
             item { SectionTitle(stringResource(R.string.vault_stats_per_week)) }
             item { WeeklyBars(stats.savedPerWeek) }
             item { SectionTitle(stringResource(R.string.vault_stats_dates)) }
