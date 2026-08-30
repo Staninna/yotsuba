@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.BuildConfig
+import dev.stan.yotsuba.core.log.Log
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,6 +36,8 @@ import kotlinx.coroutines.withContext
  *
  * Driven entirely from Settings. Nothing here runs on its own.
  */
+private const val TAG = "Updater"
+
 @Singleton
 class Updater @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -69,10 +72,12 @@ class Updater @Inject constructor(
         _history.value = try {
             History.Loaded(releases.all())
         } catch (e: ReleaseException) {
+            Log.w(TAG, "Release history failed", e)
             History.Failed(e.message ?: "Couldn't reach GitHub.")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Log.w(TAG, "Release history failed", e)
             History.Failed("Couldn't reach GitHub: ${e.message ?: "no connection"}")
         }
     }
@@ -105,10 +110,12 @@ class Updater @Inject constructor(
             if (Version.isNewer(release.tag, currentVersion)) State.Available(release)
             else State.UpToDate(currentVersion)
         } catch (e: ReleaseException) {
+            Log.w(TAG, "Update check failed", e)
             State.Failed(e.message ?: "Couldn't reach GitHub.")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Log.w(TAG, "Update check failed", e)
             State.Failed("Couldn't reach GitHub: ${e.message ?: "no connection"}")
         }
     }
@@ -120,6 +127,7 @@ class Updater @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Log.w(TAG, "Download of ${release.tag} failed", e)
             _state.value = State.Failed("Download failed: ${e.message ?: "unknown error"}")
             return
         }
@@ -134,6 +142,7 @@ class Updater @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
+            Log.w(TAG, "Install failed", e)
             _state.value = State.Failed("Install failed: ${e.message ?: "unknown error"}")
         }
     }
@@ -244,6 +253,7 @@ class Updater @Inject constructor(
                             abandonTimer = scope.launch {
                                 delay(10.minutes)
                                 unregister(self)
+                                // Best effort: the session may already be gone; nothing to log.
                                 runCatching { context.packageManager.packageInstaller.abandonSession(sessionId) }
                                 if (_state.value is State.Installing) {
                                     _state.value = State.Failed("The installer was closed without finishing.")
@@ -284,6 +294,7 @@ class Updater @Inject constructor(
     }
 
     private fun unregister(receiver: BroadcastReceiver) {
+        // Best effort: throws only if already unregistered, which is the wanted end state.
         runCatching { context.unregisterReceiver(receiver) }
     }
 }
