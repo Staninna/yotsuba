@@ -54,6 +54,7 @@ reinstall without checking which side of that line it falls on.
 ./gradlew testDebugUnitTest          # JVM, no device
 ./gradlew lintDebug                  # lint errors are real crashes, not pedantry
 ./gradlew connectedDebugAndroidTest  # needs a device
+./smoke.sh <apk>                     # install, launch, fail if it dies; CI runs it on an emulator
 ```
 
 Coverage is honestly recorded in `todo.md`. Read it before claiming a number.

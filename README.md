@@ -60,6 +60,10 @@ The instrumented suite needs a device:
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
+`smoke.sh <apk>` installs an APK on the connected device, launches it and fails
+if it dies within ten seconds. The release workflow runs it on an emulator
+against the APK it is about to publish, and a failure stops the release.
+
 ## Cutting a release
 
 Bump `versionCode` and `versionName` in `app/build.gradle.kts`, commit, then

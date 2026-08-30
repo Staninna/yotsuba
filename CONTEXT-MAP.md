@@ -27,6 +27,10 @@ System-wide decisions: [`docs/adr/`](docs/adr/).
   comes back after a reinstall.
 - **Read mark**: the highest post number shown on screen, as opposed
   to the scroll position, which is where the user happened to stop.
+- **Smoke launch**: installing the release APK and starting it, with no test
+  code aboard; it passes if the process is still alive ten seconds later. The
+  only check that sees the minified build, so the only one that can catch a
+  release-only crash before a user does.
 
 ## The thing to know before touching storage
 

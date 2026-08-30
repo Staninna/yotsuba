@@ -61,6 +61,27 @@ jobs:
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk "yotsuba-${GITHUB_REF_NAME}.apk"
 
+      # 1.1.1 shipped a build that crashed before its first frame: R8 renamed a class the
+      # navigation graph looks up by name. Debug is not minified, so no dev-build testing
+      # can see that. Launch the very APK that is about to be published on an emulator
+      # and fail the release if it dies. Costs about five minutes.
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Smoke-launch the release APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./smoke.sh "yotsuba-${GITHUB_REF_NAME}.apk"
+
       # bump.sh writes changelog/<tag>.md locally; when it is there it is the
       # release body, otherwise GitHub's generated notes stand in.
       - name: Pick the release notes

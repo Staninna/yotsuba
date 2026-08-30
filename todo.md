@@ -8,12 +8,6 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## 1. Release safety
 
-- [ ] Nothing launches the release APK. CI builds it, verifies it is release-signed, and
-  publishes it, but never starts it, so 1.1.1 shipped a build that crashed before its first
-  frame: R8 renamed an enum used as a navigation argument, and type-safe routes look
-  argument types up by name. Debug is not minified, so no amount of dev-build testing could
-  have caught it. Until something smoke-launches the minified build, every release-only
-  crash class is discovered by installing it
 - [ ] The @Serializable sealed PostAnnotation hierarchy in the vault sidecar has the same
   shape of risk and has not been exercised from a minified build: serialNames are baked at
   compile time so the JSON is stable, but decoding a saved posts.json under R8 is untested
@@ -63,6 +57,15 @@ Open work first; everything finished lives under `# Done` at the bottom.
 # Done
 
 Finished work, kept for the record. Sections mirror the ones above.
+
+### 1. Release safety
+
+- [x] Nothing launched the release APK, so 1.1.1 shipped a build that crashed before its
+  first frame (R8 renamed a navigation argument enum). `smoke.sh` now installs the APK,
+  launches it and fails if the process is gone or logcat shows a fatal within 10 s; the
+  release workflow runs it on an API 34 emulator against the exact APK it is about to
+  publish, and a failure stops the release. Verified 2026-08-30 on a local AVD, including
+  the negative case (`am crash` mid-window fails the script)
 
 ### 1. Code quality, blockers
 
