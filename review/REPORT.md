@@ -8,12 +8,12 @@ Rules: the thermo-nuclear code quality SKILL.md, plus `ui/ux`. Behaviour was fro
 | severity | found | confirmed | fixed | deferred |
 |---|---|---|---|---|
 | critical | 13 | 12 | 12 | 1 |
-| high | 64 | 61 | 60 | 4 |
-| medium | 141 | 121 | 116 | 25 |
+| high | 64 | 61 | 61 | 3 |
+| medium | 141 | 121 | 121 | 20 |
 | low | 68 | 51 | 51 | 17 |
-| total | 286 | 245 | 239 | 47 |
+| total | 286 | 245 | 245 | 41 |
 
-286 findings entered the ledger from 26 finders (14 directory slices, 3 cross-cutting sweeps, 4 unpushed-commit reviewers, crash, scroll, 3 UI/UX walkers). 245 survived verification. 239 are fixed; 47 are deferred (41 rejected in verification, 6 confirmed but deferred with a reason).
+286 findings entered the ledger from 26 finders (14 directory slices, 3 cross-cutting sweeps, 4 unpushed-commit reviewers, crash, scroll, 3 UI/UX walkers). 245 survived verification. 245 are fixed; 41 are deferred (all rejected in verification). The 6 confirmed-but-deferred findings were fixed after the v2.0.0 tag, in the post/* merges.
 
 ## How it was verified
 
@@ -99,22 +99,19 @@ Rules: the thermo-nuclear code quality SKILL.md, plus `ui/ux`. Behaviour was fro
 - F272 `VaultExplorer.kt` (ui/ux): MediaGrid renders emptyText when empty.
 - F277 `VaultScreen.kt` (ui/ux): Import default names resolved from resources.
 
+- F130 `BoardsViewModel.kt` (ui/ux): hiddenBoards is the only visibility set; a category toggle hides or shows every board in it; a board added to a hidden category later is shown until hidden. Legacy hiddenCategories folded in on first board load.
+
 ## Deferred
 
-- F075 `app/src/test/java/dev/stan/yotsuba/data/MediaDownloadQueueTest.kt:33` [high] 5 type/boundary: Needs MediaDownloadQueue to take an injectable scope (production code, media slice); test rewrite blocked on that.
-- F087 `app/src/main/java/dev/stan/yotsuba/core/database/dao/SavedMediaDao.kt:41` [medium] 3 design cleanliness: Index on saved_media.md5 needs a Room schema bump and migration; schema changes out of scope for this pass.
-- F088 `app/src/main/java/dev/stan/yotsuba/core/database/dao/SavedMediaDao.kt:47` [medium] 6 canonical layer: Canonical VideoFormats constant belongs in core/media with call sites in data/; a DAO-only bound would be a half-fix.
-- F090 `app/src/main/java/dev/stan/yotsuba/core/database/entity/Entities.kt:20` [medium] 0 structural simplification: Dropping newReplies/unreadCount/lastSeenPostNo needs a v11 schema and migration.
-- F104 `app/src/main/java/dev/stan/yotsuba/core/vault/VaultPosts.kt:66` [medium] 6 canonical layer: Breaking the core<->domain import cycle means splitting VaultPaths/PostText/DataResult and re-pointing 25+ importers across every feature package; needs its own serialized change on main.
-- F130 `app/src/main/java/dev/stan/yotsuba/feature/boards/BoardsViewModel.kt:92` [medium] 2 spaghetti growth: Collapsing hidden boards and hidden categories into one set changes which boards appear (boards added later to a hidden category) and needs a settings migration; not behaviour-preserving.
+All six confirmed-but-deferred findings (F075, F087, F088, F090, F104, F130) were fixed after v2.0.0: Room v11 migration (md5 index, dead bookmark columns), VideoFormats bound as a query parameter, injectable queue scope, domain as the leaf layer with `DomainLayerTest` guarding the direction, and hidden boards as the one visibility set.
 
 Plus 41 findings rejected in verification (listed in the ledger with the verifier's reason).
 
 ## Root causes worth a structural fix
 
-- **core <-> domain import cycle** (F104, deferred). `core/util/DataResult`, `core/text/PostText` and `core/vault/VaultPaths` are imported by domain while domain models are imported by core. Splitting those three into a leaf package would let the layers be enforced.
-- **Room schema debt** (F087, F090, deferred). `bookmarks` still carries `newReplies`/`unreadCount`/`lastSeenPostNo` columns nothing reads, and `saved_media.md5` has no index for the dedup scan. Both need a v11 migration; the domain model already dropped the fields.
-- **Hidden boards vs hidden categories** (F130, deferred). Two overlapping sets in Settings with a special case in `BoardVisibility.toggleBoard`; collapsing them needs a settings migration and a decision on boards added to a hidden category later.
+- **core <-> domain import cycle** (F104, fixed post-2.0.0). `core/util/DataResult`, `core/text/PostText` and `core/vault/VaultPaths` are imported by domain while domain models are imported by core. Splitting those three into a leaf package would let the layers be enforced.
+- **Room schema debt** (F087, F090, fixed post-2.0.0: v11). `bookmarks` still carries `newReplies`/`unreadCount`/`lastSeenPostNo` columns nothing reads, and `saved_media.md5` has no index for the dedup scan. Both need a v11 migration; the domain model already dropped the fields.
+- **Hidden boards vs hidden categories** (F130, fixed post-2.0.0). Two overlapping sets in Settings with a special case in `BoardVisibility.toggleBoard`; collapsing them needs a settings migration and a decision on boards added to a hidden category later.
 - **Unqualified dispatcher injection.** Two branches independently added `CoroutineDispatcher` constructor parameters with Kotlin defaults, which Hilt ignores. `@ComputeDispatcher`/`@IoDispatcher` in `core/di/DispatchersModule.kt` are now the only way to inject one; keep it that way.
 - **Interface defaults as fakes.** `MediaVaultRepository` and friends carried no-op default bodies so test fakes compiled; every member is abstract now and `fake/FakeMediaVault` is the inert base. New members must be added to the fake, which is the point.
 - **Feature top bars owned by the shell.** `ThreadsScreen` built History's app bar inline while Bookmarks and Catalog export theirs; F184 moves it. The pattern to keep: a feature exports its `*Menu`/`*TopBar` composable, the shell only places it.
@@ -338,7 +335,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F072 | AppNavHost.kt:105 | 6 canonical layer | Fixed (38f6e23) |
 | F073 | AppNavHost.kt:137 | 2 spaghetti growth | Fixed (111aa10) |
 | F074 | AppNavHost.kt:165 | 6 canonical layer | Fixed (111aa10) |
-| F075 | MediaDownloadQueueTest.kt:33 | 5 type/boundary | Deferred (Needs MediaDownloadQueue to take an injectable scope (production code, media slice); test rewrite blocked on that.) |
+| F075 | MediaDownloadQueueTest.kt:33 | 5 type/boundary | Fixed (b166ca9) |
 | F076 | MediaDownloadQueueTest.kt:43 | 6 canonical layer | Fixed (021843c) |
 | F077 | ThreadRefreshFailureTest.kt:56 | 6 canonical layer | Fixed (032af93) |
 | F078 | 6.json:1 | 5 type/boundary | Deferred (rejected in verification: Facts check out (schemas 6-10 only, migrations 1_2..9_10, no MigrationTestHelper anywhere), but this is a test-coverage/process gap, not something the thermo-nuclear rules flag: no structural regression, no spaghetti, no type/boundary problem in code. Rule 5 is about types and contracts in source, not about exported Room schema JSON. The cited artefact is a generated file and 'line 1' of it anchors nothing. The alternative fix (dropping exportSchema/schemaLocation) would delete the only artefacts a future migration test could use and would change the build's outputs, making the situation worse, not cleaner.) |
@@ -350,10 +347,10 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F084 | HistoryClearFlowTest.kt:30 | 2 spaghetti growth | Fixed (87b5096) |
 | F085 | VaultFlowTest.kt:33 | 5 type/boundary | Fixed (028969c) |
 | F086 | BookmarkDao.kt:60 | 3 design cleanliness | Deferred (rejected in verification: The three UPDATEs are real and overlapping, but the proposed collapse does not delete complexity: it replaces three explicit, self-documenting statements with one statement carrying three nullable params plus a `touchActivity` guard flag, and the finding itself admits the naive version would break behaviour (updateState must leave lastActivityAt untouched; the COALESCE form as written would clobber it, and passing the row's existing value from the caller is a read-modify-write the current single statement avoids). Taste-level restructuring with a behaviour hazard, not a structural regression the rules flag.) |
-| F087 | SavedMediaDao.kt:41 | 3 design cleanliness | Deferred (Index on saved_media.md5 needs a Room schema bump and migration; schema changes out of scope for this pass.) |
-| F088 | SavedMediaDao.kt:47 | 6 canonical layer | Deferred (Canonical VideoFormats constant belongs in core/media with call sites in data/; a DAO-only bound would be a half-fix.) |
+| F087 | SavedMediaDao.kt:41 | 3 design cleanliness | Fixed (82f1597) |
+| F088 | SavedMediaDao.kt:47 | 6 canonical layer | Fixed (93392e3) |
 | F089 | SavedMediaDao.kt:49 | 0 structural simplification | Fixed (5f8c89a) |
-| F090 | Entities.kt:20 | 0 structural simplification | Deferred (Dropping newReplies/unreadCount/lastSeenPostNo needs a v11 schema and migration.) |
+| F090 | Entities.kt:20 | 0 structural simplification | Fixed (82f1597) |
 | F091 | Migrations.kt:6 | 3 design cleanliness | Deferred (rejected in verification: The facts check out (no MigrationTestHelper anywhere, only 6..10.json exported, no destructive fallback at Modules.kt:126-128), but this is a missing-test-coverage gap, not one of the structural/abstraction problems this review's rules flag, and part of the fix is impossible: 1.json..5.json are not recoverable — `git log --all` for those paths returns nothing, so they were never committed.) |
 | F092 | SettingsDataStore.kt:35 | 6 canonical layer | Fixed (90ea126) |
 | F093 | SettingsRows.kt:42 | ui/ux | Deferred (rejected in verification: Same defect, same lines, same fix as F017 (which additionally covers TextRow/NavigationRow roles). Duplicate, not an independent finding.) |
@@ -367,7 +364,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F101 | Urls.kt:33 | 5 type/boundary | Fixed (8c2a209) |
 | F102 | Urls.kt:43 | 6 canonical layer | Fixed (8c2a209) |
 | F103 | VaultMeta.kt:67 | 0 structural simplification | Fixed (4edf093) |
-| F104 | VaultPosts.kt:66 | 6 canonical layer | Deferred (Breaking the core<->domain import cycle means splitting VaultPaths/PostText/DataResult and re-pointing 25+ importers across every feature package; needs its own serialized change on main.) |
+| F104 | VaultPosts.kt:66 | 6 canonical layer | Fixed (e27698a) |
 | F105 | VideoStills.kt:33 | 4 magic/wrappers | Fixed (4edf093) |
 | F106 | VaultSyncWorker.kt:55 | 7 orchestration/atomicity | Fixed (e4f6c47) |
 | F107 | VaultSyncWorker.kt:64 | 7 orchestration/atomicity | Fixed (b558d62) |
@@ -393,7 +390,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F127 | MediaVaultRepository.kt:47 | 5 type/boundary | Deferred (rejected in verification: Duplicate of F033: identical member list, identical evidence, identical remedy (abstract members plus a shared FakeMediaVaultRepository base), plus F034's overload collapse. Nothing here is not already covered.) |
 | F128 | VaultDedupRepository.kt:31 | 4 magic/wrappers | Fixed (3e2ea0b) |
 | F129 | BoardsScreen.kt:115 | ui/ux | Fixed (23a531a) |
-| F130 | BoardsViewModel.kt:92 | 2 spaghetti growth | Deferred (Collapsing hidden boards and hidden categories into one set changes which boards appear (boards added later to a hidden category) and needs a settings migration; not behaviour-preserving.) |
+| F130 | BoardsViewModel.kt:92 | 2 spaghetti growth | Fixed (0fad2b0) |
 | F131 | BoardsViewModel.kt:130 | ui/ux | Fixed (2ab05cf) |
 | F132 | BookmarksList.kt:166 | 2 spaghetti growth | Fixed (14ced7c) |
 | F133 | BookmarksViewModel.kt:132 | 0 structural simplification | Fixed (843881d) |
