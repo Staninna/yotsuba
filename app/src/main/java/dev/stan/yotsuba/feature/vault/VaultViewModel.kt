@@ -3,6 +3,7 @@ package dev.stan.yotsuba.feature.vault
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,12 +21,14 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerThread
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -428,7 +431,6 @@ class VaultViewModel @Inject constructor(
     private data class Editing(
         val selected: Set<String>,
         val inspecting: String?,
-        val view: View,
         val threadEdit: VaultThreadEdit?,
         val selection: VaultSelection,
     )
@@ -451,15 +453,19 @@ class VaultViewModel @Inject constructor(
     private val mode = MutableStateFlow(VaultMode.RECENT)
     private val query = MutableStateFlow("")
 
-    private val view = combine<Any, View>(sort, reversed, filter, audio, mode, query) { values ->
-        View(
-            VaultSort.entries.firstOrNull { it.name == values[0] } ?: VaultSort.SAVED,
-            values[1] as Boolean,
-            VaultFilter.entries.firstOrNull { it.name == values[2] } ?: VaultFilter.ALL,
-            VaultAudio.entries.firstOrNull { it.name == values[3] } ?: VaultAudio.ANY,
-            values[4] as VaultMode,
-            values[5] as String,
+    /** The three persisted knobs, typed on the way out of saved state. */
+    private data class Ordering(val sort: VaultSort, val reversed: Boolean, val filter: VaultFilter)
+
+    private val ordering = combine(sort, reversed, filter) { s, r, f ->
+        Ordering(
+            VaultSort.entries.firstOrNull { it.name == s } ?: VaultSort.SAVED,
+            r,
+            VaultFilter.entries.firstOrNull { it.name == f } ?: VaultFilter.ALL,
         )
+    }
+
+    private val view = combine(ordering, audio, mode, query) { o, a, m, q ->
+        View(o.sort, o.reversed, o.filter, VaultAudio.entries.firstOrNull { it.name == a } ?: VaultAudio.ANY, m, q)
     }
 
     /** Searches file names and thread subjects across the whole vault; blank ends the search. */
@@ -467,8 +473,8 @@ class VaultViewModel @Inject constructor(
         this.query.value = query
     }
 
-    private val editing = combine(selected, inspectingUrl, view, threadEdit, selection) { s, i, v, t, sel ->
-        Editing(s, i, v, t, sel)
+    private val editing = combine(selected, inspectingUrl, threadEdit, selection) { s, i, t, sel ->
+        Editing(s, i, t, sel)
     }
 
     fun requestRename(location: VaultLocation) {
@@ -531,23 +537,58 @@ class VaultViewModel @Inject constructor(
         savedState[KEY_AUDIO] = audio.name
     }
 
-    val uiState: StateFlow<VaultUiState> = combine(
-        entries, syncState, viewing, activity, editing,
-    ) { entries, sync, viewing, activity, editing ->
-        val sel = editing.selection
-        val view = editing.view
-        val urls = entries.mapTo(HashSet(entries.size)) { it.url }
+    /**
+     * The whole vault, sorted, filtered and grouped for [view]. Everything below that is
+     * cheap (which board is open, what is ticked, what the viewer shows) layers on top of
+     * this without redoing it.
+     */
+    private class Arranged(
+        val entries: List<VaultEntry>,
+        val view: View,
+        val visible: List<VaultEntry>,
+        val boards: List<VaultBoardSection>,
+        /** Newest [RECENT_LIMIT] by save date, then shown in the chosen order; already filtered. */
+        val recent: List<VaultEntry>,
+    ) {
+        val urls: Set<String> = entries.mapTo(HashSet(entries.size)) { it.url }
+    }
+
+    /** How many times the vault has been sorted and grouped. A test hook, nothing reads it in the app. */
+    @VisibleForTesting
+    internal val arrangements = AtomicInteger()
+
+    // Its own StateFlow on purpose: a multi-select tick or a typed character used to resort
+    // the entire vault, because the sort sat in the same combine as the selection.
+    private val arranged: StateFlow<Arranged?> = combine(entries, view) { entries, view ->
+        arrangements.incrementAndGet()
         val visible = arrangeEntries(entries, view.sort, view.filter, view.reversed, view.audio)
-        val boards = groupByBoard(visible)
+        Arranged(
+            entries = entries,
+            view = view,
+            visible = visible,
+            boards = groupByBoard(visible),
+            recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT)
+                .let { arrangeEntries(it, view.sort, VaultFilter.ALL, view.reversed) },
+        )
+    }
+        // Sorting and grouping the whole vault is real work; keep it off the main thread.
+        .flowOn(compute)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val uiState: StateFlow<VaultUiState> = combine(
+        arranged.filterNotNull(), syncState, viewing, activity, editing,
+    ) { arranged, sync, viewing, activity, editing ->
+        val sel = editing.selection
+        val view = arranged.view
+        val entries = arranged.entries
+        val urls = arranged.urls
+        val visible = arranged.visible
+        val boards = arranged.boards
         val body = when {
             !activity.access -> VaultBody.NoAccess
             entries.isEmpty() -> VaultBody.Empty
             view.query.isNotBlank() -> VaultBody.Grid(searchEntries(visible, view.query), searching = true)
-            sel.board == null -> VaultBody.Root(
-                // Newest 200 by save date, then shown in the chosen order; already filtered.
-                recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT)
-                    .let { arrangeEntries(it, view.sort, VaultFilter.ALL, view.reversed) },
-            )
+            sel.board == null -> VaultBody.Root(recent = arranged.recent)
             sel.thread == null -> VaultBody.Threads(boards.firstOrNull { it.board == sel.board }?.threads.orEmpty())
             else -> VaultBody.Grid(
                 boards.firstOrNull { it.board == sel.board }?.threads
@@ -585,7 +626,7 @@ class VaultViewModel @Inject constructor(
             threadEdit = editing.threadEdit,
         )
     }
-        // Sorting and grouping the whole vault is real work; keep it off the main thread.
+        // Search and the per-frame filtering are lighter, but still not main-thread work.
         .flowOn(compute)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
