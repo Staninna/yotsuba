@@ -29,6 +29,7 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -120,6 +121,9 @@ class MediaViewModel @AssistedInject constructor(
     private fun load() {
         source.value = Source.Loading
         viewModelScope.launch {
+            // The board lookup can hit the network on a cold cache; it has nothing to
+            // wait for, so it runs beside the thread fetch.
+            val info = async { boardRepository.board(board) }
             // Live wins. The saved snapshot is the fallback for a pruned, 404'd or
             // offline thread, so a vault item still opens with its conversation intact.
             val r = threadRepository.thread(board, threadNo)
@@ -127,7 +131,7 @@ class MediaViewModel @AssistedInject constructor(
                 is DataResult.Success -> r.value
                 is DataResult.Failure -> mediaVault.savedThread(board, threadNo)
             }
-            boardInfo.value = boardRepository.board(board)
+            boardInfo.value = info.await()
             source.value = when {
                 loaded != null -> Source.Loaded(loaded)
                 r is DataResult.Failure -> Source.Failed(r.error)
