@@ -93,8 +93,7 @@ fun HomeScreen(
     }
     LaunchedEffect(pagerState.currentPage) { if (restored) savedPage = pagerState.currentPage }
     val current = boards?.getOrNull(pagerState.currentPage)
-    var draggingTab by remember { mutableStateOf(false) }
-    var overRemove by remember { mutableStateOf(false) }
+    val reorder = rememberTabReorderState()
     val removedTemplate = stringResource(R.string.home_board_removed)
     val undoLabel = stringResource(R.string.action_undo)
     val currentViewModel = current?.let { catalogViewModel(it) }
@@ -140,10 +139,6 @@ fun HomeScreen(
                         val undo = viewModel.removeFavourite(board)
                         scope.launch { snackbar.showUndo(removedTemplate.format(board), undoLabel, undo) }
                     },
-                    onDragState = { dragging, over ->
-                        draggingTab = dragging
-                        overRemove = over
-                    },
                     onMove = { from, to ->
                         viewModel.reorder(from, to)
                         scope.launch { pagerState.scrollToPage(remapPage(pagerState.currentPage, from, to)) }
@@ -155,8 +150,9 @@ fun HomeScreen(
                             icon = { Icon(Icons.Filled.Add, stringResource(R.string.home_add_board)) },
                         )
                     },
+                    state = reorder,
                 )
-                RemoveDropZone(visible = draggingTab, active = overRemove)
+                RemoveDropZone(visible = reorder.isDragging, active = reorder.overRemove)
                 HorizontalPager(
                     state = pagerState,
                     key = { list[it] },
