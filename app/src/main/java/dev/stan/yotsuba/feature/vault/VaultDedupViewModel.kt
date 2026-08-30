@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.domain.model.DedupMode
+import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
@@ -37,9 +38,15 @@ data class DedupState(
 
     fun keptIn(group: DuplicateGroup): Set<String> = kept[group.keeperUrl] ?: setOf(group.keeperUrl)
 
-    /** Everything the suggestions would remove, across all groups, at the suggested keepers. */
-    val suggestedRemovals: List<String> get() = groups.flatMap { g -> g.redundant.map { it.url } }
-    val suggestedBytes: Long get() = groups.sumOf { it.redundantBytes }
+    /** What applying [group] deletes: everything not ticked. A group with nothing ticked is left alone. */
+    fun removalsIn(group: DuplicateGroup): List<DuplicateEntry> {
+        val kept = keptIn(group)
+        return if (kept.isEmpty()) emptyList() else group.entries.filterNot { it.url in kept }
+    }
+
+    /** Everything "apply all" deletes, honouring whatever the user re-ticked in each group. */
+    val removals: List<DuplicateEntry> get() = groups.flatMap(::removalsIn)
+    val removalBytes: Long get() = removals.sumOf { it.sizeBytes }
 }
 
 @HiltViewModel
@@ -97,14 +104,10 @@ class VaultDedupViewModel @Inject constructor(
     }
 
     /** Deletes everything in [group] not marked kept. Keeping nothing is refused. */
-    fun applyGroup(group: DuplicateGroup) {
-        val kept = _state.value.keptIn(group)
-        if (kept.isEmpty()) return
-        delete(group.entries.map { it.url }.filterNot { it in kept })
-    }
+    fun applyGroup(group: DuplicateGroup) = delete(_state.value.removalsIn(group).map { it.url })
 
-    /** Deletes every suggested redundant file across all groups. */
-    fun applyAllSuggestions() = delete(_state.value.suggestedRemovals)
+    /** Deletes every unticked file across all groups. */
+    fun applyAll() = delete(_state.value.removals.map { it.url })
 
     fun noticeShown() = _state.update { it.copy(lastDeleted = null, lastFailed = 0) }
 

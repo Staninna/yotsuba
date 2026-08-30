@@ -71,7 +71,9 @@ internal fun VaultDedupSheet(
     viewModel: VaultDedupViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var confirmAll by remember { mutableStateOf(false) }
+    // Every delete here is permanent, so both the per-group button and "apply all" go
+    // through the same confirmation before anything is touched.
+    var pending by remember { mutableStateOf<PendingDelete?>(null) }
     LaunchedEffect(Unit) { viewModel.start() }
 
     state.lastDeleted?.let { deleted ->
@@ -135,12 +137,17 @@ internal fun VaultDedupSheet(
                                 Text(
                                     pluralStringResource(
                                         R.plurals.vault_dedup_summary, phase.groups.size,
-                                        phase.groups.size, FileSize.format(state.suggestedBytes),
+                                        phase.groups.size, FileSize.format(state.removalBytes),
                                     ),
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.weight(1f),
                                 )
-                                TextButton(onClick = { confirmAll = true }) {
+                                TextButton(
+                                    enabled = state.removals.isNotEmpty(),
+                                    onClick = {
+                                        pending = PendingDelete(state.removals, viewModel::applyAll)
+                                    },
+                                ) {
                                     Text(stringResource(R.string.vault_dedup_apply_all))
                                 }
                             }
@@ -149,8 +156,11 @@ internal fun VaultDedupSheet(
                             GroupRow(
                                 group = group,
                                 kept = state.keptIn(group),
+                                dropping = state.removalsIn(group),
                                 onToggle = { viewModel.toggleKept(group, it) },
-                                onApply = { viewModel.applyGroup(group) },
+                                onApply = {
+                                    pending = PendingDelete(state.removalsIn(group)) { viewModel.applyGroup(group) }
+                                },
                             )
                         }
                     }
@@ -160,25 +170,29 @@ internal fun VaultDedupSheet(
         }
     }
 
-    if (confirmAll) {
-        val count = state.suggestedRemovals.size
+    pending?.let { request ->
+        val count = request.entries.size
+        val bytes = request.entries.sumOf { it.sizeBytes }
         AlertDialog(
-            onDismissRequest = { confirmAll = false },
-            title = { Text(stringResource(R.string.vault_dedup_apply_all)) },
+            onDismissRequest = { pending = null },
+            title = { Text(stringResource(R.string.vault_dedup_confirm_title)) },
             text = {
-                Text(pluralStringResource(R.plurals.vault_dedup_confirm_body, count, count, FileSize.format(state.suggestedBytes)))
+                Text(pluralStringResource(R.plurals.vault_dedup_confirm_body, count, count, FileSize.format(bytes)))
             },
             confirmButton = {
-                TextButton(onClick = { confirmAll = false; viewModel.applyAllSuggestions() }) {
+                TextButton(onClick = { pending = null; request.run() }) {
                     Text(stringResource(R.string.vault_dedup_confirm_delete))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmAll = false }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = { pending = null }) { Text(stringResource(android.R.string.cancel)) }
             },
         )
     }
 }
+
+/** A delete waiting on its confirmation dialog: what goes, and the call that does it. */
+private class PendingDelete(val entries: List<DuplicateEntry>, val run: () -> Unit)
 
 @Composable
 private fun Progress(label: String, fraction: Float?) {
@@ -241,10 +255,10 @@ private fun ModeControls(
 private fun GroupRow(
     group: DuplicateGroup,
     kept: Set<String>,
+    dropping: List<DuplicateEntry>,
     onToggle: (String) -> Unit,
     onApply: () -> Unit,
 ) {
-    val dropping = group.entries.filterNot { it.url in kept }
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(group.entries, key = { it.url }) { entry ->
@@ -262,7 +276,7 @@ private fun GroupRow(
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
             )
-            TextButton(onClick = onApply, enabled = kept.isNotEmpty() && dropping.isNotEmpty()) {
+            TextButton(onClick = onApply, enabled = dropping.isNotEmpty()) {
                 Text(
                     pluralStringResource(
                         R.plurals.vault_dedup_keep_selected, dropping.size,
@@ -308,10 +322,13 @@ private fun Thumb(entry: DuplicateEntry, selected: Boolean, onClick: () -> Unit)
         val dims = if (entry.width != null && entry.height != null) "${entry.width}×${entry.height}" else "?"
         Text("$dims · ${FileSize.format(entry.sizeBytes)}", style = MaterialTheme.typography.labelSmall, maxLines = 1)
         Text(
-            DateFormat.getDateInstance(DateFormat.SHORT).format(Date(entry.savedAt)),
+            shortDate.format(Date(entry.savedAt)),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
     }
 }
+
+/** One formatter for every thumbnail; the sheet is main-thread only. */
+private val shortDate: DateFormat = DateFormat.getDateInstance(DateFormat.SHORT)
