@@ -5,3 +5,8 @@ local.properties
 
 # Local issue tracker and working notes; not part of the app.
 .scratch/
+
+# IDE and tool state; per machine, not per repo.
+.idea/
+.kotlin/
+.claude/worktrees/
