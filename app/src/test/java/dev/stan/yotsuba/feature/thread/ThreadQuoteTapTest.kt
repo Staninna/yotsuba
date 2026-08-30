@@ -29,7 +29,6 @@ import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -39,6 +38,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -75,7 +75,7 @@ class ThreadQuoteTapTest {
         override suspend fun migrateLegacyIfNeeded() {}
     }
 
-    private fun vm(settingsFlow: Flow<Settings> = settingsState) = ThreadViewModel(
+    private fun vm() = ThreadViewModel(
         board = "g", threadNo = 100, initialPostNo = null,
         threadRepository = threads,
         boardRepository = object : BoardRepository {
@@ -107,7 +107,7 @@ class ThreadQuoteTapTest {
             override suspend fun trim(retainAfterMs: Long) {}
         },
         settingsRepository = object : SettingsRepository {
-            override val settings: Flow<Settings> = settingsFlow
+            override val settings: Flow<Settings> = settingsState
             override suspend fun update(transform: (Settings) -> Settings) { settingsState.value = transform(settingsState.value) }
         },
         mediaSessionStore = MediaSessionStore(),
@@ -122,7 +122,7 @@ class ThreadQuoteTapTest {
 
     private fun content(vm: ThreadViewModel) = (vm.uiState.value as UiState.Success<ThreadContent>).data
 
-    private fun previewNos(vm: ThreadViewModel) = content(vm).previewStack.map { group -> group.map { it.no } }
+    private fun previewNos(vm: ThreadViewModel) = content(vm).preview?.path.orEmpty()
 
     @Test fun `popover setting opens the preview on tap and jumps on long-press`() = runTest(dispatcher.scheduler) {
         settingsState.value = Settings(quoteTap = QuoteTapAction.POPOVER)
@@ -132,11 +132,11 @@ class ThreadQuoteTapTest {
 
         vm.onQuoteTap(102)
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(listOf(102L)), previewNos(vm))
+        assertEquals(listOf(102L), previewNos(vm))
 
         vm.onQuoteLongPress(103)
         dispatcher.scheduler.advanceUntilIdle()
-        assertTrue(content(vm).previewStack.isEmpty())
+        assertNull(content(vm).preview)
         assertEquals(103L, vm.scrollTarget.value?.postNo)
     }
 
@@ -148,25 +148,12 @@ class ThreadQuoteTapTest {
 
         vm.onQuoteTap(102)
         dispatcher.scheduler.advanceUntilIdle()
-        assertTrue(content(vm).previewStack.isEmpty())
+        assertNull(content(vm).preview)
         assertEquals(102L, vm.scrollTarget.value?.postNo)
 
         vm.onQuoteLongPress(103)
         dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(listOf(103L)), previewNos(vm))
-    }
-
-    /** The default is POPOVER, so a tap before the settings store has answered still previews. */
-    @Test fun `a tap before settings arrive previews under the default`() = runTest(dispatcher.scheduler) {
-        val late = MutableSharedFlow<Settings>()
-        val vm = vm(settingsFlow = late)
-        backgroundScope.launch { vm.uiState.collect {} }
-        dispatcher.scheduler.advanceUntilIdle()
-
-        vm.onQuoteTap(102)
-        late.emit(Settings())
-        dispatcher.scheduler.advanceUntilIdle()
-        assertEquals(listOf(listOf(102L)), previewNos(vm))
+        assertEquals(listOf(103L), previewNos(vm))
     }
 
     private companion object {

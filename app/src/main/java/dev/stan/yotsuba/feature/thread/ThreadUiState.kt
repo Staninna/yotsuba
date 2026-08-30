@@ -29,8 +29,8 @@ data class ThreadContent(
     val searchQuery: String?,
     val searchMatches: List<Long>,
     val searchIndex: Int,
-    /** Stack of preview cards (D11); each entry is a post in this thread. */
-    val previewStack: List<List<ThreadPost>>,
+    /** The quote preview sheet, when one is open. */
+    val preview: PreviewSheet? = null,
     val pendingExternalUrl: String?,
     /** Suffix shown after a quotelink to these posts, e.g. ">>123 (OP)". */
     val quoteLabels: Map<Long, QuoteLabel> = emptyMap(),
@@ -52,6 +52,19 @@ data class ThreadContent(
     /** Posts with a present attachment, in thread order. */
     val mediaPosts: List<ThreadPost> = emptyList(),
 )
+
+/**
+ * The preview sheet as a small thread around one post: what it quotes above, what quotes
+ * it below. [path] is every post focused so far, oldest first; the last one is [focus].
+ */
+data class PreviewSheet(
+    val focus: ThreadPost,
+    val parents: List<ThreadPost>,
+    val replies: List<ThreadPost>,
+    val path: List<Long>,
+) {
+    val canGoBack: Boolean get() = path.size > 1
+}
 
 /** Why a quotelink target is special; the screen picks the words. */
 enum class QuoteLabel { OP, YOU }
@@ -114,8 +127,8 @@ data class Session(
     val revealedImages: Set<Long> = emptySet(),
     val searchQuery: String? = null,
     val searchIndex: Int = 0,
-    /** Quotelink preview stack, each entry a group of post numbers. */
-    val previewPostNos: List<List<Long>> = emptyList(),
+    /** Posts focused in the preview sheet, oldest first; empty means no sheet. */
+    val previewPath: List<Long> = emptyList(),
     val pendingExternalUrl: String? = null,
     /** (last post before the divider, count of posts after it); null = no divider. */
     val newPostsAfter: Pair<Long, Int>? = null,

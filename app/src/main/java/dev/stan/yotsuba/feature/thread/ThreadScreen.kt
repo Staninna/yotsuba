@@ -74,7 +74,7 @@ import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
 import dev.stan.yotsuba.feature.thread.components.PostActionSheet
 import dev.stan.yotsuba.feature.thread.components.PostCard
 import dev.stan.yotsuba.feature.thread.components.PostCardActions
-import dev.stan.yotsuba.feature.thread.components.QuotePreviewOverlay
+import dev.stan.yotsuba.feature.thread.components.QuotePreviewSheet
 import dev.stan.yotsuba.feature.thread.components.ThreadGallerySheet
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
 import java.text.DateFormat
@@ -228,14 +228,17 @@ fun ThreadScreen(
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             UiStateContent(state, onRetry = { viewModel.load() }) { s ->
-                fun actionsFor(post: ThreadPost) = PostCardActions(
+                // Inside the sheet a quotelink refocuses the sheet and a hold jumps; in the
+                // list both follow the quote-tap setting.
+                fun actionsFor(post: ThreadPost, inPreview: Boolean) = PostCardActions(
                     onBodyTap = { tap ->
                         when (tap) {
                             is BodyTap.Spoiler -> {
                                 haptics.tick()
                                 viewModel.onRevealSpoiler(post.no, tap.id)
                             }
-                            is BodyTap.SameThreadQuote -> viewModel.onQuoteTap(tap.postNo)
+                            is BodyTap.SameThreadQuote ->
+                                if (inPreview) viewModel.onOpenPreview(tap.postNo) else viewModel.onQuoteTap(tap.postNo)
                             is BodyTap.CrossThreadQuote -> onOpenInternal(
                                 Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
                             )
@@ -245,7 +248,7 @@ fun ThreadScreen(
                     onBodyLongPress = { tap ->
                         if (tap is BodyTap.SameThreadQuote) {
                             haptics.longPress()
-                            viewModel.onQuoteLongPress(tap.postNo)
+                            if (inPreview) viewModel.onJumpToPost(tap.postNo) else viewModel.onQuoteLongPress(tap.postNo)
                         }
                     },
                     onThumbnailTap = { viewModel.onThumbnailTap(post) },
@@ -289,7 +292,7 @@ fun ThreadScreen(
                     }
                 }
                 val postCard: @Composable (ThreadPost, Boolean) -> Unit = { post, inPreview ->
-                    val actions = actionsFor(post)
+                    val actions = actionsFor(post, inPreview)
                     PostCard(
                         post = post,
                         board = s.board,
@@ -379,19 +382,21 @@ fun ThreadScreen(
                     }
                 }
 
-                // System back pops one preview instead of leaving the thread.
-                BackHandler(enabled = s.previewStack.isNotEmpty()) {
+                // System back steps the preview sheet back one post instead of leaving the thread.
+                BackHandler(enabled = s.preview != null) {
                     viewModel.onClosePreview()
                 }
                 // ...and closes the search bar before leaving the thread.
-                BackHandler(enabled = searchOpen && s.previewStack.isEmpty()) {
+                BackHandler(enabled = searchOpen && s.preview == null) {
                     closeSearch()
                 }
-                if (s.previewStack.isNotEmpty()) {
-                    QuotePreviewOverlay(
-                        group = s.previewStack.last(),
-                        onDismiss = viewModel::onClosePreview,
+                s.preview?.let { preview ->
+                    QuotePreviewSheet(
+                        preview = preview,
+                        onDismiss = viewModel::onDismissPreview,
+                        onBack = viewModel::onClosePreview,
                         onGoTo = viewModel::onJumpToPost,
+                        onFocus = viewModel::onOpenPreview,
                         postCard = { post -> postCard(post, true) },
                     )
                 }

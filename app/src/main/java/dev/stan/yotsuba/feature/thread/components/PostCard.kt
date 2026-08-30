@@ -90,9 +90,9 @@ data class PostCardActions(
     /** Long-press anywhere on the card that is not itself a control: the post action sheet. */
     val onLongPress: (() -> Unit)? = null,
 ) {
-    /** A card inside the quote preview overlay: read-only apart from following links. */
+    /** A card inside the preview sheet: it follows quotelinks and opens media, nothing else. */
     fun forPreview(): PostCardActions = copy(
-        onBodyLongPress = null, onThumbnailLongPress = null,
+        onThumbnailLongPress = null,
         onBacklinkTap = null, onBacklinkLongPress = null, onBacklinksTap = null, onCopyPostNo = null,
         onPosterIdTap = null,
         onLongPress = null,

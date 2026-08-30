@@ -15,6 +15,7 @@ import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -321,7 +322,7 @@ class ThreadViewModelTest {
             vm.onOpenPreview(101)
             vm.onJumpToPost(103)
             dispatcher.scheduler.runCurrent()
-            assertEquals(0, content(vm).previewStack.size)
+            assertNull(content(vm).preview)
             assertEquals(103L, vm.scrollTarget.value?.postNo)
             assertTrue(content(vm).postStates.getValue(103L).highlighted)
             dispatcher.scheduler.advanceUntilIdle()
@@ -605,28 +606,66 @@ class ThreadViewModelTest {
         assertTrue(vm.onExternalLink("https://example.com/page"))
     }
 
-    @Test fun `backlink previews push and pop, and empty backlinks push nothing`() =
+    @Test fun `the preview path pushes, refocuses, pops and clears`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(backlinks = mapOf(101L to listOf(103L)))
+            val env = Env()
             val vm = env.vm()
             backgroundScope.launch { vm.uiState.collect {} }
             dispatcher.scheduler.advanceUntilIdle()
 
-            vm.onOpenBacklinks(100) // no backlinks recorded for the OP
+            vm.onOpenPreview(999) // not in the thread: nothing opens
             dispatcher.scheduler.advanceUntilIdle()
-            assertEquals(0, content(vm).previewStack.size)
+            assertNull(content(vm).preview)
 
-            vm.onOpenBacklinks(101)
+            vm.onOpenPreview(101)
             dispatcher.scheduler.advanceUntilIdle()
-            assertEquals(listOf(103L), content(vm).previewStack.single().map { it.no })
+            assertEquals(listOf(101L), content(vm).preview?.path)
+            assertEquals(101L, content(vm).preview?.focus?.no)
+            assertFalse(content(vm).preview!!.canGoBack)
+
+            vm.onOpenPreview(101) // already on top: no duplicate step
+            vm.onOpenPreview(103) // refocus: pushes
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf(101L, 103L), content(vm).preview?.path)
+            assertEquals(103L, content(vm).preview?.focus?.no)
+            assertTrue(content(vm).preview!!.canGoBack)
+
+            vm.onClosePreview() // back arrow: one step
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf(101L), content(vm).preview?.path)
+
+            vm.onOpenPreview(102)
+            vm.onDismissPreview() // swiped away: the whole path
+            dispatcher.scheduler.advanceUntilIdle()
+            assertNull(content(vm).preview)
+        }
+
+    @Test fun `the preview sheet lists what the focus quotes above and what quotes it below`() =
+        runTest(dispatcher.scheduler) {
+            // 102 quotes 100 and 101; 103 and 104 quote 102; 104 also quotes 101.
+            val posts = listOf(
+                Env.post(100).copy(isOp = true), Env.post(101),
+                Env.post(102).copy(quotedPostNos = listOf(101, 100, 999)),
+                Env.post(103).copy(quotedPostNos = listOf(102)),
+                Env.post(104).copy(quotedPostNos = listOf(102, 101)),
+            )
+            val env = Env(posts = posts, backlinks = PostGraph.backlinksOf(posts))
+            val vm = env.vm()
+            backgroundScope.launch { vm.uiState.collect {} }
+            dispatcher.scheduler.advanceUntilIdle()
 
             vm.onOpenPreview(102)
             dispatcher.scheduler.advanceUntilIdle()
-            assertEquals(2, content(vm).previewStack.size)
+            val sheet = content(vm).preview!!
+            assertEquals(listOf(100L, 101L), sheet.parents.map { it.no }) // thread order, 999 dropped
+            assertEquals(listOf(103L, 104L), sheet.replies.map { it.no })
 
-            vm.onClosePreview()
+            vm.onOpenPreview(101) // a "quoted by" tap: the post with its replies inline
             dispatcher.scheduler.advanceUntilIdle()
-            assertEquals(1, content(vm).previewStack.size)
+            val quoted = content(vm).preview!!
+            assertEquals(emptyList<Long>(), quoted.parents.map { it.no })
+            assertEquals(listOf(102L, 104L), quoted.replies.map { it.no })
+            assertEquals(listOf(102L, 101L), quoted.path)
         }
 
     @Test fun `a 404 falls through to the archive and the copy names its source`() =

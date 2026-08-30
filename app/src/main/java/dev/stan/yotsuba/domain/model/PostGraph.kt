@@ -27,6 +27,10 @@ class PostGraph(
     fun ancestorsOf(postNo: Long): List<ThreadPost> =
         walk(postNo) { byNo[it]?.quotedPostNos.orEmpty() }
 
+    /** The posts [postNo] quotes directly and that exist in the thread, in thread order. */
+    fun parentsOf(postNo: Long): List<ThreadPost> =
+        byNo[postNo]?.quotedPostNos.orEmpty().distinct().mapNotNull { byNo[it] }.sortedBy { indexOf[it.no] }
+
     /** Direct replies to [postNo], in thread order. */
     fun repliesTo(postNo: Long): List<ThreadPost> =
         backlinks[postNo].orEmpty().mapNotNull { byNo[it] }.sortedBy { indexOf[it.no] }

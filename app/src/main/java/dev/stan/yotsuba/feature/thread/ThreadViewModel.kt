@@ -152,9 +152,7 @@ class ThreadViewModel @AssistedInject constructor(
                         searchQuery = session.searchQuery,
                         searchMatches = matches,
                         searchIndex = if (matches.isEmpty()) 0 else session.searchIndex.coerceIn(0, matches.size - 1),
-                        previewStack = session.previewPostNos
-                            .map { group -> group.mapNotNull { byNo[it] } }
-                            .filter { it.isNotEmpty() },
+                        preview = previewSheet(details, byNo, session.previewPath),
                         pendingExternalUrl = session.pendingExternalUrl,
                         filterPosterId = session.filterPosterId,
                         galleryOpen = session.galleryOpen,
@@ -368,8 +366,17 @@ class ThreadViewModel @AssistedInject constructor(
     fun onThumbnailLongPress(post: ThreadPost): Boolean =
         settingsState.value.holdToSave && post.presentMedia != null
 
-    fun onOpenPreview(postNo: Long) =
-        session.update { it.copy(previewPostNos = it.previewPostNos + listOf(listOf(postNo))) }
+    /**
+     * Focuses [postNo] in the preview sheet, on top of whatever it showed before, so the
+     * sheet's back arrow returns there. Refocusing the post already on top is a no-op, and
+     * a post that is not in the thread (a pruned or cross-thread stray) opens nothing.
+     */
+    fun onOpenPreview(postNo: Long) {
+        if (loadedPosts()?.none { it.no == postNo } != false) return
+        session.update {
+            if (it.previewPath.lastOrNull() == postNo) it else it.copy(previewPath = it.previewPath + postNo)
+        }
+    }
 
     /** Tap on a same-thread quotelink: whatever [Settings.quoteTap] says. */
     fun onQuoteTap(postNo: Long) = quoteAction(settingsState.value.quoteTap, postNo)
@@ -382,13 +389,11 @@ class ThreadViewModel @AssistedInject constructor(
         QuoteTapAction.JUMP -> onJumpToPost(postNo)
     }
 
-    fun onOpenBacklinks(postNo: Long) {
-        val details = (result.value as? DataResult.Success)?.value ?: return
-        val links = details.backlinks[postNo].orEmpty()
-        if (links.isNotEmpty()) session.update { it.copy(previewPostNos = it.previewPostNos + listOf(links)) }
-    }
+    /** The sheet's back arrow and system back: return to the previously focused post. */
+    fun onClosePreview() = session.update { it.copy(previewPath = it.previewPath.dropLast(1)) }
 
-    fun onClosePreview() = session.update { it.copy(previewPostNos = it.previewPostNos.dropLast(1)) }
+    /** The sheet was swiped away or its scrim tapped: the whole path goes. */
+    fun onDismissPreview() = session.update { it.copy(previewPath = emptyList()) }
 
     /** "Mark as mine" / "Not mine": flips whether [postNo] reads as the user's own post. */
     fun onToggleClaimed(postNo: Long) = viewModelScope.launch {
@@ -409,7 +414,7 @@ class ThreadViewModel @AssistedInject constructor(
      */
     fun onJumpToPost(postNo: Long) {
         if (loadedPosts()?.none { it.no == postNo } != false) return
-        session.update { it.copy(previewPostNos = emptyList(), highlightedPostNo = postNo) }
+        session.update { it.copy(previewPath = emptyList(), highlightedPostNo = postNo) }
         scrollTargetFlow.value = ScrollTarget(postNo, animate = true)
         highlightJob?.cancel()
         highlightJob = viewModelScope.launch {
@@ -622,6 +627,18 @@ class ThreadViewModel @AssistedInject constructor(
         fun QuoteTapAction.other(): QuoteTapAction = when (this) {
             QuoteTapAction.POPOVER -> QuoteTapAction.JUMP
             QuoteTapAction.JUMP -> QuoteTapAction.POPOVER
+        }
+
+        /** The sheet around the last post in [path]; null when the path is empty or its post is gone. */
+        private fun previewSheet(details: ThreadDetails, byNo: Map<Long, ThreadPost>, path: List<Long>): PreviewSheet? {
+            val focus = path.lastOrNull()?.let { byNo[it] } ?: return null
+            val graph = PostGraph.of(details)
+            return PreviewSheet(
+                focus = focus,
+                parents = graph.parentsOf(focus.no),
+                replies = graph.repliesTo(focus.no),
+                path = path,
+            )
         }
 
         /** The OP is labelled first; a claimed OP still reads as yours. */
