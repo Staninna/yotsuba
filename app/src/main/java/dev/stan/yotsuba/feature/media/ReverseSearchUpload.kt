@@ -60,6 +60,8 @@ val ReverseSearchEngine.hasDirectUpload: Boolean
 /** Where one local search stands; the sheet renders it. */
 sealed interface LocalSearchState {
     data object Idle : LocalSearchState
+    /** The route is the temporary host; nothing uploads until the user confirms. */
+    data class ConfirmHost(val engine: ReverseSearchEngine) : LocalSearchState
     data class Uploading(val engine: ReverseSearchEngine) : LocalSearchState
     /** [url] is the results page; the screen opens it and resets to [Idle]. */
     data class Opened(val engine: ReverseSearchEngine, val url: String) : LocalSearchState

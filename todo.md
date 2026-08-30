@@ -165,4 +165,4 @@ vault members deleted.
 
 ### Maybe
 
-- [x] Reverse image search for local-only files, all engines. TinEye (multipart to `api/v1/result_json`, results keyed by `query_hash`) and Yandex (raw bytes to `images-apphost/image-download`, results by `cbir_id`) upload to the engine itself (`ReverseSearchUploader`); SauceNAO and IQDB, whose forms return no shareable URL, go through litterbox (1 hour) with 0x0.st as backup, and a privacy setting picks the default route. A failed direct upload offers the host as a retry in the sheet
+- [x] Reverse image search for local-only files, all engines. TinEye (multipart to `api/v1/result_json`, results keyed by `query_hash`) and Yandex (raw bytes to `images-apphost/image-download`, results by `cbir_id`) upload to the engine itself (`ReverseSearchUploader`); SauceNAO and IQDB, whose forms return no shareable URL, go through litterbox (1 hour) with 0x0.st as backup, and a privacy setting picks the default route. The host route always shows a confirm row first; a failed direct upload offers the host as a retry

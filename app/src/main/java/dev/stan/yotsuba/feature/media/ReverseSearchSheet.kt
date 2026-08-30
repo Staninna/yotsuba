@@ -31,8 +31,10 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
  * Where to send the picture: one row per engine, then the share sheet. Media with an
  * online copy opens by URL straight away. A file that only exists on this phone (a video
  * frame, an imported file) goes to Lens as a shared image and to every other engine by
- * upload: the engine's own form or a temporary host, per the privacy setting. The sheet
- * stays up while an upload runs, and a failed direct upload offers the host as a retry.
+ * upload: the engine's own form or a temporary host, per the privacy setting. The host
+ * route always asks first: the sheet shows a confirm row and nothing leaves the phone until
+ * it is tapped. The sheet stays up while an upload runs, and a failed direct upload offers
+ * the host as a retry.
  *
  * [onFailed] fires when nothing on the device could take the request.
  */
@@ -49,6 +51,7 @@ fun ReverseSearchSheet(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val uploading = state as? LocalSearchState.Uploading
     val failed = state as? LocalSearchState.Failed
+    val confirm = state as? LocalSearchState.ConfirmHost
 
     // The upload's result: open the page it landed on and take the sheet down.
     LaunchedEffect(state) {
@@ -80,6 +83,8 @@ fun ReverseSearchSheet(
                     enabled = target.canUse(engine) && uploading == null,
                     supporting = when {
                         uploading?.engine == engine -> stringResource(R.string.media_search_uploading)
+                        confirm?.engine == engine ->
+                            stringResource(R.string.media_search_confirm_host_note, engine.label)
                         failed?.engine == engine -> stringResource(R.string.media_search_upload_failed, engine.label)
                         else -> null
                     },
@@ -105,12 +110,16 @@ fun ReverseSearchSheet(
                     },
                 )
             }
-            if (failed?.canFallback == true && target.file != null) {
+            // The host only ever gets the file from one of these two explicit taps.
+            val hostEngine = confirm?.engine ?: failed?.takeIf { it.canFallback }?.engine
+            if (hostEngine != null && target.file != null) {
                 SheetActionRow(
-                    label = stringResource(R.string.media_search_retry_host),
+                    label = stringResource(
+                        if (confirm != null) R.string.media_search_confirm_host else R.string.media_search_retry_host,
+                    ),
                     icon = Icons.Filled.CloudUpload,
                     onClick = {
-                        target.file?.let { viewModel.search(failed.engine, it, target.ext, forceHost = true) }
+                        target.file?.let { viewModel.search(hostEngine, it, target.ext, hostConfirmed = true) }
                     },
                 )
             }

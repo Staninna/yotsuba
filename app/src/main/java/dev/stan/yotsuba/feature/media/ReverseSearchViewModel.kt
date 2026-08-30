@@ -32,17 +32,23 @@ class ReverseSearchViewModel @Inject constructor(
 
     /**
      * Sends [file] to [engine]: through its own upload form when the setting says so and
-     * the form yields a URL, otherwise through the temporary host. [forceHost] is the
-     * "try the host instead" retry after a failed direct upload.
+     * the form yields a URL, otherwise through the temporary host. The host never gets the
+     * file on a plain engine tap: that only parks the state at [LocalSearchState.ConfirmHost]
+     * and waits. [hostConfirmed] is the tap on the confirm row, or on the "try the host
+     * instead" retry after a failed direct upload.
      */
-    fun search(engine: ReverseSearchEngine, file: File, ext: String, forceHost: Boolean = false) {
+    fun search(engine: ReverseSearchEngine, file: File, ext: String, hostConfirmed: Boolean = false) {
         job?.cancel()
         _state.value = LocalSearchState.Uploading(engine)
         job = viewModelScope.launch {
             val method = settingsRepository.settings.first().localSearchMethod
-            val direct = !forceHost &&
+            val direct = !hostConfirmed &&
                 method == LocalSearchMethod.DIRECT_UPLOAD &&
                 engine.hasDirectUpload
+            if (!direct && !hostConfirmed) {
+                _state.value = LocalSearchState.ConfirmHost(engine)
+                return@launch
+            }
             val result = if (direct) {
                 uploader.directSearchUrl(engine, file, ext)
             } else {
