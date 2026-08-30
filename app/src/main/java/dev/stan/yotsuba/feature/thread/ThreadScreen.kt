@@ -149,16 +149,29 @@ fun ThreadScreen(
                 }
                 is BodyTap.SameThreadQuote ->
                     if (inPreview) viewModel.onOpenPreview(tap.postNo) else viewModel.onQuoteTap(tap.postNo)
-                is BodyTap.CrossThreadQuote -> onOpenInternal(
-                    Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
-                )
+                // Another thread's post shows as a ghost in the sheet; the jump setting, which
+                // has nowhere to jump to here, opens the thread instead.
+                is BodyTap.CrossThreadQuote ->
+                    if (inPreview) viewModel.onOpenGhost(tap.board, tap.threadNo, tap.postNo)
+                    else if (!viewModel.onCrossThreadQuoteTap(tap.board, tap.threadNo, tap.postNo)) {
+                        onOpenInternal(Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo))
+                    }
+                is BodyTap.Deadlink -> viewModel.onDeadlinkTap(tap.postNo)
                 is BodyTap.Link -> handleLink(tap.url)
             }
         },
         onBodyLongPress = { _, tap ->
-            if (tap is BodyTap.SameThreadQuote) {
-                haptics.longPress()
-                if (inPreview) viewModel.onJumpToPost(tap.postNo) else viewModel.onQuoteLongPress(tap.postNo)
+            when (tap) {
+                is BodyTap.SameThreadQuote -> {
+                    haptics.longPress()
+                    if (inPreview) viewModel.onJumpToPost(tap.postNo) else viewModel.onQuoteLongPress(tap.postNo)
+                }
+                // A held cross-thread quote always leaves for that thread.
+                is BodyTap.CrossThreadQuote -> {
+                    haptics.longPress()
+                    onOpenInternal(Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo))
+                }
+                else -> {}
             }
         },
         onThumbnailTap = viewModel::onThumbnailTap,

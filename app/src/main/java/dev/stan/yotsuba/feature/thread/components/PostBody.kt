@@ -38,6 +38,9 @@ import dev.stan.yotsuba.domain.model.PostText
 sealed interface BodyTap {
     data class SameThreadQuote(val postNo: Long) : BodyTap
     data class CrossThreadQuote(val board: String, val threadNo: Long, val postNo: Long?) : BodyTap
+
+    /** A `>>123` whose post 4chan pruned; a saved or archived copy may still have it. */
+    data class Deadlink(val postNo: Long) : BodyTap
     data class Link(val url: String) : BodyTap
     data class Spoiler(val id: Int) : BodyTap
 }
@@ -152,7 +155,9 @@ private fun tapFor(seg: PostSegment, hiddenSpoiler: Boolean): BodyTap? {
         is PostAnnotation.QuotelinkSameThread -> BodyTap.SameThreadQuote(a.postNo)
         is PostAnnotation.QuotelinkCrossThread -> BodyTap.CrossThreadQuote(a.board, a.threadNo, a.postNo)
         is PostAnnotation.Link -> BodyTap.Link(a.url)
-        is PostAnnotation.Spoiler, PostAnnotation.Deadlink, null -> null
+        // A cross-board deadlink carries no number and stays inert.
+        is PostAnnotation.Deadlink -> a.postNo?.let { BodyTap.Deadlink(it) }
+        is PostAnnotation.Spoiler, null -> null
     }
 }
 
