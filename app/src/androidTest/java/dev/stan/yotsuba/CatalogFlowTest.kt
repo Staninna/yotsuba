@@ -37,6 +37,7 @@ class CatalogFlowTest {
     }
 
     private fun openCatalog() {
+        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
         composeRule.clickText(TestSeed.BOARD_TITLE)
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)

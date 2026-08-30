@@ -28,6 +28,7 @@ class HiddenThreadFlowTest {
 
     @Test
     fun longPressHidesThread_undoBringsItBack() {
+        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
         composeRule.clickText(TestSeed.BOARD_TITLE)
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
