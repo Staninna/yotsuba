@@ -93,6 +93,8 @@
     <string name="thread_post_actions">Post actions</string>
     <string name="thread_save_to_vault">Save to vault</string>
     <string name="thread_backlink_hold">Hold >>%1$d</string>
+    <!-- Snackbar when no installed app handles a tapped link (no browser, or an unknown scheme). -->
+    <string name="thread_no_app_for_link">No app can open this link</string>
     <!-- Under an image expanded in place: name, size, dimensions. Tap collapses it. -->
     <string name="thread_inline_file_line">%1$s · %2$s · %3$d×%4$d · tap to collapse</string>
 </resources>

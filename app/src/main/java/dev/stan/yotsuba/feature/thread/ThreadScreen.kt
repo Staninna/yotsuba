@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.thread
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
@@ -69,7 +70,6 @@ import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.catalog.ThreadNeighbours
 import dev.stan.yotsuba.feature.media.detectViewerSwipe
-import dev.stan.yotsuba.feature.media.saveToVault
 import dev.stan.yotsuba.feature.thread.components.BacklinksUi
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.PostCard
@@ -78,6 +78,7 @@ import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBarActions
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBarState
 import kotlin.math.abs
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -112,10 +113,11 @@ fun ThreadScreen(
     val dark = isSystemInDarkTheme()
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     val copiedMessage = stringResource(R.string.thread_post_number_copied)
-    val grantAccessMessage = stringResource(R.string.media_grant_storage)
+    val noAppMessage = stringResource(R.string.thread_no_app_for_link)
     val saveAllMessage = stringResource(R.string.thread_gallery_save_all_queued)
     val haptics = rememberHaptics()
     val treeIndent = spacing.lg
+    val saveToVault = rememberSaveToVault(snackbar, hasAccess = viewModel::hasStorageAccess)
 
     fun closeSearch() {
         searchOpen = false
@@ -123,7 +125,12 @@ fun ThreadScreen(
     }
 
     fun openExternal(url: String) {
-        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) }
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
+        } catch (e: ActivityNotFoundException) {
+            // A device with no browser, or a scheme nothing handles: say so instead of nothing.
+            scope.launch { snackbar.showSnackbar(noAppMessage) }
+        }
     }
 
     fun handleLink(url: String) {
@@ -176,14 +183,7 @@ fun ThreadScreen(
         onThumbnailLongPress = { post ->
             if (viewModel.onThumbnailLongPress(post)) {
                 haptics.longPress()
-                saveToVault(
-                    context = context,
-                    hasAccess = viewModel.hasStorageAccess(),
-                    onAccessNeeded = {
-                        scope.launch { snackbar.showSnackbar(grantAccessMessage) }
-                    },
-                    save = { viewModel.onSaveMedia(post) },
-                )
+                saveToVault { viewModel.onSaveMedia(post) }
             }
         },
         backlinks = BacklinksUi.Quotes(
@@ -203,26 +203,19 @@ fun ThreadScreen(
             scope.launch { snackbar.showSnackbar(copiedMessage) }
         },
     )
-    val listActions = remember(viewModel, onOpenInternal, haptics, context, scope, clipboard, snackbar, grantAccessMessage, copiedMessage) {
+    val listActions = remember(viewModel, onOpenInternal, haptics, context, scope, clipboard, snackbar, saveToVault, copiedMessage, noAppMessage) {
         actionsFor(inPreview = false)
     }
     val previewActions = remember(listActions) { actionsFor(inPreview = true).forPreview() }
 
-    fun saveAll(posts: List<ThreadPost>?) {
-        saveToVault(
-            context = context,
-            hasAccess = viewModel.hasStorageAccess(),
-            onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
-            save = {
-                viewModel.onSaveAllMedia(posts)
-                scope.launch { snackbar.showSnackbar(saveAllMessage) }
-            },
-        )
+    fun saveAll(posts: List<ThreadPost>?) = saveToVault {
+        viewModel.onSaveAllMedia(posts)
+        scope.launch { snackbar.showSnackbar(saveAllMessage) }
     }
 
     val content = (state as? UiState.Success)?.data
     val topBarState = remember(content, board, threadNo) { topBarState(board, threadNo, content) }
-    val topBarActions = remember(viewModel, onBack, haptics, context, scope, snackbar, grantAccessMessage, saveAllMessage) {
+    val topBarActions = remember(viewModel, onBack, haptics, context, scope, snackbar, saveToVault, saveAllMessage, noAppMessage) {
         ThreadTopBarActions(
             onBack = onBack,
             onToggleBookmark = viewModel::onToggleBookmark,
@@ -241,7 +234,7 @@ fun ThreadScreen(
             },
         )
     }
-    val overlayActions = remember(viewModel, onOpenInternal, context, scope, snackbar, grantAccessMessage, saveAllMessage) {
+    val overlayActions = remember(viewModel, onOpenInternal, context, scope, snackbar, saveToVault, saveAllMessage, noAppMessage) {
         ThreadOverlayActions(
             onClosePreview = viewModel::onClosePreview,
             onDismissPreview = viewModel::onDismissPreview,
@@ -275,7 +268,7 @@ fun ThreadScreen(
     val currentRows by rememberUpdatedState((state as? UiState.Success)?.data?.rows)
     LaunchedEffect(scrollTarget) {
         val target = scrollTarget ?: return@LaunchedEffect
-        val rows = snapshotFlow { currentRows }.first { it != null }!!
+        val rows = snapshotFlow { currentRows }.filterNotNull().first()
         val index = rows.indexOfFirst { (it as? ThreadRow.Post)?.post?.no == target.postNo }
         if (index >= 0) {
             if (target.animate) {
