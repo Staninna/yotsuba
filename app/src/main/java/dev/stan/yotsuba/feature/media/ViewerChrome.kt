@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,10 +21,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -122,30 +127,50 @@ fun ViewerTopChrome(
     }
 }
 
-/** Enter picture-in-picture, identical in both viewers. */
+/**
+ * The three-dot menu at the end of the top bar. The bar has room for a close button,
+ * the title and about three actions before the file name is squeezed out on a narrow
+ * phone, so everything past the primary ones lives here. Items call [close] before acting.
+ */
 @Composable
-fun PipButton(onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        Icon(
-            Icons.Filled.PictureInPictureAlt,
-            stringResource(R.string.media_pip),
-            tint = Color.White,
-        )
+fun ViewerOverflowMenu(items: @Composable ColumnScope.(close: () -> Unit) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Filled.MoreVert, stringResource(R.string.media_more), tint = Color.White)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            items { open = false }
+        }
     }
+}
+
+/** One row of [ViewerOverflowMenu]: an icon and a label. */
+@Composable
+fun ViewerMenuItem(icon: ImageVector, label: String, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        onClick = onClick,
+    )
 }
 
 /** Loop ⇄ auto-advance toggle, identical in both viewers. */
 @Composable
-fun AutoAdvanceButton(autoAdvance: Boolean, onToggle: () -> Unit) {
-    IconButton(onClick = onToggle) {
-        Icon(
-            if (autoAdvance) Icons.Filled.SkipNext else Icons.Filled.RepeatOne,
-            stringResource(
-                if (autoAdvance) R.string.vault_auto_advance_on else R.string.vault_auto_advance_off,
-            ),
-            tint = Color.White,
-        )
-    }
+fun AutoAdvanceMenuItem(autoAdvance: Boolean, onToggle: () -> Unit) {
+    ViewerMenuItem(
+        icon = if (autoAdvance) Icons.Filled.SkipNext else Icons.Filled.RepeatOne,
+        label = stringResource(
+            if (autoAdvance) R.string.vault_auto_advance_on else R.string.vault_auto_advance_off,
+        ),
+        onClick = onToggle,
+    )
+}
+
+/** Enter picture-in-picture, identical in both viewers. */
+@Composable
+fun PipMenuItem(onClick: () -> Unit) {
+    ViewerMenuItem(Icons.Filled.PictureInPictureAlt, stringResource(R.string.media_pip), onClick)
 }
 
 /**

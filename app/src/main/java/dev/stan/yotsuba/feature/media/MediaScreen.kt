@@ -14,8 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -152,8 +155,21 @@ fun MediaScreen(
         overlay = {
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
         },
-    ) { page, _ ->
+    ) { page, openReplies ->
         val item = state.items.getOrNull(page)
+        // The reply panel is also a swipe away, but nothing on screen says so.
+        if (state.thread.hasPosts && item != null) {
+            val replies = state.thread.graph.descendantsOf(item.postNo).size
+            IconButton(onClick = { openReplies(item.postNo) }) {
+                BadgedBox(badge = { if (replies > 0) Badge { Text(replies.toString()) } }) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Comment,
+                        stringResource(R.string.media_replies, replies),
+                        tint = Color.White,
+                    )
+                }
+            }
+        }
         DownloadAction(
             status = item?.let { state.saveStatuses[it.fullUrl] },
             interceptClick = {

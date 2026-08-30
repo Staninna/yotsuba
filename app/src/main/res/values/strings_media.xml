@@ -6,4 +6,5 @@
     <string name="media_sound_badge">sound</string>
     <string name="media_video_failed">This video could not be played</string>
     <string name="media_share_preparing">Preparing to share</string>
+    <string name="media_more">More</string>
 </resources>

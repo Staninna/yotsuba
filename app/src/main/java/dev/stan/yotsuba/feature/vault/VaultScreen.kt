@@ -81,6 +81,7 @@ import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
+import dev.stan.yotsuba.feature.media.ViewerMenuItem
 import dev.stan.yotsuba.feature.media.ViewerThread
 import dev.stan.yotsuba.feature.media.ViewerPage
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
@@ -656,6 +657,20 @@ private fun VaultViewer(
         indexOfPost = { postNo -> entries.indexOfFirst { it.postNo == postNo } },
         onPageViewed = { page -> entries.getOrNull(page)?.let(onPageViewed) },
         onDismiss = onDismiss,
+        topBarMenu = { page, close ->
+            val current = entries.getOrNull(page)
+            ViewerMenuItem(Icons.Filled.Delete, stringResource(R.string.vault_delete)) {
+                close()
+                current?.let(onDelete)
+            }
+            if (current != null && current.location.isRemote) {
+                ViewerMenuItem(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.vault_open_thread)) {
+                    close()
+                    onDismiss()
+                    onOpenThread(current.location.board, current.location.threadNo, current.postNo)
+                }
+            }
+        },
     ) { page, openReplies ->
         val postNo = entries.getOrNull(page)?.postNo
         if (thread.hasPosts && postNo != null) {
@@ -676,18 +691,6 @@ private fun VaultViewer(
             }
         }) {
             Icon(Icons.Filled.Share, stringResource(R.string.thread_share), tint = Color.White)
-        }
-        IconButton(onClick = { entries.getOrNull(page)?.let(onDelete) }) {
-            Icon(Icons.Filled.Delete, stringResource(R.string.vault_delete), tint = Color.White)
-        }
-        val current = entries.getOrNull(page)
-        if (current != null && current.location.isRemote) {
-            IconButton(onClick = {
-                onDismiss()
-                onOpenThread(current.location.board, current.location.threadNo, current.postNo)
-            }) {
-                Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.vault_open_thread), tint = Color.White)
-            }
         }
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -46,6 +47,8 @@ fun ThreadMediaViewer(
     onLongPressPage: (Int) -> Unit = {},
     activeDownloads: Int = 0,
     overlay: @Composable BoxScope.() -> Unit = {},
+    /** Secondary actions for the page, behind the top bar's overflow menu. */
+    topBarMenu: @Composable ColumnScope.(page: Int, close: () -> Unit) -> Unit = { _, _ -> },
     topBarActions: @Composable RowScope.(page: Int, openReplies: (Long) -> Unit) -> Unit = { _, _ -> },
 ) {
     val feed = rememberMediaFeedState(
@@ -111,6 +114,7 @@ fun ThreadMediaViewer(
             )
         },
         topBarActions = { topBarActions(feed.currentPage, ::openReplies) },
+        topBarMenu = { close -> topBarMenu(feed.currentPage, close) },
         overlay = {
             // Reply panel layer, animated push/pop; the media feed stays alive underneath.
             AnimatedContent(
