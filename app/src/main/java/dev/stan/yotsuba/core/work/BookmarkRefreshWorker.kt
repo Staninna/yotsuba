@@ -18,6 +18,8 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.SettingsRepository
+import kotlinx.coroutines.flow.first
 
 /**
  * Periodic background pass over the live bookmarks: the same board-grouped refresh the tab
@@ -34,14 +36,18 @@ class BookmarkRefreshWorker(
     @InstallIn(SingletonComponent::class)
     interface Deps {
         fun bookmarkRepository(): BookmarkRepository
+        fun settingsRepository(): SettingsRepository
     }
 
     override suspend fun doWork(): Result {
-        val repository = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java).bookmarkRepository()
+        val deps = EntryPointAccessors.fromApplication(applicationContext, Deps::class.java)
         // The RateLimitInterceptor on the shared OkHttp client paces every call this makes;
-        // a pass over N boards takes at least N seconds and that's intended.
-        val summary = repository.refreshAll()
-        if (summary.newUnread > 0) notify(summary.newUnread, summary.threadsWithNew)
+        // a pass over N boards takes at least N seconds and that's intended. The refresh runs
+        // whatever the notification switch says; only the notification is gated.
+        val summary = deps.bookmarkRepository().refreshAll()
+        if (summary.newUnread > 0 && deps.settingsRepository().settings.first().bookmarkNotifications) {
+            notify(summary.newUnread, summary.threadsWithNew)
+        }
         return Result.success()
     }
 
@@ -49,6 +55,11 @@ class BookmarkRefreshWorker(
         val context = applicationContext
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return
+        // POST_NOTIFICATIONS may be denied on 13+; the runtime prompt lives outside this feature.
+        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted) return
         manager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
@@ -69,11 +80,6 @@ class BookmarkRefreshWorker(
             .setContentIntent(tap)
             .setAutoCancel(true)
             .build()
-        // POST_NOTIFICATIONS may be denied on 13+; the runtime prompt lives outside this feature.
-        val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        if (!granted) return
         try {
             manager.notify(NOTIFICATION_ID, notification)
         } catch (_: SecurityException) {

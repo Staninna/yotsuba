@@ -42,8 +42,10 @@ class VaultSyncWorker(
         if (!vault.hasStorageAccess()) return Result.success()
         val settings = deps.settingsRepository().settings.first()
         // The enqueue-time constraint is CONNECTED (a KEEP'd periodic request never changes);
-        // data saver is honoured here, where the current setting is known.
-        if (settings.dataSaver && deps.networkMonitor().current().isMetered) return Result.retry()
+        // data saver is honoured here, where the current setting is known. Success, not retry:
+        // a backed-off re-run would only re-read the same setting and network, and the next
+        // period is the next chance anyway.
+        if (settings.dataSaver && deps.networkMonitor().current().isMetered) return Result.success()
 
         var snapshotted = emptySet<VaultLocation>()
         if (settings.snapshotWatchedThreads) {
