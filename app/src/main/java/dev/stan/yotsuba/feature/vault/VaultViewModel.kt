@@ -9,7 +9,6 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.MediaAutoplay
-import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
@@ -34,8 +33,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -189,23 +186,44 @@ data class VaultSyncState(
     val total: Int = 0,
 )
 
+/**
+ * What the explorer's body is showing, decided once in the ViewModel. Every level shows
+ * entries in the chosen sort and filter; [VaultUiState.boards] holds the drill-down.
+ */
+sealed interface VaultBody {
+    /** The seed state: nothing has been read yet, so none of the others is true. */
+    data object Loading : VaultBody
+
+    /** "All files access" has not been granted; the explorer shows the grant prompt. */
+    data object NoAccess : VaultBody
+
+    /** Nothing saved at all. */
+    data object Empty : VaultBody
+
+    /** A flat grid: search matches, or one thread's files. */
+    data class Grid(val entries: List<VaultEntry>, val searching: Boolean) : VaultBody
+
+    /** The root: the Recent feed, or the board list, by [VaultUiState.mode]. */
+    data class Root(
+        /** The newest [RECENT_LIMIT] entries, in the chosen order. */
+        val recent: List<VaultEntry>,
+    ) : VaultBody
+
+    /** One board's threads. */
+    data class Threads(val threads: List<VaultThreadSection>) : VaultBody
+}
+
 data class VaultUiState(
-    /** False for the seed value only: nothing has been read yet, so no branch below is true. */
-    val ready: Boolean = false,
     /** Entries with a real file on disk, newest first. */
     val entries: List<VaultEntry> = emptyList(),
-    /** [entries] after the sort and filter chips; what every level of the explorer shows. */
-    val visible: List<VaultEntry> = emptyList(),
+    val body: VaultBody = VaultBody.Loading,
     val sort: VaultSort = VaultSort.SAVED,
     /** Flip whatever [sort] produces: oldest first, smallest first, Z to A. */
     val reversed: Boolean = false,
     val filter: VaultFilter = VaultFilter.ALL,
     val mode: VaultMode = VaultMode.RECENT,
-    /** The newest [RECENT_LIMIT] of [visible], the Recent feed. */
-    val recent: List<VaultEntry> = emptyList(),
     val query: String = "",
-    /** Matches for [query] across the whole vault, or null when not searching. */
-    val results: List<VaultEntry>? = null,
+    /** The drill-down over [entries] after the sort and filter chips. */
     val boards: List<VaultBoardSection> = emptyList(),
     val selection: VaultSelection = VaultSelection(),
     val viewer: VaultViewerState? = null,
@@ -233,6 +251,12 @@ data class VaultUiState(
                 ?.filterNot { it.location == edit.location || it.location.isUnsorted }
         }.orEmpty()
 
+    /** False for the seed value only: the vault has not been read yet. */
+    val ready: Boolean get() = body !is VaultBody.Loading
+
+    /** Matches for [query] across the whole vault, or null when not searching. */
+    val results: List<VaultEntry>? get() = (body as? VaultBody.Grid)?.takeIf { it.searching }?.entries
+
     val selecting: Boolean get() = selected.isNotEmpty()
     val selectedEntries: List<VaultEntry> get() = entries.filter { it.url in selected }
 
@@ -245,12 +269,11 @@ data class VaultUiState(
 
     /** Whatever level is on screen: the feed, everything, one board, or one thread. */
     val scopeEntries: List<VaultEntry>
-        get() = when {
-            results != null -> results
-            selection.board == null && mode == VaultMode.RECENT -> recent
-            selection.board == null -> visible
-            selection.thread == null -> openBoard?.entries.orEmpty()
-            else -> openThread?.entries.orEmpty()
+        get() = when (val body = body) {
+            is VaultBody.Grid -> body.entries
+            is VaultBody.Root -> if (mode == VaultMode.RECENT) body.recent else boards.flatMap { it.entries }
+            is VaultBody.Threads -> openBoard?.entries.orEmpty()
+            VaultBody.Loading, VaultBody.NoAccess, VaultBody.Empty -> emptyList()
         }
 }
 
@@ -468,26 +491,41 @@ class VaultViewModel @Inject constructor(
         entries, syncState, viewing, activity, editing,
     ) { entries, sync, viewing, activity, editing ->
         val sel = editing.selection
+        val view = editing.view
         val urls = entries.mapTo(HashSet(entries.size)) { it.url }
-        val visible = arrangeEntries(entries, editing.view.sort, editing.view.filter, editing.view.reversed)
-        val recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT).let { newest ->
-            // Newest 200 by save date, then shown in the chosen order.
-            arrangeEntries(newest, editing.view.sort, editing.view.filter, editing.view.reversed)
+        val visible = arrangeEntries(entries, view.sort, view.filter, view.reversed)
+        val boards = groupByBoard(visible)
+        val body = when {
+            !activity.access -> VaultBody.NoAccess
+            entries.isEmpty() -> VaultBody.Empty
+            view.query.isNotBlank() -> VaultBody.Grid(searchEntries(visible, view.query), searching = true)
+            sel.board == null -> VaultBody.Root(
+                // Newest 200 by save date, then shown in the chosen order; already filtered.
+                recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT)
+                    .let { arrangeEntries(it, view.sort, VaultFilter.ALL, view.reversed) },
+            )
+            sel.thread == null -> VaultBody.Threads(boards.firstOrNull { it.board == sel.board }?.threads.orEmpty())
+            else -> VaultBody.Grid(
+                boards.firstOrNull { it.board == sel.board }?.threads
+                    ?.firstOrNull { it.location == sel.thread }?.entries.orEmpty(),
+                searching = false,
+            )
         }
-        val results = editing.view.query.takeIf { it.isNotBlank() }?.let { searchEntries(visible, it) }
-        val feed = results ?: if (sel.board == null && editing.view.mode == VaultMode.RECENT) recent else null
+        // The flat list the viewer pages through when there is one: search matches or the feed.
+        val feed = when {
+            body is VaultBody.Grid && body.searching -> body.entries
+            body is VaultBody.Root && view.mode == VaultMode.RECENT -> body.recent
+            else -> null
+        }
         VaultUiState(
-            ready = true,
             entries = entries,
-            visible = visible,
-            sort = editing.view.sort,
-            reversed = editing.view.reversed,
-            filter = editing.view.filter,
-            mode = editing.view.mode,
-            recent = recent,
-            query = editing.view.query,
-            results = results,
-            boards = groupByBoard(visible),
+            body = body,
+            sort = view.sort,
+            reversed = view.reversed,
+            filter = view.filter,
+            mode = view.mode,
+            query = view.query,
+            boards = boards,
             selection = sel,
             viewer = viewerState(visible, feed, sel, viewing.url, viewing.shuffle),
             sync = sync,

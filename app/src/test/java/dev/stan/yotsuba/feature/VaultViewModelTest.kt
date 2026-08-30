@@ -19,6 +19,7 @@ import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.feature.vault.VaultBody
 import dev.stan.yotsuba.feature.vault.VaultNotice
 import dev.stan.yotsuba.feature.vault.VaultPlayback
 import dev.stan.yotsuba.feature.vault.VaultUiState
@@ -431,23 +432,23 @@ class VaultViewModelTest {
             val saved = SavedStateHandle()
             val vm = vm(vault, saved = saved)
             vm.uiState.test {
-                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().scopeEntries.map { it.url })
                 vm.setSort(VaultSort.NAME)
-                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().scopeEntries.map { it.url })
                 vm.setSort(VaultSort.SIZE)
-                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().scopeEntries.map { it.url })
                 vm.setSort(VaultSort.POST)
-                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().scopeEntries.map { it.url })
                 vm.toggleReversed()
-                assertEquals(listOf("g/c.jpg", "g/b.jpg", "g/a.webm"), latest().visible.map { it.url })
+                assertEquals(listOf("g/c.jpg", "g/b.jpg", "g/a.webm"), latest().scopeEntries.map { it.url })
                 assertEquals(true, saved.get<Boolean>("vault_reversed"))
                 vm.toggleReversed()
-                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().scopeEntries.map { it.url })
                 vm.setFilter(VaultFilter.IMAGES)
-                assertEquals(listOf("g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/b.jpg", "g/c.jpg"), latest().scopeEntries.map { it.url })
                 vm.setFilter(VaultFilter.VIDEOS)
                 val videos = latest()
-                assertEquals(listOf("g/a.webm"), videos.visible.map { it.url })
+                assertEquals(listOf("g/a.webm"), videos.scopeEntries.map { it.url })
                 assertEquals(1, videos.boards.single().threads.single().entries.size)
                 assertEquals(3, videos.entries.size)
                 cancelAndIgnoreRemainingEvents()
@@ -469,9 +470,10 @@ class VaultViewModelTest {
             vm.uiState.test {
                 val state = latest()
                 assertEquals(VaultMode.RECENT, state.mode)
-                assertEquals(RECENT_LIMIT, state.recent.size)
-                assertEquals("g/250.jpg", state.recent.first().url)
-                assertEquals("g/51.jpg", state.recent.last().url)
+                val recent = (state.body as VaultBody.Root).recent
+                assertEquals(RECENT_LIMIT, recent.size)
+                assertEquals("g/250.jpg", recent.first().url)
+                assertEquals("g/51.jpg", recent.last().url)
                 assertEquals(RECENT_LIMIT, state.scopeEntries.size)
 
                 vm.openViewer("g/249.jpg")
@@ -742,12 +744,25 @@ class VaultViewModelTest {
         assertEquals(2, summary?.updated)
     }
 
-    @Test fun `the seed state is not ready and the first real one is`() = runTest(dispatcher.scheduler) {
-        val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
+    @Test fun `the body names what the explorer shows at each level`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA, subject = "Anime")))
         val vm = vm(vault)
+        assertEquals(VaultBody.Loading, vm.uiState.value.body)
         assertEquals(false, vm.uiState.value.ready)
         vm.uiState.test {
-            assertTrue(latest().ready)
+            assertTrue(latest().body is VaultBody.Root)
+            vm.openBoard("g")
+            assertEquals(listOf(threadG), (latest().body as VaultBody.Threads).threads.map { it.location })
+            vm.openThread(threadG)
+            assertEquals(VaultBody.Grid(listOf(entry("g/1.jpg", threadG)), searching = false), latest().body)
+            vm.setQuery("anime")
+            assertEquals(VaultBody.Grid(listOf(entry("a/1.jpg", threadA, subject = "Anime")), searching = true), latest().body)
+            vm.setQuery("")
+            vault.access.value = false
+            assertEquals(VaultBody.NoAccess, latest().body)
+            vault.access.value = true
+            vault.state.value = emptyList()
+            assertEquals(VaultBody.Empty, latest().body)
             cancelAndIgnoreRemainingEvents()
         }
     }

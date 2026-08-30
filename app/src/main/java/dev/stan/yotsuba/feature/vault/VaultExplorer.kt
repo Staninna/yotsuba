@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
@@ -76,6 +77,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
@@ -107,61 +110,50 @@ internal fun VaultExplorer(
     onFilter: (VaultFilter) -> Unit,
     onMode: (VaultMode) -> Unit,
 ) {
-    val spacing = LocalSpacing.current
     val context = LocalContext.current
     // Sort, direction and filter reorder every list; each one scrolls back to the top when
     // they change instead of chasing whichever key happened to be first on screen.
     val view = Triple(state.sort, state.reversed, state.filter)
+    val grid: @Composable (entries: List<VaultEntry>, emptyText: String) -> Unit = { entries, emptyText ->
+        Column(Modifier.fillMaxSize()) {
+            VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
+            MediaGrid(
+                view = view,
+                entries = entries,
+                emptyText = emptyText,
+                selected = state.selected,
+                onOpen = onOpenEntry,
+                onLongPress = onLongPressEntry,
+                onToggleSelected = { onToggleSelected(listOf(it.url)) },
+            )
+        }
+    }
     Box(Modifier.fillMaxSize()) {
-        when {
-            !state.hasStorageAccess -> Column(
-                Modifier.align(Alignment.Center).padding(spacing.lg),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(spacing.md),
+        when (val body = state.body) {
+            VaultBody.Loading -> LoadingSkeleton()
+
+            VaultBody.NoAccess -> EmptyState(
+                title = stringResource(R.string.vault_grant_button),
+                explanation = stringResource(R.string.vault_grant_explanation),
+                icon = Icons.Filled.FolderOff,
             ) {
-                Text(
-                    stringResource(R.string.vault_grant_explanation),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
                 Button(onClick = { requestAllFilesAccess(context) }) {
                     Text(stringResource(R.string.vault_grant_button))
                 }
             }
 
-            state.entries.isEmpty() -> Column(
-                Modifier.align(Alignment.Center).padding(spacing.lg),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(stringResource(R.string.vault_empty_title), style = MaterialTheme.typography.titleMedium)
-                Text(
-                    stringResource(R.string.vault_empty_explanation),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            VaultBody.Empty -> EmptyState(
+                title = stringResource(R.string.vault_empty_title),
+                explanation = stringResource(R.string.vault_empty_explanation),
+                icon = Icons.Filled.PermMedia,
+            )
 
-            state.results != null -> Column(Modifier.fillMaxSize()) {
-                VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
-                if (state.results.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            stringResource(R.string.vault_search_empty),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                } else {
-                    MediaGrid(
-                        view = view,
-                        entries = state.results,
-                        selected = state.selected,
-                        onOpen = onOpenEntry,
-                        onLongPress = onLongPressEntry,
-                        onToggleSelected = { onToggleSelected(listOf(it.url)) },
-                    )
-                }
-            }
+            is VaultBody.Grid -> grid(
+                body.entries,
+                stringResource(if (body.searching) R.string.vault_search_empty else R.string.vault_filter_empty),
+            )
 
-            state.selection.board == null -> Column(Modifier.fillMaxSize()) {
+            is VaultBody.Root -> Column(Modifier.fillMaxSize()) {
                 ModeSwitch(state.mode, onMode)
                 Crossfade(
                     targetState = state.mode,
@@ -170,26 +162,16 @@ internal fun VaultExplorer(
                     modifier = Modifier.fillMaxSize(),
                 ) { mode ->
                     if (mode == VaultMode.RECENT) {
-                        Column(Modifier.fillMaxSize()) {
-                            VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
-                            MediaGrid(
-                                view = view,
-                                entries = state.recent,
-                                selected = state.selected,
-                                onOpen = onOpenEntry,
-                                onLongPress = onLongPressEntry,
-                                onToggleSelected = { onToggleSelected(listOf(it.url)) },
-                            )
-                        }
+                        grid(body.recent, stringResource(R.string.vault_filter_empty))
                     } else {
                         BoardList(view, state.boards, onOpenBoard, onDeleteBoard)
                     }
                 }
             }
 
-            state.selection.thread == null -> ThreadList(
+            is VaultBody.Threads -> ThreadList(
                 view = view,
-                threads = state.openBoard?.threads.orEmpty(),
+                threads = body.threads,
                 selected = state.selected,
                 onOpen = onOpenThread,
                 onToggleSelected = onToggleSelected,
@@ -197,18 +179,6 @@ internal fun VaultExplorer(
                 onRename = onRenameThread,
                 onMerge = onMergeThread,
             )
-
-            else -> Column(Modifier.fillMaxSize()) {
-                VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
-                MediaGrid(
-                    view = view,
-                    entries = state.openThread?.entries.orEmpty(),
-                    selected = state.selected,
-                    onOpen = onOpenEntry,
-                    onLongPress = onLongPressEntry,
-                    onToggleSelected = { onToggleSelected(listOf(it.url)) },
-                )
-            }
         }
     }
 }
@@ -482,6 +452,8 @@ internal fun OverflowMenu(items: @Composable ColumnScope.(close: () -> Unit) -> 
 private fun MediaGrid(
     view: Any,
     entries: List<VaultEntry>,
+    /** Shown instead of the grid when nothing is in it: the filter or the search emptied it. */
+    emptyText: String,
     selected: Set<String>,
     onOpen: (VaultEntry) -> Unit,
     onLongPress: (VaultEntry) -> Unit,
@@ -491,6 +463,12 @@ private fun MediaGrid(
     val haptics = rememberHaptics()
     val gridState = rememberLazyGridState()
     LaunchedEffect(view) { gridState.scrollToItem(0) }
+    if (entries.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(emptyText, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(110.dp),
         state = gridState,

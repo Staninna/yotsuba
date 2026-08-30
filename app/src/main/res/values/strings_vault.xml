@@ -49,6 +49,7 @@
     <string name="vault_search_hint">File name or thread subject</string>
     <string name="vault_search_clear">Clear</string>
     <string name="vault_search_empty">Nothing matches</string>
+    <string name="vault_filter_empty">Nothing here matches the filter</string>
     <string name="vault_rename_thread">Rename</string>
     <string name="vault_rename">Rename</string>
     <string name="vault_renamed">Renamed</string>
