@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.designsystem.component.SwipeToDeleteRow
 import dev.stan.yotsuba.core.designsystem.component.ThreadSummaryRow
@@ -121,15 +122,15 @@ fun BookmarksList(
     // so the pills update without a manual pull.
     OnResumeEffect(onScreenVisible)
 
-    if (state.loaded && state.bookmarks.isEmpty()) {
-        EmptyState(
+    when {
+        !state.loaded -> LoadingSkeleton(modifier)
+        state.bookmarks.isEmpty() -> EmptyState(
             title = stringResource(R.string.bookmarks_empty_title),
             explanation = stringResource(R.string.bookmarks_empty_explanation),
             icon = Icons.Filled.BookmarkBorder,
             modifier = modifier,
         )
-    } else {
-        PullToRefreshBox(
+        else -> PullToRefreshBox(
             isRefreshing = state.checking != null,
             onRefresh = { haptics.tick(); onRefreshAll() },
             modifier = modifier,
