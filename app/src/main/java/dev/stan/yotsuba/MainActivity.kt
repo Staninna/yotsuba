@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -71,6 +72,7 @@ class MainActivity : FragmentActivity() {
         if (savedInstanceState == null) shell.onIntent(intent)
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
+            LaunchedEffect(settings.appLock) { hideFromRecents(settings.appLock) }
             val dark = when (settings.themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
                 ThemeMode.LIGHT -> false
@@ -92,6 +94,22 @@ class MainActivity : FragmentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * With the lock on, the recents carousel must not show the last screen. Android 13 can
+     * blank just the recents card; older releases need FLAG_SECURE, which also blocks
+     * screenshots. The flag follows the setting, not the lock state, because the snapshot is
+     * taken when the app goes to the background, before the lock decision is made.
+     */
+    private fun hideFromRecents(hide: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(!hide)
+        } else if (hide) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
 
