@@ -110,4 +110,6 @@ data class Settings(
      * it leaves the screen. Only read while [appLock] is on.
      */
     val appLockDelaySeconds: Int = 0,
+    /** Sort order of the Watched list in the Threads tab. */
+    val bookmarkSortOrder: BookmarkSortOrder = BookmarkSortOrder.UNREAD_FIRST,
 )

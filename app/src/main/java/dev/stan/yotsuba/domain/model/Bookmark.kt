@@ -1,5 +1,8 @@
 package dev.stan.yotsuba.domain.model
 
+/** How the Watched list is ordered; pinned rows always come first. */
+enum class BookmarkSortOrder { UNREAD_FIRST, LAST_ACTIVITY, BOOKMARKED }
+
 enum class BookmarkState {
     ALIVE,
 

@@ -8,7 +8,6 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
-import dev.stan.yotsuba.feature.bookmarks.BookmarkSortOrder
 import dev.stan.yotsuba.feature.bookmarks.BookmarksViewModel
 import dev.stan.yotsuba.feature.bookmarks.RefreshProgress
 import dev.stan.yotsuba.feature.bookmarks.SnapshotResult
@@ -17,6 +16,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import dev.stan.yotsuba.domain.model.BookmarkSortOrder
+import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.repository.SettingsRepository
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -87,8 +90,25 @@ class BookmarksViewModelTest {
         }
     }
 
-    private fun vm(repo: BookmarkRepository, vault: MediaVaultRepository = FakeVault()) =
-        BookmarksViewModel(repo, vault)
+    private class FakeSettings : SettingsRepository {
+        override val settings = MutableStateFlow(Settings())
+        override suspend fun update(transform: (Settings) -> Settings) = settings.update(transform)
+    }
+
+    private fun vm(repo: BookmarkRepository, vault: MediaVaultRepository = FakeVault(), settings: FakeSettings = FakeSettings()) =
+        BookmarksViewModel(repo, vault, settings)
+
+    @Test fun `sort order is written to settings and read back from them`() = runTest(dispatcher.scheduler) {
+        val settings = FakeSettings()
+        val vm = vm(FakeRepo(listOf(bookmark(1))), settings = settings)
+        vm.uiState.test {
+            assertEquals(BookmarkSortOrder.UNREAD_FIRST, awaitItem().sortOrder)
+            vm.onSortOrderChanged(BookmarkSortOrder.BOOKMARKED)
+            assertEquals(BookmarkSortOrder.BOOKMARKED, awaitItem().sortOrder)
+            assertEquals(BookmarkSortOrder.BOOKMARKED, settings.settings.value.bookmarkSortOrder)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 
     @Test fun `snapshot calls the vault and reports success`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault().apply { gate = CompletableDeferred() }

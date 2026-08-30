@@ -4,19 +4,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.BookmarkSortOrder
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-enum class BookmarkSortOrder { UNREAD_FIRST, LAST_ACTIVITY, BOOKMARKED }
 
 /** Outcome of [BookmarksViewModel.snapshot], held until the UI has shown it. */
 sealed interface SnapshotResult {
@@ -50,11 +51,13 @@ private fun snapshotKey(board: String, threadNo: Long) = "$board/$threadNo"
 class BookmarksViewModel @Inject constructor(
     private val repository: BookmarkRepository,
     private val vault: MediaVaultRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val refreshing = MutableStateFlow(false)
     private val checking = MutableStateFlow<RefreshProgress?>(null)
-    private val sortOrder = MutableStateFlow(BookmarkSortOrder.UNREAD_FIRST)
+    /** Lives in Settings so it survives leaving the tab and the process. */
+    private val sortOrder = settingsRepository.settings.map { it.bookmarkSortOrder }
     private val snapshotting = MutableStateFlow<Set<String>>(emptySet())
     private val pendingSnapshotResult = MutableStateFlow<SnapshotResult?>(null)
 
@@ -105,8 +108,8 @@ class BookmarksViewModel @Inject constructor(
         }
     }
 
-    fun onSortOrderChanged(order: BookmarkSortOrder) {
-        sortOrder.value = order
+    fun onSortOrderChanged(order: BookmarkSortOrder) = viewModelScope.launch {
+        settingsRepository.update { it.copy(bookmarkSortOrder = order) }
     }
 
     fun onTogglePinned(bookmark: Bookmark) = viewModelScope.launch {
