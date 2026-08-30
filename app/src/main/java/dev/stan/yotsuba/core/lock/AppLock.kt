@@ -3,7 +3,7 @@ package dev.stan.yotsuba.core.lock
 import android.os.SystemClock
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
-import dev.stan.yotsuba.core.di.ApplicationScope
+import dev.stan.yotsuba.di.ApplicationScope
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import javax.inject.Singleton

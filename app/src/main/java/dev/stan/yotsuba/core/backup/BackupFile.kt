@@ -126,6 +126,7 @@ object BackupCodec {
         imageCount = imageCount,
         bookmarkedAt = bookmarkedAt,
         lastCheckedAt = null,
+        // A state name from a newer or older backup is a legitimate UNKNOWN, not a failure.
         state = runCatching { BookmarkState.valueOf(state) }.getOrDefault(BookmarkState.UNKNOWN),
         readUpTo = readUpTo,
         pinned = pinned,

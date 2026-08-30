@@ -5,7 +5,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.stan.yotsuba.BuildConfig
-import dev.stan.yotsuba.core.di.IoDispatcher
+import dev.stan.yotsuba.di.IoDispatcher
 import dev.stan.yotsuba.core.media.mimeOf
 import dev.stan.yotsuba.core.util.apiResult
 import dev.stan.yotsuba.domain.model.DataResult

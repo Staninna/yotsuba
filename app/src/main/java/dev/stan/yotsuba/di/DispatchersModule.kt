@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.core.di
+package dev.stan.yotsuba.di
 
 import dagger.Module
 import dagger.Provides

@@ -69,7 +69,10 @@ object VaultPaths {
 
     /** File name for a saved post attachment: `"<postNo>_<original filename><ext>"`. */
     fun fileName(postNo: Long, originalFilename: String, ext: String): String =
-        sanitizeSegment("${postNo}_$originalFilename") + ext
+        sanitizeSegment("${postNo}_$originalFilename") + sanitizeExt(ext)
+
+    /** An extension goes through the same sanitiser as a name; an empty one stays empty. */
+    private fun sanitizeExt(ext: String): String = if (ext.isEmpty()) "" else sanitizeSegment(ext)
 
     /**
      * Resolves a collision by inserting ` (n)` before the extension:

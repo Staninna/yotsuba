@@ -16,6 +16,7 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import dev.stan.yotsuba.core.log.Log
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
@@ -82,12 +83,14 @@ class BookmarkRefreshWorker(
             .build()
         try {
             manager.notify(NOTIFICATION_ID, notification)
-        } catch (_: SecurityException) {
-            // Revoked between the check and the call; nothing to do.
+        } catch (e: SecurityException) {
+            // Revoked between the check and the call; nothing to do but say so.
+            Log.w(TAG, "Notification permission revoked mid-refresh", e)
         }
     }
 
     companion object {
+        private const val TAG = "BookmarkRefreshWorker"
         const val UNIQUE_NAME = "bookmark-refresh"
         const val CHANNEL_ID = "bookmarks"
         const val NOTIFICATION_ID = 4001

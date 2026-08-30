@@ -11,7 +11,7 @@ import androidx.datastore.preferences.core.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
-import dev.stan.yotsuba.core.di.IoDispatcher
+import dev.stan.yotsuba.di.IoDispatcher
 import dev.stan.yotsuba.core.media.GalleryExporter
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.media.mimeOf

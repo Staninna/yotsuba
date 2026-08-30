@@ -38,6 +38,7 @@ the user sees. Use a period or a comma. `./changelog.sh --check` rejects them in
 core/     database, network, media, text, vault, design system
 domain/   models and repository interfaces. Pure Kotlin; imports nothing from core
 data/     repository implementations
+di/       Hilt modules. The only place that binds a data implementation to a domain interface
 feature/  one package per screen: ViewModel + composables
 ```
 

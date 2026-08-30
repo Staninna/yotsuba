@@ -1,7 +1,7 @@
 package dev.stan.yotsuba.data.repository
 
-import dev.stan.yotsuba.core.di.ApplicationScope
-import dev.stan.yotsuba.core.di.IoDispatcher
+import dev.stan.yotsuba.di.ApplicationScope
+import dev.stan.yotsuba.di.IoDispatcher
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.VaultSaveContext

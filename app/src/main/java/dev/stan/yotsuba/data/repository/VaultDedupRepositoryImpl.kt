@@ -1,7 +1,7 @@
 package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
-import dev.stan.yotsuba.core.di.IoDispatcher
+import dev.stan.yotsuba.di.IoDispatcher
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.dedup.DHash
 import dev.stan.yotsuba.core.dedup.Grouping

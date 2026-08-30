@@ -68,6 +68,7 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkSortOrder
 import dev.stan.yotsuba.domain.model.BookmarkState
+import dev.stan.yotsuba.domain.model.threadKey
 import kotlinx.coroutines.launch
 
 /**
@@ -140,7 +141,7 @@ fun BookmarksList(
             ) {
                 items(
                     state.bookmarks.size,
-                    key = { state.bookmarks[it].board + "/" + state.bookmarks[it].threadNo },
+                    key = { threadKey(state.bookmarks[it].board, state.bookmarks[it].threadNo) },
                 ) { i ->
                     val bookmark = state.bookmarks[i]
                     SwipeToDeleteRow(modifier = animatedListItem(), onDelete = { removeWithUndo(bookmark) }) {

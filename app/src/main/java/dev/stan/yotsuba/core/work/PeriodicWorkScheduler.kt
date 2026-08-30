@@ -13,7 +13,7 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import dev.stan.yotsuba.core.di.ApplicationScope
+import dev.stan.yotsuba.di.ApplicationScope
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject

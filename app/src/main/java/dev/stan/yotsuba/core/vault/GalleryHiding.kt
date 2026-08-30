@@ -8,7 +8,7 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import dev.stan.yotsuba.core.di.IoDispatcher
+import dev.stan.yotsuba.di.IoDispatcher
 import dev.stan.yotsuba.domain.model.VaultPaths
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import java.io.File

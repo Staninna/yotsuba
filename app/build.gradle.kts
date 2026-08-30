@@ -79,6 +79,14 @@ android {
     }
 }
 
+composeCompiler {
+    // Domain models are immutable by construction; tell the compiler so it can skip
+    // recomposing rows whose inputs have not changed. Reports land in
+    // build/compose_reports for checking which composables are skippable.
+    stabilityConfigurationFiles.add(layout.projectDirectory.file("compose_compiler_config.conf"))
+    reportsDestination = layout.buildDirectory.dir("compose_reports")
+}
+
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }

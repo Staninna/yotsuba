@@ -5,7 +5,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.testing.TestInstallIn
-import dev.stan.yotsuba.core.di.RepositoryModule
+import dev.stan.yotsuba.di.RepositoryModule
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Bookmark

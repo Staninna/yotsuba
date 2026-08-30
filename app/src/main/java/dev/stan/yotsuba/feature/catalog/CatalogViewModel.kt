@@ -3,7 +3,7 @@ package dev.stan.yotsuba.feature.catalog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.stan.yotsuba.core.di.ComputeDispatcher
+import dev.stan.yotsuba.di.ComputeDispatcher
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.util.LoadableFlow

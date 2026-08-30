@@ -6,7 +6,7 @@ import dev.stan.yotsuba.core.backup.BackupCodec
 import dev.stan.yotsuba.core.backup.BackupFile
 import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
-import dev.stan.yotsuba.core.di.ApplicationScope
+import dev.stan.yotsuba.di.ApplicationScope
 import dev.stan.yotsuba.domain.repository.BackupInfo
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BackupResult
