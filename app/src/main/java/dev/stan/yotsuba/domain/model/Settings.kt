@@ -7,6 +7,9 @@ enum class CatalogLayout { COMFORTABLE, COMPACT, LIST }
 enum class MediaAutoplay { ALWAYS, UNMETERED_ONLY, NEVER }
 enum class HistoryRetention { FOREVER, DAYS_30, DAYS_7 }
 
+/** What a tap on a `>>123` quotelink does; a long-press does the other one. */
+enum class QuoteTapAction { POPOVER, JUMP }
+
 /** How far one double-tap on a video's left or right edge jumps. */
 enum class SeekStep(val seconds: Int) {
     FIVE(5),
@@ -67,4 +70,6 @@ data class Settings(
     val hiddenCategories: Set<String> = emptySet(),
     /** Content filters, applied in order; the first match wins. */
     val filters: List<Filter> = emptyList(),
+    /** Tap on a quotelink opens the preview stack or jumps to the post in place. */
+    val quoteTap: QuoteTapAction = QuoteTapAction.POPOVER,
 )
