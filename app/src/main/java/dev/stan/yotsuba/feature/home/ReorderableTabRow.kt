@@ -84,7 +84,14 @@ fun ReorderableTabRow(
         onDragState(from != null, overRemove)
     }
     var viewportWidth by remember { mutableIntStateOf(0) }
-    val target = if (from != null && from < widths.size) dropTarget(from, dragOffset, widths) else -1
+    // A favourites write landing mid-drag restarts the gesture without onDragCancel, so the
+    // lifted index would otherwise outlive the tab it pointed at.
+    LaunchedEffect(boards) {
+        dragging = null
+        dragOffset = 0f
+        dragY = 0f
+    }
+    val target = if (from != null && from in widths.indices) dropTarget(from, dragOffset, widths) else -1
 
     // Keep the dragged tab under the finger while the row scrolls beneath it.
     LaunchedEffect(from) {
@@ -94,7 +101,7 @@ fun ReorderableTabRow(
         while (true) {
             withFrameNanos { }
             val start = widths.take(from).sum() + dragOffset - scrollState.value
-            val end = start + widths[from]
+            val end = start + (widths.getOrNull(from) ?: 0)
             val delta = when {
                 start < edge -> -step
                 end > viewportWidth - edge -> step
@@ -132,7 +139,7 @@ fun ReorderableTabRow(
         Row(Modifier.height(48.dp)) {
             boards.forEachIndexed { index, board ->
                 val lifted = index == from
-                val shift = if (from == null) 0 else shiftFor(index, from, target) * widths[from]
+                val shift = if (from == null) 0 else shiftFor(index, from, target) * (widths.getOrNull(from) ?: 0)
                 val slide by animateFloatAsState(
                     targetValue = shift.toFloat(),
                     animationSpec = rememberMotionSpec(motion.short),
