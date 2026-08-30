@@ -66,6 +66,7 @@ fun ThreadsScreen(
 ) {
     var segment by rememberSaveable { mutableStateOf(ThreadsSegment.WATCHED) }
     val bookmarks by bookmarksViewModel.uiState.collectAsStateWithLifecycle()
+    val snapshotResult by bookmarksViewModel.snapshotResult.collectAsStateWithLifecycle()
     val history by historyViewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = slots.snackbar
     val scope = rememberCoroutineScope()
@@ -143,9 +144,17 @@ fun ThreadsScreen(
             ) { shown ->
                 when (shown) {
                     ThreadsSegment.WATCHED -> BookmarksList(
-                        viewModel = bookmarksViewModel,
-                        snackbar = snackbar,
+                        state = bookmarks,
+                        snapshotResult = snapshotResult,
+                        onSnapshotResultShown = bookmarksViewModel::onSnapshotResultShown,
+                        onScreenVisible = bookmarksViewModel::onScreenVisible,
+                        onRefreshAll = bookmarksViewModel::onRefreshAll,
+                        onRemove = bookmarksViewModel::onRemove,
+                        onUndoRemove = bookmarksViewModel::onUndoRemove,
+                        onTogglePinned = bookmarksViewModel::onTogglePinned,
+                        onSnapshot = { bookmarksViewModel.snapshot(it.board, it.threadNo) },
                         onOpenThread = { board, no -> onOpenThread(board, no, null) },
+                        snackbar = snackbar,
                         modifier = Modifier.fillMaxSize(),
                     )
                     ThreadsSegment.RECENT -> HistoryList(

@@ -53,7 +53,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
@@ -71,18 +70,25 @@ import kotlinx.coroutines.launch
 
 /**
  * The Watched segment of the Threads tab. The top-bar menu lives in [BookmarksMenu] so the
- * host can put it in whichever app bar it owns; this is only the list.
+ * host can put it in whichever app bar it owns; this is only the list. State and callbacks
+ * are hoisted: the host already collects the ViewModel for its app bar.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookmarksList(
-    viewModel: BookmarksViewModel,
-    snackbar: SnackbarHostState,
+    state: BookmarksUiState,
+    snapshotResult: SnapshotResult?,
+    onSnapshotResultShown: () -> Unit,
+    onScreenVisible: () -> Unit,
+    onRefreshAll: () -> Unit,
+    onRemove: (Bookmark) -> Unit,
+    onUndoRemove: (Bookmark) -> Unit,
+    onTogglePinned: (Bookmark) -> Unit,
+    onSnapshot: (Bookmark) -> Unit,
     onOpenThread: (String, Long) -> Unit,
+    snackbar: SnackbarHostState,
     modifier: Modifier = Modifier,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val snapshotResult by viewModel.snapshotResult.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
@@ -108,12 +114,12 @@ fun BookmarksList(
                 }
             },
         )
-        viewModel.onSnapshotResultShown()
+        onSnapshotResultShown()
     }
 
     // Auto-refresh whenever the tab comes back on screen (throttled in the ViewModel),
     // so the pills update without a manual pull.
-    OnResumeEffect(viewModel::onScreenVisible)
+    OnResumeEffect(onScreenVisible)
 
     if (state.loaded && state.bookmarks.isEmpty()) {
         EmptyState(
@@ -125,7 +131,7 @@ fun BookmarksList(
     } else {
         PullToRefreshBox(
             isRefreshing = state.checking != null,
-            onRefresh = { haptics.tick(); viewModel.onRefreshAll() },
+            onRefresh = { haptics.tick(); onRefreshAll() },
             modifier = modifier,
         ) {
             LazyColumn(
@@ -139,9 +145,9 @@ fun BookmarksList(
                 ) { i ->
                     val bookmark = state.bookmarks[i]
                     SwipeToDeleteRow(modifier = animatedListItem(), onDelete = {
-                        viewModel.onRemove(bookmark)
+                        onRemove(bookmark)
                         scope.launch {
-                            snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
+                            snackbar.showUndo(removedMessage, undoLabel) { onUndoRemove(bookmark) }
                         }
                     }) {
                         BookmarkCard(
@@ -164,13 +170,13 @@ fun BookmarksList(
             snapshotting = snapshotting,
             onDismiss = { sheetFor = null },
             onOpen = { sheetFor = null; onOpenThread(bookmark.board, bookmark.threadNo) },
-            onTogglePinned = { sheetFor = null; viewModel.onTogglePinned(bookmark) },
-            onSnapshot = { sheetFor = null; viewModel.snapshot(bookmark.board, bookmark.threadNo) },
+            onTogglePinned = { sheetFor = null; onTogglePinned(bookmark) },
+            onSnapshot = { sheetFor = null; onSnapshot(bookmark) },
             onRemove = {
                 sheetFor = null
-                viewModel.onRemove(bookmark)
+                onRemove(bookmark)
                 scope.launch {
-                    snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
+                    snackbar.showUndo(removedMessage, undoLabel) { onUndoRemove(bookmark) }
                 }
             },
         )
