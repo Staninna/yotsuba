@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -31,9 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -42,7 +38,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -54,119 +49,132 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
+import dev.stan.yotsuba.core.designsystem.component.TabChrome
+import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.component.showUndo
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.feature.catalog.CatalogActions
 import dev.stan.yotsuba.feature.catalog.CatalogPane
+import dev.stan.yotsuba.feature.catalog.CatalogViewModel
 import dev.stan.yotsuba.feature.catalog.catalogViewModel
 import kotlinx.coroutines.launch
 
 /**
  * The Home tab: a pager over the user's favourite boards, each page a full catalog. The
- * current page survives tab switches via [rememberSaveable]; every page's list state lives
- * in its own [CatalogPane] and ViewModel, keyed by board.
+ * current page survives tab switches and process death via [rememberSaveable]; every page's
+ * list state lives in its own [CatalogPane] and ViewModel, keyed by board.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
+    slots: TabScaffoldSlots,
     onOpenThread: (board: String, threadNo: Long) -> Unit,
     onOpenBoards: () -> Unit,
     onOpenSettings: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val boards by viewModel.boards.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var savedPage by rememberSaveable { mutableIntStateOf(0) }
     val pageCount = boards?.size ?: 0
-    val pagerState = rememberPagerState(
-        initialPage = savedPage.coerceIn(0, maxOf(pageCount - 1, 0)),
-        pageCount = { pageCount },
-    )
-    LaunchedEffect(pagerState.currentPage) { savedPage = pagerState.currentPage }
+    val pagerState = rememberPagerState(pageCount = { pageCount })
+    // The pager is created before the boards have loaded, when pageCount is still 0, so the
+    // saved page cannot go through initialPage. Restore it once the list is known, and only
+    // write back after that so the restored value is not clobbered by the initial page 0.
+    var savedPage by rememberSaveable { mutableIntStateOf(0) }
+    var restored by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(pageCount) {
+        if (!restored && pageCount > 0) {
+            pagerState.scrollToPage(savedPage.coerceIn(0, pageCount - 1))
+            restored = true
+        }
+    }
+    LaunchedEffect(pagerState.currentPage) { if (restored) savedPage = pagerState.currentPage }
     val current = boards?.getOrNull(pagerState.currentPage)
-    var draggingTab by remember { mutableStateOf(false) }
-    var overRemove by remember { mutableStateOf(false) }
+    val reorder = rememberTabReorderState()
     val removedTemplate = stringResource(R.string.home_board_removed)
     val undoLabel = stringResource(R.string.action_undo)
+    // Resolved here, under Home's own ViewModel store, not inside the shell-owned top bar.
     val currentViewModel = current?.let { catalogViewModel(it) }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            val boardInfo by (currentViewModel?.boardInfo ?: remember { kotlinx.coroutines.flow.MutableStateFlow(null) })
-                .collectAsStateWithLifecycle()
-            TopAppBar(
-                title = { Text(boardInfo?.title ?: current?.let { "/$it/" } ?: stringResource(R.string.home_title)) },
-                actions = {
-                    if (currentViewModel != null) {
-                        val state by currentViewModel.uiState.collectAsStateWithLifecycle()
-                        CatalogActions(state, currentViewModel)
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, stringResource(R.string.home_settings))
-                    }
+    TabChrome(slots = slots, topBar = { HomeTopBar(current, currentViewModel, onOpenSettings) })
+    val list = boards
+    when {
+        list == null -> LoadingSkeleton()
+        list.isEmpty() -> EmptyState(
+            title = stringResource(R.string.home_empty_title),
+            explanation = stringResource(R.string.home_empty_explanation),
+            icon = Icons.Filled.Star,
+            action = {
+                Button(onClick = onOpenBoards) { Text(stringResource(R.string.home_pick_boards)) }
+            },
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        )
+        else -> Column(Modifier.fillMaxSize()) {
+            ReorderableTabRow(
+                boards = list,
+                selectedIndex = pagerState.currentPage.coerceIn(0, list.size - 1),
+                onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
+                onRemove = { index ->
+                    val board = list[index]
+                    val undo = viewModel.removeFavourite(board)
+                    scope.launch { slots.snackbar.showUndo(removedTemplate.format(board), undoLabel, undo) }
                 },
-            )
-        },
-    ) { padding ->
-        val list = boards
-        when {
-            list == null -> Unit
-            list.isEmpty() -> EmptyState(
-                title = stringResource(R.string.home_empty_title),
-                explanation = stringResource(R.string.home_empty_explanation),
-                icon = Icons.Filled.Star,
-                action = {
-                    Button(onClick = onOpenBoards) { Text(stringResource(R.string.home_pick_boards)) }
+                onMove = { from, to ->
+                    viewModel.reorder(from, to)
+                    scope.launch { pagerState.scrollToPage(remapPage(pagerState.currentPage, from, to)) }
                 },
-                modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()),
-            )
-            else -> Column(Modifier.padding(padding).fillMaxSize()) {
-                ReorderableTabRow(
-                    boards = list,
-                    selectedIndex = pagerState.currentPage.coerceIn(0, list.size - 1),
-                    onSelect = { index -> scope.launch { pagerState.animateScrollToPage(index) } },
-                    onRemove = { index ->
-                        val board = list[index]
-                        val undo = viewModel.removeFavourite(board)
-                        scope.launch { snackbar.showUndo(removedTemplate.format(board), undoLabel, undo) }
-                    },
-                    onDragState = { dragging, over ->
-                        draggingTab = dragging
-                        overRemove = over
-                    },
-                    onMove = { from, to ->
-                        viewModel.reorder(from, to)
-                        scope.launch { pagerState.scrollToPage(remapPage(pagerState.currentPage, from, to)) }
-                    },
-                    trailing = {
-                        Tab(
-                            selected = false,
-                            onClick = onOpenBoards,
-                            icon = { Icon(Icons.Filled.Add, stringResource(R.string.home_add_board)) },
-                        )
-                    },
-                )
-                RemoveDropZone(visible = draggingTab, active = overRemove)
-                HorizontalPager(
-                    state = pagerState,
-                    key = { list[it] },
-                    beyondViewportPageCount = 0,
-                    modifier = Modifier.fillMaxSize(),
-                ) { page ->
-                    val board = list[page]
-                    CatalogPane(
-                        board = board,
-                        viewModel = catalogViewModel(board),
-                        onOpenThread = { onOpenThread(board, it) },
-                        snackbar = snackbar,
+                trailing = {
+                    Tab(
+                        selected = false,
+                        onClick = onOpenBoards,
+                        icon = { Icon(Icons.Filled.Add, stringResource(R.string.home_add_board)) },
                     )
-                }
+                },
+                state = reorder,
+            )
+            RemoveDropZone(visible = reorder.isDragging, active = reorder.overRemove)
+            HorizontalPager(
+                state = pagerState,
+                key = { list[it] },
+                beyondViewportPageCount = 0,
+                modifier = Modifier.fillMaxSize(),
+            ) { page ->
+                val board = list[page]
+                CatalogPane(
+                    board = board,
+                    viewModel = catalogViewModel(board),
+                    onOpenThread = { onOpenThread(board, it) },
+                    snackbar = slots.snackbar,
+                )
             }
         }
     }
+}
+
+/**
+ * The Home app bar: the current board's title and catalog actions when there is a current
+ * page, the plain Home title before the boards have loaded, and Settings in every state.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HomeTopBar(board: String?, viewModel: CatalogViewModel?, onOpenSettings: () -> Unit) {
+    TopAppBar(
+        title = {
+            val info = viewModel?.boardInfo?.collectAsStateWithLifecycle()?.value
+            Text(info?.title ?: board?.let { "/$it/" } ?: stringResource(R.string.home_title))
+        },
+        actions = {
+            if (viewModel != null) {
+                val state by viewModel.uiState.collectAsStateWithLifecycle()
+                CatalogActions(state, viewModel)
+            }
+            IconButton(onClick = onOpenSettings) {
+                Icon(Icons.Filled.Settings, stringResource(R.string.home_settings))
+            }
+        },
+    )
 }
 
 /** The strip a dragged tab can be dropped on to unfavourite its board. */

@@ -6,6 +6,8 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.fake.FakeSettings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -49,6 +51,15 @@ class HomeViewModelTest {
         assertEquals(listOf("g", "a", "v"), settings.state.value.favouriteBoards.toList())
     }
 
+    @Test fun `undoing before the removal has landed still restores the board`() = runTest(dispatcher.scheduler) {
+        val settings = SlowFirstWrite(Settings(favouriteBoards = linkedSetOf("g", "a", "v")))
+        val vm = HomeViewModel(settings)
+        val undo = vm.removeFavourite("a")
+        undo()
+        advanceUntilIdle()
+        assertEquals(listOf("g", "a", "v"), settings.current.favouriteBoards.toList())
+    }
+
     @Test fun `reordering moves the board and persists the new order`() = runTest(dispatcher.scheduler) {
         val settings = OrderedSettings(Settings(favouriteBoards = linkedSetOf("g", "a", "v", "k")))
         val vm = HomeViewModel(settings)
@@ -68,6 +79,16 @@ class HomeViewModelTest {
         vm.reorder(from = 1, to = 1)
         advanceUntilIdle()
         assertEquals(listOf("g", "a"), settings.current.favouriteBoards.toList())
+    }
+
+    /** A store whose first write takes longer than the next, like a DataStore write racing a tap. */
+    private class SlowFirstWrite(var current: Settings) : SettingsRepository {
+        private var writes = 0
+        override val settings: Flow<Settings> = flowOf(current)
+        override suspend fun update(transform: (Settings) -> Settings) {
+            delay(if (writes++ == 0) 100 else 1)
+            current = transform(current)
+        }
     }
 
     /**

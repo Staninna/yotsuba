@@ -19,10 +19,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -36,6 +38,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -46,10 +50,41 @@ import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 
 /**
+ * The one drag in progress on a [ReorderableTabRow], shared with whatever renders its drop
+ * zone: which tab is lifted, how far the finger has moved, and whether it has been pulled
+ * down far enough to count as a remove.
+ */
+@Stable
+class TabReorderState internal constructor(private val removeThreshold: Float) {
+    var dragging: Int? by mutableStateOf(null)
+        internal set
+    var dragOffset: Float by mutableFloatStateOf(0f)
+        internal set
+    var dragY: Float by mutableFloatStateOf(0f)
+        internal set
+
+    val isDragging: Boolean get() = dragging != null
+    val overRemove: Boolean get() = dragging != null && dragY > removeThreshold
+
+    internal fun end() {
+        dragging = null
+        dragOffset = 0f
+        dragY = 0f
+    }
+}
+
+@Composable
+fun rememberTabReorderState(): TabReorderState {
+    val removeThreshold = with(LocalDensity.current) { 32.dp.toPx() }
+    return remember(removeThreshold) { TabReorderState(removeThreshold) }
+}
+
+/**
  * The Home board tabs: a scrollable row that looks like a `ScrollableTabRow` but lets a tab
  * be picked up with a long press and dragged to a new slot. The neighbours slide out of the
  * way, the row scrolls itself when the tab nears an edge, and letting go calls [onMove].
- * [trailing] (the "+" tab) sits after the boards and takes no part in the drag.
+ * [trailing] (the "+" tab) sits after the boards and takes no part in the drag. Dragging a
+ * tab down past [TabReorderState.overRemove] and letting go calls [onRemove] instead.
  */
 @Composable
 fun ReorderableTabRow(
@@ -58,9 +93,9 @@ fun ReorderableTabRow(
     onSelect: (Int) -> Unit,
     onMove: (from: Int, to: Int) -> Unit,
     onRemove: (index: Int) -> Unit,
-    onDragState: (dragging: Boolean, overRemove: Boolean) -> Unit,
     trailing: @Composable () -> Unit,
     modifier: Modifier = Modifier,
+    state: TabReorderState = rememberTabReorderState(),
 ) {
     val haptics = rememberHaptics()
     val moveLeft = stringResource(R.string.home_move_left)
@@ -69,22 +104,21 @@ fun ReorderableTabRow(
     val motion = LocalMotion.current
     val density = LocalDensity.current
     val scrollState = rememberScrollState()
-    val widths = remember { mutableStateListOf<Int>() }
-    while (widths.size < boards.size) widths.add(0)
-    while (widths.size > boards.size) widths.removeAt(widths.lastIndex)
+    // Measured tab widths keyed by board, so a width follows its tab through a reorder or
+    // removal; [widths] is the same in tab order, read live wherever it is used.
+    val measured = remember { mutableStateMapOf<String, Int>() }
+    val widths by remember(boards) { derivedStateOf { boards.map { measured[it] ?: 0 } } }
 
-    var dragging by remember { mutableStateOf<Int?>(null) }
-    var dragOffset by remember { mutableFloatStateOf(0f) }
-    val from = dragging
-    var dragY by remember { mutableFloatStateOf(0f) }
-    val removeThreshold = with(density) { 32.dp.toPx() }
-    val overRemove = from != null && dragY > removeThreshold
+    val from = state.dragging
+    val overRemove = state.overRemove
     LaunchedEffect(from != null, overRemove) {
         if (from != null && overRemove) haptics.reject()
-        onDragState(from != null, overRemove)
     }
     var viewportWidth by remember { mutableIntStateOf(0) }
-    val target = if (from != null && from < widths.size) dropTarget(from, dragOffset, widths) else -1
+    // A favourites write landing mid-drag restarts the gesture without onDragCancel, so the
+    // lifted index would otherwise outlive the tab it pointed at.
+    LaunchedEffect(boards) { state.end() }
+    val target = if (from != null && from in widths.indices) dropTarget(from, state.dragOffset, widths) else -1
 
     // Keep the dragged tab under the finger while the row scrolls beneath it.
     LaunchedEffect(from) {
@@ -93,19 +127,19 @@ fun ReorderableTabRow(
         val step = with(density) { 6.dp.toPx() }
         while (true) {
             withFrameNanos { }
-            val start = widths.take(from).sum() + dragOffset - scrollState.value
-            val end = start + widths[from]
+            val start = widths.take(from).sum() + state.dragOffset - scrollState.value
+            val end = start + (widths.getOrNull(from) ?: 0)
             val delta = when {
                 start < edge -> -step
                 end > viewportWidth - edge -> step
                 else -> 0f
             }
-            if (delta != 0f) dragOffset += scrollState.scrollBy(delta)
+            if (delta != 0f) state.dragOffset += scrollState.scrollBy(delta)
         }
     }
 
     // Selecting a tab scrolls it into view, as ScrollableTabRow does.
-    LaunchedEffect(selectedIndex, widths.toList()) {
+    LaunchedEffect(selectedIndex, widths) {
         if (from != null || selectedIndex !in widths.indices || viewportWidth == 0) return@LaunchedEffect
         val start = widths.take(selectedIndex).sum()
         val centred = start + widths[selectedIndex] / 2 - viewportWidth / 2
@@ -132,7 +166,7 @@ fun ReorderableTabRow(
         Row(Modifier.height(48.dp)) {
             boards.forEachIndexed { index, board ->
                 val lifted = index == from
-                val shift = if (from == null) 0 else shiftFor(index, from, target) * widths[from]
+                val shift = if (from == null) 0 else shiftFor(index, from, target) * (widths.getOrNull(from) ?: 0)
                 val slide by animateFloatAsState(
                     targetValue = shift.toFloat(),
                     animationSpec = rememberMotionSpec(motion.short),
@@ -160,10 +194,10 @@ fun ReorderableTabRow(
                                 add(CustomAccessibilityAction(removeLabel) { onRemove(index); true })
                             }
                         }
-                        .onSizeChanged { widths[index] = it.width }
+                        .onSizeChanged { measured[board] = it.width }
                         .graphicsLayer {
-                            translationX = if (lifted) dragOffset else slide
-                            translationY = if (lifted) dragY.coerceAtLeast(0f) else 0f
+                            translationX = if (lifted) state.dragOffset else slide
+                            translationY = if (lifted) state.dragY.coerceAtLeast(0f) else 0f
                             scaleX = scale
                             scaleY = scale
                             shadowElevation = if (lifted) 8.dp.toPx() else 0f
@@ -174,35 +208,28 @@ fun ReorderableTabRow(
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
                                     haptics.longPress()
-                                    dragOffset = 0f
-                                    dragY = 0f
-                                    dragging = index
+                                    state.end()
+                                    state.dragging = index
                                 },
                                 onDrag = { change, amount ->
                                     change.consume()
-                                    dragOffset += amount.x
-                                    dragY += amount.y
+                                    state.dragOffset += amount.x
+                                    state.dragY += amount.y
                                 },
                                 onDragEnd = {
-                                    val f = dragging
+                                    val f = state.dragging
                                     if (f != null) {
-                                        if (dragY > removeThreshold) {
+                                        if (state.overRemove) {
                                             haptics.confirm()
                                             onRemove(f)
                                         } else {
-                                            val t = dropTarget(f, dragOffset, widths)
+                                            val t = dropTarget(f, state.dragOffset, widths)
                                             if (t != f) onMove(f, t)
                                         }
                                     }
-                                    dragging = null
-                                    dragOffset = 0f
-                                    dragY = 0f
+                                    state.end()
                                 },
-                                onDragCancel = {
-                                    dragging = null
-                                    dragOffset = 0f
-                                    dragY = 0f
-                                },
+                                onDragCancel = state::end,
                             )
                         },
                 )
@@ -235,7 +262,8 @@ private fun BoardTab(
         modifier = modifier
             .height(48.dp)
             .then(if (lifted) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh) else Modifier)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Tab)
+            .semantics { this.selected = selected }
             .padding(horizontal = 16.dp),
     ) {
         Text(
