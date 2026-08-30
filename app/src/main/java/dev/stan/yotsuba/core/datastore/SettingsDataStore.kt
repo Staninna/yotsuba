@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.descriptors.elementNames
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -25,7 +26,9 @@ import kotlinx.serialization.json.JsonPrimitive
  * to the data class with a default and nothing else.
  *
  * Installs that predate the blob wrote one preference per field. Those are folded into the
- * blob once, the first time anything reads or writes, and then deleted.
+ * blob once, the first time anything reads or writes, and then deleted. The store is shared
+ * with other owners (the vault migration flag lives here too), so only keys named after a
+ * [Settings] field are ever touched.
  */
 @Singleton
 class SettingsDataStore @Inject constructor(
@@ -51,10 +54,11 @@ class SettingsDataStore @Inject constructor(
         migration.withLock {
             if (migrated) return
             val prefs = dataStore.data.first()
-            if (prefs[blobKey] == null && prefs.asMap().isNotEmpty()) {
-                val legacy = decode(legacyToJson(prefs))
+            val legacyEntries = prefs.asMap().filterKeys { it.name in LEGACY_KEYS }
+            if (prefs[blobKey] == null && legacyEntries.isNotEmpty()) {
+                val legacy = decode(legacyToJson(legacyEntries))
                 dataStore.edit { p ->
-                    p.clear()
+                    legacyEntries.keys.forEach { p.remove(it) }
                     p[blobKey] = json.encodeToString(legacy)
                 }
             }
@@ -76,12 +80,15 @@ class SettingsDataStore @Inject constructor(
             encodeDefaults = true
         }
 
+        /** The per-field preference names the pre-blob layout used: one per [Settings] property. */
+        val LEGACY_KEYS: Set<String> = Settings.serializer().descriptor.elementNames.toSet()
+
         /**
          * One preference per field, keyed by the [Settings] property name, becomes the same
          * JSON the blob holds so the serializer's fallbacks apply to old values too.
          */
-        fun legacyToJson(prefs: Preferences): String {
-            val fields = prefs.asMap().entries.associate { (key, value) ->
+        fun legacyToJson(prefs: Map<Preferences.Key<*>, Any>): String {
+            val fields = prefs.entries.associate { (key, value) ->
                 key.name to when (value) {
                     is Boolean -> JsonPrimitive(value)
                     is Int -> JsonPrimitive(value)

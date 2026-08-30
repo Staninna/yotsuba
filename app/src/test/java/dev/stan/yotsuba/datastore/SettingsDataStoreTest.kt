@@ -136,7 +136,7 @@ class SettingsDataStoreTest {
             it[booleanPreferencesKey("holdToSave")] = false
             it[stringPreferencesKey("historyRetention")] = "DAYS_7"
             it[stringSetPreferencesKey("hiddenBoards")] = setOf("b")
-            it[stringPreferencesKey("bogus")] = "ignored" // an unknown legacy key must not break the migration
+            it[stringPreferencesKey("bogus")] = "ignored" // a key this class doesn't own is left alone
         }
 
         val expected = Settings(
@@ -153,10 +153,25 @@ class SettingsDataStoreTest {
         )
         assertEquals(expected, SettingsDataStore(dataStore).settings.first())
 
-        // The migration ran once: the legacy keys are gone and the blob alone carries the values.
+        // The migration ran once: the legacy keys are gone, the blob carries the values, and
+        // a key belonging to someone else survives untouched.
         val prefs = dataStore.data.first()
         assertNull(prefs[stringPreferencesKey("themeMode")])
-        assertEquals(setOf("settings"), prefs.asMap().keys.map { it.name }.toSet())
+        assertEquals(setOf("settings", "bogus"), prefs.asMap().keys.map { it.name }.toSet())
+        assertEquals("ignored", prefs[stringPreferencesKey("bogus")])
         assertEquals(expected, SettingsDataStore(dataStore).settings.first())
+    }
+
+    @Test fun `a foreign key alone does not trigger the migration or get wiped`() = runTest {
+        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val file = File.createTempFile("prefs", ".preferences_pb").also { it.delete() }
+        val dataStore = PreferenceDataStoreFactory.create(scope = scope) { file }
+        val vaultFlag = booleanPreferencesKey("vault_legacy_migrated_v1")
+        dataStore.edit { it[vaultFlag] = true }
+
+        assertEquals(Settings(), SettingsDataStore(dataStore).settings.first())
+        val prefs = dataStore.data.first()
+        assertEquals(true, prefs[vaultFlag])
+        assertNull(prefs[stringPreferencesKey("settings")])
     }
 }
