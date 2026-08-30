@@ -1,17 +1,10 @@
 package dev.stan.yotsuba.navigation
 
 import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
 import androidx.navigation.NavDestination
 import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,11 +42,9 @@ import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowWidthSizeClass
 import dev.stan.yotsuba.core.designsystem.component.LocalAnimatedVisibilityScope
 import dev.stan.yotsuba.core.designsystem.component.LocalSharedTransitionScope
-import dev.stan.yotsuba.core.designsystem.rememberReducedMotion
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
-import dev.stan.yotsuba.core.designsystem.token.LocalMotion
+import dev.stan.yotsuba.core.designsystem.rememberNavTransitions
 import dev.stan.yotsuba.core.util.Urls.InternalLink
-import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.feature.boards.BoardsScreen
 import dev.stan.yotsuba.feature.home.HomeScreen
 import dev.stan.yotsuba.feature.catalog.CatalogScreen
@@ -102,25 +92,13 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
         }
         shell.linkConsumed()
     }
-    val widgetTarget by WidgetDeepLink.pending.collectAsStateWithLifecycle()
-    LaunchedEffect(widgetTarget) {
-        val target = widgetTarget ?: return@LaunchedEffect
-        navController.navigate(Route.Thread(target.board, target.threadNo))
-        WidgetDeepLink.clear()
-    }
-    val openSettings = { navController.navigate(Route.Settings) }
+    val openSettings = { navController.push(Route.Settings) }
 
     Row(Modifier.fillMaxSize()) {
         if (expanded && showChrome) {
             NavigationRail {
-                for (dest in TopLevelDestination.entries) {
-                    val selected = isSelected(dest)
-                    NavigationRailItem(
-                        selected = selected,
-                        onClick = { navigateTopLevel(dest) },
-                        icon = { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
-                        label = { Text(stringResource(dest.labelRes)) },
-                    )
+                NavItems(::isSelected, ::navigateTopLevel) { selected, onClick, icon, label ->
+                    NavigationRailItem(selected = selected, onClick = onClick, icon = icon, label = label)
                 }
             }
         }
@@ -134,23 +112,14 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
             bottomBar = {
                 if (!expanded && showChrome) {
                     NavigationBar {
-                        for (dest in TopLevelDestination.entries) {
-                            val selected = isSelected(dest)
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = { navigateTopLevel(dest) },
-                                icon = { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
-                                label = { Text(stringResource(dest.labelRes)) },
-                            )
+                        NavItems(::isSelected, ::navigateTopLevel) { selected, onClick, icon, label ->
+                            NavigationBarItem(selected = selected, onClick = onClick, icon = icon, label = label)
                         }
                     }
                 }
             },
         ) { padding ->
-            val motion = LocalMotion.current
-            val reduced = rememberReducedMotion()
-            val fade = tween<Float>(motion.medium)
-            val slide = tween<IntOffset>(motion.medium)
+            val transitions = rememberNavTransitions()
             // One shared-transition scope over the whole graph, so a thumbnail on one screen
             // and its viewer page on the next can morph into each other (Modifier.sharedMedia).
             SharedTransitionLayout(Modifier.fillMaxSize().padding(padding)) {
@@ -159,30 +128,15 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         navController = navController,
                         startDestination = Route.Home,
                         modifier = Modifier.fillMaxSize(),
-                        // A tab switch composes both screens at once, so it gets a short fade
-                        // and no slide; the push/pop slide is for screens that stack.
-                        enterTransition = {
-                            if (reduced) EnterTransition.None
-                            else if (isTabSwitch()) fadeIn(tween(motion.short))
-                            else fadeIn(fade) + slideInHorizontally(slide) { it / 8 }
-                        },
-                        exitTransition = {
-                            if (reduced) ExitTransition.None else fadeOut(tween(motion.short))
-                        },
-                        popEnterTransition = {
-                            if (reduced) EnterTransition.None
-                            else fadeIn(if (isTabSwitch()) tween(motion.short) else fade)
-                        },
-                        popExitTransition = {
-                            if (reduced) ExitTransition.None
-                            else if (isTabSwitch()) fadeOut(tween(motion.short))
-                            else fadeOut(fade) + slideOutHorizontally(slide) { it / 8 }
-                        },
+                        enterTransition = { transitions.enter(tabSwitch = isTabSwitch()) },
+                        exitTransition = { transitions.exit() },
+                        popEnterTransition = { transitions.popEnter(tabSwitch = isTabSwitch()) },
+                        popExitTransition = { transitions.popExit(tabSwitch = isTabSwitch()) },
                     ) {
                         screen<Route.Home> {
                             HomeScreen(
                                 slots = slots,
-                                onOpenThread = { board, threadNo -> navController.navigate(Route.Thread(board, threadNo)) },
+                                onOpenThread = { board, threadNo -> navController.push(Route.Thread(board, threadNo)) },
                                 onOpenBoards = { navigateTopLevel(TopLevelDestination.BOARDS) },
                                 onOpenSettings = openSettings,
                             )
@@ -190,7 +144,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         screen<Route.Boards> {
                             BoardsScreen(
                                 slots = slots,
-                                onOpenBoard = { navController.navigate(Route.Catalog(it)) },
+                                onOpenBoard = { navController.push(Route.Catalog(it)) },
                                 onOpenSettings = openSettings,
                             )
                         }
@@ -200,9 +154,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                                 board = route.board,
                                 initialSearch = route.searchQuery,
                                 onBack = { navController.popBackStack() },
-                                onOpenThread = { threadNo ->
-                                    navController.navigate(Route.Thread(route.board, threadNo))
-                                },
+                                onOpenThread = { threadNo -> navController.push(Route.Thread(route.board, threadNo)) },
                             )
                         }
                         screen<Route.Thread> { entry ->
@@ -212,9 +164,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                                 threadNo = route.threadNo,
                                 scrollToPostNo = route.scrollToPostNo,
                                 onBack = { navController.popBackStack() },
-                                onOpenMedia = { postNo ->
-                                    navController.navigate(Route.Media(route.board, route.threadNo, postNo))
-                                },
+                                onOpenMedia = { postNo -> navController.push(Route.Media(route.board, route.threadNo, postNo)) },
                                 onOpenInternal = { link -> navController.openInternal(link, from = route) },
                             )
                         }
@@ -230,7 +180,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         screen<Route.Threads> {
                             ThreadsScreen(
                                 slots = slots,
-                                onOpenThread = { board, no, post -> navController.navigate(Route.Thread(board, no, post)) },
+                                onOpenThread = { board, no, post -> navController.push(Route.Thread(board, no, post)) },
                                 onOpenSettings = openSettings,
                             )
                         }
@@ -238,15 +188,13 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                             VaultScreen(
                                 slots = slots,
                                 onOpenSettings = openSettings,
-                                onOpenThread = { board, no, post ->
-                                    navController.navigate(Route.Thread(board, no, post))
-                                },
+                                onOpenThread = { board, no, post -> navController.push(Route.Thread(board, no, post)) },
                             )
                         }
                         screen<Route.Settings> {
                             SettingsScreen(
                                 onBack = { navController.popBackStack() },
-                                onOpenSection = { navController.navigate(Route.SettingsSection(it)) },
+                                onOpenSection = { navController.push(Route.SettingsSection(it)) },
                             )
                         }
                         screen<Route.SettingsSection> { entry ->
@@ -259,6 +207,29 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                 }
             }
         }
+    }
+}
+
+/** The tab list, once, for whichever container ([NavigationRail] or [NavigationBar]) is showing. */
+@Composable
+private fun NavItems(
+    isSelected: (TopLevelDestination) -> Boolean,
+    onSelect: (TopLevelDestination) -> Unit,
+    item: @Composable (
+        selected: Boolean,
+        onClick: () -> Unit,
+        icon: @Composable () -> Unit,
+        label: @Composable () -> Unit,
+    ) -> Unit,
+) {
+    for (dest in TopLevelDestination.entries) {
+        val selected = isSelected(dest)
+        item(
+            selected,
+            { onSelect(dest) },
+            { Icon(if (selected) dest.selectedIcon else dest.unselectedIcon, contentDescription = null) },
+            { Text(stringResource(dest.labelRes)) },
+        )
     }
 }
 
@@ -275,36 +246,34 @@ private inline fun <reified T : Any> NavGraphBuilder.screen(
 }
 
 /**
+ * Pushes a screen. Single-top, so a double tap before the destination composes lands on
+ * one screen instead of two stacked copies.
+ */
+private fun NavController.push(route: Route) = navigate(route) { launchSingleTop = true }
+
+/**
  * Follows a quote or board link from inside a thread without letting a chain of quotes
  * pile up entries:
  *
  * - a link to the thread already open just scrolls (single-top swaps the post argument);
  * - a link to a thread on a board whose catalog is on the stack pops back to that catalog
- *   first, so catalog -> A -> B -> C stays catalog -> C;
- * - a link to a catalog already on the stack pops back to it instead of pushing a twin;
- * - anything else pushes normally.
+ *   first, so catalog -> A -> B -> C stays catalog -> C (popUpTo a catalog that is not on
+ *   the stack is a no-op, so anything else pushes normally);
+ * - a link to a catalog already on the stack pops back to it instead of pushing a twin.
  */
 private fun NavController.openInternal(link: InternalLink, from: Route.Thread) {
     when (link) {
         is InternalLink.Catalog -> {
-            val onStack = link.searchQuery == null && popBackStack(Route.Catalog(link.board), inclusive = false)
-            if (!onStack) navigate(Route.Catalog(link.board, link.searchQuery))
+            if (link.searchQuery != null) push(Route.Catalog(link.board, link.searchQuery))
+            else if (!popBackStack(Route.Catalog(link.board), inclusive = false)) push(Route.Catalog(link.board))
         }
         is InternalLink.Thread -> {
             val target = Route.Thread(link.board, link.threadNo, link.postNo)
-            val catalog = Route.Catalog(link.board)
-            when {
-                link.board == from.board && link.threadNo == from.threadNo ->
-                    navigate(target) { launchSingleTop = true }
-                hasEntry(catalog) -> navigate(target) { popUpTo(catalog) { inclusive = false } }
-                else -> navigate(target)
-            }
+            if (link.board == from.board && link.threadNo == from.threadNo) push(target)
+            else navigate(target) { popUpTo(Route.Catalog(link.board)) { inclusive = false } }
         }
     }
 }
-
-private fun NavController.hasEntry(route: Route): Boolean =
-    runCatching { getBackStackEntry(route) }.isSuccess
 
 private fun NavDestination.isTopLevel(): Boolean =
     TopLevelDestination.entries.any { hasRoute(it.route::class) }

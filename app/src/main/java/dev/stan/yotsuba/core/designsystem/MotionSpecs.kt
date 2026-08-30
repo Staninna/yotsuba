@@ -11,13 +11,16 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.grid.LazyGridItemScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntOffset
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 
 /*
@@ -90,4 +93,39 @@ fun rememberCountTransition(): AnimatedContentTransitionScope<Int>.() -> Content
                 )
         }
     }
+}
+
+/**
+ * The NavHost's four transitions. A tab switch composes both screens at once, so it gets
+ * a short fade and no slide; the push/pop slide is for screens that stack. Plain
+ * functions rather than composables so the NavHost lambdas, which run in the transition
+ * scope, can call them.
+ */
+class NavTransitions internal constructor(
+    private val short: Int,
+    private val medium: Int,
+    private val reduced: Boolean,
+) {
+    fun enter(tabSwitch: Boolean): EnterTransition = when {
+        reduced -> EnterTransition.None
+        tabSwitch -> fadeIn(tween(short))
+        else -> fadeIn(tween(medium)) + slideInHorizontally(tween<IntOffset>(medium)) { it / 8 }
+    }
+
+    fun exit(): ExitTransition = if (reduced) ExitTransition.None else fadeOut(tween(short))
+
+    fun popEnter(tabSwitch: Boolean): EnterTransition =
+        if (reduced) EnterTransition.None else fadeIn(tween(if (tabSwitch) short else medium))
+
+    fun popExit(tabSwitch: Boolean): ExitTransition = when {
+        reduced -> ExitTransition.None
+        tabSwitch -> fadeOut(tween(short))
+        else -> fadeOut(tween(medium)) + slideOutHorizontally(tween<IntOffset>(medium)) { it / 8 }
+    }
+}
+
+@Composable
+fun rememberNavTransitions(): NavTransitions {
+    val motion = LocalMotion.current
+    return NavTransitions(motion.short, motion.medium, rememberReducedMotion())
 }

@@ -1,5 +1,16 @@
 package dev.stan.yotsuba.feature.settings
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FilterAlt
+import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.MenuBook
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PlayCircleOutline
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.SystemUpdateAlt
+import androidx.compose.ui.graphics.vector.ImageVector
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.FilterAction
@@ -8,8 +19,35 @@ import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.ThemeMode
+import dev.stan.yotsuba.navigation.SettingsSectionId
 
 /** String resources for the settings enums, shared by the index summaries and the chip rows. */
+
+internal val SettingsSectionId.titleRes: Int
+    get() = when (this) {
+        SettingsSectionId.APPEARANCE -> R.string.settings_appearance
+        SettingsSectionId.READING -> R.string.settings_reading
+        SettingsSectionId.MEDIA -> R.string.settings_media
+        SettingsSectionId.BOARDS -> R.string.settings_boards
+        SettingsSectionId.LINKS -> R.string.settings_links
+        SettingsSectionId.FILTERS -> R.string.settings_filters
+        SettingsSectionId.STORAGE -> R.string.settings_storage
+        SettingsSectionId.UPDATES -> R.string.settings_updates
+        SettingsSectionId.ABOUT -> R.string.settings_about
+    }
+
+internal val SettingsSectionId.icon: ImageVector
+    get() = when (this) {
+        SettingsSectionId.APPEARANCE -> Icons.Outlined.Palette
+        SettingsSectionId.READING -> Icons.Outlined.MenuBook
+        SettingsSectionId.MEDIA -> Icons.Outlined.PlayCircleOutline
+        SettingsSectionId.BOARDS -> Icons.Outlined.GridView
+        SettingsSectionId.LINKS -> Icons.Outlined.Shield
+        SettingsSectionId.FILTERS -> Icons.Outlined.FilterAlt
+        SettingsSectionId.STORAGE -> Icons.Outlined.Storage
+        SettingsSectionId.UPDATES -> Icons.Outlined.SystemUpdateAlt
+        SettingsSectionId.ABOUT -> Icons.Outlined.Info
+    }
 
 internal val ThemeMode.labelRes: Int
     get() = when (this) {
