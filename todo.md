@@ -10,15 +10,8 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 - Imported-thread merge collides on synthetic post numbers (both sides number 1..n), so the fake
   conversation of the source overwrites the target's; files and metadata merge correctly
-- Trash entries live in memory; a process death empties the trash on next launch
-- Restored bookmarks show 0 unread until the next refresh (no `postNos` until then)
-- Sort order in the Threads tab is not persisted
 
 ## 6. Feature ideas (vs Readchan)
-
-### Reading loop
-
-- [~] Thread watcher. Background refresh (WorkManager, per-board catalog fetch, one `readUpTo` mark) and new-reply notifications shipped 2026-08-30; the "collapse everything above the read mark" view is still open
 
 ### Archival (the killer read-only feature)
 
@@ -43,16 +36,24 @@ Open work first; everything finished lives under `# Done` at the bottom.
 - [ ] Reverse image search for local-only files. A video frame or an imported file has no online copy, so only Lens (shared image) works and SauceNAO, IQDB, TinEye and Yandex stay disabled. Give them a URL: upload the file somewhere transient (a small relay server, or a hosted paste like catbox / 0x0.st with a short expiry) and pass that URL, or POST the file to each engine's upload form through a WebView. The engines all accept multipart uploads on their web forms, so the WebView route needs no server
 
 - [ ] Full-text search across the vault: index every sidecar's `posts.json` in a Room FTS table, search text/name/ID/filename offline. List snapshot-only threads in the explorer at the same time
-- [ ] Collapse everything above the read mark in watched threads
 - [ ] Archive fallthrough in the media viewer (still live → vault only)
 - [ ] Re-orderable favourites and per-board accents on Home
-- [ ] Persist the Threads tab sort order; put the trash on disk so process death does not empty it
 - [ ] Playback speed, loop toggle and frame stepping for webm
 - [ ] Per-bookmark auto-save of all media in a watched thread
 
 # Done
 
 Finished work, kept for the record. Sections mirror the ones above.
+
+### 5. Known gaps from the 2026-08-30 overhaul
+
+- [x] Trash entries lived in memory. The trash now has an `index.json` beside the moved files under `.trash/`, keeps each file seven days, and a Trash entry in the vault's More menu restores or empties it
+- [x] Restored bookmarks showed 0 unread until the next refresh. Import starts a refresh pass in the background
+- [x] Sort order in the Threads tab was not persisted. It is `Settings.bookmarkSortOrder` now
+
+### 6. Feature ideas, reading loop
+
+- [x] Thread watcher. Background refresh (WorkManager, per-board catalog fetch, one `readUpTo` mark) and new-reply notifications shipped 2026-08-30; the "collapse everything above the read mark" view followed the same day
 
 ### 1. Release safety
 
