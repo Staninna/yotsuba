@@ -53,4 +53,7 @@
     <!-- %1$s is a formatted date. -->
     <string name="thread_offline_copy_from">Offline copy from %1$s</string>
     <string name="thread_offline_copy">Offline copy</string>
+    <string name="settings_quote_tap">Tapping a quote</string>
+    <string name="settings_quote_tap_popover">Show preview</string>
+    <string name="settings_quote_tap_jump">Jump to post</string>
 </resources>

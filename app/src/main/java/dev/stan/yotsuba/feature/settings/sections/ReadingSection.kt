@@ -7,6 +7,7 @@ import dev.stan.yotsuba.core.designsystem.component.ChipRow
 import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.domain.model.HistoryRetention
+import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.labelRes
 
@@ -17,6 +18,13 @@ fun ReadingSection(settings: Settings, update: ((Settings) -> Settings) -> Unit)
         summary = stringResource(R.string.settings_auto_refresh_summary),
         checked = settings.autoRefreshEnabled,
         onToggle = { v -> update { it.copy(autoRefreshEnabled = v) } },
+    )
+    ChipRow(
+        label = stringResource(R.string.settings_quote_tap),
+        options = QuoteTapAction.entries,
+        selected = settings.quoteTap,
+        onSelect = { v -> update { it.copy(quoteTap = v) } },
+        labelOf = { stringResource(it.labelRes) },
     )
     SwitchRow(
         title = stringResource(R.string.settings_record_history),
