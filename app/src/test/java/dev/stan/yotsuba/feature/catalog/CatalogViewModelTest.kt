@@ -92,7 +92,7 @@ class CatalogViewModelTest {
         }
     }
 
-    private class Env(
+    private inner class Env(
         threads: List<CatalogThread> = listOf(thread(1, subject = "Alpha"), thread(2), thread(3)),
         val settings: FakeSettingsRepository = FakeSettingsRepository(),
         val hidden: FakeHiddenThreadsRepository = FakeHiddenThreadsRepository(),
@@ -107,16 +107,17 @@ class CatalogViewModelTest {
             settingsRepository = settings,
             hiddenThreadsRepository = hidden,
             networkMonitor = NetworkMonitor(ApplicationProvider.getApplicationContext()),
+            compute = dispatcher,
         )
+    }
 
-        companion object {
-            fun thread(no: Long, subject: String? = null) = CatalogThread(
-                board = "g", no = no, subject = subject,
-                excerpt = PostText(listOf(PostSegment("excerpt $no"))),
-                thumbnailUrl = null, replyCount = 0, imageCount = 0, lastModified = no,
-                sticky = false, closed = false,
-            )
-        }
+    private companion object {
+        fun thread(no: Long, subject: String? = null) = CatalogThread(
+            board = "g", no = no, subject = subject,
+            excerpt = PostText(listOf(PostSegment("excerpt $no"))),
+            thumbnailUrl = null, replyCount = 0, imageCount = 0, lastModified = no,
+            sticky = false, closed = false,
+        )
     }
 
     private suspend fun app.cash.turbine.TurbineTestContext<UiState<CatalogContent>>.latest(): UiState<CatalogContent> {
@@ -150,7 +151,7 @@ class CatalogViewModelTest {
         val vm = env.vm()
         vm.uiState.test {
             latest()
-            env.catalog.result = DataResult.Success(listOf(Env.thread(9)))
+            env.catalog.result = DataResult.Success(listOf(thread(9)))
             vm.load(forceRefresh = true)
             val content = (latest() as UiState.Success).data
             assertEquals(listOf(9L), content.threads.map { it.no })
@@ -165,7 +166,7 @@ class CatalogViewModelTest {
         val vm = env.vm()
         vm.uiState.test {
             latest()
-            env.catalog.result = DataResult.Success(listOf(Env.thread(9)))
+            env.catalog.result = DataResult.Success(listOf(thread(9)))
             vm.retry()
             val content = (latest() as UiState.Success).data
             assertEquals(listOf(9L), content.threads.map { it.no })

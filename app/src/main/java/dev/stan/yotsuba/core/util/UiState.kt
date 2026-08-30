@@ -14,6 +14,13 @@ sealed interface UiState<out T> {
     data class Success<T>(val data: T) : UiState<T>
 }
 
+/** The one mapping from a [LoadableFlow] emission to the screen shell; null is still loading. */
+inline fun <T, R> DataResult<T>?.toUiState(map: (T) -> R): UiState<R> = when (this) {
+    null -> UiState.Loading
+    is DataResult.Failure -> UiState.Error(error)
+    is DataResult.Success -> UiState.Success(map(value))
+}
+
 /**
  * Holder for the per-VM "null result means loading" idiom: a [DataResult] that is refetched
  * on demand, with [flow] emitting null while a fresh load is in flight.
