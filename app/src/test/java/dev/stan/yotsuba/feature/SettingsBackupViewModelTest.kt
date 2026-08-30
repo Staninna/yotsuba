@@ -51,10 +51,11 @@ class SettingsBackupViewModelTest {
     ) : BackupRepository {
         var exports = 0
         var imports = 0
+        var probes = 0
         override suspend fun export(): BackupResult { exports++; return BackupResult.Exported(1L) }
         override suspend fun import(): BackupResult { imports++; return BackupResult.Imported(2, 1) }
         override suspend fun available(): BackupInfo? = info
-        override suspend fun isFreshInstall(): Boolean = fresh
+        override suspend fun isFreshInstall(): Boolean { probes++; return fresh }
     }
 
     private object NoHistory : HistoryRepository {
@@ -112,6 +113,7 @@ class SettingsBackupViewModelTest {
     fun `fresh install with a backup offers a restore`() = runTest {
         val info = BackupInfo(exportedAt = 123L)
         val vm = vm(FakeBackup(fresh = true, info = info))
+        vm.onStorageSectionShown()
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(info, vm.restoreAvailable.value)
     }
@@ -119,6 +121,7 @@ class SettingsBackupViewModelTest {
     @Test
     fun `an install with data never offers a restore`() = runTest {
         val vm = vm(FakeBackup(fresh = false, info = BackupInfo(123L)))
+        vm.onStorageSectionShown()
         dispatcher.scheduler.advanceUntilIdle()
         assertNull(vm.restoreAvailable.value)
     }
@@ -127,11 +130,16 @@ class SettingsBackupViewModelTest {
     fun `dismiss hides the prompt and restore imports then hides it`() = runTest {
         val backup = FakeBackup(fresh = true, info = BackupInfo(123L))
         val vm = vm(backup)
+        vm.onStorageSectionShown()
         dispatcher.scheduler.advanceUntilIdle()
         vm.onDismissRestore()
         assertNull(vm.restoreAvailable.value)
+        vm.onStorageSectionShown()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertNull(vm.restoreAvailable.value)
 
         val again = vm(backup)
+        again.onStorageSectionShown()
         dispatcher.scheduler.advanceUntilIdle()
         again.onImportBackup()
         dispatcher.scheduler.advanceUntilIdle()
@@ -140,6 +148,15 @@ class SettingsBackupViewModelTest {
         assertEquals(BackupResult.Imported(2, 1), again.backupResult.value)
         again.onBackupResultShown()
         assertNull(again.backupResult.value)
+    }
+
+    @Test
+    fun `only the storage section probes for a backup`() = runTest {
+        val backup = FakeBackup(fresh = true, info = BackupInfo(123L))
+        val vm = vm(backup)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(0, backup.probes)
+        assertNull(vm.restoreAvailable.value)
     }
 
     @Test

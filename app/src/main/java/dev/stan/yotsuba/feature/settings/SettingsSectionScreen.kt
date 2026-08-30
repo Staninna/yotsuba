@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,21 +99,24 @@ fun SettingsSectionScreen(
                 )
                 SettingsSectionId.LINKS -> LinksSection(settings, update)
                 SettingsSectionId.FILTERS -> FiltersSection(settings, update, snackbar)
-                SettingsSectionId.STORAGE -> StorageSection(
-                    settings = settings,
-                    update = update,
-                    restoreAvailable = restoreAvailable,
-                    backupResult = backupResult,
-                    onExportBackup = viewModel::onExportBackup,
-                    onImportBackup = viewModel::onImportBackup,
-                    onDismissRestore = viewModel::onDismissRestore,
-                    onBackupResultShown = viewModel::onBackupResultShown,
-                    onClearCache = viewModel::onClearCache,
-                    onClearHistory = viewModel::onClearHistory,
-                    onClearBookmarks = viewModel::onClearBookmarks,
-                    confirmThen = confirmThen,
-                    showMessage = showMessage,
-                )
+                SettingsSectionId.STORAGE -> {
+                    LaunchedEffect(Unit) { viewModel.onStorageSectionShown() }
+                    StorageSection(
+                        settings = settings,
+                        update = update,
+                        restoreAvailable = restoreAvailable,
+                        backupResult = backupResult,
+                        onExportBackup = viewModel::onExportBackup,
+                        onImportBackup = viewModel::onImportBackup,
+                        onDismissRestore = viewModel::onDismissRestore,
+                        onBackupResultShown = viewModel::onBackupResultShown,
+                        onClearCache = viewModel::onClearCache,
+                        onClearHistory = viewModel::onClearHistory,
+                        onClearBookmarks = viewModel::onClearBookmarks,
+                        confirmThen = confirmThen,
+                        showMessage = showMessage,
+                    )
+                }
                 SettingsSectionId.UPDATES -> UpdatesSection(
                     state = updateState,
                     onCheck = viewModel::onCheckForUpdates,

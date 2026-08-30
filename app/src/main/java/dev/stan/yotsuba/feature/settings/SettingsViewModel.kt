@@ -55,7 +55,16 @@ class SettingsViewModel @Inject constructor(
     /** The last manual export or import outcome, cleared by [onBackupResultShown]. */
     val backupResult: StateFlow<BackupResult?> = _backupResult.asStateFlow()
 
-    init {
+    private var restoreProbed = false
+
+    /**
+     * Looks for a restorable backup the first time the Storage section is on screen. Only that
+     * section can show the result, so the other sections never pay for the shared-storage read,
+     * and a dismissed banner stays dismissed for the life of this ViewModel.
+     */
+    fun onStorageSectionShown() {
+        if (restoreProbed) return
+        restoreProbed = true
         viewModelScope.launch {
             if (backupRepository.isFreshInstall()) _restoreAvailable.value = backupRepository.available()
         }
