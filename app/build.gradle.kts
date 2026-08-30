@@ -14,8 +14,8 @@ android {
         applicationId = "dev.stan.yotsuba"
         minSdk = 26
         targetSdk = 37
-        versionCode = 24
-        versionName = "2.2.8"
+        versionCode = 25
+        versionName = "2.2.9"
         testInstrumentationRunner = "dev.stan.yotsuba.HiltTestRunner"
     }
 
