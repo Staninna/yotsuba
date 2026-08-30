@@ -12,7 +12,6 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 
 enum class NetworkStatus {
     Offline, Metered, Unmetered;
@@ -44,9 +43,6 @@ class NetworkMonitor @Inject constructor(
         manager.registerNetworkCallback(NetworkRequest.Builder().build(), callback)
         awaitClose { manager.unregisterNetworkCallback(callback) }
     }.distinctUntilChanged()
-
-    /** [status] reduced to "is this connection metered". */
-    val metered: Flow<Boolean> = status.map { it.isMetered }.distinctUntilChanged()
 
     private fun statusOf(network: Network?): NetworkStatus {
         val caps = network?.let { manager.getNetworkCapabilities(it) }
