@@ -29,6 +29,7 @@ import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -129,8 +130,13 @@ class ThreadEnv(
     val bookmarks: FakeBookmarkRepository = FakeBookmarkRepository(),
     val settings: FakeSettings = FakeSettings(),
     val claimed: FakeClaimedPosts = FakeClaimedPosts(),
-    /** Unconfined keeps the row pipeline on the test scheduler, so emissions stay deterministic. */
-    val compute: CoroutineDispatcher = Dispatchers.Unconfined,
+    /**
+     * Eager like Unconfined, so row emissions stay deterministic, but its delays are virtual.
+     * `stateIn(WhileSubscribed)` inherits this context from `flowOn(compute)`; on the real
+     * Unconfined its five-second stop timer ran on wall-clock time and fired after
+     * `resetMain`, crashing whichever test was running then.
+     */
+    val compute: CoroutineDispatcher = UnconfinedTestDispatcher(),
     /** Where the save queue's worker runs; a save test hands it `backgroundScope` and the test dispatcher, then `runCurrent`s. */
     queueScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
     io: CoroutineDispatcher = Dispatchers.Unconfined,

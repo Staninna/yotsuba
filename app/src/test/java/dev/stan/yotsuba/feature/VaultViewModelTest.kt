@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -152,7 +153,7 @@ class VaultViewModelTest {
         vault: FakeVault,
         settings: FakeSettings = FakeSettings(),
         saved: SavedStateHandle = SavedStateHandle(),
-    ) = VaultViewModel(vault, settings, boards, saved, compute = Dispatchers.Unconfined, io = dispatcher)
+    ) = VaultViewModel(vault, settings, boards, saved, compute = UnconfinedTestDispatcher(dispatcher.scheduler), io = dispatcher)
 
     private class FakeBoards : BoardRepository {
         val known = mutableMapOf<String, Board>()
