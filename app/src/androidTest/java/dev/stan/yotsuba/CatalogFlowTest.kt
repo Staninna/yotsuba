@@ -1,12 +1,10 @@
 package dev.stan.yotsuba
 
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
-import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.di.FakeSettingsRepository
 import dev.stan.yotsuba.di.TestSeed
@@ -15,26 +13,13 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 
 @HiltAndroidTest
-class CatalogFlowTest {
-
-    @get:Rule(order = 0)
-    val hiltRule = HiltAndroidRule(this)
-
-    @get:Rule(order = 1)
-    val composeRule = createAndroidComposeRule<MainActivity>()
+class CatalogFlowTest : FlowTest() {
 
     @Inject
     lateinit var settingsRepository: SettingsRepository
-
-    @Before
-    fun setUp() {
-        hiltRule.inject()
-    }
 
     private fun openCatalog() {
         composeRule.openBoardsTab()
