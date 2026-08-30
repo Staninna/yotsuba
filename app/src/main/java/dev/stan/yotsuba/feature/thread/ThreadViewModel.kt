@@ -31,6 +31,7 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
+import dev.stan.yotsuba.core.di.ComputeDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -65,7 +66,7 @@ class ThreadViewModel @AssistedInject constructor(
     private val downloadQueue: MediaSaveQueue,
     private val claimedPosts: ClaimedPostRepository,
     /** Where the row pipeline runs; tests pass their scheduler's dispatcher. */
-    private val compute: CoroutineDispatcher = Dispatchers.Default,
+    @ComputeDispatcher private val compute: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     @AssistedFactory
