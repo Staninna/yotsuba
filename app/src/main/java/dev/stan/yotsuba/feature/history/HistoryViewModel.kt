@@ -58,8 +58,9 @@ fun midnightTicker(clock: Clock): Flow<Unit> = flow {
 fun HistoryEntry.matches(query: String): Boolean {
     if (query.isBlank()) return true
     val q = query.trim()
+    val boardQuery = q.trim('/')
     return displayTitle.contains(q, ignoreCase = true) ||
-        board.contains(q.removePrefix("/").removeSuffix("/"), ignoreCase = true)
+        (boardQuery.isNotEmpty() && board.contains(boardQuery, ignoreCase = true))
 }
 
 data class HistoryUiState(

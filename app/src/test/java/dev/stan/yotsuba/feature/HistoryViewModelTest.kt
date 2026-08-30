@@ -5,6 +5,7 @@ import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.feature.history.HistoryBucket
 import dev.stan.yotsuba.feature.history.HistoryUiState
 import dev.stan.yotsuba.feature.history.HistoryViewModel
@@ -54,7 +55,7 @@ class HistoryViewModelTest {
     private val clock = ManualClock(nowMs, zone)
     private val ticks = MutableSharedFlow<Unit>()
 
-    private fun vm(repo: HistoryRepository, settings: SettingsRepository = FakeSettingsRepository()) =
+    private fun vm(repo: HistoryRepository, settings: SettingsRepository = FakeSettings()) =
         HistoryViewModel(repo, settings, clock, ticks)
 
     private fun entry(no: Long, viewedAt: Long, maxRead: Long? = null) = HistoryEntry(
@@ -90,14 +91,6 @@ class HistoryViewModelTest {
             state.value = emptyList()
         }
         override suspend fun trim(retainAfterMs: Long) {}
-    }
-
-    private class FakeSettingsRepository(initial: Settings = Settings()) : SettingsRepository {
-        val state = MutableStateFlow(initial)
-        override val settings: Flow<Settings> = state
-        override suspend fun update(transform: (Settings) -> Settings) {
-            state.value = transform(state.value)
-        }
     }
 
     private suspend fun app.cash.turbine.TurbineTestContext<HistoryUiState>.latest(): HistoryUiState {
@@ -146,7 +139,7 @@ class HistoryViewModelTest {
 
     @Test fun `recording setting is passed through`() = runTest(dispatcher.scheduler) {
         val repo = FakeHistoryRepository(emptyList())
-        val settings = FakeSettingsRepository(Settings(recordHistory = false))
+        val settings = FakeSettings(Settings(recordHistory = false))
         vm(repo, settings).uiState.test {
             assertFalse(latest().recordingEnabled)
             cancelAndIgnoreRemainingEvents()
@@ -185,6 +178,8 @@ class HistoryViewModelTest {
             state = latest()
             assertEquals(listOf(2L), state.groups.flatMap { it.entries }.map { it.threadNo })
             vm.onQueryChange("zzz")
+            assertTrue(latest().groups.isEmpty())
+            vm.onQueryChange("/")
             assertTrue(latest().groups.isEmpty())
             cancelAndIgnoreRemainingEvents()
         }
