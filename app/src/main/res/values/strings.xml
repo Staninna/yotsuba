@@ -183,11 +183,11 @@
     <string name="settings_autoplay_unmetered">Unmetered connections only</string>
     <string name="settings_autoplay_never">Never</string>
     <string name="settings_local_search">Search local files by</string>
-    <string name="settings_local_search_summary">How a file with no online copy reaches SauceNAO, IQDB, TinEye and Yandex. Direct upload posts it to the engine itself; engines without an upload form use a temporary host that deletes it after an hour.</string>
+    <string name="settings_local_search_summary">How a file with no online copy reaches SauceNAO, IQDB, TinEye and Yandex. Direct upload posts it to the engine itself; engines without an upload form use a temporary host: litterbox, which deletes it after an hour, or 0x0.st for up to 24 hours when litterbox is down.</string>
     <string name="settings_local_search_direct">Direct upload</string>
     <string name="settings_local_search_host">Temporary host</string>
-    <string name="settings_confirm_temp_host">Ask before using the temporary host</string>
-    <string name="settings_confirm_temp_host_summary">Show a prompt each time a local file would be uploaded to litterbox or 0x0.st.</string>
+    <string name="settings_confirm_temp_host">Ask before uploading a local file</string>
+    <string name="settings_confirm_temp_host_summary">Show a prompt each time a file with no online copy would be uploaded, whether to the engine itself or to litterbox or 0x0.st.</string>
     <string name="settings_record_history">Record history</string>
     <string name="settings_history_retention">Keep history</string>
     <string name="settings_retention_forever">Forever</string>

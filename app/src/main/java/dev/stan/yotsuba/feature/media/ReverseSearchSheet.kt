@@ -41,10 +41,10 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
  * Where to send the picture: one row per engine, then the share sheet. Media with an
  * online copy opens by URL straight away. A file that only exists on this phone (a video
  * frame, an imported file) goes to Lens as a shared image and to every other engine by
- * upload: the engine's own form or a temporary host, per the privacy setting. The host
- * route always asks first, in a dialog; nothing leaves the phone until it is confirmed.
- * The sheet stays up while an upload runs, and a failed direct upload offers the host as
- * a retry.
+ * upload: the engine's own form or a temporary host, per the privacy setting. Both routes
+ * ask first, in a dialog that names where the file goes and for how long, until the user
+ * turns the prompt off. The sheet stays up while an upload runs, and a failed direct
+ * upload offers the host as a retry.
  *
  * [onFailed] fires when nothing on the device could take the request.
  */
@@ -61,7 +61,7 @@ fun ReverseSearchSheet(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val uploading = state as? LocalSearchState.Uploading
     val failed = state as? LocalSearchState.Failed
-    val confirm = state as? LocalSearchState.ConfirmHost
+    val confirm = state as? LocalSearchState.ConfirmUpload
 
     // The upload's result: open the page it landed on and take the sheet down.
     LaunchedEffect(state) {
@@ -123,7 +123,7 @@ fun ReverseSearchSheet(
                     label = stringResource(R.string.media_search_retry_host),
                     icon = Icons.Filled.CloudUpload,
                     onClick = {
-                        target.file?.let { viewModel.search(failed.engine, it, target.ext, hostConfirmed = true) }
+                        target.file?.let { viewModel.search(failed.engine, it, target.ext, forceHost = true) }
                     },
                 )
             }
@@ -141,15 +141,24 @@ fun ReverseSearchSheet(
         }
     }
 
-    // The host only ever gets the file from this dialog or the retry row, never a plain tap.
+    // While the prompt is on, the file only ever leaves the phone from this dialog, never a plain tap.
     if (confirm != null && target.file != null) {
         var dontAsk by remember { mutableStateOf(false) }
+        val label = confirm.engine.label
         AlertDialog(
-            onDismissRequest = viewModel::declineHost,
-            title = { Text(stringResource(R.string.media_search_confirm_host_title)) },
+            onDismissRequest = viewModel::declineUpload,
+            title = {
+                Text(
+                    if (confirm.direct) stringResource(R.string.media_search_confirm_direct_title, label)
+                    else stringResource(R.string.media_search_confirm_host_title),
+                )
+            },
             text = {
                 Column {
-                    Text(stringResource(R.string.media_search_confirm_host_body, confirm.engine.label))
+                    Text(
+                        if (confirm.direct) stringResource(R.string.media_search_confirm_direct_body, label)
+                        else stringResource(R.string.media_search_confirm_host_body, label),
+                    )
                     Row(
                         Modifier.padding(top = spacing.sm).toggleable(dontAsk, role = Role.Checkbox) { dontAsk = it },
                         verticalAlignment = Alignment.CenterVertically,
@@ -165,12 +174,14 @@ fun ReverseSearchSheet(
             confirmButton = {
                 TextButton(onClick = {
                     // Only a confirmed upload turns the prompt off; Cancel with the box ticked keeps it.
-                    if (dontAsk) viewModel.stopConfirmingHost()
-                    target.file?.let { viewModel.search(confirm.engine, it, target.ext, hostConfirmed = true) }
+                    if (dontAsk) viewModel.stopConfirmingUploads()
+                    target.file?.let {
+                        viewModel.search(confirm.engine, it, target.ext, confirmed = true, forceHost = !confirm.direct)
+                    }
                 }) { Text(stringResource(R.string.media_search_confirm_host)) }
             },
             dismissButton = {
-                TextButton(onClick = viewModel::declineHost) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = viewModel::declineUpload) { Text(stringResource(android.R.string.cancel)) }
             },
         )
     }

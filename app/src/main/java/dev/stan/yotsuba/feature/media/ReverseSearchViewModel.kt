@@ -33,21 +33,28 @@ class ReverseSearchViewModel @Inject constructor(
 
     /**
      * Sends [file] to [engine]: through its own upload form when the setting says so and
-     * the form yields a URL, otherwise through the temporary host. The host never gets the
-     * file on a plain engine tap: that only parks the state at [LocalSearchState.ConfirmHost]
-     * and waits. [hostConfirmed] is the tap on the confirm row, or on the "try the host
-     * instead" retry after a failed direct upload.
+     * the form yields a URL, otherwise through the temporary host. Either way the file
+     * leaves the phone, so a plain engine tap only parks the state at
+     * [LocalSearchState.ConfirmUpload] while the confirm setting is on. [confirmed] is the
+     * tap on the dialog's Upload button; [forceHost] is the "try the host instead" retry
+     * after a failed direct upload, which skips the form even when the setting prefers it.
      */
-    fun search(engine: ReverseSearchEngine, file: File, ext: String, hostConfirmed: Boolean = false) {
+    fun search(
+        engine: ReverseSearchEngine,
+        file: File,
+        ext: String,
+        confirmed: Boolean = false,
+        forceHost: Boolean = false,
+    ) {
         job?.cancel()
         job = viewModelScope.launch {
             val settings = settingsRepository.settings.first()
             val direct = engine.directUpload?.takeIf {
-                !hostConfirmed && settings.localSearchMethod == LocalSearchMethod.DIRECT_UPLOAD
+                !forceHost && settings.localSearchMethod == LocalSearchMethod.DIRECT_UPLOAD
             }
             // Decide before showing anything, so the spinner never precedes the question.
-            if (direct == null && !hostConfirmed && settings.confirmTemporaryHost) {
-                _state.value = LocalSearchState.ConfirmHost(engine)
+            if (!confirmed && settings.confirmTemporaryHost) {
+                _state.value = LocalSearchState.ConfirmUpload(engine, direct = direct != null)
                 return@launch
             }
             _state.value = LocalSearchState.Uploading(engine)
@@ -67,13 +74,13 @@ class ReverseSearchViewModel @Inject constructor(
     }
 
     /** "Don't ask again" on the dialog; the Privacy section can turn it back on. */
-    fun stopConfirmingHost() {
+    fun stopConfirmingUploads() {
         viewModelScope.launch { settingsRepository.update { it.copy(confirmTemporaryHost = false) } }
     }
 
-    /** The user declined the host; back to a plain sheet. */
-    fun declineHost() {
-        if (_state.value is LocalSearchState.ConfirmHost) _state.value = LocalSearchState.Idle
+    /** The user declined the upload; back to a plain sheet. */
+    fun declineUpload() {
+        if (_state.value is LocalSearchState.ConfirmUpload) _state.value = LocalSearchState.Idle
     }
 
     /** Stops whatever is in flight and clears the sheet's state; dismissing calls this. */
