@@ -20,7 +20,7 @@ data class Release(
     val sizeBytes: Long,
 )
 
-class ReleaseException(message: String) : Exception(message)
+class ReleaseException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 @Serializable
 private data class ReleaseJson(
@@ -67,7 +67,7 @@ class GithubReleases @Inject constructor() {
         code == 404 -> throw ReleaseException("No release published yet.")
         code == 403 -> throw ReleaseException("GitHub is rate-limiting us. Try again later.")
         !isSuccessful -> throw ReleaseException("GitHub said $code.")
-        else -> body!!.string()
+        else -> body.string()
     }
 
     companion object {
@@ -80,7 +80,7 @@ class GithubReleases @Inject constructor() {
             val release = try {
                 json.decodeFromString<ReleaseJson>(body)
             } catch (e: Exception) {
-                throw ReleaseException("Couldn't read GitHub's answer.")
+                throw ReleaseException("Couldn't read GitHub's answer.", e)
             }
             if (release.tagName.isBlank()) throw ReleaseException("That release has no tag.")
             val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }

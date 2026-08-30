@@ -122,7 +122,7 @@ class Updater @Inject constructor(
 
         releases.openApk(release).use { resp ->
             if (!resp.isSuccessful) throw ReleaseException("GitHub said ${resp.code}")
-            val body = resp.body ?: throw ReleaseException("empty response")
+            val body = resp.body
             val total = body.contentLength().takeIf { it > 0 } ?: release.sizeBytes
             body.byteStream().use { input ->
                 target.outputStream().use { output ->
