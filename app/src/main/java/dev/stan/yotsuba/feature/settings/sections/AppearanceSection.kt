@@ -38,4 +38,10 @@ fun AppearanceSection(settings: Settings, update: ((Settings) -> Settings) -> Un
         checked = settings.revealAllSpoilers,
         onToggle = { v -> update { it.copy(revealAllSpoilers = v) } },
     )
+    SwitchRow(
+        title = stringResource(R.string.settings_reduce_motion),
+        summary = stringResource(R.string.settings_reduce_motion_summary),
+        checked = settings.reduceMotion,
+        onToggle = { v -> update { it.copy(reduceMotion = v) } },
+    )
 }

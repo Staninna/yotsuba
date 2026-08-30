@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import dev.stan.yotsuba.core.designsystem.LocalReduceMotion
 import dev.stan.yotsuba.core.designsystem.token.Elevation
 import dev.stan.yotsuba.core.designsystem.token.LocalElevation
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
@@ -88,6 +89,7 @@ private val DarkScheme = darkColorScheme(
 fun YotsubaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
+    reduceMotion: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -102,6 +104,7 @@ fun YotsubaTheme(
         LocalSpacing provides Spacing(),
         LocalElevation provides Elevation(),
         LocalMotion provides Motion(),
+        LocalReduceMotion provides reduceMotion,
     ) {
         MaterialTheme(
             colorScheme = scheme,
