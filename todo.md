@@ -40,6 +40,8 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## Maybe
 
+- [ ] Reverse image search for local-only files. A video frame or an imported file has no online copy, so only Lens (shared image) works and SauceNAO, IQDB, TinEye and Yandex stay disabled. Give them a URL: upload the file somewhere transient (a small relay server, or a hosted paste like catbox / 0x0.st with a short expiry) and pass that URL, or POST the file to each engine's upload form through a WebView. The engines all accept multipart uploads on their web forms, so the WebView route needs no server
+
 - [ ] Full-text search across the vault: index every sidecar's `posts.json` in a Room FTS table, search text/name/ID/filename offline. List snapshot-only threads in the explorer at the same time
 - [ ] Collapse everything above the read mark in watched threads
 - [ ] Archive fallthrough in the media viewer (still live → vault only)
