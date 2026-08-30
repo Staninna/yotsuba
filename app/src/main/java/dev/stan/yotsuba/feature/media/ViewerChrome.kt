@@ -278,7 +278,7 @@ fun ImagePage(
 
 /** "Load (1.2 MB)" over a deferred image; the size is dropped when it is unknown. */
 @Composable
-private fun LoadPill(sizeBytes: Long?, onClick: () -> Unit) {
+internal fun LoadPill(sizeBytes: Long?, onClick: () -> Unit) {
     val spacing = LocalSpacing.current
     val label = sizeBytes?.let { stringResource(R.string.media_load_sized, FileSize.format(it)) }
         ?: stringResource(R.string.media_load)
