@@ -26,6 +26,12 @@ The parts that bite hardest if you don't know them:
   by anyone holding the APK. The update check is unauthenticated because the
   repo is public.
 
+## Writing
+
+No em dashes. Not in code comments, commit messages, changelogs, docs, or strings
+the user sees. Use a period or a comma. `./changelog.sh --check` rejects them in
+`changelog/`; everywhere else it is on you.
+
 ## Layout
 
 ```
