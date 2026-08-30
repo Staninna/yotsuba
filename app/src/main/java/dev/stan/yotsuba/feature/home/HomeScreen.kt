@@ -49,6 +49,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
 import dev.stan.yotsuba.core.designsystem.component.TabChrome
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.component.showUndo
@@ -100,7 +101,7 @@ fun HomeScreen(
     TabChrome(slots = slots, topBar = { HomeTopBar(current, currentViewModel, onOpenSettings) })
     val list = boards
     when {
-        list == null -> Unit
+        list == null -> LoadingSkeleton()
         list.isEmpty() -> EmptyState(
             title = stringResource(R.string.home_empty_title),
             explanation = stringResource(R.string.home_empty_explanation),
