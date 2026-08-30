@@ -28,4 +28,4 @@ sealed interface Route {
  * never shows it.
  */
 @Keep
-enum class SettingsSectionId { APPEARANCE, READING, MEDIA, BOARDS, LINKS, FILTERS, STORAGE, UPDATES, ABOUT }
+enum class SettingsSectionId { APPEARANCE, READING, MEDIA, BOARDS, LINKS, PRIVACY, FILTERS, STORAGE, UPDATES, ABOUT }
