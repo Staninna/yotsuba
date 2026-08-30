@@ -1,10 +1,8 @@
 package dev.stan.yotsuba.feature.thread
 
 import android.content.Intent
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -19,10 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FiberNew
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material3.Card
@@ -62,7 +57,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.animatedListItem
-import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
 import dev.stan.yotsuba.core.designsystem.component.errorMessage
 import dev.stan.yotsuba.core.designsystem.motionEnter
@@ -76,18 +70,13 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.catalog.ThreadNeighbours
 import dev.stan.yotsuba.feature.media.detectViewerSwipe
 import dev.stan.yotsuba.feature.media.saveToVault
-import dev.stan.yotsuba.feature.media.shareText
 import dev.stan.yotsuba.feature.thread.components.BacklinksUi
 import dev.stan.yotsuba.feature.thread.components.BodyTap
-import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
-import dev.stan.yotsuba.feature.thread.components.PostActionSheet
 import dev.stan.yotsuba.feature.thread.components.PostCard
 import dev.stan.yotsuba.feature.thread.components.PostCardActions
-import dev.stan.yotsuba.feature.thread.components.QuotePreviewSheet
-import dev.stan.yotsuba.feature.thread.components.ThreadGallerySheet
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
-import java.text.DateFormat
-import java.util.Date
+import dev.stan.yotsuba.feature.thread.components.ThreadTopBarActions
+import dev.stan.yotsuba.feature.thread.components.ThreadTopBarState
 import kotlin.math.abs
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -125,8 +114,6 @@ fun ThreadScreen(
     val copiedMessage = stringResource(R.string.thread_post_number_copied)
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val saveAllMessage = stringResource(R.string.thread_gallery_save_all_queued)
-    val textCopiedMessage = stringResource(R.string.thread_text_copied)
-    val imageUrlCopiedMessage = stringResource(R.string.thread_image_url_copied)
     val haptics = rememberHaptics()
     val treeIndent = spacing.lg
 
@@ -221,6 +208,61 @@ fun ThreadScreen(
     }
     val previewActions = remember(listActions) { actionsFor(inPreview = true).forPreview() }
 
+    fun saveAll(posts: List<ThreadPost>?) {
+        saveToVault(
+            context = context,
+            hasAccess = viewModel.hasStorageAccess(),
+            onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
+            save = {
+                viewModel.onSaveAllMedia(posts)
+                scope.launch { snackbar.showSnackbar(saveAllMessage) }
+            },
+        )
+    }
+
+    val content = (state as? UiState.Success)?.data
+    val topBarState = remember(content, board, threadNo) { topBarState(board, threadNo, content) }
+    val topBarActions = remember(viewModel, onBack, haptics, context, scope, snackbar, grantAccessMessage, saveAllMessage) {
+        ThreadTopBarActions(
+            onBack = onBack,
+            onToggleBookmark = viewModel::onToggleBookmark,
+            onRefresh = { viewModel.load(forceRefresh = true) },
+            onOpenSearch = { searchOpen = true },
+            onOpenGallery = viewModel::onOpenGallery,
+            onSaveAll = { saveAll(null) },
+            onToggleTreeView = viewModel::onToggleTreeView,
+            onToggleAutoRefresh = viewModel::onToggleAutoRefresh,
+            onOpenExternal = ::openExternal,
+            onClearFilter = { viewModel.onFilterPosterId(null) },
+            onRepliesToMeTap = viewModel::onQuoteTap,
+            onRepliesToMeLongPress = { no ->
+                haptics.longPress()
+                viewModel.onQuoteLongPress(no)
+            },
+        )
+    }
+    val overlayActions = remember(viewModel, onOpenInternal, context, scope, snackbar, grantAccessMessage, saveAllMessage) {
+        ThreadOverlayActions(
+            onClosePreview = viewModel::onClosePreview,
+            onDismissPreview = viewModel::onDismissPreview,
+            onJumpToPost = viewModel::onJumpToPost,
+            onFocusPreview = viewModel::onOpenPreview,
+            onOpenThread = { board, threadNo, postNo ->
+                onOpenInternal(Urls.InternalLink.Thread(board, threadNo, postNo))
+            },
+            onClosePostSheet = viewModel::onClosePostSheet,
+            onToggleClaimed = { viewModel.onToggleClaimed(it) },
+            onFilterPosterId = viewModel::onFilterPosterId,
+            onOpenMediaFromGallery = viewModel::onOpenMediaFromGallery,
+            onSaveAll = ::saveAll,
+            onCloseGallery = viewModel::onCloseGallery,
+            onDismissLinkDialog = viewModel::onDismissLinkDialog,
+            onOpenExternal = ::openExternal,
+            onTrustDomain = { viewModel.onTrustDomain(it) },
+            onCloseSearch = ::closeSearch,
+        )
+    }
+
     // Polling follows the lifecycle: backgrounding the app or leaving the screen stops it.
     LifecycleResumeEffect(Unit) {
         viewModel.onScreenVisibilityChanged(true)
@@ -291,47 +333,7 @@ fun ThreadScreen(
             }
         },
         topBar = {
-            val s = (state as? UiState.Success)?.data
-            ThreadTopBar(
-                board = board,
-                threadNo = threadNo,
-                title = s?.details?.posts?.firstOrNull()?.subject ?: "/$board/$threadNo",
-                bookmarked = s?.bookmarked == true,
-                autoRefreshEnabled = s?.autoRefreshEnabled == true,
-                repliesToMe = s?.repliesToMe ?: 0,
-                onRepliesToMeTap = s?.latestReplyToMe?.let { no -> { viewModel.onQuoteTap(no) } },
-                onRepliesToMeLongPress = s?.latestReplyToMe?.let { no ->
-                    {
-                        haptics.longPress()
-                        viewModel.onQuoteLongPress(no)
-                    }
-                },
-                filteredCount = s?.filteredCount ?: 0,
-                filterPosterId = s?.filterPosterId,
-                onClearFilter = { viewModel.onFilterPosterId(null) },
-                onBack = onBack,
-                onToggleBookmark = viewModel::onToggleBookmark,
-                onRefresh = { viewModel.load(forceRefresh = true) },
-                onOpenSearch = { searchOpen = true },
-                onOpenGallery = viewModel::onOpenGallery,
-                mediaCount = s?.mediaPosts?.size ?: 0,
-                onSaveAll = {
-                    saveToVault(
-                        context = context,
-                        hasAccess = viewModel.hasStorageAccess(),
-                        onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
-                        save = {
-                            viewModel.onSaveAllMedia()
-                            scope.launch { snackbar.showSnackbar(saveAllMessage) }
-                        },
-                    )
-                },
-                treeView = s?.treeView == true,
-                onToggleTreeView = viewModel::onToggleTreeView,
-                onToggleAutoRefresh = viewModel::onToggleAutoRefresh,
-                onOpenExternal = ::openExternal,
-                archiveUrl = s?.archiveUrl,
-            )
+            ThreadTopBar(board = board, threadNo = threadNo, state = topBarState, actions = topBarActions)
         },
     ) { padding ->
         val noNextMessage = stringResource(R.string.thread_swipe_no_next)
@@ -378,19 +380,16 @@ fun ThreadScreen(
                 }
 
                 Column {
-                    val notice = if (s.details.offlineCopy) {
-                        val date = remember(s.offlineCopyAt) {
-                            s.offlineCopyAt?.let { DateFormat.getDateInstance().format(Date(it)) }
-                        }
-                        if (date != null) stringResource(R.string.thread_offline_copy_from, date)
-                        else stringResource(R.string.thread_offline_copy)
-                    } else if (s.archivedNotice) {
-                        s.details.archive?.let { stringResource(R.string.thread_archived_from, it.label) }
-                            ?: stringResource(R.string.thread_archived)
-                    } else null
-                    notice?.let { ThreadNotice(it) }
+                    ThreadNotice(s)
                     if (searchOpen) {
-                        SearchBar(s, viewModel, onClose = ::closeSearch)
+                        SearchBar(
+                            query = s.searchQuery,
+                            matchCount = s.searchMatches.size,
+                            matchIndex = s.searchIndex,
+                            onQueryChange = viewModel::onSearchChange,
+                            onStep = viewModel::onSearchStep,
+                            onClose = ::closeSearch,
+                        )
                     }
                     PullToRefreshBox(
                         isRefreshing = s.refreshing,
@@ -454,98 +453,35 @@ fun ThreadScreen(
                     }
                 }
 
-                // System back steps the preview sheet back one post instead of leaving the thread.
-                BackHandler(enabled = s.preview != null) {
-                    viewModel.onClosePreview()
-                }
-                // ...and closes the search bar before leaving the thread.
-                BackHandler(enabled = searchOpen && s.preview == null) {
-                    closeSearch()
-                }
-                s.preview?.let { preview ->
-                    QuotePreviewSheet(
-                        preview = preview,
-                        onDismiss = viewModel::onDismissPreview,
-                        onBack = viewModel::onClosePreview,
-                        onGoTo = viewModel::onJumpToPost,
-                        onOpenThread = { board, threadNo, postNo ->
-                            onOpenInternal(Urls.InternalLink.Thread(board, threadNo, postNo))
-                        },
-                        onFocus = viewModel::onOpenPreview,
-                        postCard = { post -> postCard(post, true) },
-                    )
-                }
-
-                s.postSheet?.let { post ->
-                    PostActionSheet(
-                        post = post,
-                        claimed = post.no in s.claimedPostNos,
-                        showFilterById = s.board?.userIds == true,
-                        onCopyText = {
-                            viewModel.onClosePostSheet()
-                            clipboard.setText(AnnotatedString(post.body.plainText))
-                            scope.launch { snackbar.showSnackbar(textCopiedMessage) }
-                        },
-                        onShareLink = {
-                            viewModel.onClosePostSheet()
-                            shareText(context, "${Urls.threadWebUrl(board, threadNo)}#p${post.no}")
-                        },
-                        onCopyImageUrl = {
-                            viewModel.onClosePostSheet()
-                            post.presentMedia?.let { clipboard.setText(AnnotatedString(it.fullUrl)) }
-                            scope.launch { snackbar.showSnackbar(imageUrlCopiedMessage) }
-                        },
-                        onToggleClaimed = {
-                            viewModel.onClosePostSheet()
-                            viewModel.onToggleClaimed(post.no)
-                        },
-                        onFilterById = {
-                            viewModel.onClosePostSheet()
-                            viewModel.onFilterPosterId(post.posterId)
-                        },
-                        onDismiss = viewModel::onClosePostSheet,
-                    )
-                }
-
-                if (s.galleryOpen) {
-                    ThreadGallerySheet(
-                        posts = s.mediaPosts,
-                        revealAll = s.revealAllSpoilers,
-                        boardAllowsAudio = s.board?.webmAudio == true,
-                        onOpen = viewModel::onOpenMediaFromGallery,
-                        onSaveAll = { shown ->
-                            saveToVault(
-                                context = context,
-                                hasAccess = viewModel.hasStorageAccess(),
-                                onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
-                                save = {
-                                    viewModel.onSaveAllMedia(shown)
-                                    scope.launch { snackbar.showSnackbar(saveAllMessage) }
-                                },
-                            )
-                        },
-                        onDismiss = viewModel::onCloseGallery,
-                    )
-                }
-
-                s.pendingExternalUrl?.let { url ->
-                    ExternalLinkDialog(
-                        url = url,
-                        onOpen = {
-                            viewModel.onDismissLinkDialog()
-                            openExternal(url)
-                        },
-                        onTrustDomain = {
-                            viewModel.onTrustDomain(url)
-                            openExternal(url)
-                        },
-                        onDismiss = viewModel::onDismissLinkDialog,
-                    )
-                }
+                ThreadOverlays(
+                    s = s,
+                    board = board,
+                    threadNo = threadNo,
+                    searchOpen = searchOpen,
+                    actions = overlayActions,
+                    snackbar = snackbar,
+                    postCard = postCard,
+                )
             }
         }
     }
 }
+
+/** The top bar's inputs from the loaded content; the bare board and number before it loads. */
+private fun topBarState(board: String, threadNo: Long, s: ThreadContent?): ThreadTopBarState =
+    if (s == null) ThreadTopBarState(title = "/$board/$threadNo")
+    else ThreadTopBarState(
+        title = s.details.posts.firstOrNull()?.subject ?: "/$board/$threadNo",
+        bookmarked = s.bookmarked,
+        autoRefreshEnabled = s.autoRefreshEnabled,
+        repliesToMe = s.repliesToMe,
+        latestReplyToMe = s.latestReplyToMe,
+        filteredCount = s.filteredCount,
+        filterPosterId = s.filterPosterId,
+        mediaCount = s.mediaPosts.size,
+        treeView = s.treeView,
+        archiveUrl = s.archiveUrl,
+    )
 
 /**
  * A long jump teleports to just short of [target] and animates the last stretch: the user
@@ -557,53 +493,8 @@ private suspend fun LazyListState.jumpTo(target: Int) {
 }
 
 @Composable
-private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel, onClose: () -> Unit) {
-    val spacing = LocalSpacing.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = spacing.md),
-    ) {
-        SearchField(
-            value = s.searchQuery.orEmpty(),
-            onValueChange = { viewModel.onSearchChange(it) },
-            hintRes = R.string.thread_search_in_thread,
-            modifier = Modifier.weight(1f),
-        )
-        Text(
-            if (s.searchMatches.isEmpty()) "0/0"
-            else "${s.searchIndex + 1}/${s.searchMatches.size}",
-            style = MaterialTheme.typography.labelMedium,
-        )
-        IconButton(onClick = { viewModel.onSearchStep(-1) }) {
-            Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.thread_search_prev))
-        }
-        IconButton(onClick = { viewModel.onSearchStep(1) }) {
-            Icon(Icons.Filled.KeyboardArrowDown, stringResource(R.string.thread_search_next))
-        }
-        IconButton(onClick = onClose) {
-            Icon(Icons.Filled.Close, stringResource(R.string.thread_search_close))
-        }
-    }
-}
-
-@Composable
 private fun refreshErrorMessage(error: NetworkError): String =
     stringResource(R.string.thread_refresh_failed, errorMessage(error))
-
-/** The strip above the list saying this copy is offline or archived. */
-@Composable
-private fun ThreadNotice(text: String) {
-    val spacing = LocalSpacing.current
-    Text(
-        text,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(spacing.sm),
-    )
-}
 
 /** Jump to top / first new post / bottom. */
 @Composable

@@ -46,39 +46,59 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.feature.media.shareText
 
+/**
+ * What the top bar shows, derived once from the loaded content. The defaults are what the
+ * bar shows before the thread has loaded, so the caller can build one from a null content.
+ */
+data class ThreadTopBarState(
+    val title: String,
+    val bookmarked: Boolean = false,
+    val autoRefreshEnabled: Boolean = false,
+    /** Replies to the user's claimed posts; hidden when zero. */
+    val repliesToMe: Int = 0,
+    /** The newest of them; the replies indicator routes to it like a quotelink. */
+    val latestReplyToMe: Long? = null,
+    /** Posts the content filters hid or stubbed; hidden when zero. */
+    val filteredCount: Int = 0,
+    /** Active poster-ID filter; the chip clears it. */
+    val filterPosterId: String? = null,
+    /** Attachments in the thread; the save-all entry is greyed out at zero. */
+    val mediaCount: Int = 0,
+    val treeView: Boolean = false,
+    /** When set, "Open in browser" goes here instead of 4chan; share and copy keep the 4chan link. */
+    val archiveUrl: String? = null,
+)
+
+/**
+ * Everything the top bar can ask of the screen. One instance, remembered, so the bar's
+ * inputs stay equal across recompositions the way [PostCardActions] keeps the cards'.
+ */
+data class ThreadTopBarActions(
+    val onBack: () -> Unit,
+    val onToggleBookmark: () -> Unit,
+    val onRefresh: () -> Unit,
+    val onOpenSearch: () -> Unit,
+    val onOpenGallery: () -> Unit,
+    val onSaveAll: () -> Unit,
+    val onToggleTreeView: () -> Unit,
+    val onToggleAutoRefresh: () -> Unit,
+    val onOpenExternal: (String) -> Unit,
+    val onClearFilter: () -> Unit,
+    /** Tap and hold on the replies indicator, given the newest reply's number. */
+    val onRepliesToMeTap: (Long) -> Unit,
+    val onRepliesToMeLongPress: (Long) -> Unit,
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun ThreadTopBar(
     board: String,
     threadNo: Long,
-    title: String,
-    bookmarked: Boolean,
-    autoRefreshEnabled: Boolean,
-    /** Replies to the user's claimed posts; hidden when zero. */
-    repliesToMe: Int,
-    /** Tap and hold on the replies indicator; the screen routes them like a quotelink. */
-    onRepliesToMeTap: (() -> Unit)? = null,
-    onRepliesToMeLongPress: (() -> Unit)? = null,
-    /** Posts the content filters hid or stubbed; hidden when zero. */
-    filteredCount: Int = 0,
-    /** Active poster-ID filter; the chip clears it. */
-    filterPosterId: String?,
-    onClearFilter: () -> Unit,
-    onBack: () -> Unit,
-    onToggleBookmark: () -> Unit,
-    onRefresh: () -> Unit,
-    onOpenSearch: () -> Unit,
-    onOpenGallery: () -> Unit,
-    /** Attachments in the thread; the save-all entry is greyed out at zero. */
-    mediaCount: Int = 0,
-    onSaveAll: () -> Unit = {},
-    treeView: Boolean,
-    onToggleTreeView: () -> Unit,
-    onToggleAutoRefresh: () -> Unit,
-    onOpenExternal: (String) -> Unit,
-    /** When set, "Open in browser" goes here instead of 4chan; share and copy keep the 4chan link. */
-    archiveUrl: String? = null,
+    state: ThreadTopBarState,
+    actions: ThreadTopBarActions,
 ) {
+    val onRepliesToMeTap = state.latestReplyToMe?.let { no -> { actions.onRepliesToMeTap(no) } }
+    val onRepliesToMeLongPress = state.latestReplyToMe?.let { no -> { actions.onRepliesToMeLongPress(no) } }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val spacing = LocalSpacing.current
@@ -86,26 +106,26 @@ fun ThreadTopBar(
     TopAppBar(
         title = {
             Column {
-                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(state.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 // Independent signals, shown side by side: none of them may hide another.
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                     itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (filterPosterId != null) {
+                    if (state.filterPosterId != null) {
                         InputChip(
                             selected = true,
-                            onClick = onClearFilter,
-                            label = { Text(stringResource(R.string.thread_filter_id, filterPosterId)) },
+                            onClick = actions.onClearFilter,
+                            label = { Text(stringResource(R.string.thread_filter_id, state.filterPosterId)) },
                             trailingIcon = { Icon(Icons.Filled.Close, stringResource(R.string.thread_filter_clear)) },
                         )
                     }
-                    if (repliesToMe > 0) {
-                        RepliesToMeChip(repliesToMe, onRepliesToMeTap, onRepliesToMeLongPress)
+                    if (state.repliesToMe > 0) {
+                        RepliesToMeChip(state.repliesToMe, onRepliesToMeTap, onRepliesToMeLongPress)
                     }
-                    if (filteredCount > 0) {
+                    if (state.filteredCount > 0) {
                         Text(
-                            pluralStringResource(R.plurals.thread_filtered_count, filteredCount, filteredCount),
+                            pluralStringResource(R.plurals.thread_filtered_count, state.filteredCount, state.filteredCount),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -114,20 +134,20 @@ fun ThreadTopBar(
             }
         },
         navigationIcon = {
-            IconButton(onClick = onBack) {
+            IconButton(onClick = actions.onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back))
             }
         },
         actions = {
-            IconButton(onClick = onToggleBookmark) {
+            IconButton(onClick = actions.onToggleBookmark) {
                 Icon(
-                    if (bookmarked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                    if (state.bookmarked) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
                     stringResource(
-                        if (bookmarked) R.string.thread_remove_bookmark else R.string.thread_bookmark
+                        if (state.bookmarked) R.string.thread_remove_bookmark else R.string.thread_bookmark
                     ),
                 )
             }
-            IconButton(onClick = onRefresh) {
+            IconButton(onClick = actions.onRefresh) {
                 Icon(Icons.Filled.Refresh, stringResource(R.string.action_refresh))
             }
             IconButton(onClick = { menuOpen = true }) {
@@ -151,35 +171,35 @@ fun ThreadTopBar(
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_search_in_thread)) },
-                    onClick = { menuOpen = false; onOpenSearch() },
+                    onClick = { menuOpen = false; actions.onOpenSearch() },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_gallery)) },
-                    onClick = { menuOpen = false; onOpenGallery() },
+                    onClick = { menuOpen = false; actions.onOpenGallery() },
                 )
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.thread_save_all_media, mediaCount)) },
-                    enabled = mediaCount > 0,
-                    onClick = { menuOpen = false; onSaveAll() },
+                    text = { Text(stringResource(R.string.thread_save_all_media, state.mediaCount)) },
+                    enabled = state.mediaCount > 0,
+                    onClick = { menuOpen = false; actions.onSaveAll() },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_open_in_browser)) },
-                    onClick = { menuOpen = false; onOpenExternal(archiveUrl ?: webUrl) },
+                    onClick = { menuOpen = false; actions.onOpenExternal(state.archiveUrl ?: webUrl) },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_tree_view)) },
-                    trailingIcon = { if (treeView) Icon(Icons.Filled.Check, contentDescription = null) },
-                    onClick = { menuOpen = false; onToggleTreeView() },
-                    modifier = Modifier.semantics { toggleableState = ToggleableState(treeView) },
+                    trailingIcon = { if (state.treeView) Icon(Icons.Filled.Check, contentDescription = null) },
+                    onClick = { menuOpen = false; actions.onToggleTreeView() },
+                    modifier = Modifier.semantics { toggleableState = ToggleableState(state.treeView) },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_auto_refresh)) },
                     trailingIcon = {
-                        if (autoRefreshEnabled) Icon(Icons.Filled.Check, contentDescription = null)
+                        if (state.autoRefreshEnabled) Icon(Icons.Filled.Check, contentDescription = null)
                     },
-                    onClick = { menuOpen = false; onToggleAutoRefresh() },
+                    onClick = { menuOpen = false; actions.onToggleAutoRefresh() },
                     modifier = Modifier.semantics {
-                        toggleableState = ToggleableState(autoRefreshEnabled)
+                        toggleableState = ToggleableState(state.autoRefreshEnabled)
                     },
                 )
             }
