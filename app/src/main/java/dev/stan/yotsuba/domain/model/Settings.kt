@@ -80,4 +80,11 @@ data class Settings(
     val filters: List<Filter> = emptyList(),
     /** Tap on a quotelink opens the preview stack or jumps to the post in place. */
     val quoteTap: QuoteTapAction = QuoteTapAction.POPOVER,
+    /** Ask for the phone's own unlock (biometrics or PIN) before showing the app. */
+    val appLock: Boolean = false,
+    /**
+     * How long the app may sit in the background before it locks again; 0 locks the moment
+     * it leaves the screen. Only read while [appLock] is on.
+     */
+    val appLockDelaySeconds: Int = 0,
 )

@@ -6,6 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.BuildConfig
 import dev.stan.yotsuba.core.update.Release
 import dev.stan.yotsuba.core.update.Updater
+import dev.stan.yotsuba.core.vault.GalleryHiding
 import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.Settings
@@ -50,7 +51,30 @@ class SettingsViewModel @Inject constructor(
     private val maintenanceRepository: MaintenanceRepository,
     private val updater: Updater,
     private val backupRepository: BackupRepository,
+    private val galleryHiding: GalleryHiding,
 ) : ViewModel() {
+
+    private val _galleryHidden = MutableStateFlow<Boolean?>(null)
+
+    /**
+     * Whether the vault carries its gallery-hiding marker: read from disk when the Storage
+     * section opens and after each toggle. Null until read, or when there is no storage access.
+     */
+    val galleryHidden: StateFlow<Boolean?> = _galleryHidden.asStateFlow()
+
+    private val _galleryHidingResult = MutableStateFlow<ClearResult?>(null)
+
+    /** The last toggle's outcome, cleared by [onGalleryHidingResultShown]. */
+    val galleryHidingResult: StateFlow<ClearResult?> = _galleryHidingResult.asStateFlow()
+
+    fun onGalleryHidingResultShown() { _galleryHidingResult.value = null }
+
+    fun onSetGalleryHidden(hidden: Boolean) = viewModelScope.launch {
+        galleryHiding.setHidden(hidden)
+            .onSuccess { _galleryHidingResult.value = ClearResult.Done }
+            .onFailure { _galleryHidingResult.value = ClearResult.Failed(it.message ?: it.javaClass.simpleName) }
+        _galleryHidden.value = galleryHiding.isHidden()
+    }
 
     private val _restoreAvailable = MutableStateFlow<BackupInfo?>(null)
 
@@ -65,11 +89,13 @@ class SettingsViewModel @Inject constructor(
     private var restoreProbed = false
 
     /**
-     * Looks for a restorable backup the first time the Storage section is on screen. Only that
-     * section can show the result, so the other sections never pay for the shared-storage read,
-     * and a dismissed banner stays dismissed for the life of this ViewModel.
+     * Re-reads the gallery marker every time the Storage section is on screen, and looks for a
+     * restorable backup the first time. Only that section can show either, so the other
+     * sections never pay for the shared-storage reads, and a dismissed banner stays dismissed
+     * for the life of this ViewModel.
      */
     fun onStorageSectionShown() {
+        viewModelScope.launch { _galleryHidden.value = galleryHiding.isHidden() }
         if (restoreProbed) return
         restoreProbed = true
         viewModelScope.launch {

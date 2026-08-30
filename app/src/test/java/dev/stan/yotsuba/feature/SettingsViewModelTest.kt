@@ -21,6 +21,7 @@ import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeGalleryHiding
 import dev.stan.yotsuba.fake.latest
 import dev.stan.yotsuba.feature.settings.ClearResult
 import dev.stan.yotsuba.feature.settings.SettingsUiState
@@ -129,6 +130,7 @@ class SettingsViewModelTest {
         val hidden: FakeHiddenThreadsRepository = FakeHiddenThreadsRepository(),
         boards: List<Board> = emptyList(),
         val maintenance: FakeMaintenanceRepository = FakeMaintenanceRepository(),
+        val gallery: FakeGalleryHiding = FakeGalleryHiding(),
     ) {
         val history = FakeHistoryRepository()
         val bookmarks = FakeBookmarkRepository()
@@ -141,6 +143,7 @@ class SettingsViewModelTest {
             maintenanceRepository = maintenance,
             updater = Updater(ApplicationProvider.getApplicationContext(), GithubReleases()),
             backupRepository = BackupRepository.None,
+            galleryHiding = gallery,
         )
     }
 
@@ -158,6 +161,49 @@ class SettingsViewModelTest {
                 assertEquals(listOf(HiddenThread("g", 1)), state.hiddenThreads)
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    @Test fun `opening the storage section reads the gallery marker from disk`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(gallery = FakeGalleryHiding(hidden = true))
+            assertEquals(null, env.vm.galleryHidden.value)
+            env.vm.onStorageSectionShown()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(true, env.vm.galleryHidden.value)
+        }
+
+    @Test fun `gallery marker reads null without storage access so the row is disabled`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(gallery = FakeGalleryHiding(hidden = true, access = false))
+            env.vm.onStorageSectionShown()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(null, env.vm.galleryHidden.value)
+        }
+
+    @Test fun `toggling gallery hiding writes the marker, re-reads it and reports done`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(gallery = FakeGalleryHiding(hidden = false))
+            env.vm.onSetGalleryHidden(true)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(true, env.gallery.hidden)
+            assertEquals(true, env.vm.galleryHidden.value)
+            assertEquals(ClearResult.Done, env.vm.galleryHidingResult.value)
+            env.vm.onGalleryHidingResultShown()
+            assertEquals(null, env.vm.galleryHidingResult.value)
+
+            env.vm.onSetGalleryHidden(false)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(false, env.gallery.hidden)
+            assertEquals(false, env.vm.galleryHidden.value)
+        }
+
+    @Test fun `a failed gallery toggle reports the failure and keeps the real state`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(gallery = FakeGalleryHiding(hidden = false).apply { failure = IllegalStateException("read-only") })
+            env.vm.onSetGalleryHidden(true)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(ClearResult.Failed("read-only"), env.vm.galleryHidingResult.value)
+            assertEquals(false, env.vm.galleryHidden.value)
         }
 
     @Test fun `update writes through the settings repository`() = runTest(dispatcher.scheduler) {

@@ -37,6 +37,7 @@ import dev.stan.yotsuba.feature.settings.sections.BoardsSection
 import dev.stan.yotsuba.feature.settings.sections.FiltersSection
 import dev.stan.yotsuba.feature.settings.sections.LinksSection
 import dev.stan.yotsuba.feature.settings.sections.MediaSection
+import dev.stan.yotsuba.feature.settings.sections.PrivacySection
 import dev.stan.yotsuba.feature.settings.sections.ReadingSection
 import dev.stan.yotsuba.feature.settings.sections.StorageSection
 import dev.stan.yotsuba.feature.settings.sections.UpdatesSection
@@ -60,6 +61,8 @@ fun SettingsSectionScreen(
     val backupResult by viewModel.backupResult.collectAsStateWithLifecycle()
     val backupBusy by viewModel.backupBusy.collectAsStateWithLifecycle()
     val clearResult by viewModel.clearResult.collectAsStateWithLifecycle()
+    val galleryHidden by viewModel.galleryHidden.collectAsStateWithLifecycle()
+    val galleryHidingResult by viewModel.galleryHidingResult.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -100,6 +103,7 @@ fun SettingsSectionScreen(
                     confirmThen = confirmThen,
                 )
                 SettingsSectionId.LINKS -> LinksSection(settings, update)
+                SettingsSectionId.PRIVACY -> PrivacySection(settings, update, showMessage)
                 SettingsSectionId.FILTERS -> FiltersSection(settings, update, snackbar)
                 SettingsSectionId.STORAGE -> {
                     LaunchedEffect(Unit) { viewModel.onStorageSectionShown() }
@@ -119,6 +123,10 @@ fun SettingsSectionScreen(
                         onClearHistory = viewModel::onClearHistory,
                         onClearBookmarks = viewModel::onClearBookmarks,
                         onClearTrustedDomains = viewModel::onClearTrustedDomains,
+                        galleryHidden = galleryHidden,
+                        onSetGalleryHidden = viewModel::onSetGalleryHidden,
+                        galleryHidingResult = galleryHidingResult,
+                        onGalleryHidingResultShown = viewModel::onGalleryHidingResultShown,
                         confirmThen = confirmThen,
                         showMessage = showMessage,
                     )

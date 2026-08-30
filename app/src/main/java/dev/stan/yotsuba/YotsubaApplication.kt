@@ -12,7 +12,9 @@ import coil3.gif.AnimatedImageDecoder
 import coil3.gif.GifDecoder
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
+import androidx.lifecycle.ProcessLifecycleOwner
 import dagger.hilt.android.HiltAndroidApp
+import dev.stan.yotsuba.core.lock.AppLock
 import dev.stan.yotsuba.core.work.PeriodicWorkScheduler
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import javax.inject.Inject
@@ -28,6 +30,8 @@ class YotsubaApplication : Application(), SingletonImageLoader.Factory {
 
     @Inject lateinit var periodicWork: PeriodicWorkScheduler
 
+    @Inject lateinit var appLock: AppLock
+
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) {
@@ -39,6 +43,7 @@ class YotsubaApplication : Application(), SingletonImageLoader.Factory {
             )
         }
         periodicWork.ensureScheduled()
+        ProcessLifecycleOwner.get().lifecycle.addObserver(appLock)
     }
 
     /**
