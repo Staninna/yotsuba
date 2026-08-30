@@ -17,18 +17,28 @@ import kotlinx.coroutines.SupervisorJob
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.FIELD)
 annotation class ComputeDispatcher
 
+/** Blocking file and ContentResolver work. */
+@Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.FIELD)
+annotation class IoDispatcher
+
 /** A scope that lives as long as the process, for work no screen owns. */
 @Qualifier
 @Retention(AnnotationRetention.RUNTIME)
 annotation class ApplicationScope
 
-/** The coroutine bindings: one compute dispatcher and one process scope. Tests hand ViewModels their own. */
+/** The coroutine bindings: compute and io dispatchers and one process scope. Tests hand ViewModels their own. */
 @Module
 @InstallIn(SingletonComponent::class)
 object DispatchersModule {
     @Provides
     @ComputeDispatcher
     fun computeDispatcher(): CoroutineDispatcher = Dispatchers.Default
+
+    @Provides
+    @IoDispatcher
+    fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
     @Provides
     @Singleton

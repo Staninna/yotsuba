@@ -19,6 +19,7 @@ import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.feature.vault.VaultBody
 import dev.stan.yotsuba.feature.vault.VaultNotice
 import dev.stan.yotsuba.feature.vault.VaultPlayback
 import dev.stan.yotsuba.feature.vault.VaultUiState
@@ -26,6 +27,7 @@ import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultViewModel
 import dev.stan.yotsuba.feature.vault.UNDO_WINDOW_MS
 import dev.stan.yotsuba.feature.vault.VaultFilter
+import dev.stan.yotsuba.feature.vault.VaultImport
 import dev.stan.yotsuba.feature.vault.VaultMode
 import dev.stan.yotsuba.feature.vault.RECENT_LIMIT
 import dev.stan.yotsuba.feature.vault.VaultSort
@@ -147,6 +149,12 @@ class VaultViewModelTest {
 
     private val boards = FakeBoards()
 
+    private fun vm(
+        vault: FakeVault,
+        settings: FakeSettings = FakeSettings(),
+        saved: SavedStateHandle = SavedStateHandle(),
+    ) = VaultViewModel(vault, settings, boards, saved, compute = Dispatchers.Unconfined, io = dispatcher)
+
     private class FakeBoards : BoardRepository {
         val known = mutableMapOf<String, Board>()
         override suspend fun boards(forceRefresh: Boolean): DataResult<List<Board>> =
@@ -165,7 +173,7 @@ class VaultViewModelTest {
                 entry("g/3.jpg", VaultLocation("g", 101), subject = "renamed"),
                 entry("loose.jpg", VaultLocation.Unsorted),
             ))
-            VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined).uiState.test {
+            vm(vault).uiState.test {
                 val state = latest()
                 val g = state.boards.first { it.board == "g" }
                 assertEquals(listOf(VaultLocation("g", 101), threadG), g.threads.map { it.location })
@@ -185,9 +193,23 @@ class VaultViewModelTest {
             entry("a/1.jpg", threadA),
             entry("loose.jpg", VaultLocation.Unsorted),
         ))
-        VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined).uiState.test {
+        vm(vault).uiState.test {
             val state = latest()
             assertEquals(listOf("_unsorted", "a", "g"), state.boards.map { it.board })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `reveal lands on the thread in one write`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
+        val vm = vm(vault)
+        vm.uiState.test {
+            latest()
+            vm.reveal(threadA)
+            val state = latest()
+            assertEquals("a", state.selection.board)
+            assertEquals(threadA, state.selection.thread)
+            assertEquals(listOf("a/1.jpg"), state.scopeEntries.map { it.url })
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -195,7 +217,7 @@ class VaultViewModelTest {
     @Test fun `drill-down selection scopes the visible entries and navigates back up`() =
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
-            val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+            val vm = vm(vault)
             vm.uiState.test {
                 assertEquals(2, latest().scopeEntries.size)
                 vm.openBoard("g")
@@ -214,7 +236,7 @@ class VaultViewModelTest {
 
     @Test fun `viewer opens over the current thread in entry order`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.openBoard("g")
         vm.openThread(threadG)
         vm.openViewer("g/2.jpg")
@@ -229,7 +251,7 @@ class VaultViewModelTest {
 
     @Test fun `deleting the viewed entry closes the viewer`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.openViewer("g/1.jpg")
         vm.uiState.test {
             assertEquals("g/1.jpg", latest().viewer?.current?.url)
@@ -266,7 +288,7 @@ class VaultViewModelTest {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA), entry("g/2.jpg", threadG)))
             vault.threads[threadG] = details(threadG, 100, 101)
             vault.threads[threadA] = details(threadA, 200)
-            val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+            val vm = vm(vault)
             vm.viewerThread.test {
                 assertEquals(false, awaitItem().hasPosts)
                 // Shuffle's first page must get its panel too: nothing was "opened" first.
@@ -290,7 +312,7 @@ class VaultViewModelTest {
 
     @Test fun `cancelling the delete dialog deletes nothing`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.uiState.test {
             vm.requestDelete(entry("g/1.jpg", threadG))
             assertTrue(latest().deleting != null)
@@ -306,7 +328,7 @@ class VaultViewModelTest {
     @Test fun `a failed delete keeps the entry and says so`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
         vault.deleteError = VaultError.Io("disk")
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.uiState.test {
             vm.requestDelete(entry("g/1.jpg", threadG))
             vm.confirmDelete()
@@ -319,7 +341,7 @@ class VaultViewModelTest {
 
     @Test fun `a grid delete goes through the trash and comes back on undo`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.uiState.test {
             latest()
             vm.requestDelete(entry("g/1.jpg", threadG), undoable = true)
@@ -342,7 +364,7 @@ class VaultViewModelTest {
 
     @Test fun `the undo window closes on its own and empties the trash`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.uiState.test {
             latest()
             vm.requestDelete(entry("g/1.jpg", threadG), undoable = true)
@@ -364,7 +386,7 @@ class VaultViewModelTest {
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
             val settings = FakeSettings()
-            val vm = VaultViewModel(vault, settings, boards, compute = Dispatchers.Unconfined)
+            val vm = vm(vault, settings)
             vm.uiState.test {
                 latest()
                 vm.requestDelete(entry("g/1.jpg", threadG))
@@ -389,7 +411,7 @@ class VaultViewModelTest {
             entry("g/3.jpg", VaultLocation("g", 101), sizeBytes = 25),
             entry("a/1.jpg", threadA, sizeBytes = null), // unknown size counts as nothing
         ))
-        VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined).uiState.test {
+        vm(vault).uiState.test {
             val state = latest()
             val g = state.boards.first { it.board == "g" }
             assertEquals(150L, g.threads.first { it.location == threadG }.sizeBytes)
@@ -408,31 +430,31 @@ class VaultViewModelTest {
                 entry("g/c.jpg", threadG, savedAt = 2, sizeBytes = 20, postNo = null),
             ))
             val saved = SavedStateHandle()
-            val vm = VaultViewModel(vault, FakeSettings(), boards, saved, compute = Dispatchers.Unconfined)
+            val vm = vm(vault, saved = saved)
             vm.uiState.test {
-                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().scopeEntries.map { it.url })
                 vm.setSort(VaultSort.NAME)
-                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().scopeEntries.map { it.url })
                 vm.setSort(VaultSort.SIZE)
-                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/c.jpg", "g/b.jpg"), latest().scopeEntries.map { it.url })
                 vm.setSort(VaultSort.POST)
-                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().scopeEntries.map { it.url })
                 vm.toggleReversed()
-                assertEquals(listOf("g/c.jpg", "g/b.jpg", "g/a.webm"), latest().visible.map { it.url })
+                assertEquals(listOf("g/c.jpg", "g/b.jpg", "g/a.webm"), latest().scopeEntries.map { it.url })
                 assertEquals(true, saved.get<Boolean>("vault_reversed"))
                 vm.toggleReversed()
-                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/a.webm", "g/b.jpg", "g/c.jpg"), latest().scopeEntries.map { it.url })
                 vm.setFilter(VaultFilter.IMAGES)
-                assertEquals(listOf("g/b.jpg", "g/c.jpg"), latest().visible.map { it.url })
+                assertEquals(listOf("g/b.jpg", "g/c.jpg"), latest().scopeEntries.map { it.url })
                 vm.setFilter(VaultFilter.VIDEOS)
                 val videos = latest()
-                assertEquals(listOf("g/a.webm"), videos.visible.map { it.url })
+                assertEquals(listOf("g/a.webm"), videos.scopeEntries.map { it.url })
                 assertEquals(1, videos.boards.single().threads.single().entries.size)
                 assertEquals(3, videos.entries.size)
                 cancelAndIgnoreRemainingEvents()
             }
             // A fresh VM over the same handle -- process death -- picks the choice back up.
-            VaultViewModel(vault, FakeSettings(), boards, saved, compute = Dispatchers.Unconfined).uiState.test {
+            vm(vault, saved = saved).uiState.test {
                 val restored = latest()
                 assertEquals(VaultSort.POST, restored.sort)
                 assertEquals(VaultFilter.VIDEOS, restored.filter)
@@ -444,13 +466,14 @@ class VaultViewModelTest {
         runTest(dispatcher.scheduler) {
             val all = (1..250).map { entry("g/$it.jpg", VaultLocation("g", (it % 7).toLong()), savedAt = it.toLong()) }
             val vault = FakeVault(all)
-            val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+            val vm = vm(vault)
             vm.uiState.test {
                 val state = latest()
                 assertEquals(VaultMode.RECENT, state.mode)
-                assertEquals(RECENT_LIMIT, state.recent.size)
-                assertEquals("g/250.jpg", state.recent.first().url)
-                assertEquals("g/51.jpg", state.recent.last().url)
+                val recent = (state.body as VaultBody.Root).recent
+                assertEquals(RECENT_LIMIT, recent.size)
+                assertEquals("g/250.jpg", recent.first().url)
+                assertEquals("g/51.jpg", recent.last().url)
                 assertEquals(RECENT_LIMIT, state.scopeEntries.size)
 
                 vm.openViewer("g/249.jpg")
@@ -472,7 +495,7 @@ class VaultViewModelTest {
                 entry("a/CAT.webm", threadA, subject = "Anime"),
                 entry("a/other.jpg", threadA, subject = null),
             ))
-            val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+            val vm = vm(vault)
             vm.openBoard("a") // search reaches past the drill-down
             vm.uiState.test {
                 assertNull(latest().results)
@@ -500,7 +523,7 @@ class VaultViewModelTest {
                 mathTags = false, sjisTags = false, textOnly = false,
             )
             val settings = FakeSettings()
-            val vm = VaultViewModel(vault, settings, boards, compute = Dispatchers.Unconfined)
+            val vm = vm(vault, settings)
             vm.playback.test {
                 assertEquals(VaultPlayback(muted = true, playing = true), awaitItem())
                 vm.openViewer("wsg/1.webm")
@@ -518,7 +541,7 @@ class VaultViewModelTest {
 
     @Test fun `close viewer clears the url and any shuffle order`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.startShuffle(listOf("g/2.jpg", "g/1.jpg"))
         vm.uiState.test {
             assertTrue(latest().viewer != null)
@@ -531,7 +554,7 @@ class VaultViewModelTest {
     @Test fun `shuffle plays the given urls in the shuffled order`() = runTest(dispatcher.scheduler) {
         val urls = (1..5).map { "g/$it.jpg" }
         val vault = FakeVault(urls.map { entry(it, threadG) })
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.startShuffle(urls)
         vm.uiState.test {
             val viewer = latest().viewer!!
@@ -544,7 +567,7 @@ class VaultViewModelTest {
 
     @Test fun `paging the viewer moves the index without reordering`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("g/2.jpg", threadG)))
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.openBoard("g")
         vm.openThread(threadG)
         vm.openViewer("g/1.jpg")
@@ -561,7 +584,7 @@ class VaultViewModelTest {
     @Test fun `viewer opened outside any thread plays just that entry`() =
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
-            val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+            val vm = vm(vault)
             vm.setMode(VaultMode.BROWSE) // off the Recent feed, with no thread selected
             vm.openViewer("a/1.jpg") // the thread filter matches nothing
             vm.uiState.test {
@@ -572,22 +595,24 @@ class VaultViewModelTest {
             }
         }
 
-    @Test fun `sync ignores presses while one is already running`() = runTest(dispatcher.scheduler) {
+    @Test fun `a sync ignores presses while one is already running`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
         vault.rescanGate = gate
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
-        vm.sync()
+        val vm = vm(vault)
+        vm.rescan()
         dispatcher.scheduler.advanceUntilIdle() // first pass is now suspended on the gate
-        vm.sync() // busy flag must gate this press
+        vm.rescan() // busy flag must gate this press
+        vm.fetchReplies() // and the other kind of sync too
         gate.complete(Unit)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vault.rescans)
+        assertEquals(0, vault.syncs)
     }
 
     @Test fun `importing forwards the picked files and reports a failure`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         val picked = listOf(ImportSource("content://a", "a.jpg"), ImportSource("content://b", "b.webm"))
 
         vm.uiState.test {
@@ -606,9 +631,29 @@ class VaultViewModelTest {
         }
     }
 
+    @Test fun `a picker result is resolved on the io dispatcher before the copy`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(emptyList())
+            val vm = vm(vault)
+            val picked = listOf(ImportSource("content://a", "a.jpg"))
+            var resolves = 0
+            vm.uiState.test {
+                vm.importLocalThread { resolves++; VaultImport("Folder", picked) }
+                val done = latest()
+                assertEquals(1, resolves)
+                assertEquals("Folder" to picked, vault.imported)
+                assertEquals(false, done.importing)
+
+                vm.importLocalThread { resolves++; VaultImport("Nothing", emptyList()) }
+                assertEquals(VaultNotice.ImportEmpty, latest().notice)
+                assertEquals(1, vault.imports)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `an empty selection is not an import`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         vm.uiState.test {
             vm.importLocalThread("Empty", emptyList())
             assertEquals(VaultNotice.ImportEmpty, latest().notice)
@@ -621,7 +666,7 @@ class VaultViewModelTest {
         val vault = FakeVault(emptyList())
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
         vault.importGate = gate
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         val picked = listOf(ImportSource("content://a", "a.jpg"))
         vm.uiState.test {
             vm.importLocalThread("One", picked)
@@ -634,17 +679,17 @@ class VaultViewModelTest {
         }
     }
 
-    @Test fun `sync shows a live progress counter and clears it when done`() =
+    @Test fun `fetching replies shows a live progress counter and clears it when done`() =
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(emptyList())
             vault.syncSteps = 3
             val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
             vault.syncGate = gate
-            val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+            val vm = vm(vault)
 
             vm.uiState.test {
                 latest()
-                vm.sync()
+                vm.fetchReplies()
                 dispatcher.scheduler.advanceUntilIdle() // held open on the gate, mid-pass
                 // The counter is what stops a rate-limited pass over many threads
                 // looking hung: it ticks once per thread.
@@ -663,27 +708,27 @@ class VaultViewModelTest {
             vault.syncSummary = VaultSyncSummary(updated = 4, gone = 2, failed = 1, rateLimited = true)
             var reported: VaultSyncSummary? = null
 
-            VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined).sync { reported = it }
+            vm(vault).fetchReplies { reported = it }
             dispatcher.scheduler.advanceUntilIdle()
 
             assertEquals(7, reported?.checked)
             assertEquals(true, reported?.rateLimited)
         }
 
-    @Test fun `sync migrates, rebuilds the index, then refreshes live threads`() = runTest(dispatcher.scheduler) {
+    @Test fun `rescan migrates before it rebuilds the index`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
-        vm.sync()
+        val vm = vm(vault)
+        vm.rescan()
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vault.migrations)
         assertEquals(1, vault.rescans)
-        assertEquals(1, vault.syncs)
+        assertEquals(0, vault.syncs)
     }
 
     @Test fun `rescan touches only the index and fetch only the network`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
         vault.syncSummary = VaultSyncSummary(updated = 2)
-        val vm = VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined)
+        val vm = vm(vault)
         var rescanned = false
         vm.rescan { rescanned = true }
         dispatcher.scheduler.advanceUntilIdle()
@@ -699,9 +744,49 @@ class VaultViewModelTest {
         assertEquals(2, summary?.updated)
     }
 
+    @Test fun `the body names what the explorer shows at each level`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA, subject = "Anime")))
+        val vm = vm(vault)
+        assertEquals(VaultBody.Loading, vm.uiState.value.body)
+        assertEquals(false, vm.uiState.value.ready)
+        vm.uiState.test {
+            assertTrue(latest().body is VaultBody.Root)
+            vm.openBoard("g")
+            assertEquals(listOf(threadG), (latest().body as VaultBody.Threads).threads.map { it.location })
+            vm.openThread(threadG)
+            assertEquals(VaultBody.Grid(listOf(entry("g/1.jpg", threadG)), searching = false), latest().body)
+            vm.setQuery("anime")
+            assertEquals(VaultBody.Grid(listOf(entry("a/1.jpg", threadA, subject = "Anime")), searching = true), latest().body)
+            vm.setQuery("")
+            vault.access.value = false
+            assertEquals(VaultBody.NoAccess, latest().body)
+            vault.access.value = true
+            vault.state.value = emptyList()
+            assertEquals(VaultBody.Empty, latest().body)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `stats are null until the vault has been read, then follow the grid's snapshot`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(entry("g/1.jpg", threadG, sizeBytes = 5), entry("a/1.jpg", threadA, sizeBytes = 7)))
+            val vm = vm(vault)
+            assertNull(vm.stats.value)
+            vm.stats.test {
+                dispatcher.scheduler.advanceUntilIdle()
+                val stats = expectMostRecentItem()!!
+                assertEquals(2, stats.files)
+                assertEquals(listOf("a", "g"), stats.perBoard.map { it.board })
+                vault.state.value = vault.state.value.take(1)
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(1, expectMostRecentItem()?.files)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `storage access is part of the ui state`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
-        VaultViewModel(vault, FakeSettings(), boards, compute = Dispatchers.Unconfined).uiState.test {
+        vm(vault).uiState.test {
             assertTrue(latest().hasStorageAccess)
             vault.access.value = false
             assertEquals(false, latest().hasStorageAccess)

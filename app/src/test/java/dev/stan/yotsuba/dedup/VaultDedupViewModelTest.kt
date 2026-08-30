@@ -107,11 +107,35 @@ class VaultDedupViewModelTest {
         val vault = DeletingVault().apply { failing = setOf("small") }
         val vm = VaultDedupViewModel(dedup, vault)
         vm.start(); advanceUntilIdle()
-        assertEquals(7L, vm.state.value.suggestedBytes)
-        vm.applyAllSuggestions(); advanceUntilIdle()
+        assertEquals(7L, vm.state.value.removalBytes)
+        vm.applyAll(); advanceUntilIdle()
         assertEquals(listOf("mid", "small"), vault.deleted)
         assertEquals(1, vm.state.value.lastDeleted)
         assertEquals(1, vm.state.value.lastFailed)
+    }
+
+    @Test fun `apply all keeps whatever the user re-ticked instead of the suggestion`() = runTest {
+        val dedup = FakeDedup(0, mapOf(DedupMode.EXACT to listOf(group)))
+        val vault = DeletingVault()
+        val vm = VaultDedupViewModel(dedup, vault)
+        vm.start(); advanceUntilIdle()
+        vm.toggleKept(group, "big") // untick the suggested keeper
+        vm.toggleKept(group, "small") // keep the small one instead
+        assertEquals(listOf("big", "mid"), vm.state.value.removals.map { it.url })
+        assertEquals(9L, vm.state.value.removalBytes)
+        vm.applyAll(); advanceUntilIdle()
+        assertEquals(listOf("big", "mid"), vault.deleted)
+    }
+
+    @Test fun `apply all skips a group with nothing ticked`() = runTest {
+        val dedup = FakeDedup(0, mapOf(DedupMode.EXACT to listOf(group)))
+        val vault = DeletingVault()
+        val vm = VaultDedupViewModel(dedup, vault)
+        vm.start(); advanceUntilIdle()
+        vm.toggleKept(group, "big")
+        assertTrue(vm.state.value.removals.isEmpty())
+        vm.applyAll(); advanceUntilIdle()
+        assertTrue(vault.deleted.isEmpty())
     }
 
     @Test fun `switching to similar rescans with the current distance`() = runTest {

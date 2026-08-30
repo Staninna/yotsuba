@@ -1,6 +1,5 @@
 package dev.stan.yotsuba.feature.vault
 
-import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -8,16 +7,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
- * VaultStatsSheet.kt:69 passes a [VaultLocation] as a LazyColumn item key. Compose hands every
- * item key to SaveableStateHolderImpl.SaveableStateProvider, which does
- * `require(parentSaveableStateRegistry?.canBeSaved(key) ?: true)`. On Android the parent registry
- * is DisposableSaveableStateRegistry, whose predicate is `canBeSavedToBundle`. This test calls
- * that exact predicate.
+ * Compose hands every LazyColumn item key to SaveableStateHolderImpl.SaveableStateProvider,
+ * which does `require(parentSaveableStateRegistry?.canBeSaved(key) ?: true)`. On Android that
+ * predicate is DisposableSaveableStateRegistry's `canBeSavedToBundle`. The stats sheet once
+ * keyed its thread rows on a raw [VaultLocation], which that predicate rejects, so the sheet
+ * crashed as soon as a populated vault's "Biggest threads" section composed.
  */
 @RunWith(RobolectricTestRunner::class)
-@org.robolectric.annotation.Config(sdk = [35])
+@Config(sdk = [35])
 class VaultStatsKeyTest {
 
     private val canBeSavedToBundle = Class
@@ -27,48 +27,18 @@ class VaultStatsKeyTest {
 
     private fun canBeSaved(value: Any): Boolean = canBeSavedToBundle.invoke(null, value) as Boolean
 
-    private fun entry(url: String, location: VaultLocation) = VaultEntry(
-        url = url,
-        location = location,
-        subject = "subject",
-        postNo = 1L,
-        displayName = "1.jpg",
-        absolutePath = "/sdcard/Yotsuba/g/1.jpg",
-        ext = ".jpg",
-        sizeBytes = 100L,
-        width = 10,
-        height = 10,
-        thumbnailUrl = null,
-        savedAt = 0L,
-    )
-
-    private val stats = VaultStats.of(
-        listOf(entry("https://i.4cdn.org/g/1.jpg", VaultLocation("g", 12345L))),
-        now = 0L,
-    )
+    private val location = VaultLocation("g", 12345L)
 
     @Test
-    fun boardKeyIsFine() {
-        assertEquals("g", stats.perBoard.first().board)
-        assertTrue(canBeSaved(stats.perBoard.first().board))
+    fun `a raw location is not a legal item key`() {
+        assertFalse(canBeSaved(location))
     }
 
     @Test
-    fun threadKeyCannotBeSaved() {
-        assertFalse(canBeSaved(stats.biggestThreads.first().location))
-    }
-
-    @Test
-    fun composeRequireOnTheThreadKeyThrows() {
-        val key: Any = stats.biggestThreads.first().location
-        val thrown = runCatching {
-            // Verbatim from SaveableStateHolderImpl.SaveableStateProvider.
-            require(canBeSaved(key)) {
-                "Type of the key $key is not supported. On Android you can only use types " +
-                    "which can be stored inside the Bundle."
-            }
-        }.exceptionOrNull()
-        thrown!!.printStackTrace()
-        assertEquals(IllegalArgumentException::class.java, thrown.javaClass)
+    fun `the sheet's thread key is Bundle-safe and unique per location`() {
+        assertTrue(canBeSaved(lazyKey(location)))
+        assertEquals("g/12345", lazyKey(location))
+        assertTrue(lazyKey(location) != lazyKey(VaultLocation("g", 12346L)))
+        assertTrue(lazyKey(location) != lazyKey(VaultLocation("a", 12345L)))
     }
 }

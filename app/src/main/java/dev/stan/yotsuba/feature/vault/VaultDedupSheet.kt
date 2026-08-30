@@ -20,25 +20,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,13 +46,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.EnumSegmentedRow
+import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
+import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
 import java.io.File
-import java.text.DateFormat
-import java.util.Date
 
 /**
  * Duplicate review: hashes whatever still needs it, then lists groups of identical or
@@ -70,8 +67,11 @@ internal fun VaultDedupSheet(
     onNotice: (String) -> Unit,
     viewModel: VaultDedupViewModel = hiltViewModel(),
 ) {
+    val spacing = LocalSpacing.current
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var confirmAll by remember { mutableStateOf(false) }
+    // Every delete here is permanent, so both the per-group button and "apply all" go
+    // through the same confirmation before anything is touched.
+    var pending by remember { mutableStateOf<PendingDelete?>(null) }
     LaunchedEffect(Unit) { viewModel.start() }
 
     state.lastDeleted?.let { deleted ->
@@ -89,10 +89,10 @@ internal fun VaultDedupSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().padding(horizontal = spacing.lg)) {
             item {
                 Text(stringResource(R.string.vault_dedup_title), style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(spacing.md))
             }
             when (val phase = state.phase) {
                 DedupPhase.Idle, DedupPhase.Scanning -> item {
@@ -119,7 +119,7 @@ internal fun VaultDedupSheet(
                             onDistance = viewModel::setMaxDistance,
                             onDistanceCommitted = viewModel::rescan,
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(spacing.md))
                     }
                     if (phase.groups.isEmpty()) {
                         item {
@@ -135,12 +135,17 @@ internal fun VaultDedupSheet(
                                 Text(
                                     pluralStringResource(
                                         R.plurals.vault_dedup_summary, phase.groups.size,
-                                        phase.groups.size, FileSize.format(state.suggestedBytes),
+                                        phase.groups.size, FileSize.format(state.removalBytes),
                                     ),
                                     style = MaterialTheme.typography.bodyMedium,
                                     modifier = Modifier.weight(1f),
                                 )
-                                TextButton(onClick = { confirmAll = true }) {
+                                TextButton(
+                                    enabled = state.removals.isNotEmpty(),
+                                    onClick = {
+                                        pending = PendingDelete(state.removals, viewModel::applyAll)
+                                    },
+                                ) {
                                     Text(stringResource(R.string.vault_dedup_apply_all))
                                 }
                             }
@@ -149,45 +154,53 @@ internal fun VaultDedupSheet(
                             GroupRow(
                                 group = group,
                                 kept = state.keptIn(group),
+                                dropping = state.removalsIn(group),
                                 onToggle = { viewModel.toggleKept(group, it) },
-                                onApply = { viewModel.applyGroup(group) },
+                                onApply = {
+                                    pending = PendingDelete(state.removalsIn(group)) { viewModel.applyGroup(group) }
+                                },
                             )
                         }
                     }
                 }
             }
-            item { Spacer(Modifier.height(32.dp)) }
+            item { Spacer(Modifier.height(spacing.xxl)) }
         }
     }
 
-    if (confirmAll) {
-        val count = state.suggestedRemovals.size
+    pending?.let { request ->
+        val count = request.entries.size
+        val bytes = request.entries.sumOf { it.sizeBytes }
         AlertDialog(
-            onDismissRequest = { confirmAll = false },
-            title = { Text(stringResource(R.string.vault_dedup_apply_all)) },
+            onDismissRequest = { pending = null },
+            title = { Text(stringResource(R.string.vault_dedup_confirm_title)) },
             text = {
-                Text(pluralStringResource(R.plurals.vault_dedup_confirm_body, count, count, FileSize.format(state.suggestedBytes)))
+                Text(pluralStringResource(R.plurals.vault_dedup_confirm_body, count, count, FileSize.format(bytes)))
             },
             confirmButton = {
-                TextButton(onClick = { confirmAll = false; viewModel.applyAllSuggestions() }) {
+                TextButton(onClick = { pending = null; request.run() }) {
                     Text(stringResource(R.string.vault_dedup_confirm_delete))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmAll = false }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(onClick = { pending = null }) { Text(stringResource(android.R.string.cancel)) }
             },
         )
     }
 }
 
+/** A delete waiting on its confirmation dialog: what goes, and the call that does it. */
+private class PendingDelete(val entries: List<DuplicateEntry>, val run: () -> Unit)
+
 @Composable
 private fun Progress(label: String, fraction: Float?) {
+    val spacing = LocalSpacing.current
     Column(Modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(spacing.sm))
         if (fraction == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         else LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(spacing.lg))
     }
 }
 
@@ -200,27 +213,13 @@ private fun ModeControls(
     onDistance: (Int) -> Unit,
     onDistanceCommitted: () -> Unit,
 ) {
+    val spacing = LocalSpacing.current
     Column(Modifier.fillMaxWidth()) {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            DedupMode.entries.forEachIndexed { i, m ->
-                SegmentedButton(
-                    selected = mode == m,
-                    onClick = { onMode(m) },
-                    shape = SegmentedButtonDefaults.itemShape(i, DedupMode.entries.size),
-                ) {
-                    Text(
-                        stringResource(
-                            when (m) {
-                                DedupMode.EXACT -> R.string.vault_dedup_mode_exact
-                                DedupMode.SIMILAR -> R.string.vault_dedup_mode_similar
-                            },
-                        ),
-                    )
-                }
-            }
+        EnumSegmentedRow(DedupMode.entries, selected = mode, onSelect = onMode, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(it.labelRes))
         }
         if (mode == DedupMode.SIMILAR) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(spacing.sm))
             Text(
                 stringResource(R.string.vault_dedup_distance, maxDistance),
                 style = MaterialTheme.typography.bodySmall,
@@ -241,17 +240,18 @@ private fun ModeControls(
 private fun GroupRow(
     group: DuplicateGroup,
     kept: Set<String>,
+    dropping: List<DuplicateEntry>,
     onToggle: (String) -> Unit,
     onApply: () -> Unit,
 ) {
-    val dropping = group.entries.filterNot { it.url in kept }
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    val spacing = LocalSpacing.current
+    Column(Modifier.fillMaxWidth().padding(vertical = spacing.sm)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
             items(group.entries, key = { it.url }) { entry ->
                 Thumb(entry, selected = entry.url in kept, onClick = { onToggle(entry.url) })
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xs))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 group.entries.firstOrNull { it.url in kept }?.subject
@@ -262,7 +262,7 @@ private fun GroupRow(
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
             )
-            TextButton(onClick = onApply, enabled = kept.isNotEmpty() && dropping.isNotEmpty()) {
+            TextButton(onClick = onApply, enabled = dropping.isNotEmpty()) {
                 Text(
                     pluralStringResource(
                         R.plurals.vault_dedup_keep_selected, dropping.size,
@@ -276,12 +276,13 @@ private fun GroupRow(
 
 @Composable
 private fun Thumb(entry: DuplicateEntry, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
+    val spacing = LocalSpacing.current
+    val shape = RoundedCornerShape(THUMB_CORNER)
     val outline = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    Column(Modifier.width(112.dp).clickable(onClick = onClick)) {
+    Column(Modifier.width(THUMB_SIZE).clickable(onClick = onClick)) {
         Box(
             Modifier
-                .size(112.dp)
+                .size(THUMB_SIZE)
                 .clip(shape)
                 .border(if (selected) 3.dp else 1.dp, outline, shape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
@@ -294,24 +295,33 @@ private fun Thumb(entry: DuplicateEntry, selected: Boolean, onClick: () -> Unit)
                 },
                 contentDescription = entry.displayName,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(112.dp),
+                modifier = Modifier.size(THUMB_SIZE),
             )
             if (selected) {
                 Icon(
                     Icons.Filled.CheckCircle,
                     contentDescription = stringResource(R.string.vault_dedup_kept),
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(spacing.xs).size(20.dp),
                 )
             }
         }
         val dims = if (entry.width != null && entry.height != null) "${entry.width}×${entry.height}" else "?"
         Text("$dims · ${FileSize.format(entry.sizeBytes)}", style = MaterialTheme.typography.labelSmall, maxLines = 1)
         Text(
-            DateFormat.getDateInstance(DateFormat.SHORT).format(Date(entry.savedAt)),
+            TimeFormat.dateShort(entry.savedAt),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
         )
     }
 }
+
+private val THUMB_SIZE = 112.dp
+private val THUMB_CORNER = 8.dp
+
+private val DedupMode.labelRes: Int
+    get() = when (this) {
+        DedupMode.EXACT -> R.string.vault_dedup_mode_exact
+        DedupMode.SIMILAR -> R.string.vault_dedup_mode_similar
+    }

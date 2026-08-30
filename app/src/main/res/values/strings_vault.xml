@@ -2,6 +2,9 @@
 <resources>
     <string name="vault_delete_failed">Couldn\'t delete %1$s</string>
     <string name="vault_local_board">Imported</string>
+    <!-- Thread name for picked files with no folder to name them after; persisted as the directory name. -->
+    <string name="vault_import_default_name">Imported (%1$d)</string>
+    <string name="vault_import_default_name_plain">Imported</string>
     <string name="vault_restored">Restored</string>
     <string name="vault_undo">Undo</string>
     <string name="vault_delete_dont_ask">Don\'t ask again</string>
@@ -46,6 +49,7 @@
     <string name="vault_search_hint">File name or thread subject</string>
     <string name="vault_search_clear">Clear</string>
     <string name="vault_search_empty">Nothing matches</string>
+    <string name="vault_filter_empty">Nothing here matches the filter</string>
     <string name="vault_rename_thread">Rename</string>
     <string name="vault_rename">Rename</string>
     <string name="vault_renamed">Renamed</string>

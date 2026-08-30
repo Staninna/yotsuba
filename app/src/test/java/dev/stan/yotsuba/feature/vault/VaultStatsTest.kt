@@ -66,7 +66,10 @@ class VaultStatsTest {
             now,
         )
         assertEquals(listOf("a", "wg", "g"), stats.perBoard.map { it.board })
-        assertEquals(BoardStat("g", 2, 2), stats.perBoard.last())
+        val g = stats.perBoard.last()
+        assertEquals("g", g.board)
+        assertEquals(2, g.entries.size)
+        assertEquals(2L, g.sizeBytes)
     }
 
     @Test

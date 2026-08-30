@@ -12,6 +12,7 @@
     <string name="vault_dedup_mode_similar">Similar</string>
     <string name="vault_dedup_distance">Max distance: %1$d (lower is stricter)</string>
     <string name="vault_dedup_apply_all">Apply suggestions</string>
+    <string name="vault_dedup_confirm_title">Delete duplicates</string>
     <string name="vault_dedup_confirm_delete">Delete</string>
     <string name="vault_dedup_untitled">Untitled thread</string>
     <string name="vault_dedup_kept">Kept</string>
@@ -25,8 +26,8 @@
         <item quantity="other">Keep selected, delete %1$d (%2$s)</item>
     </plurals>
     <plurals name="vault_dedup_confirm_body">
-        <item quantity="one">Delete %1$d file (%2$s) from the vault, keeping the suggested copy in each group? The file on disk goes with it.</item>
-        <item quantity="other">Delete %1$d files (%2$s) from the vault, keeping the suggested copy in each group? The files on disk go with them.</item>
+        <item quantity="one">Delete %1$d file (%2$s) from the vault, keeping the ticked copies? The file on disk goes with it.</item>
+        <item quantity="other">Delete %1$d files (%2$s) from the vault, keeping the ticked copies? The files on disk go with them.</item>
     </plurals>
     <plurals name="vault_dedup_deleted">
         <item quantity="one">Deleted %1$d duplicate</item>
