@@ -35,7 +35,7 @@ class SettingsDataStore @Inject constructor(
     private val dataStore: DataStore<Preferences>,
 ) : SettingsRepository {
 
-    private val blobKey = stringPreferencesKey("settings")
+    private val blobKey = BLOB_KEY
     private val migration = Mutex()
     private var migrated = false
 
@@ -69,7 +69,10 @@ class SettingsDataStore @Inject constructor(
     private fun decode(raw: String?): Settings =
         raw?.let { runCatching { json.decodeFromString<Settings>(it) }.getOrNull() } ?: Settings()
 
-    private companion object {
+    companion object {
+        /** The one preference the blob lives under; fresh-install detection reads it too. */
+        internal val BLOB_KEY = stringPreferencesKey("settings")
+
         /**
          * The only place a missing or unrecognised value becomes a default. `coerceInputValues`
          * covers unknown enum names as well as nulls; `ignoreUnknownKeys` covers a downgrade.
