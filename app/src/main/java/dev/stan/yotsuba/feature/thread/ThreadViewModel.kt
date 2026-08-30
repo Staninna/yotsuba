@@ -20,6 +20,7 @@ import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
+import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -368,6 +369,17 @@ class ThreadViewModel @AssistedInject constructor(
     fun onOpenPreview(postNo: Long) =
         session.update { it.copy(previewPostNos = it.previewPostNos + listOf(listOf(postNo))) }
 
+    /** Tap on a same-thread quotelink: whatever [Settings.quoteTap] says. */
+    fun onQuoteTap(postNo: Long) = quoteAction(settingsState.value.quoteTap, postNo)
+
+    /** Long-press on a same-thread quotelink: the action the tap does not do. */
+    fun onQuoteLongPress(postNo: Long) = quoteAction(settingsState.value.quoteTap.other(), postNo)
+
+    private fun quoteAction(action: QuoteTapAction, postNo: Long) = when (action) {
+        QuoteTapAction.POPOVER -> onOpenPreview(postNo)
+        QuoteTapAction.JUMP -> onJumpToPost(postNo)
+    }
+
     fun onOpenBacklinks(postNo: Long) {
         val details = (result.value as? DataResult.Success)?.value ?: return
         val links = details.backlinks[postNo].orEmpty()
@@ -602,6 +614,12 @@ class ThreadViewModel @AssistedInject constructor(
                 }
             }
             return out
+        }
+
+        /** The quotelink gesture the setting does not claim. */
+        fun QuoteTapAction.other(): QuoteTapAction = when (this) {
+            QuoteTapAction.POPOVER -> QuoteTapAction.JUMP
+            QuoteTapAction.JUMP -> QuoteTapAction.POPOVER
         }
 
         /** The OP is labelled first; a claimed OP still reads as yours. */

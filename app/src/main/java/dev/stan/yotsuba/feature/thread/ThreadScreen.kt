@@ -228,7 +228,7 @@ fun ThreadScreen(
                                 haptics.tick()
                                 viewModel.onRevealSpoiler(post.no, tap.id)
                             }
-                            is BodyTap.SameThreadQuote -> viewModel.onJumpToPost(tap.postNo)
+                            is BodyTap.SameThreadQuote -> viewModel.onQuoteTap(tap.postNo)
                             is BodyTap.CrossThreadQuote -> onOpenInternal(
                                 Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
                             )
@@ -238,7 +238,7 @@ fun ThreadScreen(
                     onBodyLongPress = { tap ->
                         if (tap is BodyTap.SameThreadQuote) {
                             haptics.longPress()
-                            viewModel.onOpenPreview(tap.postNo)
+                            viewModel.onQuoteLongPress(tap.postNo)
                         }
                     },
                     onThumbnailTap = { viewModel.onThumbnailTap(post) },
