@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
+import dev.stan.yotsuba.core.di.IoDispatcher
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.dedup.DHash
 import dev.stan.yotsuba.core.dedup.Grouping
@@ -16,26 +17,27 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.coroutineContext
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 @Singleton
 class VaultDedupRepositoryImpl @Inject constructor(
     private val dao: SavedMediaDao,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : VaultDedupRepository {
 
-    override suspend fun findByMd5(md5: String): String? = withContext(Dispatchers.IO) {
+    override suspend fun findByMd5(md5: String): String? = withContext(ioDispatcher) {
         dao.byMd5(md5)?.absolutePath?.takeIf { File(it).exists() }
     }
 
-    override suspend fun recordMd5(url: String, md5: String) = withContext(Dispatchers.IO) {
+    override suspend fun recordMd5(url: String, md5: String) = withContext(ioDispatcher) {
         dao.updateMd5(url, md5)
     }
 
-    override suspend fun missingHashCount(): Int = withContext(Dispatchers.IO) { dao.missingHashCount(VIDEO_EXTS) }
+    override suspend fun missingHashCount(): Int = withContext(ioDispatcher) { dao.missingHashCount(VIDEO_EXTS) }
 
-    override suspend fun backfillHashes(onProgress: (Int, Int) -> Unit) = withContext(Dispatchers.IO) {
+    override suspend fun backfillHashes(onProgress: (Int, Int) -> Unit) = withContext(ioDispatcher) {
         val todo = dao.missingHashes(VIDEO_EXTS)
         val total = todo.size
         onProgress(0, total)
@@ -61,7 +63,7 @@ class VaultDedupRepositoryImpl @Inject constructor(
     }
 
     override suspend fun findDuplicates(mode: DedupMode, maxDistance: Int): List<DuplicateGroup> =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             val rows = dao.allOnce().filter { it.absolutePath.isNotEmpty() }
             val groups = when (mode) {
                 DedupMode.EXACT -> Grouping.exact(rows) { it.md5 }
