@@ -6,9 +6,7 @@ Open work first; everything finished lives under `# Done` at the bottom.
 - [ ] 100% unit test coverage. Not met; last measured 2026-08-29 at 22.8% line / 20.1% instruction / 21.8% branch (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`). 391 JVM tests pass as of 2026-08-30 (up from 269); the percentage has not been re-measured since the overhaul and is due. One unit-test run failed once and passed on three reruns without a code change, so there is a flaky test somewhere in the suite. Seen again 2026-08-30 in `LoadableFlowTest` and `ApiResultTest` (leaked `Dispatchers.Main`, "uncaught exceptions before the test started"); both pass alone, so some earlier test leaks its dispatcher. Near-100% where JVM-testable: domain/model 99.4%, core/text 98.5%, core/vault 97.6%, core/util 97.1%, network DTOs 96.1%. `feature/thread` 55.9%, `data/repository` 43.9%. The remainder is mostly Compose UI (designsystem, screens, navigation) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource, SettingsDataStore) whose sandbox classloader bypasses JaCoCo, so they record 0% despite passing. `core/datastore` reads 0% for that reason alone. `feature/media` is 4.7%: the viewer VMs depend on Context/ExoPlayer, though `ViewerBehaviour` and `PostGraph` are now pure and fully covered
 - [ ] 100% e2e test coverage. 8 instrumented Compose tests in `app/src/androidTest/` cover every screen's primary flow (boards → catalog → thread → media viewer, bookmark add/remove, history, vault, settings toggle) with Hilt `@TestInstallIn` fake repositories, no network. They compile (`:app:compileDebugAndroidTestKotlin`) but need a device: `./gradlew :app:connectedDebugAndroidTest`. Attempted on hardware 2026-08-29 and did not run: the test APK failed to link against the installed app APK (`NoSuchMethodError: kotlinx.coroutines.BuildersKt.runBlockingK`), a stale-artifact mismatch rather than a test failure. Unresolved. Secondary flows (search, spoilers, PiP, downloads, hold-to-save, edge-seek) are uncovered, and the gesture work in particular cannot be trusted without a device
 
-- [ ] Test the vault write path. Of 20 public methods on `MediaVaultRepositoryImpl`, only `delete` and `trash` are exercised (`MediaVaultDeleteTest`). `save`, `rescan` (the uninstall-survival promise in CLAUDE.md), `syncSavedThreads`, `snapshotThread(s)`, `renameThread`, `mergeThreads`, `importLocalThread`, `savedThread`, `migrateLegacyIfNeeded` have zero test references. The 97.6% `core/vault` figure is the codecs and `VaultStore` helpers; `VaultViewModelTest` drives a `FakeVault` whose `rescan` is a counter. Blocked partly by the hardcoded `Dispatchers.IO` (see Code quality)
 - [ ] Test Room migrations 1 through 10. `app/schemas/` starts at `6.json`, so `MIGRATION_1_2` to `MIGRATION_5_6` cannot ever get a `MigrationTestHelper` test; 6 through 10 simply have none. `MigrationTest` (androidTest) covers only 10→11 and 11→12 and has never run on a device. No destructive fallback (`Modules.kt:129`, correct), so a bad migration is a hard crash on upgrade with nothing in CI to catch it
-- [ ] Flaky-test cause. `ThreadEnv.kt` defaulted `compute` and `queueScope` to `Dispatchers.Unconfined`, never cancelled; `MediaDownloadQueue` launches a worker on it in `init`, and `stateIn(WhileSubscribed)` ran its five-second stop timer on wall-clock time, firing after `resetMain` into the next test. A fix swapping in `UnconfinedTestDispatcher` is in the working tree, uncommitted, unverified. 42 `ThreadEnv(...)` call sites leave the default
 - [ ] One `MainDispatcherRule`. `fake/MainDispatcherRule.kt` exists as "the one home for setMain/resetMain"; one file uses it, 16 hand-roll the pair
 - [ ] Share the fakes. `FakeBoardRepository` x4, `FakeHistoryRepository` x4, `FakeSettingsRepository` x4, `FakeVault` x4, `FakeBookmarkRepository` x3, `FakeThreadRepository` x3 across `src/test` and `androidTest/di/TestRepositoryModule.kt`; the `fake/` package holds six. The androidTest `FakeMediaVaultRepository` (`TestRepositoryModule.kt:281-335`) returns null/Unit for everything, so `MediaSaveFlowTest` proves a button exists, not that saving works
 - [ ] Robolectric details. `robolectric.properties` pins SDK 34, `RoomTest.kt:24` pins 35, so two sandbox boots per run. `testOptions.unitTests.isReturnDefaultValues = true` makes every un-mocked Android call silently return 0/null/false; Robolectric is already on the classpath, drop the flag
@@ -17,26 +15,13 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## 1. Release safety
 
-- [ ] Release-only gates run after the point of no return. `ci.yml` builds debug only; `assembleRelease`, `check-serializers.sh` and the emulator smoke live in `release.yml`, which runs after `bump.sh` has already pushed the bump commit and the tag. A red release leaves `main` at a version with no release, the tag exists, and `bump.sh` refuses both `--just-push` (tag exists, line 78) and a rerun; recovery is manual tag deletion. Add a debug-key-signed `assembleRelease` plus `check-serializers.sh` to CI on every push
-- [ ] `release.yml` runs unit tests but not lint or `compileDebugAndroidTestKotlin`. Those only run in `bump.sh:96-100` on the dev machine; a hand-pushed tag skips them. CLAUDE.md calls lint errors real crashes
-- [ ] No `timeout-minutes` on either workflow job. The emulator step is the kind that hangs; default is six hours of billed runner
-- [ ] `check-serializers.sh:18` hardcodes `app/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes`, an AGP 9 internal path. The next Dependabot AGP bump moves it and the script dies on the release job, loudly (the sentinel at 28-30 is right) but late
-- [ ] `bump.sh --watch` (line 120) sleeps 5 s then takes `gh run list --limit 1`, which can attach to the previous run
-- [ ] `release.yml:39` decodes the keystore via inline `${{ secrets.RELEASE_KEYSTORE_B64 }}` in a `run:`; pass it through `env:` like the rest of the file
 - [ ] Third-party actions (`softprops/action-gh-release@v3`, `reactivecircus/android-emulator-runner@v2`) are pinned to major tags with `contents: write`. Dependabot covers github-actions, so SHA pinning is a judgement call; note it either way
-- [ ] Dependabot has no `groups:`, so every library bump is its own PR and CI run
 - [ ] `biometric = 1.1.0` is the 2021 stable with known quirks on newer OEM ROMs; check it against HyperOS
 
 ## 2. Bugs
 
-- [ ] `MediaVaultRepositoryImpl.migrateLegacyIfNeeded` (line 429-430): `runCatching { migration.run() }` then unconditionally writes `VAULT_MIGRATED = true`. A migration that throws halfway (permission blip, one unreadable file, disk full) is marked done forever and whatever was not moved is invisible to `rescan()`. Set the flag only on success, or record progress
-- [ ] `raiseReadMark` fires on every new bottom row with no debounce (`ThreadViewModel.kt:204-206, 636-644`): `readUpTo` + `updateReadUpTo` + `markSeen`, three DB writes per row scrolled past. The top-visible collector at line 199 already debounces 500 ms; do the same
-- [ ] `VaultViewModel.uiState` combine (lines 559-618) reruns `arrangeEntries` (full sort) and `groupByBoard` over the whole vault whenever any of its five inputs changes, so one multi-select tick or one typed character resorts every entry. Split the arranged/grouped snapshot into its own `stateIn` keyed on `(entries, view)` and combine selection on top
 - [ ] `renameThread` (`MediaVaultRepositoryImpl.kt:348-372`) and `mergeThreads` (374-386) end with a full `rescan()`, which walks the tree, rewrites the Room table and probes every video lacking a still. A one-folder rename should not re-index the vault
-- [ ] `Updater.kt:61-71, 98-106, 110-114` catch `Exception`, which includes `CancellationException`, so a cancelled check reports "Couldn't reach GitHub". Rethrow like `apiResult` does
-- [ ] `Updater.kt:242-246`: below API 33 the install-status receiver is registered without `RECEIVER_NOT_EXPORTED`; another app can broadcast a fake `STATUS_SUCCESS`. Line 231: a `STATUS_PENDING_USER_ACTION` the user never completes leaves the receiver registered for the process lifetime
 - [ ] `VaultPaths.fileName` (line 76) appends `ext` unsanitised. For local imports `ext` comes from `extensionOf(displayName)` of whatever a content provider reports (`LocalThreadImporter.kt:42`); a hostile provider can get a `/` in. It cannot escape the thread directory, but sanitise it
-- [ ] `ThreadViewModel.currentRows()` (620-624) recomputes `threadRows` on the caller's thread (main, from `onVisiblePostsChanged`) before the first emission has cached `lastRows`
 - [ ] `AppNavHost.kt:97, 166`: `threadSwipe` is a `mutableStateOf<Boolean?>` set from a click callback and cleared by `LaunchedEffect(entry)` so the transition lambdas can peek at it. A race between swap and clear slides the wrong way
 - [ ] `themes.xml` uses `android:Theme.Material.NoActionBar` (dark) as the window theme, so light-theme users see a dark frame for one frame at launch
 - [ ] `VideoPage.kt` `Slider.onValueChange` calls `seekTo` on every drag frame; throttle to `onValueChangeFinished` with a local preview value. `formatMs` uses `String.format` without a `Locale`
@@ -44,28 +29,15 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## 3. Privacy and third parties
 
-- [ ] Reverse search uploads to TinEye and Yandex on one tap with no prompt. `ReverseSearchViewModel.kt:44-52`: `DIRECT_UPLOAD` is the default (`Settings.kt:129`) and `ConfirmHost` only guards the litterbox route. A user's local file, possibly a video frame of 4chan content, goes to a Russian ad-tech host by default. Either prompt on the direct route too or default to the confirmed one
 - [ ] Both direct routes use private browser XHR endpoints, not APIs (`ReverseSearchUpload.kt:43-47`: `tineye.com/api/v1/result_json/`, `yandex.com/images-apphost/image-download`). TinEye's ToS forbids automated access outside the paid API, and either breaks silently on a field rename, surfacing only as "Could not upload to X"
-- [ ] The retention promise is wrong for the fallback. `strings_media.xml:17` and `strings.xml:186` say "for the next hour, then it is deleted" (litterbox). The 0x0.st fallback at `ReverseSearchUpload.kt:158` sets `X-Expires: 24` and 0x0.st does not guarantee deletion. Name the host and the real window in the dialog
-- [ ] The uploader inherits the 4chan client's stack. `ReverseSearchUpload.kt:83` does `client.newBuilder()`, keeping `InMemoryCookieJar`, `StaleIfOfflineInterceptor` and `CachePolicyInterceptor` (`Modules.kt:92-95`). ADR-0003 excluded the updater for exactly this reason. Verify the cookie jar is host-scoped, or build a bare client
-- [ ] No User-Agent on `a.4cdn.org` calls; everything goes out as `okhttp/x`. The only UA in the app is on the 0x0.st request. Not required by the API rules, but it is what 4chan asks for when they need to reach a client author
-- [ ] No privacy notice anywhere (`grep -ri privacy README.md docs CLAUDE.md` is empty). The app now sends data to GitHub (updates), desuarchive and b4k (archive), TinEye, Yandex, litterbox and 0x0.st (reverse search), and holds `MANAGE_EXTERNAL_STORAGE`. A README paragraph listing who receives what
 
 ## 4. Code quality
 
-- [ ] `ReverseSearchUploader` is transport code in `feature/media` (`ReverseSearchUpload.kt:21-28, 78-84`): injects `OkHttpClient`, builds multipart bodies to four hosts, hardcodes `Dispatchers.IO` (92, 106). The only place a feature bypasses the repository boundary. Move it behind a domain interface in `data/`
 - [ ] `core/di/Modules.kt:37-48` imports every `data.repository.*Impl`, so `core` depends on `data`, inverting the documented arrow. A root `di/` package fixes it for free
-- [ ] `Dispatchers.IO` is hardcoded 17 times across `MediaVaultRepositoryImpl` and `VaultDedupRepositoryImpl` while `BackupRepositoryImpl` and every ViewModel inject theirs. This is why `data/repository` sits at 43.9% and why the vault write path is untested
-- [ ] `VaultStore.lock` (line 34) is a public `Mutex`; correctness is the phrase "under the store lock" as a doc comment on five functions, and `recordSavedFile` documents that the caller must hold it. Move the lock inside and expose `suspend fun <T> withStore(block)`
-- [ ] `VaultStore.attempt` (260-266) collapses every exception into `VaultError.Io(e.message)`, and there are zero `Log.*` calls in the app. A vault bug reaches the user as "Io(null)" and reaches you as nothing. Keep the cancellation rethrow; distinguish NPE from IOException and log at the boundary
 - [ ] `ThreadViewModel` has about 60 public `on*` methods and a `Session` with about 20 fields: previews, ghosts, search, gallery, spoilers, claims, links, save, bookmarks, history. Internals are factored (`ThreadPoller`, `GhostResolver`, `threadRows`); the surface is the god-class symptom
-- [ ] `ThreadScreen` composable is about 460 lines (97-560) wiring six overlays plus swipe, scroll restore and snackbar plumbing; extract `ThreadOverlays`. `ThreadTopBar` takes about 25 parameters and the caller reads `s?.x` eleven times to feed it; pass a `TopBarState` plus an actions object like `PostCardActions`. `SearchBar` (563) takes the ViewModel where every other child takes lambdas
-- [ ] `VaultViewModel` loose ends: `autoAdvance` is `mutableStateOf` in a VM that otherwise exposes `StateFlow` (372); the six-way `combine<Any, View>` with casts (458-467) should nest two typed combines; `selectedEntries`, `openBoard`, `openThread`, `scopeEntries` (286-305) are linear-scan getters read from composables
-- [ ] `saveToVault(context, hasAccess, onAccessNeeded, save)` is called five times with the same three-line snackbar lambda (`ThreadScreen.kt:184, 300, 458` and two more). A `rememberSaveToVault(snackbar)`
+- [ ] `VaultViewModel.selectedEntries`, `openBoard`, `openThread`, `scopeEntries` (286-305) are linear-scan getters read from composables
 - [ ] `board + "/" + threadNo` as a lazy key is hand-rolled in `HistoryList.kt:93`, `VaultStatsSheet.kt:43`, `BookmarksList.kt:143`, `BoardsSection.kt:36`; `VaultStatsSheet.lazyKey` already exists
 - [ ] Raw SDK ints: `SDK_INT >= 30` (`MediaVaultRepositoryImpl.kt:66`), `>= 33` (`Updater.kt:242`), `>= 29` (`GalleryExporter.kt:26`). Use `VERSION_CODES`
-- [ ] `delay(500)` magic number at `ThreadViewModel.kt:199`; `HIGHLIGHT_MS` shows the pattern
-- [ ] `ThreadScreen.kt:236` `snapshotFlow { currentRows }.first { it != null }!!` reads as `filterNotNull().first()`
 - [ ] `VaultStore.writeAtomically` (214-221) does not fsync before rename, so atomic against a crash, not a power loss. Fine for sidecars; say so in a comment
 - [ ] No Compose compiler stability config, so stability of domain types is on trust (`VaultArrangement` doc: "stable by construction"). A `compose_compiler_config.conf` and `reportsDestination` would let you stop guessing
 - [ ] 11 bare `runCatching { }.getOrNull()` sites swallow failures to null. Mostly vault IO and probably intended; audit each once logging exists
@@ -88,11 +60,7 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## 7. Docs and repo hygiene
 
-- [ ] README describes the app three releases ago: tabs listed as Boards, Catalog, Thread, Media, Bookmarks, History; actual tabs are Home, Boards, Threads, Vault (`TopLevelDestination.kt:22-25`), and there is no History route. Zero mentions of app lock, widget, filters, archive fallthrough, offline snapshots, dedup, backup, vault sync, reverse search. `bin/` scripts are not named anywhere
-- [ ] CONTEXT-MAP.md is stale the same way: says `feature/{bookmarks,history}`, screen is `feature/threads/ThreadsScreen.kt`; no context covers `core/{lock,widget,work,backup,dedup}` or archives. CLAUDE.md lists six `core/` subpackages; there are fifteen. ADR-0002 says "38 test files"; there are 86
 - [ ] ADR-0001 admits a fresh install "looks exactly like data loss" until Rescan is pressed; neither doc says the app could prompt. Product gap dressed as a documentation fact
-- [ ] `.idea/` is tracked (10 files, including `caches/deviceStreaming.xml` with a Sony device selection). `.scratch/ux-report/ux-ui-improvements.md` is tracked despite `.gitignore` ignoring `.scratch/`, references `app/app/src/main/...` and has an em dash in a heading. `review/REPORT.md` and `findings.md` sit at the repo root as a one-day artefact of the 2026-08-30 pass. `.kotlin/` and `.claude/worktrees/` are not ignored
-- [ ] The em-dash ban is broken in `release.yml:30`, `bump.sh:5`, `bump.sh:55`
 - [ ] The todo.md same-commit rule is honoured in outcome, not practice: 11 of the last 60 commits touch this file, and `7b71e9d` / `ec2a874` exist only to move finished items. Section numbering in the open half is 0, 5, 6, then unnumbered
 - [ ] Scripts are GNU-only (`readlink -f`, `sed -i`, `sed '0,/re/'` in `changelog.sh:98`, `grep -P` in `changelog.sh:112` and `release.yml:27`). Fine for this machine and ubuntu runners; will not survive macOS
 - [ ] `changelog.sh --check` greps for shape and dash characters only, so the writing rules are a prompt, not a gate; and `bump.sh` depends on a `claude` binary unless `--no-changelog`
@@ -117,6 +85,61 @@ Open work first; everything finished lives under `# Done` at the bottom.
 # Done
 
 Finished work, kept for the record. Sections mirror the ones above.
+
+### 8. Review wave of 2026-08-31
+
+Two waves of four parallel worktrees off the 2026-08-31 audit; items shipped as written unless noted.
+
+#### 0. Testing
+
+- [x] Test the vault write path. Of 20 public methods on `MediaVaultRepositoryImpl`, only `delete` and `trash` are exercised (`MediaVaultDeleteTest`). `save`, `rescan` (the uninstall-survival promise in CLAUDE.md), `syncSavedThreads`, `snapshotThread(s)`, `renameThread`, `mergeThreads`, `importLocalThread`, `savedThread`, `migrateLegacyIfNeeded` have zero test references. The 97.6% `core/vault` figure is the codecs and `VaultStore` helpers; `VaultViewModelTest` drives a `FakeVault` whose `rescan` is a counter. Blocked partly by the hardcoded `Dispatchers.IO` (see Code quality)
+- [x] Flaky-test cause. `ThreadEnv.kt` defaulted `compute` and `queueScope` to `Dispatchers.Unconfined`, never cancelled; `MediaDownloadQueue` launches a worker on it in `init`, and `stateIn(WhileSubscribed)` ran its five-second stop timer on wall-clock time, firing after `resetMain` into the next test. A fix swapping in `UnconfinedTestDispatcher` is in the working tree, uncommitted, unverified. 42 `ThreadEnv(...)` call sites leave the default
+
+#### 1. Release safety
+
+- [x] Release-only gates run after the point of no return. `ci.yml` builds debug only; `assembleRelease`, `check-serializers.sh` and the emulator smoke live in `release.yml`, which runs after `bump.sh` has already pushed the bump commit and the tag. A red release leaves `main` at a version with no release, the tag exists, and `bump.sh` refuses both `--just-push` (tag exists, line 78) and a rerun; recovery is manual tag deletion. Add a debug-key-signed `assembleRelease` plus `check-serializers.sh` to CI on every push
+- [x] `release.yml` runs unit tests but not lint or `compileDebugAndroidTestKotlin`. Those only run in `bump.sh:96-100` on the dev machine; a hand-pushed tag skips them. CLAUDE.md calls lint errors real crashes
+- [x] No `timeout-minutes` on either workflow job. The emulator step is the kind that hangs; default is six hours of billed runner
+- [x] `check-serializers.sh:18` hardcodes `app/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes`, an AGP 9 internal path. The next Dependabot AGP bump moves it and the script dies on the release job, loudly (the sentinel at 28-30 is right) but late
+- [x] `bump.sh --watch` (line 120) sleeps 5 s then takes `gh run list --limit 1`, which can attach to the previous run
+- [x] `release.yml:39` decodes the keystore via inline `${{ secrets.RELEASE_KEYSTORE_B64 }}` in a `run:`; pass it through `env:` like the rest of the file
+- [x] Dependabot has no `groups:`, so every library bump is its own PR and CI run
+
+#### 2. Bugs
+
+- [x] `MediaVaultRepositoryImpl.migrateLegacyIfNeeded` (line 429-430): `runCatching { migration.run() }` then unconditionally writes `VAULT_MIGRATED = true`. A migration that throws halfway (permission blip, one unreadable file, disk full) is marked done forever and whatever was not moved is invisible to `rescan()`. Set the flag only on success, or record progress
+- [x] `raiseReadMark` fires on every new bottom row with no debounce (`ThreadViewModel.kt:204-206, 636-644`): `readUpTo` + `updateReadUpTo` + `markSeen`, three DB writes per row scrolled past. The top-visible collector at line 199 already debounces 500 ms; do the same
+- [x] `VaultViewModel.uiState` combine (lines 559-618) reruns `arrangeEntries` (full sort) and `groupByBoard` over the whole vault whenever any of its five inputs changes, so one multi-select tick or one typed character resorts every entry. Split the arranged/grouped snapshot into its own `stateIn` keyed on `(entries, view)` and combine selection on top
+- [x] `Updater.kt:61-71, 98-106, 110-114` catch `Exception`, which includes `CancellationException`, so a cancelled check reports "Couldn't reach GitHub". Rethrow like `apiResult` does
+- [x] `Updater.kt:242-246`: below API 33 the install-status receiver is registered without `RECEIVER_NOT_EXPORTED`; another app can broadcast a fake `STATUS_SUCCESS`. Line 231: a `STATUS_PENDING_USER_ACTION` the user never completes leaves the receiver registered for the process lifetime
+- [x] `ThreadViewModel.currentRows()` (620-624) recomputes `threadRows` on the caller's thread (main, from `onVisiblePostsChanged`) before the first emission has cached `lastRows`
+
+#### 3. Privacy and third parties
+
+- [x] Reverse search uploads to TinEye and Yandex on one tap with no prompt. `ReverseSearchViewModel.kt:44-52`: `DIRECT_UPLOAD` is the default (`Settings.kt:129`) and `ConfirmHost` only guards the litterbox route. A user's local file, possibly a video frame of 4chan content, goes to a Russian ad-tech host by default. Either prompt on the direct route too or default to the confirmed one
+- [x] The retention promise is wrong for the fallback. `strings_media.xml:17` and `strings.xml:186` say "for the next hour, then it is deleted" (litterbox). The 0x0.st fallback at `ReverseSearchUpload.kt:158` sets `X-Expires: 24` and 0x0.st does not guarantee deletion. Name the host and the real window in the dialog
+- [x] The uploader inherits the 4chan client's stack. `ReverseSearchUpload.kt:83` does `client.newBuilder()`, keeping `InMemoryCookieJar`, `StaleIfOfflineInterceptor` and `CachePolicyInterceptor` (`Modules.kt:92-95`). ADR-0003 excluded the updater for exactly this reason. Verify the cookie jar is host-scoped, or build a bare client
+- [x] No User-Agent on `a.4cdn.org` calls; everything goes out as `okhttp/x`. The only UA in the app is on the 0x0.st request. Not required by the API rules, but it is what 4chan asks for when they need to reach a client author
+- [x] No privacy notice anywhere (`grep -ri privacy README.md docs CLAUDE.md` is empty). The app now sends data to GitHub (updates), desuarchive and b4k (archive), TinEye, Yandex, litterbox and 0x0.st (reverse search), and holds `MANAGE_EXTERNAL_STORAGE`. A README paragraph listing who receives what
+
+#### 4. Code quality
+
+- [x] `ReverseSearchUploader` is transport code in `feature/media` (`ReverseSearchUpload.kt:21-28, 78-84`): injects `OkHttpClient`, builds multipart bodies to four hosts, hardcodes `Dispatchers.IO` (92, 106). The only place a feature bypasses the repository boundary. Move it behind a domain interface in `data/`
+- [x] `Dispatchers.IO` is hardcoded 17 times across `MediaVaultRepositoryImpl` and `VaultDedupRepositoryImpl` while `BackupRepositoryImpl` and every ViewModel inject theirs. This is why `data/repository` sits at 43.9% and why the vault write path is untested
+- [x] `VaultStore.lock` (line 34) is a public `Mutex`; correctness is the phrase "under the store lock" as a doc comment on five functions, and `recordSavedFile` documents that the caller must hold it. Move the lock inside and expose `suspend fun <T> withStore(block)`
+- [x] `VaultStore.attempt` (260-266) collapses every exception into `VaultError.Io(e.message)`, and there are zero `Log.*` calls in the app. A vault bug reaches the user as "Io(null)" and reaches you as nothing. Keep the cancellation rethrow; distinguish NPE from IOException and log at the boundary
+- [x] `ThreadScreen` composable is about 460 lines (97-560) wiring six overlays plus swipe, scroll restore and snackbar plumbing; extract `ThreadOverlays`. `ThreadTopBar` takes about 25 parameters and the caller reads `s?.x` eleven times to feed it; pass a `TopBarState` plus an actions object like `PostCardActions`. `SearchBar` (563) takes the ViewModel where every other child takes lambdas
+- [x] `VaultViewModel` loose ends: `autoAdvance` is `mutableStateOf` in a VM that otherwise exposes `StateFlow` (372); the six-way `combine<Any, View>` with casts (458-467) should nest two typed combines; `selectedEntries`, `openBoard`, `openThread`, `scopeEntries` (286-305) are linear-scan getters read from composables
+- [x] `saveToVault(context, hasAccess, onAccessNeeded, save)` is called five times with the same three-line snackbar lambda (`ThreadScreen.kt:184, 300, 458` and two more). A `rememberSaveToVault(snackbar)`
+- [x] `delay(500)` magic number at `ThreadViewModel.kt:199`; `HIGHLIGHT_MS` shows the pattern
+- [x] `ThreadScreen.kt:236` `snapshotFlow { currentRows }.first { it != null }!!` reads as `filterNotNull().first()`
+
+#### 7. Docs and repo hygiene
+
+- [x] README describes the app three releases ago: tabs listed as Boards, Catalog, Thread, Media, Bookmarks, History; actual tabs are Home, Boards, Threads, Vault (`TopLevelDestination.kt:22-25`), and there is no History route. Zero mentions of app lock, widget, filters, archive fallthrough, offline snapshots, dedup, backup, vault sync, reverse search. `bin/` scripts are not named anywhere
+- [x] CONTEXT-MAP.md is stale the same way: says `feature/{bookmarks,history}`, screen is `feature/threads/ThreadsScreen.kt`; no context covers `core/{lock,widget,work,backup,dedup}` or archives. CLAUDE.md lists six `core/` subpackages; there are fifteen. ADR-0002 says "38 test files"; there are 86
+- [x] `.idea/` is tracked (10 files, including `caches/deviceStreaming.xml` with a Sony device selection). `.scratch/ux-report/ux-ui-improvements.md` is tracked despite `.gitignore` ignoring `.scratch/`, references `app/app/src/main/...` and has an em dash in a heading. `review/REPORT.md` and `findings.md` sit at the repo root as a one-day artefact of the 2026-08-30 pass. `.kotlin/` and `.claude/worktrees/` are not ignored
+- [x] The em-dash ban is broken in `release.yml:30`, `bump.sh:5`, `bump.sh:55`
 
 ### 5. Known gaps from the 2026-08-30 overhaul
 
