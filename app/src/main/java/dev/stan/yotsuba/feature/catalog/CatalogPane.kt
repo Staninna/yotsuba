@@ -212,7 +212,7 @@ fun CatalogPane(
                                         ThreadCard(
                                             thread = thread,
                                             layout = s.layout,
-                                            onClick = { onOpenThread(thread.no) },
+                                            onClick = { viewModel.onThreadOpened(thread.no); onOpenThread(thread.no) },
                                             onLongClick = { haptics.longPress(); sheetThread = thread },
                                         )
                                     }

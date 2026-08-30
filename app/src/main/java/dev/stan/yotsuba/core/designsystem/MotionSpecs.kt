@@ -96,7 +96,7 @@ fun rememberCountTransition(): AnimatedContentTransitionScope<Int>.() -> Content
 }
 
 /**
- * The NavHost's four transitions. A tab switch composes both screens at once, so it gets
+ * The NavHost's transitions: four for the graph plus the pair a thread swipe uses. A tab switch composes both screens at once, so it gets
  * a short fade and no slide; the push/pop slide is for screens that stack. Plain
  * functions rather than composables so the NavHost lambdas, which run in the transition
  * scope, can call them.
@@ -122,6 +122,20 @@ class NavTransitions internal constructor(
         tabSwitch -> fadeOut(tween(short))
         else -> fadeOut(tween(medium)) + slideOutHorizontally(tween<IntOffset>(medium)) { it / 8 }
     }
+
+    /**
+     * A thread swapped for its catalog neighbour by a sideways swipe: the new one slides in
+     * from the side the finger came from, the full width, so it reads as paging rather than
+     * as a push. [forward] is a swipe to the left, i.e. the next thread arriving from the right.
+     */
+    fun swipeEnter(forward: Boolean): EnterTransition =
+        if (reduced) EnterTransition.None
+        else slideInHorizontally(tween<IntOffset>(medium)) { if (forward) it else -it }
+
+    /** Exit matching [swipeEnter]: the old thread leaves the way the finger went. */
+    fun swipeExit(forward: Boolean): ExitTransition =
+        if (reduced) ExitTransition.None
+        else slideOutHorizontally(tween<IntOffset>(medium)) { if (forward) -it else it }
 }
 
 @Composable

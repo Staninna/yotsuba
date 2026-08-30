@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -94,6 +95,7 @@ class CatalogViewModelTest {
         val hidden: FakeHiddenThreadsRepository = FakeHiddenThreadsRepository(),
     ) {
         val catalog = FakeCatalogRepository(DataResult.Success(threads))
+        val siblings = ThreadSiblingsStore()
 
         fun vm(initialSearch: String? = null) = CatalogViewModel(
             board = "g",
@@ -102,6 +104,7 @@ class CatalogViewModelTest {
             boardRepository = FakeBoardRepository,
             settingsRepository = settings,
             hiddenThreadsRepository = hidden,
+            threadSiblings = siblings,
             networkMonitor = NetworkMonitor(ApplicationProvider.getApplicationContext()),
             compute = dispatcher,
         )
@@ -285,6 +288,31 @@ class CatalogViewModelTest {
             val content = (latest() as UiState.Success).data
             assertEquals(listOf(1L, 2L, 3L), content.threads.map { it.no })
             assertEquals(0, content.filteredCount)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `opening a thread records the catalog order as displayed`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        val vm = env.vm()
+        vm.uiState.test {
+            latest()
+            vm.onHideThread(2)
+            latest()
+            vm.onThreadOpened(1)
+            assertEquals(ThreadNeighbours(previous = null, next = 3L), env.siblings.neighbours("g", 1))
+            assertNull(env.siblings.neighbours("g", 2))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `opening a thread the catalog is not showing records nothing`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        val vm = env.vm()
+        vm.uiState.test {
+            latest()
+            vm.onThreadOpened(99)
+            assertNull(env.siblings.neighbours("g", 1))
             cancelAndIgnoreRemainingEvents()
         }
     }

@@ -50,6 +50,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -72,6 +73,8 @@ import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.feature.catalog.ThreadNeighbours
+import dev.stan.yotsuba.feature.media.detectViewerSwipe
 import dev.stan.yotsuba.feature.media.saveToVault
 import dev.stan.yotsuba.feature.media.shareText
 import dev.stan.yotsuba.feature.thread.components.BacklinksUi
@@ -97,6 +100,13 @@ fun ThreadScreen(
     onBack: () -> Unit,
     onOpenMedia: (Long) -> Unit,
     onOpenInternal: (Urls.InternalLink) -> Unit,
+    /**
+     * The threads beside this one in the catalog it came from, read at swipe time; null when
+     * it was not opened from a catalog, in which case a sideways swipe does nothing.
+     */
+    siblings: () -> ThreadNeighbours? = { null },
+    /** Swipe committed: open [threadNo] in place of this one; forward = swiped left = next. */
+    onOpenSibling: (threadNo: Long, forward: Boolean) -> Unit = { _, _ -> },
     viewModel: ThreadViewModel = hiltViewModel<ThreadViewModel, ThreadViewModel.Factory>(
         creationCallback = { it.create(board, threadNo, scrollToPostNo) },
     ),
@@ -298,7 +308,24 @@ fun ThreadScreen(
             )
         },
     ) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize()) {
+        val noNextMessage = stringResource(R.string.thread_swipe_no_next)
+        val noPreviousMessage = stringResource(R.string.thread_swipe_no_previous)
+        // Measured on the Final pass (see detectViewerSwipe), so the list keeps its vertical
+        // scroll and pull-to-refresh; only a sideways drag nothing else wanted lands here.
+        val swipeModifier = Modifier.pointerInput(siblings, onOpenSibling) {
+            fun swipe(forward: Boolean) {
+                val neighbours = siblings() ?: return
+                val target = if (forward) neighbours.next else neighbours.previous
+                if (target != null) {
+                    onOpenSibling(target, forward)
+                } else {
+                    haptics.reject()
+                    scope.launch { snackbar.showSnackbar(if (forward) noNextMessage else noPreviousMessage) }
+                }
+            }
+            detectViewerSwipe(onSwipeLeft = { swipe(forward = true) }, onSwipeRight = { swipe(forward = false) })
+        }
+        Box(Modifier.padding(padding).fillMaxSize().then(swipeModifier)) {
             UiStateContent(state, onRetry = viewModel::retry) { s ->
                 val opLabel = stringResource(R.string.thread_quote_label_op)
                 val youLabel = stringResource(R.string.thread_quote_label_you)
