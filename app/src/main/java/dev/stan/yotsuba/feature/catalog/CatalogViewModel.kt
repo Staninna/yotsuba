@@ -38,6 +38,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     private val boardRepository: BoardRepository,
     private val settingsRepository: SettingsRepository,
     private val hiddenThreadsRepository: HiddenThreadsRepository,
+    private val threadSiblings: ThreadSiblingsStore,
     networkMonitor: NetworkMonitor,
     /** Where the filter pipeline runs; tests pass their scheduler's dispatcher. */
     @ComputeDispatcher private val compute: CoroutineDispatcher = Dispatchers.Default,
@@ -131,6 +132,16 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
             val next = CatalogLayout.entries[(s.catalogLayout.ordinal + 1) % CatalogLayout.entries.size]
             s.copy(catalogLayout = next)
         }
+    }
+
+    /**
+     * A thread card was tapped: remember the list as it is on screen right now, so the thread
+     * can be swiped to the ones beside it. Nothing is recorded while the catalog is not loaded.
+     */
+    fun onThreadOpened(threadNo: Long) {
+        val threads = (uiState.value as? UiState.Success)?.data?.threads ?: return
+        if (threads.none { it.no == threadNo }) return
+        threadSiblings.record(board, threads.map { it.no })
     }
 
     fun onHideThread(threadNo: Long) = viewModelScope.launch {
