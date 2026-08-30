@@ -14,4 +14,9 @@
     <string name="settings_reduce_motion">Reduce motion</string>
     <string name="settings_reduce_motion_summary">Turns off transitions and list animations</string>
     <string name="settings_clear_failed">Couldn\'t clear: %1$s</string>
+
+    <!-- App lock -->
+    <string name="lock_title">Yotsuba is locked</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_prompt_title">Unlock Yotsuba</string>
 </resources>

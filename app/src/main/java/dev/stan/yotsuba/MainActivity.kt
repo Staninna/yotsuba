@@ -5,13 +5,17 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,22 +23,40 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.stan.yotsuba.core.designsystem.theme.YotsubaTheme
+import dev.stan.yotsuba.core.lock.AppLock
+import dev.stan.yotsuba.core.lock.LockPrompter
+import dev.stan.yotsuba.feature.lock.LockScreen
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.navigation.AppNavHost
 import dev.stan.yotsuba.navigation.ShellViewModel
+import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+// FragmentActivity rather than ComponentActivity only because BiometricPrompt wants one.
+class MainActivity : FragmentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private val shell: ShellViewModel by viewModels()
+
+    @Inject lateinit var appLock: AppLock
+
+    private val lockPrompter by lazy {
+        LockPrompter(this, title = { getString(R.string.lock_prompt_title) }, onUnlocked = appLock::unlock)
+    }
 
     override fun onResume() {
         super.onResume()
         // Runs the one-time legacy media migration as soon as storage access exists.
         viewModel.onResumed()
+        if (appLock.locked.value) lockPrompter.onResume()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        lockPrompter.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -54,9 +76,21 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.LIGHT -> false
                 ThemeMode.DARK -> true
             }
+            val lockReady by appLock.ready.collectAsStateWithLifecycle()
+            val locked by appLock.locked.collectAsStateWithLifecycle()
             YotsubaTheme(darkTheme = dark, dynamicColor = settings.dynamicColor, reduceMotion = settings.reduceMotion) {
-                NotificationPermissionPrompt()
-                AppNavHost(shell = shell)
+                when {
+                    // Settings not read yet: a blank surface, never a glimpse of the content.
+                    !lockReady -> Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
+                    locked -> {
+                        LaunchedEffect(Unit) { lockPrompter.prompt() }
+                        LockScreen(onUnlock = lockPrompter::prompt)
+                    }
+                    else -> {
+                        NotificationPermissionPrompt()
+                        AppNavHost(shell = shell)
+                    }
+                }
             }
         }
     }

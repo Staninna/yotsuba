@@ -15,6 +15,9 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
+    <!-- App lock: re-use the phone's own unlock (biometrics or PIN) before showing anything. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <!-- Background bookmark refresh posts "N new replies" (Android 13+ asks at runtime). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
