@@ -76,15 +76,29 @@ class BoardsViewModel @Inject constructor(
     fun onSearchChange(query: String) { searchQuery.value = query }
     fun onToggleEditMode() { editMode.value = !editMode.value }
 
-    fun onToggleFavourite(board: String) = viewModelScope.launch {
-        settingsRepository.update { s ->
-            s.copy(
-                favouriteBoards = if (board in s.favouriteBoards) {
-                    s.favouriteBoards - board
-                } else {
-                    s.favouriteBoards + board
+    fun addFavourite(board: String) = viewModelScope.launch {
+        settingsRepository.update { s -> s.copy(favouriteBoards = s.favouriteBoards + board) }
+    }
+
+    /**
+     * Drops [board] from the favourites and returns an undo that puts it back in its old
+     * position rather than at the end, the same restore Home's tab strip uses.
+     */
+    fun removeFavourite(board: String): () -> Unit {
+        var before: Set<String> = emptySet()
+        viewModelScope.launch {
+            settingsRepository.update { s ->
+                before = s.favouriteBoards
+                s.copy(favouriteBoards = s.favouriteBoards - board)
+            }
+        }
+        return {
+            viewModelScope.launch {
+                settingsRepository.update { s ->
+                    // Keep anything favourited in the meantime, but restore the old order.
+                    s.copy(favouriteBoards = before + (s.favouriteBoards - before))
                 }
-            )
+            }
         }
     }
 

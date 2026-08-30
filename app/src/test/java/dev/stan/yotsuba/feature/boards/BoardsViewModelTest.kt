@@ -187,17 +187,20 @@ class BoardsViewModelTest {
             vm.uiState.test {
                 val content = (latest() as UiState.Success).data
                 assertEquals(listOf("g"), content.favourites.map { it.code })
-                vm.onToggleFavourite("v")
+                vm.addFavourite("v")
                 val added = (latest() as UiState.Success).data
                 assertEquals(listOf("g", "v"), added.favourites.map { it.code })
                 assertTrue(added.sections.flatMap { it.boards }.all { it.favourite })
-                vm.onToggleFavourite("g")
+                val undo = vm.removeFavourite("g")
                 val removed = (latest() as UiState.Success).data
                 assertEquals(listOf("v"), removed.favourites.map { it.code })
                 assertEquals(
                     listOf(false, true),
                     removed.sections.flatMap { it.boards }.map { it.favourite },
                 )
+                undo()
+                val restored = (latest() as UiState.Success).data
+                assertEquals(listOf("g", "v"), restored.favourites.map { it.code })
                 cancelAndIgnoreRemainingEvents()
             }
         }
