@@ -42,6 +42,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -80,6 +82,7 @@ import dev.stan.yotsuba.feature.thread.components.ThreadGallerySheet
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @Composable
@@ -104,7 +107,7 @@ fun ThreadScreen(
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
-    var searchOpen by remember { mutableStateOf(false) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     val copiedMessage = stringResource(R.string.thread_post_number_copied)
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val saveAllMessage = stringResource(R.string.thread_gallery_save_all_queued)
@@ -197,9 +200,12 @@ fun ThreadScreen(
     }
 
     // The VM resolves where to scroll (restore priority, search steps); the screen obeys.
-    LaunchedEffect(scrollTarget, state) {
+    // Keyed on the target alone: a poll, a keystroke or the highlight clearing must not
+    // cancel a scroll in flight. The rows are read live, so the first load is waited for.
+    val currentRows by rememberUpdatedState((state as? UiState.Success)?.data?.rows)
+    LaunchedEffect(scrollTarget) {
         val target = scrollTarget ?: return@LaunchedEffect
-        val rows = (state as? UiState.Success)?.data?.rows ?: return@LaunchedEffect
+        val rows = snapshotFlow { currentRows }.first { it != null }!!
         val index = rows.indexOfFirst { (it as? ThreadRow.Post)?.post?.no == target.postNo }
         if (index >= 0) {
             if (target.animate) {
@@ -225,7 +231,8 @@ fun ThreadScreen(
     LaunchedEffect(refreshError) {
         if (refreshError == null || refreshErrorMessage == null) return@LaunchedEffect
         viewModel.onRefreshErrorShown()
-        snackbar.showSnackbar(refreshErrorMessage)
+        // Clearing the error re-keys this effect; the snackbar outlives it on the screen's scope.
+        scope.launch { snackbar.showSnackbar(refreshErrorMessage) }
     }
 
     // Report the visible index range; the VM owns read position and unread counts.
