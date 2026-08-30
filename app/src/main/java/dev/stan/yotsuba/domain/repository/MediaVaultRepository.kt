@@ -134,7 +134,7 @@ interface MediaVaultRepository {
      * implement it sit outside the vault's own code; a fake answering zero is the honest
      * "nothing unindexed" of a vault that holds nothing.
      */
-    suspend fun unindexedThreadCount(): Int = 0
+    suspend fun unindexedThreadCount(): Int
 
     /** One-time move of the legacy flat Pictures/Yotsuba files into the vault. No-op once done. */
     suspend fun migrateLegacyIfNeeded()

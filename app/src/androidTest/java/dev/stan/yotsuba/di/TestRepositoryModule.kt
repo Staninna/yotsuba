@@ -284,6 +284,7 @@ class FakeHiddenThreadsRepository @Inject constructor() : HiddenThreadsRepositor
  */
 @Singleton
 class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
+    override suspend fun unindexedThreadCount(): Int = 0
     private val state = MutableStateFlow<List<VaultEntry>>(emptyList())
     /** Every successful save, in call order, with the context the screen passed. */
     val saves = mutableListOf<Pair<MediaItem, VaultSaveContext>>()

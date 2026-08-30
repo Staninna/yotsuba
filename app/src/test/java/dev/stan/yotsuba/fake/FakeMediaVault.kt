@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.flowOf
  */
 open class FakeMediaVault : MediaVaultRepository {
     override fun hasStorageAccess(): Boolean = true
+    override suspend fun unindexedThreadCount(): Int = 0
     override val storageAccess: Flow<Boolean> get() = flowOf(hasStorageAccess())
     override fun refreshStorageAccess() {}
     override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
