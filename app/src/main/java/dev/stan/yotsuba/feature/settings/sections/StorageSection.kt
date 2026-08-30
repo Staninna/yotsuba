@@ -42,6 +42,10 @@ fun StorageSection(
     onClearHistory: () -> Unit,
     onClearBookmarks: () -> Unit,
     onClearTrustedDomains: () -> Unit,
+    galleryHidden: Boolean?,
+    onSetGalleryHidden: (Boolean) -> Unit,
+    galleryHidingResult: ClearResult?,
+    onGalleryHidingResultShown: () -> Unit,
     confirmThen: (Int, () -> Unit) -> Unit,
     showMessage: (String) -> Unit,
 ) {
@@ -83,6 +87,17 @@ fun StorageSection(
         onToggle = { v -> update { it.copy(pruneDeadSidecars = v) } },
     )
 
+    // Null means the vault folder is out of reach, which is the only reason the row is dead.
+    SwitchRow(
+        title = stringResource(R.string.settings_hide_from_gallery),
+        summary = stringResource(
+            if (galleryHidden == null) R.string.backup_no_access else R.string.settings_hide_from_gallery_summary,
+        ),
+        checked = galleryHidden == true,
+        onToggle = onSetGalleryHidden,
+        enabled = galleryHidden != null,
+    )
+
     SectionHeader(stringResource(R.string.backup_header))
     TextRow(
         title = stringResource(R.string.backup_export_now),
@@ -104,6 +119,18 @@ fun StorageSection(
         if (backupMessage != null) {
             showMessage(backupMessage)
             onBackupResultShown()
+        }
+    }
+    val galleryMessage = galleryHidingResult?.let {
+        when (it) {
+            ClearResult.Done -> stringResource(R.string.settings_hide_from_gallery_updated)
+            is ClearResult.Failed -> stringResource(R.string.settings_hide_from_gallery_failed, it.message)
+        }
+    }
+    LaunchedEffect(galleryHidingResult) {
+        if (galleryMessage != null) {
+            showMessage(galleryMessage)
+            onGalleryHidingResultShown()
         }
     }
     val clearMessage = clearResult?.let { resultMessage(it) }

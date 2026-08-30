@@ -17,6 +17,7 @@ import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
+import dev.stan.yotsuba.fake.FakeGalleryHiding
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.feature.settings.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
@@ -109,6 +110,7 @@ class SettingsBackupViewModelTest {
         maintenanceRepository = NoMaintenance,
         updater = Updater(ApplicationProvider.getApplicationContext(), GithubReleases()),
         backupRepository = backup,
+        galleryHiding = FakeGalleryHiding(),
     )
 
     @Test

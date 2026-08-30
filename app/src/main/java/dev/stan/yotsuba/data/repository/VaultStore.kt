@@ -34,7 +34,12 @@ class VaultStore(private val rootOverride: File?) {
     /** meta.json read-modify-write and migration must not interleave. */
     val lock = Mutex()
 
+    /**
+     * A brand-new vault starts hidden from the gallery; an existing one keeps whatever the
+     * "Hide saved media from the gallery" switch last decided, marker or no marker.
+     */
     fun ensureRoot() {
+        if (root.isDirectory) return
         root.mkdirs()
         val nomedia = File(root, VaultPaths.NOMEDIA_FILE_NAME)
         if (!nomedia.exists()) nomedia.createNewFile()
