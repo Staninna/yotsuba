@@ -146,12 +146,14 @@ object PostHtmlParser {
         entity == "quot" -> "\""
         entity == "apos" -> "'"
         entity == "nbsp" -> " "
-        entity.startsWith("#x") || entity.startsWith("#X") ->
-            entity.drop(2).toIntOrNull(16)?.let { String(Character.toChars(it)) }
-        entity.startsWith("#") ->
-            entity.drop(1).toIntOrNull()?.let { String(Character.toChars(it)) }
+        entity.startsWith("#x") || entity.startsWith("#X") -> codePoint(entity.drop(2).toIntOrNull(16))
+        entity.startsWith("#") -> codePoint(entity.drop(1).toIntOrNull())
         else -> null
     }
+
+    /** Null for anything outside Unicode: `Character.toChars` throws on those, and a numeric entity must never take the parser down. */
+    private fun codePoint(value: Int?): String? =
+        value?.takeIf { Character.isValidCodePoint(it) }?.let { String(Character.toChars(it)) }
 
     private val FRAMED_TAGS = setOf("s", "b", "i", "u", "pre", "span", "a")
     private val HREF_ATTR = Regex("""href\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)

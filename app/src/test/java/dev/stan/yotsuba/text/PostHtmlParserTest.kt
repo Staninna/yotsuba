@@ -22,6 +22,12 @@ class PostHtmlParserTest {
         assertEquals("Tom & Jerry > others 'quoted' A", t.plainText)
     }
 
+    @Test fun `numeric entities outside Unicode stay literal instead of throwing`() {
+        assertEquals("a &#x1FFFFF; b", parser.parse("a &#x1FFFFF; b").plainText)
+        assertEquals("&#-1; &#99999999;", parser.parse("&#-1; &#99999999;").plainText)
+        assertEquals("\uD83D\uDE00", parser.parse("&#x1F600;").plainText) // still decodes the astral plane
+    }
+
     @Test fun `br becomes newline`() {
         assertEquals("a\nb", parser.parse("a<br>b").plainText)
     }
