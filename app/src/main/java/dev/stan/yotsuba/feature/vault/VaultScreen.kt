@@ -353,7 +353,8 @@ fun VaultScreen(
                 )
             },
             floatingActionButton = {
-                if (state.scopeEntries.isNotEmpty() && state.hasStorageAccess) {
+                // The viewer covers the whole tab; a FAB floating over it would be a stray.
+                if (state.viewer == null && state.scopeEntries.isNotEmpty() && state.hasStorageAccess) {
                     VaultShuffleFab(state.scopeEntries) { viewModel.startShuffle(it) }
                 }
             },
