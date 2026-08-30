@@ -25,7 +25,10 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PermMedia
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.CallMerge
 import androidx.compose.material.icons.filled.CheckCircle
@@ -44,6 +47,9 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -356,7 +362,13 @@ private fun ModeSwitch(mode: VaultMode, onMode: (VaultMode) -> Unit) {
     }
 }
 
-/** Sort and type filter, one row of chips, above every grid. The sort chip cycles through a menu. */
+/**
+ * Sort and type filter above every grid, sized to fit a phone width: one sort chip whose
+ * trailing arrow shows the direction and whose menu holds the sorts plus "Reverse order",
+ * and one icon-only segmented toggle for the media type. The scroll is a safety net for
+ * very large fonts only.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun VaultChipRow(
     sort: VaultSort,
@@ -373,6 +385,7 @@ internal fun VaultChipRow(
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = spacing.md, vertical = spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         var sortMenu by remember { mutableStateOf(false) }
         Box {
@@ -381,29 +394,59 @@ internal fun VaultChipRow(
                 onClick = { sortMenu = true },
                 label = { Text(stringResource(sortLabel(sort))) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                trailingIcon = {
+                    Icon(
+                        if (reversed) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                        contentDescription = stringResource(
+                            if (reversed) R.string.vault_sort_reversed else R.string.vault_sort_forward,
+                        ),
+                        modifier = Modifier.size(FilterChipDefaults.IconSize),
+                    )
+                },
             )
             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                 VaultSort.entries.forEach { option ->
                     DropdownMenuItem(
                         text = { Text(stringResource(sortLabel(option))) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = if (option == sort) LocalContentColor.current else Color.Transparent,
+                            )
+                        },
                         onClick = { sortMenu = false; onSort(option) },
                     )
                 }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.vault_sort_reverse_order)) },
+                    leadingIcon = { Icon(Icons.Filled.SwapVert, contentDescription = null) },
+                    trailingIcon = { Checkbox(checked = reversed, onCheckedChange = null) },
+                    onClick = { sortMenu = false; onToggleReversed() },
+                )
             }
         }
-        FilterChip(
-            selected = reversed,
-            onClick = onToggleReversed,
-            label = { Text(stringResource(R.string.vault_sort_reversed)) },
-            leadingIcon = { Icon(Icons.Filled.SwapVert, contentDescription = null) },
-        )
-        VaultFilter.entries.forEach { option ->
-            FilterChip(
-                selected = filter == option,
-                onClick = { onFilter(option) },
-                label = { Text(stringResource(filterLabel(option))) },
-            )
+        SingleChoiceSegmentedButtonRow {
+            VaultFilter.entries.forEachIndexed { index, option ->
+                SegmentedButton(
+                    selected = filter == option,
+                    onClick = { onFilter(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index, VaultFilter.entries.size),
+                    icon = {},
+                    label = {
+                        Icon(
+                            when (option) {
+                                VaultFilter.ALL -> Icons.Filled.PermMedia
+                                VaultFilter.IMAGES -> Icons.Filled.Image
+                                VaultFilter.VIDEOS -> Icons.Filled.Movie
+                            },
+                            contentDescription = stringResource(filterLabel(option)),
+                            modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+                        )
+                    },
+                )
+            }
         }
     }
 }
