@@ -22,7 +22,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -69,9 +70,10 @@ fun ReorderableTabRow(
     val motion = LocalMotion.current
     val density = LocalDensity.current
     val scrollState = rememberScrollState()
-    val widths = remember { mutableStateListOf<Int>() }
-    while (widths.size < boards.size) widths.add(0)
-    while (widths.size > boards.size) widths.removeAt(widths.lastIndex)
+    // Measured tab widths keyed by board, so a width follows its tab through a reorder or
+    // removal; [widths] is the same in tab order, read live wherever it is used.
+    val measured = remember { mutableStateMapOf<String, Int>() }
+    val widths by remember(boards) { derivedStateOf { boards.map { measured[it] ?: 0 } } }
 
     var dragging by remember { mutableStateOf<Int?>(null) }
     var dragOffset by remember { mutableFloatStateOf(0f) }
@@ -112,7 +114,7 @@ fun ReorderableTabRow(
     }
 
     // Selecting a tab scrolls it into view, as ScrollableTabRow does.
-    LaunchedEffect(selectedIndex, widths.toList()) {
+    LaunchedEffect(selectedIndex, widths) {
         if (from != null || selectedIndex !in widths.indices || viewportWidth == 0) return@LaunchedEffect
         val start = widths.take(selectedIndex).sum()
         val centred = start + widths[selectedIndex] / 2 - viewportWidth / 2
@@ -167,7 +169,7 @@ fun ReorderableTabRow(
                                 add(CustomAccessibilityAction(removeLabel) { onRemove(index); true })
                             }
                         }
-                        .onSizeChanged { widths[index] = it.width }
+                        .onSizeChanged { measured[board] = it.width }
                         .graphicsLayer {
                             translationX = if (lifted) dragOffset else slide
                             translationY = if (lifted) dragY.coerceAtLeast(0f) else 0f
