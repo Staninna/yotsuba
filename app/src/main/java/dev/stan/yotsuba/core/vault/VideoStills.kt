@@ -2,6 +2,7 @@ package dev.stan.yotsuba.core.vault
 
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
+import dev.stan.yotsuba.core.media.isVideoExt
 import java.io.File
 
 /**
@@ -17,6 +18,10 @@ object VideoStills {
     /** Where [video]'s still lives, whether or not it has been captured. */
     fun stillFor(video: File): File =
         File(File(video.parentFile, VaultPaths.THUMBS_DIR_NAME), video.name + ".jpg")
+
+    /** [capture] for a video; nothing for anything else. */
+    fun captureIfVideo(file: File): Still? =
+        if (isVideoExt(VaultPaths.extensionOf(file.name))) capture(file) else null
 
     /**
      * Captures the still if it is missing and reads the duration. Null when the file cannot

@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
+import dev.stan.yotsuba.core.media.GalleryExporter
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
@@ -13,9 +14,11 @@ import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultMetaCodec
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.VideoStills
+import dev.stan.yotsuba.data.repository.LocalThreadImporter
 import dev.stan.yotsuba.data.repository.MediaVaultRepositoryImpl
 import dev.stan.yotsuba.data.repository.VaultLegacyMigration
 import dev.stan.yotsuba.data.repository.VaultStore
+import dev.stan.yotsuba.data.repository.VaultTrash
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.repository.SettingsRepository
@@ -72,6 +75,9 @@ class MediaVaultDeleteTest {
             migration = VaultLegacyMigration(
                 context, store, db.savedMediaDao(), db.downloadedMediaDao(), db.bookmarkDao(), db.historyDao(), threads,
             ),
+            vaultTrash = VaultTrash(store, db.savedMediaDao()),
+            localImporter = LocalThreadImporter(context, store, db.savedMediaDao()),
+            galleryExporter = GalleryExporter(context),
             byteSource = MediaByteSource(context, OkHttpClient()),
             threadRepository = threads,
             preferences = PreferenceDataStoreFactory.create(scope = scope) { tmp.newFile("t.preferences_pb") },

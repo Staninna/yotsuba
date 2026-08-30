@@ -13,11 +13,13 @@ import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.ThreadPost
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.Mutex
 
 /** File-system plumbing shared by the vault repository and the legacy migration. */
@@ -241,4 +243,14 @@ class VaultStore(private val rootOverride: File?) {
             postText = post?.body?.plainText?.takeIf { it.isNotBlank() },
             savedAtMillis = savedAt,
         )
+}
+
+/** Runs [block], mapping any failure to a typed [VaultError]; cancellation passes through. */
+internal inline fun attempt(block: () -> Unit): VaultError? = try {
+    block()
+    null
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    VaultError.Io(e.message)
 }
