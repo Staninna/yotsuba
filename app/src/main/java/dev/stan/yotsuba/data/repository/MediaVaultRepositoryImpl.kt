@@ -452,18 +452,25 @@ class MediaVaultRepositoryImpl @Inject constructor(
         var failed = 0
         var pruned = 0
         var rateLimited = false
+        val touched = mutableSetOf<VaultLocation>()
 
         for ((index, target) in targets.withIndex()) {
             when (val result = threadRepository.thread(target.board, target.threadNo, forceRefresh = true)) {
                 is DataResult.Success -> {
                     val outcome = attempt { store.lock.withLock { apply(target, result.value) } }
-                    if (outcome == null) updated++ else failed++
+                    if (outcome == null) {
+                        updated++
+                        touched += target
+                    } else {
+                        failed++
+                    }
                 }
                 is DataResult.Failure -> when (result.error) {
                     // Already gone. Whatever was captured before is all there will ever be,
                     // so this is the one moment the sidecar can be compacted.
                     NetworkError.NotFound -> {
                         gone++
+                        touched += target
                         if (store.lock.withLock { pruneIfDead(target.board, target.threadNo) }) pruned++
                     }
                     // Backing off is the whole point of a rate limit; finish another day.
@@ -476,7 +483,10 @@ class MediaVaultRepositoryImpl @Inject constructor(
             onProgress(index + 1, targets.size)
             if (rateLimited) break
         }
-        return VaultSyncSummary(updated = updated, gone = gone, failed = failed, pruned = pruned, rateLimited = rateLimited)
+        return VaultSyncSummary(
+            updated = updated, gone = gone, failed = failed, pruned = pruned, rateLimited = rateLimited,
+            touched = touched,
+        )
     }
 
     /** Under the store lock. True when the thread's sidecar was compacted this time. */

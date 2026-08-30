@@ -54,7 +54,9 @@ class VaultSyncWorker(
                 .map { VaultLocation(it.board, it.threadNo) }
             val summary = vault.snapshotThreads(live)
             if (summary.rateLimited) return Result.retry()
-            snapshotted = live.toSet()
+            // What the snapshot pass settled, not what it was asked: a thread whose fetch
+            // failed gets the sync pass below instead of waiting for the next run.
+            snapshotted = summary.touched
         }
         val summary = vault.syncSavedThreads({ _, _ -> }, skip = snapshotted)
         return if (summary.rateLimited) Result.retry() else Result.success()
