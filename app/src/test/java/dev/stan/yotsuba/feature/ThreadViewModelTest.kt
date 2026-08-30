@@ -363,15 +363,15 @@ class ThreadViewModelTest {
     @Test fun `read mark only rises and is forwarded to the bookmark`() =
         runTest(dispatcher.scheduler) {
             val env = ThreadEnv()
-            val vm = env.vm()
+            val vm = env.collectedVm(backgroundScope)
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(emptyList<Long>(), env.bookmarks.seen) // opening marks nothing read
             vm.onVisiblePostsChanged(0, 3) // bottom post 103
-            dispatcher.scheduler.runCurrent()
+            dispatcher.scheduler.advanceUntilIdle() // the mark is written once the list settles
             assertEquals(103L, env.history.readMark)
             assertEquals(listOf(103L), env.bookmarks.seen)
             vm.onVisiblePostsChanged(0, 1) // scrolling back up must not lower the mark
-            dispatcher.scheduler.runCurrent()
+            dispatcher.scheduler.advanceUntilIdle()
             assertEquals(103L, env.history.readMark)
             assertEquals(listOf(103L), env.bookmarks.seen)
         }
@@ -392,7 +392,7 @@ class ThreadViewModelTest {
             vm.onFilterPosterId("AAAA") // rows: 100, 104
             dispatcher.scheduler.advanceUntilIdle()
             vm.onVisiblePostsChanged(0, 1)
-            dispatcher.scheduler.runCurrent()
+            dispatcher.scheduler.advanceUntilIdle()
             assertNull(env.history.readMark)
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(100L, env.history.savedScrollPostNo) // the reading position still tracks the top
@@ -401,13 +401,13 @@ class ThreadViewModelTest {
             vm.onToggleTreeView()
             dispatcher.scheduler.advanceUntilIdle()
             vm.onVisiblePostsChanged(0, 4)
-            dispatcher.scheduler.runCurrent()
+            dispatcher.scheduler.advanceUntilIdle()
             assertNull(env.history.readMark)
 
             vm.onToggleTreeView()
             dispatcher.scheduler.advanceUntilIdle()
             vm.onVisiblePostsChanged(0, 2)
-            dispatcher.scheduler.runCurrent()
+            dispatcher.scheduler.advanceUntilIdle()
             assertEquals(102L, env.history.readMark)
         }
 

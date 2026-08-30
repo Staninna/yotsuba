@@ -35,6 +35,7 @@ import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,6 +51,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @HiltViewModel(assistedFactory = ThreadViewModel.Factory::class)
 class ThreadViewModel @AssistedInject constructor(
@@ -194,14 +196,21 @@ class ThreadViewModel @AssistedInject constructor(
     init {
         load()
         viewModelScope.launch { boardInfo.value = boardRepository.board(board) }
+        // Both positions settle before they are written: a fling reports every row it passes,
+        // and each write is a database round trip. collectLatest restarts the wait on every
+        // new row and runs the body for the last one once the list stops, so nothing is lost.
         viewModelScope.launch {
             topVisiblePostNo.filterNotNull().distinctUntilChanged().collectLatest { postNo ->
-                delay(500)
+                delay(SCROLL_SETTLE_MS)
                 historyRepository.updateScrollPosition(board, threadNo, postNo)
             }
         }
         viewModelScope.launch {
-            bottomVisiblePostNo.filterNotNull().distinctUntilChanged().collect(::raiseReadMark)
+            bottomVisiblePostNo.filterNotNull().distinctUntilChanged().collectLatest { postNo ->
+                delay(SCROLL_SETTLE_MS)
+                // The two writes go together; a row arriving mid-way must not split them.
+                withContext(NonCancellable) { raiseReadMark(postNo) }
+            }
         }
     }
 
@@ -623,7 +632,9 @@ class ThreadViewModel @AssistedInject constructor(
 
     /** The screen reports the visible row range; the VM owns what it means. */
     fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
-        val rows = lastRows ?: currentRows() ?: return
+        // Before the first emission there is nothing on screen to report; the next range
+        // report after it lands (every scroll produces one) is what counts.
+        val rows = lastRows ?: return
         // Top-of-screen post: the reading position restored when the thread is reopened.
         rows.postAt(firstIndex)?.let { topVisiblePostNo.value = it.no }
         // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
@@ -632,12 +643,6 @@ class ThreadViewModel @AssistedInject constructor(
         val session = _session.value
         if (lastIndex == null || session.filterPosterId != null || session.treeView) return
         rows.postAt(lastIndex)?.let { bottomVisiblePostNo.value = it.no }
-    }
-
-    /** Only before the first emission has cached its rows; the same computation as uiState's. */
-    private fun currentRows(): List<ThreadRow>? {
-        val details = (result.value as? DataResult.Success)?.value ?: return null
-        return threadRows(details, _session.value, filterVerdicts(details.posts, matcher.value))
     }
 
     /**
@@ -657,6 +662,8 @@ class ThreadViewModel @AssistedInject constructor(
 
     private companion object {
         const val HIGHLIGHT_MS = 1_500L
+        /** How long the list has to sit still before its visible range is written down. */
+        const val SCROLL_SETTLE_MS = 500L
 
         /** The user's in-thread toggle wins over the setting. */
         private fun autoRefreshOn(session: Session, settings: Settings): Boolean =
