@@ -66,6 +66,7 @@ import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -458,19 +459,28 @@ private fun VideoTransportBar(
                     tint = Color.White,
                 )
             }
+            val durationMs = playback.durationMs
+            // While the thumb is down the bar shows where the finger is, not where the
+            // player is; the one seek happens on release. Seeking on every drag frame made
+            // ExoPlayer decode a keyframe per pixel and the video stutter under the thumb.
+            var previewMs by remember { mutableStateOf<Long?>(null) }
+            val shownMs = previewMs ?: playback.positionMs
             Text(
-                formatMs(playback.positionMs),
+                formatMs(shownMs),
                 color = Color.White,
                 style = MaterialTheme.typography.labelSmall,
             )
-            val durationMs = playback.durationMs
             Slider(
-                value = if (durationMs > 0) playback.positionMs.toFloat() / durationMs else 0f,
+                value = if (durationMs > 0) shownMs.toFloat() / durationMs else 0f,
                 onValueChange = { f ->
                     onScrubbing(true)
-                    if (durationMs > 0) playback.seekTo((f * durationMs).toLong())
+                    if (durationMs > 0) previewMs = (f * durationMs).toLong()
                 },
-                onValueChangeFinished = { onScrubbing(false) },
+                onValueChangeFinished = {
+                    previewMs?.let(playback::seekTo)
+                    previewMs = null
+                    onScrubbing(false)
+                },
                 modifier = Modifier.weight(1f).padding(horizontal = spacing.sm),
             )
             Text(
@@ -510,9 +520,12 @@ private fun VideoTransportBar(
 private fun Tracks.audioPresence(): Boolean? =
     if (groups.isEmpty()) null else groups.any { it.type == C.TRACK_TYPE_AUDIO }
 
-private fun formatMs(ms: Long): String {
+/** "1:05" for 65 000 ms; hours roll into the minutes field, a webm never gets that long. */
+internal fun formatMs(ms: Long): String {
     val totalSec = ms / 1000
-    return "%d:%02d".format(totalSec / 60, totalSec % 60)
+    // Locale.ROOT on purpose: a transport clock reads the same in every language, and a
+    // locale with its own digit set would put the label out of step with the thread's.
+    return String.format(Locale.ROOT, "%d:%02d", totalSec / 60, totalSec % 60)
 }
 
 /**

@@ -75,6 +75,7 @@ fun MediaScreen(
     val snackbar = remember { SnackbarHostState() }
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val shareFailedMessage = stringResource(R.string.media_share_failed)
+    val noAppMessage = stringResource(R.string.media_no_app_for_link)
     val shareLabel = stringResource(R.string.thread_share)
     val sharePreparingLabel = stringResource(R.string.media_share_preparing)
 
@@ -215,8 +216,8 @@ fun MediaScreen(
                 when {
                     item == null -> true
                     !state.hasStorageAccess -> {
-                        requestAllFilesAccess(context)
-                        scope.launch { snackbar.showSnackbar(grantAccessMessage) }
+                        val opened = requestAllFilesAccess(context)
+                        scope.launch { snackbar.showSnackbar(if (opened) grantAccessMessage else noAppMessage) }
                         true
                     }
                     else -> false
@@ -243,8 +244,10 @@ fun MediaScreen(
                         sharing = true
                         val file = viewModel.prepareShare(m)
                         sharing = false
-                        if (file == null || !shareMediaFile(context, file, m.ext)) {
-                            snackbar.showSnackbar(shareFailedMessage)
+                        when {
+                            file == null -> snackbar.showSnackbar(shareFailedMessage)
+                            // The file is fine; the phone has nowhere to send it.
+                            !shareMediaFile(context, file, m.ext) -> snackbar.showSnackbar(noAppMessage)
                         }
                     }
                 }
