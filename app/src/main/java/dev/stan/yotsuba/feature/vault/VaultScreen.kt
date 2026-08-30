@@ -149,7 +149,7 @@ fun VaultScreen(
         if (uris.isNotEmpty()) {
             viewModel.importLocalThread {
                 VaultImport(
-                    name = context.getString(R.string.vault_import_default_name, uris.size),
+                    name = resources.getString(R.string.vault_import_default_name, uris.size),
                     sources = ImportPicker.sourcesFrom(context, uris),
                 )
             }
@@ -162,7 +162,7 @@ fun VaultScreen(
             viewModel.importLocalThread {
                 VaultImport(
                     name = ImportPicker.treeName(context, tree)
-                        ?: context.getString(R.string.vault_import_default_name_plain),
+                        ?: resources.getString(R.string.vault_import_default_name_plain),
                     sources = ImportPicker.sourcesFromTree(context, tree),
                 )
             }
