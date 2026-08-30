@@ -11,4 +11,7 @@ fun mimeOf(ext: String): String = when (ext.lowercase()) {
     else -> "application/octet-stream"
 }
 
-fun isVideoExt(ext: String): Boolean = mimeOf(ext).startsWith("video/")
+/** The extensions 4chan serves as video; the DAO binds this set so its SQL never repeats it. */
+val VIDEO_EXTS: Set<String> = setOf(".webm", ".mp4")
+
+fun isVideoExt(ext: String): Boolean = ext.lowercase() in VIDEO_EXTS

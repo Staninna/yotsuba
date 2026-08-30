@@ -3,10 +3,12 @@ package dev.stan.yotsuba.data.repository
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.dedup.DHash
+import dev.stan.yotsuba.core.media.VIDEO_EXTS
 import dev.stan.yotsuba.core.media.isVideoExt
 import dev.stan.yotsuba.core.dedup.Grouping
 import dev.stan.yotsuba.core.dedup.Keeper
 import dev.stan.yotsuba.core.dedup.Md5
+import dev.stan.yotsuba.core.media.VIDEO_EXTS
 import dev.stan.yotsuba.core.media.isVideoExt
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
@@ -33,10 +35,10 @@ class VaultDedupRepositoryImpl @Inject constructor(
         dao.updateMd5(url, md5)
     }
 
-    override suspend fun missingHashCount(): Int = withContext(Dispatchers.IO) { dao.missingHashCount() }
+    override suspend fun missingHashCount(): Int = withContext(Dispatchers.IO) { dao.missingHashCount(VIDEO_EXTS) }
 
     override suspend fun backfillHashes(onProgress: (Int, Int) -> Unit) = withContext(Dispatchers.IO) {
-        val todo = dao.missingHashes()
+        val todo = dao.missingHashes(VIDEO_EXTS)
         val total = todo.size
         onProgress(0, total)
         todo.forEachIndexed { i, row ->
