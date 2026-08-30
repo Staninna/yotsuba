@@ -64,8 +64,8 @@ import kotlinx.coroutines.launch
 
 /**
  * The Home tab: a pager over the user's favourite boards, each page a full catalog. The
- * current page survives tab switches via [rememberSaveable]; every page's list state lives
- * in its own [CatalogPane] and ViewModel, keyed by board.
+ * current page survives tab switches and process death via [rememberSaveable]; every page's
+ * list state lives in its own [CatalogPane] and ViewModel, keyed by board.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -78,13 +78,20 @@ fun HomeScreen(
     val boards by viewModel.boards.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var savedPage by rememberSaveable { mutableIntStateOf(0) }
     val pageCount = boards?.size ?: 0
-    val pagerState = rememberPagerState(
-        initialPage = savedPage.coerceIn(0, maxOf(pageCount - 1, 0)),
-        pageCount = { pageCount },
-    )
-    LaunchedEffect(pagerState.currentPage) { savedPage = pagerState.currentPage }
+    val pagerState = rememberPagerState(pageCount = { pageCount })
+    // The pager is created before the boards have loaded, when pageCount is still 0, so the
+    // saved page cannot go through initialPage. Restore it once the list is known, and only
+    // write back after that so the restored value is not clobbered by the initial page 0.
+    var savedPage by rememberSaveable { mutableIntStateOf(0) }
+    var restored by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(pageCount) {
+        if (!restored && pageCount > 0) {
+            pagerState.scrollToPage(savedPage.coerceIn(0, pageCount - 1))
+            restored = true
+        }
+    }
+    LaunchedEffect(pagerState.currentPage) { if (restored) savedPage = pagerState.currentPage }
     val current = boards?.getOrNull(pagerState.currentPage)
     var draggingTab by remember { mutableStateOf(false) }
     var overRemove by remember { mutableStateOf(false) }
