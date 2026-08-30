@@ -42,9 +42,8 @@ class BoardsFavouriteFlowTest : FlowTest() {
         composeRule.onNode(hasSetTextAction()).performTextInput("zzz-no-such-board")
         composeRule.waitForText("No matches")
 
+        // Clearing the query restores the full list.
         composeRule.onNode(hasSetTextAction()).performTextClearance()
-        composeRule.onNode(hasSetTextAction()).performTextInput("Tech")
-        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
     }
 }

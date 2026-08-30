@@ -19,7 +19,7 @@ class SettingsFlowTest : FlowTest() {
     fun togglingDynamicColor_updatesSettingsRepository() {
         assertTrue(settings.state.value.dynamicColor)
 
-        // Open Settings from the Boards gear, drill into Appearance, flip the "Dynamic color" switch row.
+        // Open Settings from the Home gear, drill into Appearance, flip the "Dynamic color" switch row.
         composeRule.waitForContentDescription("Settings")
         composeRule.onNodeWithContentDescription("Settings").performClick()
         composeRule.waitForText("Appearance")
