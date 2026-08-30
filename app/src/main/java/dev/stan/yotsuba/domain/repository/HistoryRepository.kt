@@ -15,10 +15,9 @@ interface HistoryRepository {
     suspend fun remove(board: String, threadNo: Long)
     /**
      * Put a removed entry back exactly as it was, read mark and scroll position
-     * included. Unlike [record] it never bumps `viewedAt` or trims retention. The default
-     * degrades to [record] so fakes that only care about visits keep compiling.
+     * included. Unlike [record] it never bumps `viewedAt` or trims retention.
      */
-    suspend fun restore(entry: HistoryEntry) = record(entry)
+    suspend fun restore(entry: HistoryEntry)
     suspend fun clearAll()
     suspend fun trim(retainAfterMs: Long)
 }

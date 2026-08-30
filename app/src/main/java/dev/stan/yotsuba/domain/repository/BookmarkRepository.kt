@@ -22,8 +22,7 @@ interface BookmarkRepository {
      * One catalog call per board, thread JSON only where the reply count moved; archived and
      * pruned rows are skipped. [onProgress] reports `(boardsDone, boardsTotal)`.
      */
-    suspend fun refreshAll(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): BookmarkRefreshSummary =
-        BookmarkRefreshSummary()
+    suspend fun refreshAll(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): BookmarkRefreshSummary
 
     /**
      * The user has had [lastSeenPostNo] on screen: raise the read mark to it. Never lowers it
@@ -31,9 +30,9 @@ interface BookmarkRepository {
      */
     suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long)
 
-    suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
+    suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean)
 
     /** Drops every pruned (DEAD) bookmark; archived ones stay readable and stay. */
-    suspend fun removeDead() {}
+    suspend fun removeDead()
     suspend fun clearAll()
 }

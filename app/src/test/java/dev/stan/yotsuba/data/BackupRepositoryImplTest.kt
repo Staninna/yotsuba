@@ -15,6 +15,7 @@ import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.domain.repository.BackupResult
+import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.fake.FakeSettings
@@ -54,6 +55,9 @@ class BackupRepositoryImplTest {
         }
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
         override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
+        override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
+        override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
+        override suspend fun removeDead() {}
         override suspend fun clearAll() { state.value = emptyList() }
     }
 

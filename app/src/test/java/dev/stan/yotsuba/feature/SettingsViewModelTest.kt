@@ -13,6 +13,7 @@ import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.domain.repository.BoardRepository
+import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
@@ -69,6 +70,7 @@ class SettingsViewModelTest {
         override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) {}
         override suspend fun readUpTo(board: String, threadNo: Long): Long? = null
         override suspend fun remove(board: String, threadNo: Long) {}
+        override suspend fun restore(entry: HistoryEntry) = record(entry)
         override suspend fun clearAll() { cleared = true }
         override suspend fun trim(retainAfterMs: Long) {}
     }
@@ -80,6 +82,9 @@ class SettingsViewModelTest {
         override suspend fun remove(board: String, threadNo: Long) {}
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
         override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
+        override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
+        override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
+        override suspend fun removeDead() {}
         override suspend fun clearAll() { cleared = true }
     }
 

@@ -32,6 +32,7 @@ import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.MediaSaveQueue
+import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
@@ -204,6 +205,14 @@ class FakeBookmarkRepository @Inject constructor() : BookmarkRepository {
         }
     }
 
+    override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
+    override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {
+        state.update { list ->
+            list.map { if (it.board == board && it.threadNo == threadNo) it.copy(pinned = pinned) else it }
+        }
+    }
+    override suspend fun removeDead() = Unit
+
     override suspend fun clearAll() {
         state.value = emptyList()
     }
@@ -240,6 +249,8 @@ class FakeHistoryRepository @Inject constructor() : HistoryRepository {
     override suspend fun remove(board: String, threadNo: Long) {
         state.update { list -> list.filterNot { it.board == board && it.threadNo == threadNo } }
     }
+
+    override suspend fun restore(entry: HistoryEntry) = record(entry)
 
     override suspend fun clearAll() {
         state.value = emptyList()

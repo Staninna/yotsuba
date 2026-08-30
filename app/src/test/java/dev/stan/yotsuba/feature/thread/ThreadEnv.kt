@@ -93,6 +93,7 @@ class FakeHistoryRepository(var savedScrollPostNo: Long? = null) : HistoryReposi
     override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) { readMark = postNo }
     override suspend fun readUpTo(board: String, threadNo: Long) = readMark
     override suspend fun remove(board: String, threadNo: Long) {}
+    override suspend fun restore(entry: HistoryEntry) = record(entry)
     override suspend fun clearAll() {}
     override suspend fun trim(retainAfterMs: Long) {}
 }
