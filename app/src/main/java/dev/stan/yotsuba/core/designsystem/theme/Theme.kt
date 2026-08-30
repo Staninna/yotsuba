@@ -9,15 +9,11 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import dev.stan.yotsuba.core.designsystem.LocalReduceMotion
-import dev.stan.yotsuba.core.designsystem.token.Elevation
-import dev.stan.yotsuba.core.designsystem.token.LocalElevation
-import dev.stan.yotsuba.core.designsystem.token.LocalMotion
-import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
-import dev.stan.yotsuba.core.designsystem.token.Motion
-import dev.stan.yotsuba.core.designsystem.token.Spacing
+import dev.stan.yotsuba.core.designsystem.isReducedMotion
 
 // Static fallback schemes generated from seed #789922 (D18): full tonal palettes so the
 // non-dynamic theme still reads as "imageboard" without being garish.
@@ -99,12 +95,13 @@ fun YotsubaTheme(
         darkTheme -> DarkScheme
         else -> LightScheme
     }
+    // One settings-provider read per theme, not one per animated row: every consumer
+    // reads the merged answer through the local. Spacing and Motion resolve through their
+    // locals' own defaults.
+    val systemReducedMotion = remember(context) { isReducedMotion(context) }
     CompositionLocalProvider(
         LocalYotsubaColors provides yotsubaColors(scheme, darkTheme),
-        LocalSpacing provides Spacing(),
-        LocalElevation provides Elevation(),
-        LocalMotion provides Motion(),
-        LocalReduceMotion provides reduceMotion,
+        LocalReduceMotion provides (reduceMotion || systemReducedMotion),
     ) {
         MaterialTheme(
             colorScheme = scheme,

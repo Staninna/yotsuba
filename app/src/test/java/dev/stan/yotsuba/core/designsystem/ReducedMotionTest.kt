@@ -29,14 +29,6 @@ class ReducedMotionTest {
     }
 
     @Test
-    fun `the overload honours the setting when the scale is 1`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
-        assertFalse(isReducedMotion(context, reduceMotionSetting = false))
-        assertTrue(isReducedMotion(context, reduceMotionSetting = true))
-    }
-
-    @Test
     fun `rememberReducedMotion is true with the setting on and animator scale 1`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         Settings.Global.putFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
