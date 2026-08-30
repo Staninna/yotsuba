@@ -37,6 +37,7 @@ import dev.stan.yotsuba.feature.settings.sections.BoardsSection
 import dev.stan.yotsuba.feature.settings.sections.FiltersSection
 import dev.stan.yotsuba.feature.settings.sections.LinksSection
 import dev.stan.yotsuba.feature.settings.sections.MediaSection
+import dev.stan.yotsuba.feature.settings.sections.PrivacySection
 import dev.stan.yotsuba.feature.settings.sections.ReadingSection
 import dev.stan.yotsuba.feature.settings.sections.StorageSection
 import dev.stan.yotsuba.feature.settings.sections.UpdatesSection
@@ -100,6 +101,7 @@ fun SettingsSectionScreen(
                     confirmThen = confirmThen,
                 )
                 SettingsSectionId.LINKS -> LinksSection(settings, update)
+                SettingsSectionId.PRIVACY -> PrivacySection(settings, update, showMessage)
                 SettingsSectionId.FILTERS -> FiltersSection(settings, update, snackbar)
                 SettingsSectionId.STORAGE -> {
                     LaunchedEffect(Unit) { viewModel.onStorageSectionShown() }

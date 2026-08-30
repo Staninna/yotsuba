@@ -16,7 +16,20 @@
     <string name="settings_clear_failed">Couldn\'t clear: %1$s</string>
 
     <!-- App lock -->
+    <string name="settings_privacy">Privacy</string>
+    <string name="settings_summary_privacy_on">App lock on</string>
+    <string name="settings_summary_privacy_off">App lock off</string>
+    <string name="settings_app_lock">Lock the app</string>
+    <string name="settings_app_lock_summary">Ask for your phone\'s unlock (fingerprint, face, PIN or pattern) when you open Yotsuba</string>
+    <string name="settings_app_lock_unavailable">Set a screen lock on your phone first</string>
+    <string name="settings_app_lock_delay">Lock again after</string>
+    <string name="settings_app_lock_delay_now">Right away</string>
+    <string name="settings_app_lock_delay_seconds">%1$d s</string>
+    <string name="settings_app_lock_delay_minutes">%1$d min</string>
+    <string name="settings_app_lock_confirm_title">Confirm it\'s you</string>
+    <string name="settings_app_lock_not_confirmed">Unlock didn\'t go through, so the lock stays off</string>
     <string name="lock_title">Yotsuba is locked</string>
     <string name="lock_unlock">Unlock</string>
     <string name="lock_prompt_title">Unlock Yotsuba</string>
+
 </resources>
