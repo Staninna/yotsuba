@@ -18,6 +18,7 @@ import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostGraph
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.VaultSaveContext
@@ -99,8 +100,13 @@ class MediaViewModel @AssistedInject constructor(
     }
 
     private val source = MutableStateFlow<Source>(Source.Loading)
-    private val details = MutableStateFlow<ThreadDetails?>(null)
     private val boardInfo = MutableStateFlow<Board?>(null)
+    /** Read directly for saves, which must not depend on whether the UI is collecting. */
+    private val settingsState = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
+
+    private val loadedDetails: ThreadDetails?
+        get() = (source.value as? Source.Loaded)?.details
 
     init {
         load()
@@ -122,7 +128,6 @@ class MediaViewModel @AssistedInject constructor(
                 is DataResult.Failure -> mediaVault.savedThread(board, threadNo)
             }
             boardInfo.value = boardRepository.board(board)
-            details.value = loaded
             source.value = when {
                 loaded != null -> Source.Loaded(loaded)
                 r is DataResult.Failure -> Source.Failed(r.error)
@@ -178,7 +183,7 @@ class MediaViewModel @AssistedInject constructor(
 
     /** Queues a vault save with full thread/post context; returns immediately. */
     fun enqueueSave(item: MediaItem) {
-        val loaded = details.value
+        val loaded = loadedDetails
         val op = loaded?.posts?.firstOrNull { it.isOp }
         downloadQueue.enqueue(
             item,
@@ -198,7 +203,7 @@ class MediaViewModel @AssistedInject constructor(
      * quotes it, transitively. Empty when the user has reply capture off.
      */
     private fun conversationFor(postNo: Long, loaded: ThreadDetails?): List<ThreadPost> =
-        if (loaded == null || !uiState.value.saveReplies) {
+        if (loaded == null || !settingsState.value.saveRepliesWithMedia) {
             emptyList()
         } else {
             PostGraph.of(loaded).conversationAround(postNo)
