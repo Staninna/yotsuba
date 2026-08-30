@@ -24,8 +24,11 @@ import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
+import dev.stan.yotsuba.fake.FakeBoardRepository
 import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.FakeThreadRepository
+import dev.stan.yotsuba.fake.FakeVault
 import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.fake.latest
@@ -67,45 +70,7 @@ class MediaViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
-    private class FakeThreadRepository(
-        var details: ThreadDetails,
-        private val fails: Boolean = false,
-    ) : ThreadRepository {
-        override suspend fun thread(board: String, no: Long, forceRefresh: Boolean) =
-            if (fails) DataResult.Failure(NetworkError.NotFound) else DataResult.Success(details)
-    }
-
-    private class FakeBoardRepository(var webmAudio: Boolean = false) : BoardRepository {
-        override suspend fun boards(forceRefresh: Boolean) = DataResult.Success(emptyList<Board>())
-        override suspend fun board(code: String) = Board(
-            code = code, title = "Technology", description = "", worksafe = true,
-            category = BoardCategory.INTERESTS, userIds = false, countryFlags = false,
-            boardFlags = false, spoilers = false, webmAudio = webmAudio, codeTags = false,
-            mathTags = false, sjisTags = false, textOnly = false,
-        )
-    }
-
     /** Saves resolve into [saved], in order. */
-    private class FakeVault : FakeMediaVault() {
-        val access = MutableStateFlow(true)
-        val saved = mutableListOf<Pair<MediaItem, VaultSaveContext>>()
-        val deleted = mutableListOf<String>()
-        val paths = MutableStateFlow(emptyMap<String, String?>())
-        override fun hasStorageAccess() = access.value
-        override val storageAccess: Flow<Boolean> = access
-        override fun saved(): Flow<Map<String, String?>> = paths
-        override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
-            saved += item to context
-            return null
-        }
-        override suspend fun delete(url: String): VaultError? {
-            deleted += url
-            return null
-        }
-        var snapshot: ThreadDetails? = null
-        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
-    }
-
     private fun media(postNo: Long) = MediaItem(
         postNo = postNo, filename = "img$postNo", ext = ".jpg", sizeBytes = 1,
         width = 10, height = 10, thumbnailUrl = "https://t/$postNo.jpg",
@@ -122,13 +87,19 @@ class MediaViewModelTest {
             quotedPostNos = quotes,
         )
 
+    private companion object {
+        /** Every board exists, so the viewer can read its flags; only [webmAudio] varies. */
+        fun boards(webmAudio: Boolean = false) =
+            FakeBoardRepository(unlisted = { FakeBoardRepository.stub(it, webmAudio = webmAudio) })
+    }
+
     private class Env(
         /** The save queue's worker runs here, on the test dispatcher; `runCurrent` lands the saves. */
         scope: CoroutineScope,
         io: CoroutineDispatcher,
         posts: List<ThreadPost>,
         backlinks: Map<Long, List<Long>> = emptyMap(),
-        val boards: FakeBoardRepository = FakeBoardRepository(),
+        val boards: FakeBoardRepository = boards(),
         val settings: FakeSettings = FakeSettings(),
         val vault: FakeVault = FakeVault(),
         val sessionStore: MediaSessionStore = MediaSessionStore(),
@@ -137,8 +108,7 @@ class MediaViewModelTest {
     ) {
         val threads = FakeThreadRepository(
             ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks),
-            fails = threadFails,
-        )
+        ).apply { if (threadFails) result = DataResult.Failure(NetworkError.NotFound) }
         val queue = MediaDownloadQueue(vault, NoDedup, scope, io)
         val context: Context = ApplicationProvider.getApplicationContext()
 
@@ -260,7 +230,7 @@ class MediaViewModelTest {
     }
 
     @Test fun `defaultUnmuted mirrors the board webm_audio flag`() = runTest(dispatcher.scheduler) {
-        val env = Env(backgroundScope, dispatcher, listOf(post(100)), boards = FakeBoardRepository(webmAudio = true))
+        val env = Env(backgroundScope, dispatcher, listOf(post(100)), boards = boards(webmAudio = true))
         env.vm().uiState.test {
             assertTrue(latest().defaultUnmuted)
             cancelAndIgnoreRemainingEvents()
@@ -297,7 +267,7 @@ class MediaViewModelTest {
                 assertTrue(latest().saveReplies)
                 vm.enqueueSave(media(100))
                 dispatcher.scheduler.runCurrent()
-                val ctx = env.vault.saved.single().second
+                val ctx = env.vault.saves.single().second
                 assertEquals(listOf(100L, 102L), ctx.conversation.map { it.no })
                 cancelAndIgnoreRemainingEvents()
             }
@@ -310,7 +280,7 @@ class MediaViewModelTest {
             dispatcher.scheduler.advanceUntilIdle() // let the thread load in, so the OP is known
             vm.enqueueSave(media(102))
             dispatcher.scheduler.runCurrent()
-            val ctx = env.vault.saved.single().second
+            val ctx = env.vault.saves.single().second
             assertEquals("g", ctx.board)
             assertEquals(100L, ctx.threadNo)
             assertEquals("OP subject", ctx.threadSubject)
@@ -330,7 +300,7 @@ class MediaViewModelTest {
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(listOf("https://i/100.jpg", "https://i/102.jpg"), env.vault.deleted)
             dispatcher.scheduler.runCurrent()
-            val ctx = env.vault.saved.single().second
+            val ctx = env.vault.saves.single().second
             assertEquals(102L, ctx.post?.no)
         }
 

@@ -10,6 +10,8 @@ import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeBoardRepository
+import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.fake.latest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -41,25 +43,9 @@ class BoardsViewModelTest {
         webmAudio = false, codeTags = false, mathTags = false, sjisTags = false, textOnly = false,
     )
 
-    private class FakeBoardRepository(var result: DataResult<List<Board>>) : BoardRepository {
-        override suspend fun boards(forceRefresh: Boolean) = result
-        override suspend fun board(code: String) =
-            (result as? DataResult.Success)?.value?.firstOrNull { it.code == code }
-    }
-
-    private class FakeSettingsRepository(initial: Settings = Settings()) : SettingsRepository {
-        val state = MutableStateFlow(initial)
-        var writes = 0
-        override val settings: Flow<Settings> = state
-        override suspend fun update(transform: (Settings) -> Settings) {
-            writes++
-            state.value = transform(state.value)
-        }
-    }
-
     private fun vm(
         boards: FakeBoardRepository,
-        settings: FakeSettingsRepository = FakeSettingsRepository(),
+        settings: FakeSettings = FakeSettings(),
     ) = BoardsViewModel(boards, settings)
 
     private suspend fun TurbineTestContext<UiState<BoardsContent>>.latest() = latest(dispatcher.scheduler)
@@ -165,7 +151,7 @@ class BoardsViewModelTest {
     @Test fun `hidden boards are filtered out unless edit mode is on`() =
         runTest(dispatcher.scheduler) {
             val repo = FakeBoardRepository(DataResult.Success(listOf(board("g"), board("v"))))
-            val vm = vm(repo, FakeSettingsRepository(Settings(hiddenBoards = setOf("v"))))
+            val vm = vm(repo, FakeSettings(Settings(hiddenBoards = setOf("v"))))
             vm.uiState.test {
                 val visible = (latest() as UiState.Success).data
                 assertEquals(listOf("g"), visible.sections.flatMap { it.boards }.map { it.board.code })
@@ -180,7 +166,7 @@ class BoardsViewModelTest {
     @Test fun `favourites come from settings and toggle round-trips`() =
         runTest(dispatcher.scheduler) {
             val repo = FakeBoardRepository(DataResult.Success(listOf(board("g"), board("v"))))
-            val settings = FakeSettingsRepository(Settings(favouriteBoards = setOf("g")))
+            val settings = FakeSettings(Settings(favouriteBoards = setOf("g")))
             val vm = vm(repo, settings)
             vm.uiState.test {
                 val content = (latest() as UiState.Success).data
@@ -209,7 +195,7 @@ class BoardsViewModelTest {
                 board("a", category = BoardCategory.JAPANESE_CULTURE),
                 board("m", category = BoardCategory.JAPANESE_CULTURE),
             )))
-            val settings = FakeSettingsRepository(Settings(hiddenBoards = setOf("m")))
+            val settings = FakeSettings(Settings(hiddenBoards = setOf("m")))
             val vm = vm(repo, settings)
             vm.onToggleEditMode()
             vm.uiState.test {
@@ -233,7 +219,7 @@ class BoardsViewModelTest {
                 board("c", category = BoardCategory.JAPANESE_CULTURE),
                 board("g", category = BoardCategory.INTERESTS),
             )))
-            val settings = FakeSettingsRepository(Settings(hiddenBoards = setOf("a", "m", "c")))
+            val settings = FakeSettings(Settings(hiddenBoards = setOf("a", "m", "c")))
             val vm = vm(repo, settings)
             vm.onToggleEditMode()
             vm.uiState.test {
@@ -260,7 +246,7 @@ class BoardsViewModelTest {
                 board("m", category = BoardCategory.JAPANESE_CULTURE),
                 board("g", category = BoardCategory.INTERESTS),
             )))
-            val settings = FakeSettingsRepository(Settings(hiddenBoards = setOf("m", "g")))
+            val settings = FakeSettings(Settings(hiddenBoards = setOf("m", "g")))
             val vm = vm(repo, settings)
             vm.uiState.test {
                 latest()
@@ -287,7 +273,7 @@ class BoardsViewModelTest {
                 board("m", category = BoardCategory.JAPANESE_CULTURE),
                 board("g", category = BoardCategory.INTERESTS),
             )))
-            val settings = FakeSettingsRepository(
+            val settings = FakeSettings(
                 Settings(hiddenCategories = setOf(BoardCategory.JAPANESE_CULTURE.name), hiddenBoards = setOf("g"))
             )
             val vm = vm(repo, settings)
@@ -303,7 +289,7 @@ class BoardsViewModelTest {
     @Test fun `a blob without legacy hidden categories is not rewritten on load`() =
         runTest(dispatcher.scheduler) {
             val repo = FakeBoardRepository(DataResult.Success(listOf(board("g"))))
-            val settings = FakeSettingsRepository(Settings(hiddenBoards = setOf("g")))
+            val settings = FakeSettings(Settings(hiddenBoards = setOf("g")))
             val vm = vm(repo, settings)
             vm.uiState.test {
                 latest()

@@ -277,9 +277,20 @@ class FakeHiddenThreadsRepository @Inject constructor() : HiddenThreadsRepositor
     }
 }
 
+/**
+ * An in-memory vault: every save lands in [entries] (and [saves], in call order), delete
+ * removes it again, and [savedThread] rebuilds a thread from the posts saved into it, so a
+ * flow test can assert a save really happened rather than only reading the badge.
+ */
 @Singleton
 class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
     private val state = MutableStateFlow<List<VaultEntry>>(emptyList())
+    /** Every successful save, in call order, with the context the screen passed. */
+    val saves = mutableListOf<Pair<MediaItem, VaultSaveContext>>()
+    /** Every [snapshotThread] call, in order. */
+    val snapshotCalls = mutableListOf<VaultLocation>()
+    /** What [entries] holds right now. */
+    val entriesNow: List<VaultEntry> get() = state.value
 
     override fun hasStorageAccess(): Boolean = true
     override val storageAccess: Flow<Boolean> = flowOf(true)
@@ -307,6 +318,7 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
             savedAt = 1_700_000_200L,
         )
         state.update { list -> list.filterNot { it.url == entry.url } + entry }
+        saves += item to context
         return null
     }
     override suspend fun delete(url: String): VaultError? {
@@ -322,14 +334,24 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
     override suspend fun exportToGallery(url: String): VaultError? = null
 
     override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit, skip: Set<VaultLocation>) = VaultSyncSummary()
-    override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? = null
+    override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? {
+        snapshotCalls += VaultLocation(board, threadNo)
+        return null
+    }
     override suspend fun snapshotThreads(targets: List<VaultLocation>, onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
     override suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? = null
     override suspend fun mergeThreads(fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long): VaultError? = null
 
     override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
 
-    override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
+    /** The posts saved into this thread (each save's own post plus its conversation), or null when none. */
+    override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? {
+        val here = saves.filter { (_, ctx) -> ctx.board == board && ctx.threadNo == threadNo }
+        if (here.isEmpty()) return null
+        val posts = here.flatMap { (_, ctx) -> listOfNotNull(ctx.post) + ctx.conversation }
+            .distinctBy { it.no }.sortedBy { it.no }
+        return ThreadDetails(board, threadNo, posts, archived = false, closed = false, backlinks = emptyMap())
+    }
 
     override suspend fun rescan() = Unit
     override suspend fun migrateLegacyIfNeeded() = Unit

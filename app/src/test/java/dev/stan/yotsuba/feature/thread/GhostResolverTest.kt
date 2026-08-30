@@ -19,7 +19,7 @@ class GhostResolverTest {
         resolver.resolve("b", 200, postNo, skipLive = skipLive)
 
     @Test fun `a copy in the vault answers without touching the network`() = runTest {
-        env.vault.snapshots["b" to 200L] = ghost
+        env.vault.savedThreads["b" to 200L] = ghost
         val r = resolve() as DataResult.Success
         assertTrue(r.value.offlineCopy)
         assertEquals(emptyList<String>(), env.threads.asked)
@@ -60,7 +60,7 @@ class GhostResolverTest {
     }
 
     @Test fun `a copy without the post is passed over`() = runTest {
-        env.vault.snapshots["b" to 200L] = ghost.copy(posts = listOf(ThreadEnv.post(200)))
+        env.vault.savedThreads["b" to 200L] = ghost.copy(posts = listOf(ThreadEnv.post(200)))
         env.threads.byThread["b" to 200L] = DataResult.Success(ghost)
         val r = resolver.resolve("b", 200, 201, held = ghost.copy(posts = emptyList())) as DataResult.Success
         assertEquals(ghost, r.value)

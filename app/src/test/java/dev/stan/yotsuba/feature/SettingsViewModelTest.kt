@@ -23,7 +23,12 @@ import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeBoardRepository
+import dev.stan.yotsuba.fake.FakeBookmarkRepository
 import dev.stan.yotsuba.fake.FakeGalleryHiding
+import dev.stan.yotsuba.fake.FakeHiddenThreadsRepository
+import dev.stan.yotsuba.fake.FakeHistoryRepository
+import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.fake.latest
 import dev.stan.yotsuba.feature.settings.ClearResult
@@ -57,58 +62,6 @@ class SettingsViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
-    private class FakeSettingsRepository(initial: Settings = Settings()) : SettingsRepository {
-        val state = MutableStateFlow(initial)
-        override val settings: Flow<Settings> = state
-        override suspend fun update(transform: (Settings) -> Settings) {
-            state.value = transform(state.value)
-        }
-    }
-
-    private class FakeHistoryRepository : HistoryRepository {
-        var cleared = false
-        override val history: Flow<List<HistoryEntry>> = flowOf(emptyList())
-        override suspend fun record(entry: HistoryEntry) {}
-        override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) {}
-        override suspend fun lastScrollPosition(board: String, threadNo: Long): Long? = null
-        override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) {}
-        override suspend fun readUpTo(board: String, threadNo: Long): Long? = null
-        override suspend fun remove(board: String, threadNo: Long) {}
-        override suspend fun restore(entry: HistoryEntry) = record(entry)
-        override suspend fun clearAll() { cleared = true }
-        override suspend fun trim(retainAfterMs: Long) {}
-    }
-
-    private class FakeBookmarkRepository : BookmarkRepository {
-        var cleared = false
-        override val bookmarks: Flow<List<Bookmark>> = flowOf(emptyList())
-        override suspend fun add(bookmark: Bookmark) {}
-        override suspend fun remove(board: String, threadNo: Long) {}
-        override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
-        override suspend fun markSeen(board: String, threadNo: Long, postNo: Long) {}
-        override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
-        override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
-        override suspend fun removeDead() {}
-        override suspend fun clearAll() { cleared = true }
-    }
-
-    private class FakeHiddenThreadsRepository(initial: List<HiddenThread> = emptyList()) : HiddenThreadsRepository {
-        val state = MutableStateFlow(initial)
-        override val all: Flow<List<HiddenThread>> = state
-        override fun forBoard(board: String) = state.map { list -> list.filter { it.board == board } }
-        override suspend fun hide(board: String, threadNo: Long) {
-            state.value = state.value + HiddenThread(board, threadNo)
-        }
-        override suspend fun unhide(board: String, threadNo: Long) {
-            state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
-        }
-    }
-
-    private class FakeBoardRepository(val list: List<Board>) : BoardRepository {
-        override suspend fun boards(forceRefresh: Boolean) = DataResult.Success(list)
-        override suspend fun board(code: String) = list.firstOrNull { it.code == code }
-    }
-
     private class FakeMaintenanceRepository(private val failure: Exception? = null) : MaintenanceRepository {
         var clearCalls = 0
         override suspend fun clearCaches() {
@@ -125,7 +78,7 @@ class SettingsViewModelTest {
     )
 
     private class Env(
-        val settings: FakeSettingsRepository = FakeSettingsRepository(),
+        val settings: FakeSettings = FakeSettings(),
         val hidden: FakeHiddenThreadsRepository = FakeHiddenThreadsRepository(),
         boards: List<Board> = emptyList(),
         val maintenance: FakeMaintenanceRepository = FakeMaintenanceRepository(),
@@ -151,7 +104,7 @@ class SettingsViewModelTest {
     @Test fun `settings and hidden threads pass through to the ui state`() =
         runTest(dispatcher.scheduler) {
             val env = Env(
-                settings = FakeSettingsRepository(Settings(themeMode = ThemeMode.DARK)),
+                settings = FakeSettings(Settings(themeMode = ThemeMode.DARK)),
                 hidden = FakeHiddenThreadsRepository(listOf(HiddenThread("g", 1))),
             )
             env.vm.uiState.test {
@@ -253,7 +206,7 @@ class SettingsViewModelTest {
 
     @Test fun `clear trusted domains empties the set through the settings repository`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(settings = FakeSettingsRepository(Settings(trustedDomains = setOf("a.example"))))
+            val env = Env(settings = FakeSettings(Settings(trustedDomains = setOf("a.example"))))
             env.vm.onClearTrustedDomains()
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(emptySet<String>(), env.settings.state.value.trustedDomains)

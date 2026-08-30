@@ -10,7 +10,7 @@ import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.fake.MainDispatcherRule
-import dev.stan.yotsuba.feature.thread.FakeHistoryRepository
+import dev.stan.yotsuba.fake.FakeHistoryRepository
 import dev.stan.yotsuba.feature.thread.LinkAction
 import dev.stan.yotsuba.feature.thread.PreviewSheet
 import dev.stan.yotsuba.feature.thread.QuoteLabel

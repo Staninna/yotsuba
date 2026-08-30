@@ -6,6 +6,7 @@ import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeHistoryRepository
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.fake.latest
@@ -62,35 +63,6 @@ class HistoryViewModelTest {
         thumbnailUrl = null, viewedAt = viewedAt, lastScrollPostNo = null,
         maxReadPostNo = maxRead,
     )
-
-    private class FakeHistoryRepository(initial: List<HistoryEntry>) : HistoryRepository {
-        val state = MutableStateFlow(initial)
-        var cleared = false
-        override val history: Flow<List<HistoryEntry>> = state
-        override suspend fun record(entry: HistoryEntry) {
-            // Mirrors the DAO: a visit never carries the read mark with it.
-            state.value = listOf(entry.copy(maxReadPostNo = null)) + state.value.filterNot {
-                it.board == entry.board && it.threadNo == entry.threadNo
-            }
-        }
-        override suspend fun restore(entry: HistoryEntry) {
-            if (state.value.none { it.board == entry.board && it.threadNo == entry.threadNo }) {
-                state.value = state.value + entry
-            }
-        }
-        override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) {}
-        override suspend fun lastScrollPosition(board: String, threadNo: Long): Long? = null
-        override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) {}
-        override suspend fun readUpTo(board: String, threadNo: Long): Long? = null
-        override suspend fun remove(board: String, threadNo: Long) {
-            state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
-        }
-        override suspend fun clearAll() {
-            cleared = true
-            state.value = emptyList()
-        }
-        override suspend fun trim(retainAfterMs: Long) {}
-    }
 
     private suspend fun TurbineTestContext<HistoryUiState>.latest() = latest(dispatcher.scheduler)
 
