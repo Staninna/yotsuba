@@ -21,18 +21,14 @@ import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import kotlinx.coroutines.Dispatchers
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -46,10 +42,8 @@ import org.robolectric.RobolectricTestRunner
 @org.robolectric.annotation.Config(sdk = [34])
 class CatalogViewModelTest {
 
-    private val dispatcher = StandardTestDispatcher()
-
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val main = MainDispatcherRule()
+    private val dispatcher get() = main.dispatcher
 
     private class FakeCatalogRepository(var result: DataResult<List<CatalogThread>>) : CatalogRepository {
         var calls = 0
