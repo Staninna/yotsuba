@@ -3,8 +3,6 @@
 
     <!-- Tabs -->
     <string name="tab_boards">Boards</string>
-    <string name="tab_bookmarks">Bookmarks</string>
-    <string name="tab_history">History</string>
     <string name="tab_settings">Settings</string>
 
     <!-- Common actions / states -->
@@ -40,7 +38,6 @@
     <string name="boards_empty_title">No boards</string>
     <string name="boards_empty_explanation">Every board is hidden. Use the pencil to unhide some.</string>
     <string name="boards_favourite_toggle">Toggle favourite</string>
-    <string name="boards_category_toggle">Toggle whole category</string>
 
     <!-- Catalog -->
     <string name="catalog_layout_switch">Switch layout</string>
@@ -71,7 +68,6 @@
     <string name="thread_auto_refresh">Auto-refresh</string>
     <string name="thread_archived">Thread archived</string>
     <string name="thread_post_number_copied">Post number copied</string>
-    <string name="thread_spoiler">Spoiler, tap to reveal</string>
     <string name="thread_file_deleted">File deleted: %s</string>
     <string name="thread_search_prev">Previous match</string>
     <string name="thread_search_next">Next match</string>
@@ -86,7 +82,6 @@
 
     <!-- Media -->
     <string name="media_save">Save</string>
-    <string name="media_saved">Saved to vault</string>
     <string name="media_grant_storage">Grant \"All files access\" so media can be saved, then try again</string>
     <string name="media_save_failed">Couldn\'t save</string>
     <string name="media_share_failed">Couldn\'t share</string>
@@ -119,14 +114,7 @@
     <string name="bookmarks_empty_title">No bookmarks yet</string>
     <string name="bookmarks_empty_explanation">Open a thread and tap the bookmark icon to keep it here.</string>
     <string name="bookmarks_checking">Checking %1$d/%2$d</string>
-    <string name="bookmarks_archived_badge">Archived</string>
     <string name="bookmarks_removed">Bookmark removed</string>
-    <string name="bookmarks_new_replies">+%d</string>
-    <string name="bookmarks_unread">%d unread</string>
-    <plurals name="bookmarks_new_replies_a11y">
-        <item quantity="one">%d new reply</item>
-        <item quantity="other">%d new replies</item>
-    </plurals>
 
     <!-- History -->
     <string name="history_empty_title">No history</string>
@@ -156,7 +144,6 @@
     <string name="settings_layout_list">List</string>
     <string name="settings_reveal_spoilers">Reveal all spoilers</string>
     <string name="settings_reveal_spoilers_summary">Show text and image spoilers without tapping</string>
-    <string name="settings_behavior">Behavior</string>
     <string name="settings_reading">Reading</string>
     <string name="settings_media">Media &amp; playback</string>
     <string name="settings_boards">Boards</string>
@@ -165,9 +152,7 @@
     <string name="settings_on">on</string>
     <string name="settings_off">off</string>
     <string name="settings_summary_reading">Auto-refresh %1$s \u00b7 history %2$s</string>
-    <string name="settings_summary_boards">%1$d hidden</string>
     <string name="settings_summary_links">%1$d trusted domains</string>
-    <string name="settings_summary_storage">%1$d hidden threads</string>
     <string name="settings_summary_about">Version and attribution</string>
     <string name="settings_video">Video</string>
     <string name="settings_saving">Saving</string>
@@ -199,7 +184,6 @@
     <string name="settings_retention_7d">7 days</string>
     <string name="settings_hide_nsfw">Hide NSFW boards</string>
     <string name="settings_hide_nsfw_summary">Bulk-hide all not-worksafe boards</string>
-    <string name="settings_data">Data</string>
     <string name="settings_clear_cache">Clear cache</string>
     <string name="settings_clear_history">Clear history</string>
     <string name="settings_clear_bookmarks">Clear bookmarks</string>
@@ -236,7 +220,6 @@
     <string name="link_always_trust">Always trust %s</string>
 
     <!-- Quotelink previews -->
-    <string name="preview_close">Close preview</string>
 
     <!-- Saved-media vault -->
     <string name="tab_vault">Saved</string>
@@ -251,7 +234,6 @@
     <string name="vault_sync_nothing">Nothing saved to sync yet.</string>
     <string name="vault_sync_rate_limited">4chan asked us to slow down. Sync again in a minute to finish.</string>
     <string name="vault_replies">Saved replies</string>
-    <string name="vault_rescan">Rescan vault</string>
     <string name="vault_empty_title">Vault is empty</string>
     <string name="vault_empty_explanation">Media you save from threads is filed under /sdcard/Yotsuba/.</string>
     <string name="vault_grant_button">Grant storage access</string>
@@ -270,7 +252,6 @@
     <string name="vault_error_no_access">No storage access</string>
     <string name="vault_error_not_found">Not in the vault</string>
     <string name="vault_error_io">Couldn\'t write file</string>
-    <string name="vault_open_external">Open externally</string>
     <string name="vault_shuffle">Shuffle play</string>
     <string name="vault_shuffle_everything">Everything</string>
     <string name="vault_shuffle_videos">Videos only</string>
