@@ -71,6 +71,11 @@
     <string name="vault_rescan_label">Rescan</string>
     <string name="vault_rescan_explanation">Rebuild the index from the files on disk</string>
     <string name="vault_rescan_done">Index rebuilt</string>
+    <plurals name="vault_unindexed_found">
+        <item quantity="one">Found %1$d saved thread on this device that is not in the index yet</item>
+        <item quantity="other">Found %1$d saved threads on this device that are not in the index yet</item>
+    </plurals>
+    <string name="vault_unindexed_explanation">Your files are still here. Rescan rebuilds the index from them.</string>
     <string name="vault_fetch_replies">Fetch new replies</string>
     <string name="vault_fetch_replies_explanation">Refresh saved threads from 4chan, one a second</string>
 </resources>

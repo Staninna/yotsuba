@@ -250,6 +250,28 @@ class MediaVaultWritePathTest {
         assertEquals(7L, dog.threadNo)
     }
 
+    @Test fun `unindexedThreadCount counts sidecar threads the index has no row for`() = runTest {
+        val cats = threadDir("g", "1 - Cats")
+        val dogs = threadDir("a", "7 - Dogs")
+        val snapshotOnly = threadDir("g", "9 - Words")
+        sidecarFile(cats, 1, "2_cat.jpg", "https://i.4cdn.org/g/2.jpg", postNo = 2)
+        sidecarFile(dogs, 7, "8_dog.jpg", "https://i.4cdn.org/a/8.jpg", postNo = 8)
+        store.updateMeta(snapshotOnly) { it.copy(threadNo = 9, snapshotAt = 1) }
+
+        // The reinstall case: everything on disk, nothing in Room.
+        assertEquals(2, repo.unindexedThreadCount())
+
+        repo.rescan()
+        assertEquals(0, repo.unindexedThreadCount())
+
+        // One thread's rows gone again: only that thread counts.
+        db.savedMediaDao().delete("https://i.4cdn.org/a/8.jpg")
+        assertEquals(1, repo.unindexedThreadCount())
+
+        access = false
+        assertEquals(0, repo.unindexedThreadCount())
+    }
+
     @Test fun `rescan on a missing root leaves the index alone`() = runTest {
         val row = row("https://i.4cdn.org/g/2.jpg", File(tmp.root, "g/1/2_cat.jpg"))
         db.savedMediaDao().insert(row)
@@ -275,6 +297,31 @@ class MediaVaultWritePathTest {
         assertEquals("New name", meta(renamed).subject)
         assertEquals("New name", posts(renamed)!!.posts.single().subject)
         assertEquals(File(renamed, "1_a.jpg").absolutePath, db.savedMediaDao().byUrl("file:///a.jpg")!!.absolutePath)
+    }
+
+    @Test fun `renameThread re-indexes only the renamed thread`() = runTest {
+        val local = VaultPaths.LOCAL_BOARD_NAME
+        val dir = threadDir(local, "5 - Old name")
+        sidecarFile(dir, 5, "1_a.jpg", "file:///a.jpg", postNo = 1)
+        val cats = threadDir("g", "1 - Cats")
+        sidecarFile(cats, 1, "2_cat.jpg", "https://i.4cdn.org/g/2.jpg", postNo = 2)
+        repo.rescan()
+        // A row the sidecar cannot reproduce: a rescan would rebuild it from disk and lose
+        // the marker, a targeted re-index must not go near it.
+        val marker = db.savedMediaDao().byUrl("https://i.4cdn.org/g/2.jpg")!!
+            .copy(md5 = "marker", phash = 7L, pixelSize = 9L, subject = "not what the sidecar says", savedAt = 123)
+        db.savedMediaDao().insert(marker)
+        val stale = db.savedMediaDao().byUrl("file:///a.jpg")!!.copy(md5 = "kept")
+        db.savedMediaDao().insert(stale)
+
+        assertNull(repo.renameThread(local, 5, "New name"))
+
+        assertEquals(marker, db.savedMediaDao().byUrl("https://i.4cdn.org/g/2.jpg"))
+        val moved = db.savedMediaDao().byUrl("file:///a.jpg")!!
+        assertEquals(File(File(File(tmp.root, local), "5 - New name"), "1_a.jpg").absolutePath, moved.absolutePath)
+        assertEquals("New name", moved.subject)
+        assertEquals("kept", moved.md5)
+        assertEquals(2, db.savedMediaDao().allOnce().size)
     }
 
     @Test fun `renameThread refuses live threads, blank names and unknown threads`() = runTest {
@@ -317,6 +364,36 @@ class MediaVaultWritePathTest {
         assertEquals(3, rows.size)
         assertTrue(rows.all { it.threadNo == 2L && File(it.absolutePath).parentFile == into })
         assertEquals(File(into, "4_b (1).jpg").absolutePath, rows.single { it.url.endsWith("/4.jpg") }.absolutePath)
+    }
+
+    @Test fun `mergeThreads keeps both conversations when imported threads share post numbers`() = runTest {
+        val local = VaultPaths.LOCAL_BOARD_NAME
+        val from = threadDir(local, "10 - Trip")
+        val into = threadDir(local, "20 - Holiday")
+        sidecarFile(from, 10, "1_a.jpg", "file:///trip/a.jpg", postNo = 1)
+        sidecarFile(from, 10, "2_b.jpg", "file:///trip/b.jpg", postNo = 2)
+        sidecarFile(into, 20, "1_c.jpg", "file:///holiday/c.jpg", postNo = 1)
+        sidecarFile(into, 20, "2_d.jpg", "file:///holiday/d.jpg", postNo = 2)
+        sidecarFile(into, 20, "3_e.jpg", "file:///holiday/e.jpg", postNo = 3)
+        store.updatePosts(from, local, 10, listOf(vaultPost(1, isOp = true), vaultPost(2, listOf(1))))
+        store.updatePosts(into, local, 20, listOf(vaultPost(1, isOp = true), vaultPost(2), vaultPost(3)))
+        repo.rescan()
+
+        assertNull(repo.mergeThreads(local, 10, local, 20))
+
+        val merged = posts(into)!!.posts
+        assertEquals(listOf(1L, 2L, 3L, 4L, 5L), merged.map { it.no })
+        assertEquals(listOf(1L), merged.filter { it.isOp }.map { it.no })
+        assertEquals("post 1", merged.single { it.no == 4L }.body.plainText)
+        assertEquals(listOf(4L), merged.single { it.no == 5L }.quotedPostNos)
+        val files = meta(into).files.associateBy { it.url!! }
+        assertEquals(4L, files.getValue("file:///trip/a.jpg").postNo)
+        assertEquals(5L, files.getValue("file:///trip/b.jpg").postNo)
+        assertEquals(1L, files.getValue("file:///holiday/c.jpg").postNo)
+        val rows = db.savedMediaDao().allOnce()
+        assertEquals(5, rows.size)
+        assertEquals(4L, rows.single { it.url == "file:///trip/a.jpg" }.postNo)
+        assertTrue(rows.all { it.threadNo == 20L })
     }
 
     @Test fun `mergeThreads into itself or an unknown thread does nothing`() = runTest {
