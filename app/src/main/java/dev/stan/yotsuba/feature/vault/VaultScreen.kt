@@ -78,7 +78,6 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ListItem
-import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
@@ -169,23 +168,27 @@ fun VaultScreen(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
         if (uris.isNotEmpty()) {
-            viewModel.importLocalThread(
-                name = defaultImportName(uris.size),
-                sources = ImportPicker.sourcesFrom(context, uris),
-            )
+            viewModel.importLocalThread {
+                VaultImport(
+                    name = context.getString(R.string.vault_import_default_name, uris.size),
+                    sources = ImportPicker.sourcesFrom(context, uris),
+                )
+            }
         }
     }
     val pickFolder = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree(),
     ) { tree ->
         if (tree != null) {
-            viewModel.importLocalThread(
-                name = ImportPicker.treeName(context, tree) ?: defaultImportName(0),
-                sources = ImportPicker.sourcesFromTree(context, tree),
-            )
+            viewModel.importLocalThread {
+                VaultImport(
+                    name = ImportPicker.treeName(context, tree)
+                        ?: context.getString(R.string.vault_import_default_name_plain),
+                    sources = ImportPicker.sourcesFromTree(context, tree),
+                )
+            }
         }
     }
-
 
     OnResumeEffect(viewModel::refreshStorageAccess)
     // Back peels layers in order: the viewer's own reply panel (its BackHandler is composed
@@ -730,7 +733,3 @@ private fun vaultSubtitle(state: VaultUiState): String {
     return pluralStringResource(R.plurals.vault_items, entries.size, entries.size) +
         " · " + FileSize.format(entries.totalBytes)
 }
-
-/** Fallback thread name when the picker gives files but no folder to name them after. */
-private fun defaultImportName(count: Int): String =
-    if (count > 0) "Imported ($count)" else "Imported"

@@ -36,6 +36,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** How long a grid delete can be undone before the trash is emptied. */
 const val UNDO_WINDOW_MS = 30_000L
@@ -134,6 +135,9 @@ data class VaultPlayback(val muted: Boolean = true, val playing: Boolean = true)
 data class VaultViewerState(val entries: List<VaultEntry>, val index: Int) {
     val current: VaultEntry get() = entries[index]
 }
+
+/** A local thread to create: what to call it and what goes in. */
+data class VaultImport(val name: String, val sources: List<ImportSource>)
 
 /** One-shot messages for the screen to show; it calls [VaultViewModel.noticeShown] after. */
 sealed interface VaultNotice {
@@ -239,6 +243,8 @@ class VaultViewModel @Inject constructor(
     private val savedState: SavedStateHandle = SavedStateHandle(),
     /** Where the sort/group pipeline runs; tests pass their scheduler's dispatcher. */
     private val compute: CoroutineDispatcher = Dispatchers.Default,
+    /** Where picker URIs are resolved: a ContentResolver query per file, or a whole folder walk. */
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     init {
@@ -287,15 +293,23 @@ class VaultViewModel @Inject constructor(
      * Copies the picked files into a new local thread. The explorer refreshes itself: the
      * DB rows land as part of the import. Failure surfaces as a [VaultNotice].
      */
-    fun importLocalThread(name: String, sources: List<ImportSource>) {
+    fun importLocalThread(name: String, sources: List<ImportSource>) = importLocalThread { VaultImport(name, sources) }
+
+    /**
+     * The same, with [resolve] run off the main thread first: turning picker URIs into
+     * sources costs a ContentResolver query per file, and a folder pick walks the whole
+     * tree. The importing flag covers that work too, so a second pick meanwhile is ignored.
+     */
+    fun importLocalThread(resolve: () -> VaultImport) {
         if (importing.value) return
-        if (sources.isEmpty()) {
-            notice.value = VaultNotice.ImportEmpty
-            return
-        }
+        importing.value = true
         viewModelScope.launch {
-            importing.value = true
             try {
+                val (name, sources) = withContext(io) { resolve() }
+                if (sources.isEmpty()) {
+                    notice.value = VaultNotice.ImportEmpty
+                    return@launch
+                }
                 mediaVault.importLocalThread(name, sources)?.let { notice.value = VaultNotice.ImportFailed(it) }
             } finally {
                 importing.value = false

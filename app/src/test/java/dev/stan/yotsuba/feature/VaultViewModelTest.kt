@@ -26,6 +26,7 @@ import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultViewModel
 import dev.stan.yotsuba.feature.vault.UNDO_WINDOW_MS
 import dev.stan.yotsuba.feature.vault.VaultFilter
+import dev.stan.yotsuba.feature.vault.VaultImport
 import dev.stan.yotsuba.feature.vault.VaultMode
 import dev.stan.yotsuba.feature.vault.RECENT_LIMIT
 import dev.stan.yotsuba.feature.vault.VaultSort
@@ -151,7 +152,7 @@ class VaultViewModelTest {
         vault: FakeVault,
         settings: FakeSettings = FakeSettings(),
         saved: SavedStateHandle = SavedStateHandle(),
-    ) = VaultViewModel(vault, settings, boards, saved, compute = Dispatchers.Unconfined)
+    ) = VaultViewModel(vault, settings, boards, saved, compute = Dispatchers.Unconfined, io = dispatcher)
 
     private class FakeBoards : BoardRepository {
         val known = mutableMapOf<String, Board>()
@@ -611,6 +612,26 @@ class VaultViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test fun `a picker result is resolved on the io dispatcher before the copy`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(emptyList())
+            val vm = vm(vault)
+            val picked = listOf(ImportSource("content://a", "a.jpg"))
+            var resolves = 0
+            vm.uiState.test {
+                vm.importLocalThread { resolves++; VaultImport("Folder", picked) }
+                val done = latest()
+                assertEquals(1, resolves)
+                assertEquals("Folder" to picked, vault.imported)
+                assertEquals(false, done.importing)
+
+                vm.importLocalThread { resolves++; VaultImport("Nothing", emptyList()) }
+                assertEquals(VaultNotice.ImportEmpty, latest().notice)
+                assertEquals(1, vault.imports)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
 
     @Test fun `an empty selection is not an import`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
