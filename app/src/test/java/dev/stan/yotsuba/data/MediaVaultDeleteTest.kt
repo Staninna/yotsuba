@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.media.GalleryExporter
@@ -13,7 +14,6 @@ import dev.stan.yotsuba.core.vault.VaultMetaCodec
 import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.data.repository.LocalThreadImporter
 import dev.stan.yotsuba.data.repository.MediaVaultRepositoryImpl
-import dev.stan.yotsuba.data.repository.VaultLegacyMigration
 import dev.stan.yotsuba.data.repository.VaultStore
 import dev.stan.yotsuba.data.repository.VaultTrash
 import dev.stan.yotsuba.domain.model.DataResult
@@ -72,12 +72,8 @@ class MediaVaultDeleteTest {
         db = Room.inMemoryDatabaseBuilder(context, YotsubaDatabase::class.java).allowMainThreadQueries().build()
         val store = VaultStore(tmp.root)
         repo = MediaVaultRepositoryImpl(
-            context = context,
             savedMediaDao = db.savedMediaDao(),
             store = store,
-            migration = VaultLegacyMigration(
-                context, store, db.savedMediaDao(), db.downloadedMediaDao(), db.bookmarkDao(), db.historyDao(), threads,
-            ),
             vaultTrash = VaultTrash(store, db.savedMediaDao()),
             localImporter = LocalThreadImporter(context, store, db.savedMediaDao()),
             galleryExporter = GalleryExporter(context),
@@ -85,6 +81,8 @@ class MediaVaultDeleteTest {
             threadRepository = threads,
             preferences = PreferenceDataStoreFactory.create(scope = scope) { tmp.newFile("t.preferences_pb") },
             settings = settings,
+            storageCheck = StorageAccessCheck { false },
+            runMigration = {},
         )
     }
 

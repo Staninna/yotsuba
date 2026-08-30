@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.media.GalleryExporter
 import dev.stan.yotsuba.core.media.MediaByteSource
@@ -36,6 +37,7 @@ import dev.stan.yotsuba.domain.repository.ThreadRepository
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,11 +50,9 @@ import kotlinx.coroutines.withContext
 private val VAULT_MIGRATED = booleanPreferencesKey("vault_legacy_migrated_v1")
 
 @Singleton
-class MediaVaultRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
+class MediaVaultRepositoryImpl(
     private val savedMediaDao: SavedMediaDao,
     private val store: VaultStore,
-    private val migration: VaultLegacyMigration,
     private val vaultTrash: VaultTrash,
     private val localImporter: LocalThreadImporter,
     private val galleryExporter: GalleryExporter,
@@ -60,16 +60,31 @@ class MediaVaultRepositoryImpl @Inject constructor(
     private val threadRepository: ThreadRepository,
     private val preferences: DataStore<Preferences>,
     private val settings: SettingsRepository,
+    private val storageCheck: StorageAccessCheck,
+    /** The legacy-layout migration; a parameter so a test can hand in one that fails. */
+    private val runMigration: suspend () -> Unit,
 ) : MediaVaultRepository {
 
-    override fun hasStorageAccess(): Boolean =
-        if (Build.VERSION.SDK_INT >= 30) {
-            Environment.isExternalStorageManager()
-        } else {
-            ContextCompat.checkSelfPermission(
-                context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        }
+    @Inject constructor(
+        @ApplicationContext context: Context,
+        savedMediaDao: SavedMediaDao,
+        store: VaultStore,
+        migration: VaultLegacyMigration,
+        vaultTrash: VaultTrash,
+        localImporter: LocalThreadImporter,
+        galleryExporter: GalleryExporter,
+        byteSource: MediaByteSource,
+        threadRepository: ThreadRepository,
+        preferences: DataStore<Preferences>,
+        settings: SettingsRepository,
+    ) : this(
+        savedMediaDao, store, vaultTrash, localImporter, galleryExporter, byteSource, threadRepository,
+        preferences, settings,
+        storageCheck = StorageAccessCheck { allFilesAccessGranted(context) },
+        runMigration = migration::run,
+    )
+
+    override fun hasStorageAccess(): Boolean = storageCheck.granted()
 
     // Starts false and is filled in on the first refresh: the check itself needs a real
     // Android runtime, and this singleton is built at process start (and under Robolectric).
@@ -426,7 +441,15 @@ class MediaVaultRepositoryImpl @Inject constructor(
         if (preferences.data.first()[VAULT_MIGRATED] == true) return@withContext
         if (!hasStorageAccess()) return@withContext
 
-        runCatching { migration.run() }
+        try {
+            runMigration()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Not done: whatever the migration did not move is invisible to rescan() until
+            // it is. Leaving the flag unset makes the next launch try again.
+            return@withContext
+        }
         preferences.edit { it[VAULT_MIGRATED] = true }
     }
 
@@ -445,3 +468,13 @@ class MediaVaultRepositoryImpl @Inject constructor(
         }
     }
 }
+
+/** All-files access on Android 11 and up; the legacy write permission below it. */
+private fun allFilesAccessGranted(context: Context): Boolean =
+    if (Build.VERSION.SDK_INT >= 30) {
+        Environment.isExternalStorageManager()
+    } else {
+        ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
