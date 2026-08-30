@@ -41,15 +41,17 @@ class ThreadViewModelTest {
 
     @Test fun `saving queues the attachment, and a post without media is a no-op`() =
         runTest(dispatcher.scheduler) {
-            val env = ThreadEnv()
+            val env = ThreadEnv(queueScope = backgroundScope, io = dispatcher)
             val vm = env.vm()
             dispatcher.scheduler.advanceUntilIdle()
 
             vm.onSaveMedia(ThreadEnv.post(101))
-            assertEquals(false, env.vault.firstSave.isCompleted)
+            dispatcher.scheduler.runCurrent()
+            assertTrue(env.vault.saves.isEmpty())
 
             vm.onSaveMedia(ThreadEnv.postWithMedia(100))
-            val (item, context) = env.vault.firstSave.await()
+            dispatcher.scheduler.runCurrent()
+            val (item, context) = env.vault.saves.single()
             assertEquals("https://i.4cdn.org/g/100.jpg", item.fullUrl)
             assertEquals(100L, context.post?.no)
             assertEquals("g", context.board)
@@ -225,15 +227,18 @@ class ThreadViewModelTest {
     }
 
     @Test fun `save all queues every attachment once`() = runTest(dispatcher.scheduler) {
-        val env = ThreadEnv(posts = listOf(ThreadEnv.postWithMedia(100), ThreadEnv.post(101), ThreadEnv.postWithMedia(102)))
+        val env = ThreadEnv(
+            posts = listOf(ThreadEnv.postWithMedia(100), ThreadEnv.post(101), ThreadEnv.postWithMedia(102)),
+            queueScope = backgroundScope, io = dispatcher,
+        )
         val vm = env.collectedVm(backgroundScope)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(100L, 102L), content(vm).mediaPosts.map { it.no })
-        env.vault.expectedSaves = 2
         vm.onSaveAllMedia()
+        dispatcher.scheduler.runCurrent()
         assertEquals(
             listOf("https://i.4cdn.org/g/100.jpg", "https://i.4cdn.org/g/102.jpg"),
-            env.vault.allSaved.await(),
+            env.vault.saves.map { it.first.fullUrl },
         )
     }
 

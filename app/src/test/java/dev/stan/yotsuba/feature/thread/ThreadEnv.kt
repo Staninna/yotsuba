@@ -25,7 +25,6 @@ import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.feature.media.MediaSessionStore
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +32,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-import java.util.concurrent.CopyOnWriteArrayList
 
 class FakeThreadRepository(details: ThreadDetails) : ThreadRepository {
     var result: DataResult<ThreadDetails> = DataResult.Success(details)
@@ -96,18 +94,12 @@ class FakeHistoryRepository(var savedScrollPostNo: Long? = null) : HistoryReposi
     override suspend fun trim(retainAfterMs: Long) {}
 }
 
-/** Records the first save so a test can await it; `statuses` is too transient to assert on. */
+/** Records every save in order; `statuses` is too transient to assert on. */
 class FakeVault : FakeMediaVault() {
-    val firstSave = CompletableDeferred<Pair<MediaItem, VaultSaveContext>>()
-    /** Completes once [expectedSaves] items have arrived; the queue runs on a real IO thread. */
-    val allSaved = CompletableDeferred<List<String>>()
-    var expectedSaves = 1
-    private val savedUrls = CopyOnWriteArrayList<String>()
+    val saves = mutableListOf<Pair<MediaItem, VaultSaveContext>>()
     override fun hasStorageAccess() = false
     override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
-        firstSave.complete(item to context)
-        savedUrls += item.fullUrl
-        if (savedUrls.size >= expectedSaves) allSaved.complete(savedUrls.sorted())
+        saves += item to context
         return null
     }
     var snapshot: ThreadDetails? = null
@@ -132,6 +124,9 @@ class ThreadEnv(
     val claimed: FakeClaimedPosts = FakeClaimedPosts(),
     /** Unconfined keeps the row pipeline on the test scheduler, so emissions stay deterministic. */
     val compute: CoroutineDispatcher = Dispatchers.Unconfined,
+    /** Where the save queue's worker runs; a save test hands it `backgroundScope` and the test dispatcher, then `runCurrent`s. */
+    queueScope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined),
+    io: CoroutineDispatcher = Dispatchers.Unconfined,
 ) {
     val threads = FakeThreadRepository(
         ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks)
@@ -141,7 +136,7 @@ class ThreadEnv(
         ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = emptyMap())
 
     val vault = FakeVault()
-    val queue = MediaDownloadQueue(vault, NoDedup)
+    val queue = MediaDownloadQueue(vault, NoDedup, queueScope, io)
 
     fun vm(initialPostNo: Long? = null) = ThreadViewModel(
         board = "g", threadNo = 100, initialPostNo = initialPostNo,
