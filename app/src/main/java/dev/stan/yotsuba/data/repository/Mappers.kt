@@ -9,6 +9,7 @@ import dev.stan.yotsuba.core.network.dto.PostDto
 import dev.stan.yotsuba.core.media.SoundPost
 import dev.stan.yotsuba.core.text.PostAnnotation
 import dev.stan.yotsuba.core.text.PostHtmlParser
+import dev.stan.yotsuba.core.text.archiveCommentToHtml
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ArchiveSource
 import dev.stan.yotsuba.domain.model.Board
@@ -156,25 +157,6 @@ private fun FoolFuukaPostDto.toPostMedia(): PostMedia? {
             spoiler = m.spoiler == 1,
         )
     )
-}
-
-private val ARCHIVE_QUOTELINK = Regex(""">>(\d+)""")
-
-/** FoolFuuka's plain comment, marked up the way 4chan would have served it. */
-fun archiveCommentToHtml(comment: String?): String? {
-    if (comment.isNullOrEmpty()) return null
-    return comment.split('\n').joinToString("<br>") { line ->
-        val escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-        val linked = escaped.replace(Regex("&gt;&gt;(\\d+)")) { m ->
-            val no = m.groupValues[1]
-            """<a href="#p$no" class="quotelink">&gt;&gt;$no</a>"""
-        }
-        if (line.startsWith(">") && !ARCHIVE_QUOTELINK.matchesAt(line, 0)) {
-            """<span class="quote">$linked</span>"""
-        } else {
-            linked
-        }
-    }
 }
 
 fun buildThreadDetails(
