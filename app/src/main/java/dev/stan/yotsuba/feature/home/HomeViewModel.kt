@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -42,18 +43,21 @@ class HomeViewModel @Inject constructor(
      * position rather than at the end.
      */
     fun removeFavourite(board: String): () -> Unit {
-        var before: Set<String> = emptySet()
-        viewModelScope.launch {
+        // The undo waits for the removal to land, so it always sees the set it has to restore.
+        val before = viewModelScope.async {
+            var snapshot: Set<String> = emptySet()
             settingsRepository.update { s ->
-                before = s.favouriteBoards
+                snapshot = s.favouriteBoards
                 s.copy(favouriteBoards = s.favouriteBoards - board)
             }
+            snapshot
         }
         return {
             viewModelScope.launch {
+                val old = before.await()
                 settingsRepository.update { s ->
                     // Keep anything favourited in the meantime, but restore the old order.
-                    s.copy(favouriteBoards = before + (s.favouriteBoards - before))
+                    s.copy(favouriteBoards = old + (s.favouriteBoards - old))
                 }
             }
         }
