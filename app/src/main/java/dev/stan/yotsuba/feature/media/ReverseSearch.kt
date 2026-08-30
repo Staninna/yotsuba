@@ -41,8 +41,8 @@ data class ReverseSearchTarget(
     val canUseEngines: Boolean get() = remoteUrl != null
     val canShare: Boolean get() = file != null
 
-    /** Open by URL when there is one, otherwise only an engine that takes the file. */
-    fun canUse(engine: ReverseSearchEngine): Boolean = canUseEngines || (engine.takesSharedImage && canShare)
+    /** Open by URL when there is one; a local file can be shared to Lens or uploaded. */
+    fun canUse(engine: ReverseSearchEngine): Boolean = canUseEngines || canShare
 }
 
 /** [url] when an engine could fetch it: `http(s)`, not the `file://` an imported thread carries. */

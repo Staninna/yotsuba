@@ -182,6 +182,10 @@
     <string name="settings_autoplay_always">Always</string>
     <string name="settings_autoplay_unmetered">Unmetered connections only</string>
     <string name="settings_autoplay_never">Never</string>
+    <string name="settings_local_search">Search local files by</string>
+    <string name="settings_local_search_summary">How a file with no online copy reaches SauceNAO, IQDB, TinEye and Yandex. Direct upload posts it to the engine itself; engines without an upload form use a temporary host that deletes it after an hour.</string>
+    <string name="settings_local_search_direct">Direct upload</string>
+    <string name="settings_local_search_host">Temporary host</string>
     <string name="settings_record_history">Record history</string>
     <string name="settings_history_retention">Keep history</string>
     <string name="settings_retention_forever">Forever</string>

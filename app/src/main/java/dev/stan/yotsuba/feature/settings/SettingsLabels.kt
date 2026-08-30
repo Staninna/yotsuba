@@ -22,6 +22,7 @@ import dev.stan.yotsuba.domain.model.FontSize
 import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.MediaAutoplay
+import dev.stan.yotsuba.domain.model.LocalSearchMethod
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.navigation.SettingsSectionId
@@ -75,6 +76,12 @@ internal val MediaAutoplay.labelRes: Int
         MediaAutoplay.ALWAYS -> R.string.settings_autoplay_always
         MediaAutoplay.UNMETERED_ONLY -> R.string.settings_autoplay_unmetered
         MediaAutoplay.NEVER -> R.string.settings_autoplay_never
+    }
+
+internal val LocalSearchMethod.labelRes: Int
+    get() = when (this) {
+        LocalSearchMethod.DIRECT_UPLOAD -> R.string.settings_local_search_direct
+        LocalSearchMethod.TEMP_HOST -> R.string.settings_local_search_host
     }
 
 internal val HistoryRetention.labelRes: Int

@@ -10,6 +10,14 @@ enum class HistoryRetention { FOREVER, DAYS_30, DAYS_7 }
 /** What a tap on a `>>123` quotelink does; a long-press does the other one. */
 enum class QuoteTapAction { POPOVER, JUMP }
 
+/**
+ * How a file that only exists on this phone reaches a reverse search engine. Direct upload
+ * posts it to the engine's own form; the temporary host puts it on litterbox for an hour
+ * and hands the engine that URL. Engines whose form gives no shareable result page use the
+ * host either way.
+ */
+enum class LocalSearchMethod { DIRECT_UPLOAD, TEMP_HOST }
+
 /** How far one double-tap on a video's left or right edge jumps. */
 enum class SeekStep(val seconds: Int) {
     FIVE(5),
@@ -117,4 +125,6 @@ data class Settings(
     val appLockDelaySeconds: Int = 0,
     /** Sort order of the Watched list in the Threads tab. */
     val bookmarkSortOrder: BookmarkSortOrder = BookmarkSortOrder.UNREAD_FIRST,
+    /** How local-only files reach the reverse search engines that need a URL. */
+    val localSearchMethod: LocalSearchMethod = LocalSearchMethod.DIRECT_UPLOAD,
 )

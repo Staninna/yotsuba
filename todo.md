@@ -33,8 +33,6 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## Maybe
 
-- [ ] Reverse image search for local-only files. A video frame or an imported file has no online copy, so only Lens (shared image) works and SauceNAO, IQDB, TinEye and Yandex stay disabled. Give them a URL: upload the file somewhere transient (a small relay server, or a hosted paste like catbox / 0x0.st with a short expiry) and pass that URL, or POST the file to each engine's upload form through a WebView. The engines all accept multipart uploads on their web forms, so the WebView route needs no server
-
 - [ ] Full-text search across the vault: index every sidecar's `posts.json` in a Room FTS table, search text/name/ID/filename offline. List snapshot-only threads in the explorer at the same time
 - [ ] Archive fallthrough in the media viewer (still live → vault only)
 - [ ] Re-orderable favourites and per-board accents on Home
@@ -164,3 +162,7 @@ vault members deleted.
 - [x] Reverse image search from both viewers: Lens/SauceNAO/IQDB/TinEye/Yandex by URL, "Share to another app" for local-only files, and a frame picker for videos (remote ones fetched to the share cache first)
 - [x] Swipe left/right in a thread to the next/previous thread in the catalog order it was opened from (`ThreadSiblingsStore`). Not recorded from the Threads tab or History yet
 - [x] `bump.sh` writes `changelog/vX.Y.Z.md` through `claude -p` and the release workflow uses it as the body; the updater parses it (`core/update/ReleaseNotes.kt`). CI never calls Claude
+
+### Maybe
+
+- [x] Reverse image search for local-only files, all engines. TinEye and Yandex get a direct multipart upload to their own forms (`ReverseSearchUploader`); SauceNAO and IQDB, whose forms return no shareable URL, go through litterbox (1 hour) with 0x0.st as backup, and a privacy setting picks the default route. A failed direct upload offers the host as a retry in the sheet

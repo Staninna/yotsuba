@@ -15,8 +15,15 @@ import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.core.lock.DeviceUnlock
 import dev.stan.yotsuba.core.lock.UnlockResult
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
+import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.domain.model.LocalSearchMethod
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.appLockDelayLabel
+import dev.stan.yotsuba.feature.settings.labelRes
 
 /** The "lock again after" choices, in seconds; 0 is "right away". */
 private val AppLockDelays = listOf(0, 30, 60, 300)
@@ -63,4 +70,18 @@ fun PrivacySection(
             labelOf = { appLockDelayLabel(it) },
         )
     }
+
+    ChipRow(
+        label = stringResource(R.string.settings_local_search),
+        options = LocalSearchMethod.entries,
+        selected = settings.localSearchMethod,
+        onSelect = { v -> update { it.copy(localSearchMethod = v) } },
+        labelOf = { stringResource(it.labelRes) },
+    )
+    Text(
+        stringResource(R.string.settings_local_search_summary),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = LocalSpacing.current.lg, vertical = LocalSpacing.current.xs),
+    )
 }

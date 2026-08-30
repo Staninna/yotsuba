@@ -56,14 +56,21 @@ class ReverseSearchTest {
         assertFalse(unsaved.canShare)
     }
 
-    @Test fun `a local-only file can still go to Lens, and nowhere else`() {
+    @Test fun `a local-only file can go to every engine, and nothing can go nowhere`() {
         val frame = ReverseSearchTarget(null, File("/frame.jpg"), ".jpg")
-        assertTrue(frame.canUse(ReverseSearchEngine.GOOGLE_LENS))
-        ReverseSearchEngine.entries.filterNot { it.takesSharedImage }.forEach { engine ->
-            assertFalse("$engine", frame.canUse(engine))
-        }
         val online = ReverseSearchTarget(image, null, ".jpg")
-        ReverseSearchEngine.entries.forEach { engine -> assertTrue("$engine", online.canUse(engine)) }
-        assertFalse(ReverseSearchTarget(null, null, ".jpg").canUse(ReverseSearchEngine.GOOGLE_LENS))
+        ReverseSearchEngine.entries.forEach { engine ->
+            assertTrue("$engine local", frame.canUse(engine))
+            assertTrue("$engine online", online.canUse(engine))
+            assertFalse("$engine empty", ReverseSearchTarget(null, null, ".jpg").canUse(engine))
+        }
+    }
+
+    @Test fun `only engines with a usable upload form claim a direct route`() {
+        assertEquals(EngineUploadStyle.REDIRECT, ReverseSearchEngine.TINEYE.uploadStyle)
+        assertEquals(EngineUploadStyle.JSON, ReverseSearchEngine.YANDEX.uploadStyle)
+        assertEquals(EngineUploadStyle.NONE, ReverseSearchEngine.SAUCENAO.uploadStyle)
+        assertEquals(EngineUploadStyle.NONE, ReverseSearchEngine.IQDB.uploadStyle)
+        assertEquals(EngineUploadStyle.NONE, ReverseSearchEngine.GOOGLE_LENS.uploadStyle)
     }
 }
