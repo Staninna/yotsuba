@@ -39,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -115,6 +116,8 @@ fun VideoPage(
     onControlTouched: () -> Unit = {},
     /** True from the first drag of the seek bar until it is released. */
     onScrubbing: (Boolean) -> Unit = {},
+    /** The playback position each time the page reads it: while the chrome is up, and on every seek. */
+    onPositionRead: (Long) -> Unit = {},
     /** A sound post's external audio, kept in step with the video. */
     soundUrl: String? = null,
 ) {
@@ -130,6 +133,11 @@ fun VideoPage(
         chromeVisible = chromeVisible,
         onEnded = onEnded,
     )
+
+    val onPositionReadNow = rememberUpdatedState(onPositionRead)
+    LaunchedEffect(playback) {
+        snapshotFlow { playback.positionMs }.collect { onPositionReadNow.value(it) }
+    }
 
     var viewportWidth by remember { mutableIntStateOf(0) }
     // Signed milliseconds of the last edge jump, shown briefly; 0 while nothing is showing.

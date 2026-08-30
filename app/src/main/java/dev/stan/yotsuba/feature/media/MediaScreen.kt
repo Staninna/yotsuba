@@ -54,6 +54,7 @@ import dev.stan.yotsuba.core.designsystem.component.errorMessage
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.domain.model.MediaItem
 import java.io.File
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
@@ -117,6 +118,10 @@ fun MediaScreen(
     var sharing by remember { mutableStateOf(false) }
     var searchTarget by remember { mutableStateOf<ReverseSearchTarget?>(null) }
     val searchFailedMessage = stringResource(R.string.media_search_open_failed)
+    // The video the frame picker is open over, and the fetch that may be bringing it down.
+    var frameSource by remember { mutableStateOf<Pair<File, Long>?>(null) }
+    var fetching by remember { mutableStateOf<Job?>(null) }
+    val frameFailedMessage = stringResource(R.string.media_frame_failed)
 
     val haptics = rememberHaptics()
     // Queued + running saves. Failed ones are not "in progress"; they wait on the icon.
@@ -160,7 +165,25 @@ fun MediaScreen(
         },
         topBarMenu = { page, close ->
             val item = state.items.getOrNull(page)
-            if (item != null && !item.isVideo) {
+            val feed = LocalMediaFeed.current
+            if (item != null && item.isVideo) {
+                ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_frame)) {
+                    close()
+                    val at = feed?.videoPositionMs ?: 0L
+                    val local = localFileOf(item, state)
+                    if (local != null) {
+                        frameSource = local to at
+                    } else {
+                        // A remote video has to be on disk for the retriever; the share
+                        // download is the same fetch, into the same cache.
+                        fetching = scope.launch {
+                            val file = viewModel.prepareShare(item)
+                            fetching = null
+                            if (file != null) frameSource = file to at else snackbar.showSnackbar(shareFailedMessage)
+                        }
+                    }
+                }
+            } else if (item != null) {
                 ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_image)) {
                     close()
                     searchTarget = ReverseSearchTarget(
@@ -235,6 +258,21 @@ fun MediaScreen(
         }
     }
 
+    if (fetching != null) {
+        FetchingVideoDialog(onCancel = { fetching?.cancel(); fetching = null })
+    }
+    frameSource?.let { (video, at) ->
+        FramePickerSheet(
+            video = video,
+            startMs = at,
+            onPick = { frame ->
+                frameSource = null
+                searchTarget = ReverseSearchTarget(remoteUrl = null, file = frame, ext = ".jpg")
+            },
+            onDismiss = { frameSource = null },
+            onFailed = { scope.launch { snackbar.showSnackbar(frameFailedMessage) } },
+        )
+    }
     searchTarget?.let { target ->
         ReverseSearchSheet(
             target = target,

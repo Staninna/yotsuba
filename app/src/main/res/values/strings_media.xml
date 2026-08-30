@@ -12,4 +12,10 @@
     <string name="media_search_needs_url">Needs an online copy; this file only exists on this phone</string>
     <string name="media_search_share_app">Share to another app…</string>
     <string name="media_search_open_failed">Nothing on this phone could open the search</string>
+    <string name="media_search_frame">Search a frame</string>
+    <string name="media_frame_title">Pick a frame</string>
+    <string name="media_frame_slider">Frame position</string>
+    <string name="media_frame_use">Use this frame</string>
+    <string name="media_frame_fetching">Fetching the video…</string>
+    <string name="media_frame_failed">Couldn\'t read a frame from this video</string>
 </resources>

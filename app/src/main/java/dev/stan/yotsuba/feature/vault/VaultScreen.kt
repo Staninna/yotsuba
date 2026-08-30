@@ -63,6 +63,8 @@ import androidx.compose.material3.ListItem
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
+import dev.stan.yotsuba.feature.media.FramePickerSheet
+import dev.stan.yotsuba.feature.media.LocalMediaFeed
 import dev.stan.yotsuba.feature.media.ReverseSearchSheet
 import dev.stan.yotsuba.feature.media.ReverseSearchTarget
 import dev.stan.yotsuba.feature.media.ViewerMenuItem
@@ -446,9 +448,11 @@ private fun VaultViewer(
     val context = LocalContext.current
     val entries = viewer.entries
     var searchTarget by remember { mutableStateOf<ReverseSearchTarget?>(null) }
+    var frameSource by remember { mutableStateOf<Pair<File, Long>?>(null) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val searchFailedMessage = stringResource(R.string.media_search_open_failed)
+    val frameFailedMessage = stringResource(R.string.media_frame_failed)
 
     ThreadMediaViewer(
         pages = entries.map { it.toViewerPage() },
@@ -476,7 +480,13 @@ private fun VaultViewer(
                     onOpenThread(current.location.board, current.location.threadNo, current.postNo)
                 }
             }
-            if (current != null && !current.isVideo) {
+            val feed = LocalMediaFeed.current
+            if (current != null && current.isVideo) {
+                ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_frame)) {
+                    close()
+                    frameSource = File(current.absolutePath) to (feed?.videoPositionMs ?: 0L)
+                }
+            } else if (current != null) {
                 ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_image)) {
                     close()
                     searchTarget = ReverseSearchTarget(
@@ -513,6 +523,18 @@ private fun VaultViewer(
         }
     }
 
+    frameSource?.let { (video, at) ->
+        FramePickerSheet(
+            video = video,
+            startMs = at,
+            onPick = { frame ->
+                frameSource = null
+                searchTarget = ReverseSearchTarget(remoteUrl = null, file = frame, ext = ".jpg")
+            },
+            onDismiss = { frameSource = null },
+            onFailed = { scope.launch { snackbar.showSnackbar(frameFailedMessage) } },
+        )
+    }
     searchTarget?.let { target ->
         ReverseSearchSheet(
             target = target,
