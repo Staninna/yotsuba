@@ -8,7 +8,6 @@ import dev.stan.yotsuba.core.util.LoadableFlow
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
-import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
@@ -43,8 +42,9 @@ class BoardsViewModel @Inject constructor(
             is DataResult.Failure -> UiState.Error(result.error)
             is DataResult.Success -> {
                 val all = result.value
+                val visibility = settings.visibility()
                 val matching = search(all, query)
-                val visible = matching.filter { editing || settings.isVisible(it) }
+                val visible = matching.filter { editing || visibility.isVisible(it) }
                 val sections = BoardCategory.entries.mapNotNull { cat ->
                     val inCat = visible.filter { it.category == cat }
                     if (inCat.isEmpty()) return@mapNotNull null
@@ -54,10 +54,10 @@ class BoardsViewModel @Inject constructor(
                             BoardRowState(
                                 board = board,
                                 favourite = board.code in settings.favouriteBoards,
-                                visible = settings.isVisible(board),
+                                visible = visibility.isVisible(board),
                             )
                         },
-                        allVisible = settings.allVisible(cat, all),
+                        allVisible = visibility.state(cat, all),
                     )
                 }
                 UiState.Success(BoardsContent(
@@ -87,40 +87,12 @@ class BoardsViewModel @Inject constructor(
 
     fun onToggleBoardVisible(board: String) = viewModelScope.launch {
         val all = loadedBoards()
-        val category = all.firstOrNull { it.code == board }?.category
-        settingsRepository.update { s ->
-            if (category != null && category.name in s.hiddenCategories) {
-                // The whole category is hidden, so the user wants only this board back:
-                // unhide the category and hide every sibling instead.
-                val siblings = all.filter { it.category == category && it.code != board }.map { it.code }
-                s.copy(
-                    hiddenCategories = s.hiddenCategories - category.name,
-                    hiddenBoards = s.hiddenBoards - board + siblings,
-                )
-            } else {
-                s.copy(
-                    hiddenBoards = if (board in s.hiddenBoards) s.hiddenBoards - board else s.hiddenBoards + board,
-                )
-            }
-        }
+        settingsRepository.update { it.visibility().toggleBoard(board, all).into(it) }
     }
 
     fun onToggleCategoryVisible(category: BoardCategory) = viewModelScope.launch {
         val all = loadedBoards()
-        val boards = all.filter { it.category == category }.map { it.code }
-        settingsRepository.update { s ->
-            // Mixed or all-visible -> hide all; hidden -> show all (tri-state, D13).
-            if (s.allVisible(category, all) == false) {
-                s.copy(
-                    hiddenCategories = s.hiddenCategories - category.name,
-                    hiddenBoards = s.hiddenBoards - boards.toSet(),
-                )
-            } else {
-                s.copy(
-                    hiddenCategories = s.hiddenCategories + category.name,
-                )
-            }
-        }
+        settingsRepository.update { it.visibility().toggleCategory(category, all).into(it) }
     }
 
     /**
@@ -145,17 +117,4 @@ class BoardsViewModel @Inject constructor(
 
     private fun loadedBoards(): List<Board> =
         (boardsResult.current as? DataResult.Success)?.value.orEmpty()
-
-    private fun Settings.isVisible(board: Board): Boolean =
-        board.code !in hiddenBoards && board.category.name !in hiddenCategories
-
-    /** true = every board shown, false = none, null = mixed. */
-    private fun Settings.allVisible(category: BoardCategory, all: List<Board>): Boolean? {
-        val inCat = all.filter { it.category == category }
-        return when (inCat.count { isVisible(it) }) {
-            inCat.size -> true
-            0 -> false
-            else -> null
-        }
-    }
 }
