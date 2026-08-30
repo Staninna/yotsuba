@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
+import dev.stan.yotsuba.core.designsystem.theme.LocalYotsubaColors
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.VaultError
 
@@ -103,11 +104,12 @@ private fun MenuItem(labelRes: Int, enabled: Boolean = true, onClick: () -> Unit
 
 @Composable
 private fun SaveStatusIcon(status: MediaSaveStatus?) {
+    val colors = LocalYotsubaColors.current
     when (status) {
         MediaSaveStatus.Saved -> Icon(
             Icons.Filled.DownloadDone,
             stringResource(R.string.media_downloaded),
-            tint = Color(0xFF81C784),
+            tint = colors.saveSuccess,
         )
         MediaSaveStatus.Downloading -> CircularProgressIndicator(
             modifier = Modifier.size(20.dp),
@@ -122,12 +124,12 @@ private fun SaveStatusIcon(status: MediaSaveStatus?) {
         is MediaSaveStatus.Failed -> Icon(
             Icons.Filled.Download,
             stringResource(R.string.media_save_failed),
-            tint = Color(0xFFE57373),
+            tint = colors.saveError,
         )
         is MediaSaveStatus.AlreadySaved -> Icon(
             Icons.Filled.DownloadDone,
             stringResource(R.string.media_already_saved),
-            tint = Color(0xFF81C784).copy(alpha = 0.7f),
+            tint = colors.saveSuccess.copy(alpha = 0.7f),
         )
         null -> Icon(
             Icons.Filled.Download,

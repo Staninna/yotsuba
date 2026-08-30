@@ -327,6 +327,7 @@ private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit, onLongPres
 /** Tiny vault-status badge overlaid on a post thumbnail's corner. */
 @Composable
 private fun SaveStatusBadge(status: MediaSaveStatus, modifier: Modifier = Modifier) {
+    val colors = LocalYotsubaColors.current
     Box(
         modifier
             .padding(3.dp)
@@ -337,7 +338,7 @@ private fun SaveStatusBadge(status: MediaSaveStatus, modifier: Modifier = Modifi
         when (status) {
             MediaSaveStatus.Saved -> Icon(
                 Icons.Filled.DownloadDone, stringResource(R.string.media_downloaded),
-                tint = Color(0xFF81C784), modifier = Modifier.size(13.dp),
+                tint = colors.saveSuccess, modifier = Modifier.size(13.dp),
             )
             MediaSaveStatus.Queued -> Icon(
                 Icons.Filled.Schedule, stringResource(R.string.media_queued),
@@ -348,11 +349,11 @@ private fun SaveStatusBadge(status: MediaSaveStatus, modifier: Modifier = Modifi
             )
             is MediaSaveStatus.Failed -> Icon(
                 Icons.Filled.ErrorOutline, stringResource(R.string.media_save_failed),
-                tint = Color(0xFFE57373), modifier = Modifier.size(13.dp),
+                tint = colors.saveError, modifier = Modifier.size(13.dp),
             )
             is MediaSaveStatus.AlreadySaved -> Icon(
                 Icons.Filled.DownloadDone, stringResource(R.string.media_already_saved),
-                tint = Color(0xFF81C784).copy(alpha = 0.7f), modifier = Modifier.size(13.dp),
+                tint = colors.saveSuccess.copy(alpha = 0.7f), modifier = Modifier.size(13.dp),
             )
         }
     }
