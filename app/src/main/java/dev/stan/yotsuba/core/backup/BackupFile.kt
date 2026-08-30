@@ -116,7 +116,6 @@ object BackupCodec {
         lastActivityAt = lastActivityAt,
     )
 
-    @Suppress("DEPRECATION")
     private fun BackupBookmark.toDomain() = Bookmark(
         board = board,
         threadNo = threadNo,

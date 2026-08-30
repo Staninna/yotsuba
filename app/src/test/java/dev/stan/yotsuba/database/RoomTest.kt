@@ -8,6 +8,7 @@ import dev.stan.yotsuba.core.database.entity.BookmarkEntity
 import dev.stan.yotsuba.core.database.entity.HiddenThreadEntity
 import dev.stan.yotsuba.core.database.entity.HistoryEntity
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
+import dev.stan.yotsuba.core.media.VIDEO_EXTS
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -109,8 +110,8 @@ class RoomTest {
                 saved("f.jpg", ".jpg", md5 = null, phash = null, path = ""),
             ),
         )
-        val rows = dao.missingHashes()
+        val rows = dao.missingHashes(VIDEO_EXTS)
         assertEquals(setOf("a.jpg", "b.jpg", "e.webm"), rows.map { it.url }.toSet())
-        assertEquals(rows.size, dao.missingHashCount())
+        assertEquals(rows.size, dao.missingHashCount(VIDEO_EXTS))
     }
 }

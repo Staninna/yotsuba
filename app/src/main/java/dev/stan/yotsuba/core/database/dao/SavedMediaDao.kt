@@ -38,21 +38,21 @@ interface SavedMediaDao {
     suspend fun byMd5(md5: String): SavedMediaEntity?
 
     /**
-     * Rows the hasher still has to visit: no MD5, or an image with no dHash. The extension
-     * list mirrors core/media [dev.stan.yotsuba.core.media.isVideoExt]; keep the two in step.
+     * Rows the hasher still has to visit: no MD5, or an image with no dHash. Callers pass
+     * [dev.stan.yotsuba.core.media.VIDEO_EXTS] as [videoExts].
      */
     @Query(
         "SELECT * FROM saved_media WHERE absolutePath != '' AND " +
-            "(md5 IS NULL OR (phash IS NULL AND ext NOT IN ('.webm', '.mp4')))",
+            "(md5 IS NULL OR (phash IS NULL AND ext NOT IN (:videoExts)))",
     )
-    suspend fun missingHashes(): List<SavedMediaEntity>
+    suspend fun missingHashes(videoExts: Set<String>): List<SavedMediaEntity>
 
     /** How many rows [missingHashes] would return, without loading them. Same predicate, kept verbatim. */
     @Query(
         "SELECT COUNT(*) FROM saved_media WHERE absolutePath != '' AND " +
-            "(md5 IS NULL OR (phash IS NULL AND ext NOT IN ('.webm', '.mp4')))",
+            "(md5 IS NULL OR (phash IS NULL AND ext NOT IN (:videoExts)))",
     )
-    suspend fun missingHashCount(): Int
+    suspend fun missingHashCount(videoExts: Set<String>): Int
 
     @Query("UPDATE saved_media SET md5 = :md5 WHERE url = :url")
     suspend fun updateMd5(url: String, md5: String)

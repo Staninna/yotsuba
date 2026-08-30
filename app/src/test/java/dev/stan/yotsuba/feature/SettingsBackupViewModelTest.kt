@@ -77,7 +77,7 @@ class SettingsBackupViewModelTest {
         override suspend fun add(bookmark: Bookmark) {}
         override suspend fun remove(board: String, threadNo: Long) {}
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
+        override suspend fun markSeen(board: String, threadNo: Long, postNo: Long) {}
         override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
         override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
         override suspend fun removeDead() {}
