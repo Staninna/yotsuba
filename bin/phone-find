@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Resolve an adb transport for the phone and print its serial on stdout.
+#
+#   bin/phone-find              # USB, then an existing connection, then Tailscale
+#   bin/phone-find --port 41234 # wireless-debugging port read off the phone
+#
+# The transport that answered is always named on stderr. A silent fall back to USB
+# must never pass for a working remote link.
+set -euo pipefail
+
+PHONE_HOST=${PHONE_TS_HOST:-}   # Tailscale machine name; unset means the tailnet's one android peer
+CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/android-dev
+PORT=""
+while [ $# -gt 0 ]; do
+  case $1 in
+    --port) PORT=$2; shift 2 ;;
+    *) echo "phone-find: unknown argument $1" >&2; exit 2 ;;
+  esac
+done
+mkdir -p "$CACHE"
+[ -n "$PORT" ] || PORT=$( { grep -s '^PORT=' "$CACHE/phone.env" || echo PORT=5555; } | cut -d= -f2)
+
+say() { echo "phone-find: $*" >&2; }
+
+usb=""
+[ -n "${ADB_NO_USB:-}" ] || usb=$(adb devices -l | awk '$2 == "device" && /usb:/ { print $1; exit }')
+if [ -n "$usb" ]; then say "USB ($usb)"; echo "$usb"; exit 0; fi
+
+tcp=$(adb devices | awk '$2 == "device" && $1 ~ /:[0-9]+$/ { print $1; exit }')
+if [ -n "$tcp" ]; then say "existing connection ($tcp)"; echo "$tcp"; exit 0; fi
+
+if ! tailscale status >/dev/null 2>&1; then
+  say "no USB, no connection, and Tailscale is down on this laptop"; exit 1
+fi
+ip=$(tailscale status --json | python3 -c '
+import json, sys
+host = sys.argv[1]
+st = json.load(sys.stdin)
+for p in st["Peer"].values():
+    name = p["DNSName"].split(".")[0]
+    if (host and name.lower() == host.lower()) or (not host and p["OS"] == "android"):
+        print(name, p["TailscaleIPs"][0]); break
+' "$PHONE_HOST")
+if [ -z "$ip" ]; then say "no USB, no connection, and ${PHONE_HOST:-an android peer} is not in the tailnet"; exit 1; fi
+PHONE_HOST=${ip%% *}; ip=${ip##* }
+
+out=$(adb connect "$ip:$PORT" 2>&1)
+case $out in
+  *connected*) echo "PORT=$PORT" > "$CACHE/phone.env"; say "Tailscale ($ip:$PORT)"; echo "$ip:$PORT" ;;
+  *) say "Tailscale sees $PHONE_HOST but adb could not connect: $out"; say "re-arm with bin/phone-arm from a cable, or pass --port from Wireless debugging"; exit 1 ;;
+esac

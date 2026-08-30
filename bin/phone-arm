@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# From a USB cable, put the phone's adb on TCP so it is reachable over Tailscale later.
+#
+#   bin/phone-arm
+#
+# `adb tcpip` does not survive a reboot; run this again before leaving the house.
+set -euo pipefail
+
+usb=$(adb devices -l | awk '$2 == "device" && /usb:/ { print $1; exit }')
+[ -n "$usb" ] || { echo "phone-arm: no phone on USB" >&2; exit 1; }
+
+adb -s "$usb" tcpip 5555 >/dev/null
+sleep 2
+mkdir -p "${XDG_CACHE_HOME:-$HOME/.cache}/android-dev"
+echo "PORT=5555" > "${XDG_CACHE_HOME:-$HOME/.cache}/android-dev/phone.env"
+echo "phone-arm: adb listening on 5555 (until the next reboot)"
+
+if tailscale status >/dev/null 2>&1; then
+  if bin_dir=$(dirname "$0") && serial=$(ADB_NO_USB=1 "$bin_dir/phone-find" 2>/dev/null) && [[ $serial == *:* ]]; then
+    echo "phone-arm: verified over Tailscale ($serial)"
+  else
+    echo "phone-arm: could not verify over Tailscale yet; check the phone's Tailscale app" >&2
+  fi
+else
+  echo "phone-arm: Tailscale is down on this laptop, so the remote leg is unverified" >&2
+fi

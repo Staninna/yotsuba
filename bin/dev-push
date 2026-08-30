@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Build the debug APK of an app, install it on the phone, launch it, fail if it dies.
+#
+#   bin/dev-push yotsuba          # ~/code/yotsuba, package dev.stan.yotsuba.dev
+#   bin/dev-push yotsuba --logs   # ...and dump the app's logcat afterwards
+#
+# The transport comes from phone-find, which names what it used. Output stays terse
+# because it gets read on a phone screen; full logs on failure or --logs.
+set -euo pipefail
+
+APP=${1:?usage: dev-push <app> [--logs]}
+LOGS=0
+[ "${2:-}" = "--logs" ] && LOGS=1
+REPO=${CODE_DIR:-$HOME/code}/$APP
+PKG=dev.stan.$APP.dev
+ACTIVITY=dev.stan.$APP.MainActivity
+BIN=$(cd "$(dirname "$0")" && pwd)
+
+[ -d "$REPO" ] || { echo "dev-push: no repo at $REPO" >&2; exit 1; }
+
+serial=$("$BIN/phone-find") || exit 1
+export ANDROID_SERIAL=$serial
+
+echo "dev-push: building $APP"
+( cd "$REPO" && ./gradlew -q assembleDebug ) || { echo "dev-push: build failed" >&2; exit 1; }
+apk=$(find "$REPO/app/build/outputs/apk/debug" -name '*.apk' | head -1)
+[ -n "$apk" ] || { echo "dev-push: no debug APK produced" >&2; exit 1; }
+
+adb logcat -c
+# HyperOS holds adb installs behind a dialog; silence there is a cancel, not a hang.
+echo "dev-push: installing (approve the dialog on the phone if it shows)"
+adb install -r "$apk" >/dev/null || { echo "dev-push: install failed" >&2; exit 1; }
+
+adb shell am start -W -n "$PKG/$ACTIVITY" | grep -q '^Status: ok' || { echo "dev-push: launch failed" >&2; exit 1; }
+pid=$(adb shell pidof "$PKG" | tr -d '\r') || true
+[ -n "$pid" ] || { echo "dev-push: $PKG has no process after launch" >&2; exit 1; }
+sleep "${DEV_PUSH_WAIT:-5}"
+later=$(adb shell pidof "$PKG" | tr -d '\r') || true
+version=$(adb shell dumpsys package "$PKG" | awk -F= '/versionName=/ { print $2; exit }' | tr -d '\r')
+
+if [ "$later" != "$pid" ] || adb logcat -d | grep -qE "FATAL EXCEPTION|Process $PKG .*has died"; then
+  echo "dev-push: $PKG $version crashed" >&2
+  adb logcat -d '*:E' | tail -150 >&2
+  exit 1
+fi
+echo "dev-push: $PKG $version running (pid $pid)"
+[ $LOGS = 1 ] && adb logcat -d --pid="$pid"
+exit 0

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# One screen: Tailscale node, adb transports, what is installed.
+#
+#   bin/phone-status
+set -euo pipefail
+
+
+echo "== tailscale"
+if tailscale status >/dev/null 2>&1; then
+  tailscale status | awk -v h="${PHONE_TS_HOST:-}" '(h == "" && $4 == "android") || (h != "" && $2 == h)' | grep . || echo "phone not in the tailnet"
+else
+  echo "stopped on this laptop"
+fi
+
+echo "== adb"
+adb devices -l | sed 1d | sed '/^$/d' || true
+
+serial=$("$(dirname "$0")/phone-find" 2>/dev/null) || { echo "== installed"; echo "no transport"; exit 0; }
+echo "== installed (via $serial)"
+for pkg in dev.stan.yotsuba dev.stan.yotsuba.dev dev.stan.duogate dev.stan.duogate.dev dev.stan.alarum dev.stan.alarum.dev; do
+  v=$(adb -s "$serial" shell dumpsys package "$pkg" 2>/dev/null | awk -F= '/versionName=/ { print $2; exit }' | tr -d '\r')
+  [ -n "$v" ] && printf '%-26s %s\n' "$pkg" "$v"
+done
