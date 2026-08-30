@@ -32,6 +32,8 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.feature.media.MediaSessionStore
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +45,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -62,6 +65,8 @@ class ThreadViewModel @AssistedInject constructor(
     private val mediaVault: MediaVaultRepository,
     private val downloadQueue: MediaSaveQueue,
     private val claimedPosts: ClaimedPostRepository,
+    /** Where the row pipeline runs; tests pass their scheduler's dispatcher. */
+    private val compute: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     @AssistedFactory
@@ -169,7 +174,11 @@ class ThreadViewModel @AssistedInject constructor(
                 )
             }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
+    }
+        // Deriving rows, verdicts and search matches over every post is real work; keep it
+        // off the main thread (the block is pure, so only where it runs changes).
+        .flowOn(compute)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
 
     /** One-shot: the screen scrolls to it, then calls [onScrollTargetConsumed]. */
     val scrollTarget: StateFlow<ScrollTarget?> = scrollTargetFlow

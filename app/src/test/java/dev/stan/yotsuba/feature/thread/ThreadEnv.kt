@@ -28,7 +28,9 @@ import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -139,6 +141,8 @@ class ThreadEnv(
     val bookmarks: FakeBookmarkRepository = FakeBookmarkRepository(),
     val settings: FakeSettings = FakeSettings(),
     val claimed: FakeClaimedPosts = FakeClaimedPosts(),
+    /** Unconfined keeps the row pipeline on the test scheduler, so emissions stay deterministic. */
+    val compute: CoroutineDispatcher = Dispatchers.Unconfined,
 ) {
     val threads = FakeThreadRepository(
         ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks)
@@ -161,6 +165,7 @@ class ThreadEnv(
         mediaVault = vault,
         downloadQueue = queue,
         claimedPosts = claimed,
+        compute = compute,
     )
 
     /** A ViewModel whose `uiState` is kept collected on [scope], so its `stateIn` stays live. */
