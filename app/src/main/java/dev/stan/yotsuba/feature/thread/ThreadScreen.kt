@@ -409,6 +409,9 @@ fun ThreadScreen(
                         onDismiss = viewModel::onDismissPreview,
                         onBack = viewModel::onClosePreview,
                         onGoTo = viewModel::onJumpToPost,
+                        onOpenThread = { board, threadNo, postNo ->
+                            onOpenInternal(Urls.InternalLink.Thread(board, threadNo, postNo))
+                        },
                         onFocus = viewModel::onOpenPreview,
                         postCard = { post -> postCard(post, true) },
                     )

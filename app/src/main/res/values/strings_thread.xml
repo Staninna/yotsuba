@@ -77,6 +77,14 @@
     <string name="thread_preview_hide_parents">Hide quoted posts</string>
     <string name="thread_preview_back">Back to previous post</string>
     <string name="thread_preview_close">Close preview</string>
+    <!-- A post quoted from another thread ("ghost"): %1$s is the board code, %2$d the thread number. -->
+    <string name="thread_ghost_from">From /%1$s/%2$d</string>
+    <string name="thread_ghost_source_live">Live</string>
+    <string name="thread_ghost_source_saved">Saved copy</string>
+    <!-- %1$s is the archive's short name, e.g. desu. -->
+    <string name="thread_ghost_source_archived">Archived copy (%1$s)</string>
+    <string name="thread_ghost_open_thread">Open thread</string>
+    <string name="thread_ghost_not_found">Post not found</string>
     <string name="settings_quote_tap">Tapping a quote</string>
     <string name="settings_quote_tap_popover">Show preview</string>
     <string name="settings_quote_tap_jump">Jump to post</string>
