@@ -2,18 +2,16 @@ package dev.stan.yotsuba.feature.thread
 
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.Settings
-import kotlinx.coroutines.Dispatchers
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 /** With [Settings.inlineImageExpansion] on, a still image expands in the card; everything else keeps the viewer. */
@@ -22,8 +20,7 @@ class ThreadInlineExpandTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private val still = ThreadEnv.postWithMedia(101)
     private val media = still.presentMedia!!

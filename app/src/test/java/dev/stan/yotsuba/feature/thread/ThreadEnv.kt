@@ -22,97 +22,23 @@ import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
+import dev.stan.yotsuba.fake.FakeBoardRepository
+import dev.stan.yotsuba.fake.FakeBookmarkRepository
+import dev.stan.yotsuba.fake.FakeHistoryRepository
 import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.FakeThreadRepository
+import dev.stan.yotsuba.fake.FakeVault
 import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
-
-class FakeThreadRepository(details: ThreadDetails) : ThreadRepository {
-    var result: DataResult<ThreadDetails> = DataResult.Success(details)
-    var archived: DataResult<ThreadDetails> = DataResult.Failure(NetworkError.NotFound)
-    /** Answers for other threads (ghost lookups), by (board, no); [result]/[archived] otherwise. */
-    val byThread = mutableMapOf<Pair<String, Long>, DataResult<ThreadDetails>>()
-    val archivedByThread = mutableMapOf<Pair<String, Long>, DataResult<ThreadDetails>>()
-    /** Every source asked, in order, so a test can assert the fallback order. */
-    val asked = mutableListOf<String>()
-    override suspend fun thread(board: String, no: Long, forceRefresh: Boolean): DataResult<ThreadDetails> {
-        asked += "live"
-        return byThread[board to no] ?: result
-    }
-    override suspend fun archivedThread(board: String, no: Long): DataResult<ThreadDetails> {
-        asked += "archive"
-        return archivedByThread[board to no] ?: archived
-    }
-}
-
-object FakeBoardRepository : BoardRepository {
-    override suspend fun boards(forceRefresh: Boolean) = DataResult.Success(emptyList<Board>())
-    override suspend fun board(code: String): Board? = null
-}
-
-class FakeBookmarkRepository : BookmarkRepository {
-    val bookmarkedFlow = MutableStateFlow(false)
-    var added: Bookmark? = null
-    var removedCount = 0
-    override val bookmarks: Flow<List<Bookmark>> = flowOf(emptyList())
-    override suspend fun add(bookmark: Bookmark) {
-        added = bookmark
-        bookmarkedFlow.value = true
-    }
-    override suspend fun remove(board: String, threadNo: Long) {
-        removedCount++
-        bookmarkedFlow.value = false
-    }
-    override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> = bookmarkedFlow
-    override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
-    /** Every markSeen call, in order; the repository itself never lowers the mark. */
-    val seen = mutableListOf<Long>()
-    override suspend fun markSeen(board: String, threadNo: Long, postNo: Long) {
-        seen += postNo
-    }
-    override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
-    override suspend fun removeDead() {}
-    override suspend fun clearAll() {}
-}
-
-class FakeHistoryRepository(var savedScrollPostNo: Long? = null) : HistoryRepository {
-    var readMark: Long? = null
-    override val history: Flow<List<HistoryEntry>> = flowOf(emptyList())
-    override suspend fun record(entry: HistoryEntry) {}
-    override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) {
-        savedScrollPostNo = postNo
-    }
-    override suspend fun lastScrollPosition(board: String, threadNo: Long) = savedScrollPostNo
-    override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) { readMark = postNo }
-    override suspend fun readUpTo(board: String, threadNo: Long) = readMark
-    override suspend fun remove(board: String, threadNo: Long) {}
-    override suspend fun restore(entry: HistoryEntry) = record(entry)
-    override suspend fun clearAll() {}
-    override suspend fun trim(retainAfterMs: Long) {}
-}
-
-/** Records every save in order; `statuses` is too transient to assert on. */
-class FakeVault : FakeMediaVault() {
-    val saves = mutableListOf<Pair<MediaItem, VaultSaveContext>>()
-    override fun hasStorageAccess() = false
-    override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
-        saves += item to context
-        return null
-    }
-    var snapshot: ThreadDetails? = null
-    /** Saved copies of other threads, by (board, no); [snapshot] answers for the rest. */
-    val snapshots = mutableMapOf<Pair<String, Long>, ThreadDetails>()
-    override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? =
-        snapshots[board to threadNo] ?: snapshot
-}
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
 class FakeClaimedPosts : ClaimedPostRepository {
     val state = MutableStateFlow<Set<Long>>(emptySet())
@@ -148,13 +74,13 @@ class ThreadEnv(
     fun details(posts: List<ThreadPost>, board: String = "g", threadNo: Long = 100) =
         ThreadDetails(board, threadNo, posts, archived = false, closed = false, backlinks = PostGraph.backlinksOf(posts))
 
-    val vault = FakeVault()
+    val vault = FakeVault(access = false)
     val queue = MediaDownloadQueue(vault, NoDedup, queueScope, io)
 
     fun vm(initialPostNo: Long? = null) = ThreadViewModel(
         board = "g", threadNo = 100, initialPostNo = initialPostNo,
         threadRepository = threads,
-        boardRepository = FakeBoardRepository,
+        boardRepository = FakeBoardRepository(),
         bookmarkRepository = bookmarks,
         historyRepository = history,
         settingsRepository = settings,

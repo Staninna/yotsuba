@@ -13,7 +13,6 @@ import org.robolectric.RobolectricTestRunner
 
 /** Robolectric for the cache directory and a Bitmap to compress; nothing here touches a decoder. */
 @RunWith(RobolectricTestRunner::class)
-@org.robolectric.annotation.Config(sdk = [34])
 class ShareCacheTest {
 
     private val context: Context = ApplicationProvider.getApplicationContext()

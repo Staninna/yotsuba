@@ -4,28 +4,26 @@ import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
 import dev.stan.yotsuba.domain.model.VaultError
-import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
+import dev.stan.yotsuba.fake.FakeMediaVault
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.feature.vault.DedupPhase
 import dev.stan.yotsuba.feature.vault.VaultDedupViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class VaultDedupViewModelTest {
     private val dispatcher = StandardTestDispatcher()
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private fun entry(url: String, px: Int, bytes: Long) = DuplicateEntry(
         url = url, absolutePath = "/v/$url", displayName = url, sizeBytes = bytes,

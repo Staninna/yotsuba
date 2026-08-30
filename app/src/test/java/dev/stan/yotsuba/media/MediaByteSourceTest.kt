@@ -17,7 +17,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 /**
  * Runs under Robolectric because the cache lookup needs a Context for Coil's
@@ -25,7 +24,6 @@ import org.robolectric.annotation.Config
  * exercises the network fallback path through OkHttp.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [34]) // Robolectric caps below targetSdk 37; SDK 34 is the newest this JDK (17) supports.
 class MediaByteSourceTest {
 
     private lateinit var server: MockWebServer

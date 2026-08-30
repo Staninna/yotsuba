@@ -13,14 +13,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 /**
  * `Modifier.sharedMedia` must be a plain identity outside a `SharedTransitionLayout`, so
  * previews and screen tests can compose thumbnails and viewer pages without the shell.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
 class SharedMediaModifierTest {
 
     @Test

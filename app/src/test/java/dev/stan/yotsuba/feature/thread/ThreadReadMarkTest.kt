@@ -1,15 +1,13 @@
 package dev.stan.yotsuba.feature.thread
 
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.feature.thread.ThreadEnv.Companion.post
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 /** The bottom-visible post becomes the read mark, written once the list has settled. */
@@ -18,8 +16,7 @@ class ThreadReadMarkTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     @Test fun `a fling through the thread writes the read mark once, at the row it stopped on`() =
         runTest(dispatcher.scheduler) {

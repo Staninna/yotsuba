@@ -6,18 +6,16 @@ import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.PostSegment
 import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.domain.model.ThreadPost
-import kotlinx.coroutines.Dispatchers
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 /** A refresh that fails must not take the loaded thread off screen. */
@@ -26,8 +24,7 @@ class ThreadRefreshFailureTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private val env = ThreadEnv(posts = (100L..104L).map(::post))
 

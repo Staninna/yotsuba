@@ -1,36 +1,35 @@
 package dev.stan.yotsuba.feature
 
-import app.cash.turbine.test
 import app.cash.turbine.TurbineTestContext
+import app.cash.turbine.test
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeHistoryRepository
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.MainDispatcherRule
+import dev.stan.yotsuba.fake.latest
 import dev.stan.yotsuba.feature.history.HistoryBucket
 import dev.stan.yotsuba.feature.history.HistoryUiState
 import dev.stan.yotsuba.feature.history.HistoryViewModel
 import dev.stan.yotsuba.feature.history.bucketOf
-import dev.stan.yotsuba.fake.latest
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,8 +37,7 @@ class HistoryViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private val zone: ZoneId = ZoneOffset.UTC
 
@@ -65,35 +63,6 @@ class HistoryViewModelTest {
         thumbnailUrl = null, viewedAt = viewedAt, lastScrollPostNo = null,
         maxReadPostNo = maxRead,
     )
-
-    private class FakeHistoryRepository(initial: List<HistoryEntry>) : HistoryRepository {
-        val state = MutableStateFlow(initial)
-        var cleared = false
-        override val history: Flow<List<HistoryEntry>> = state
-        override suspend fun record(entry: HistoryEntry) {
-            // Mirrors the DAO: a visit never carries the read mark with it.
-            state.value = listOf(entry.copy(maxReadPostNo = null)) + state.value.filterNot {
-                it.board == entry.board && it.threadNo == entry.threadNo
-            }
-        }
-        override suspend fun restore(entry: HistoryEntry) {
-            if (state.value.none { it.board == entry.board && it.threadNo == entry.threadNo }) {
-                state.value = state.value + entry
-            }
-        }
-        override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) {}
-        override suspend fun lastScrollPosition(board: String, threadNo: Long): Long? = null
-        override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) {}
-        override suspend fun readUpTo(board: String, threadNo: Long): Long? = null
-        override suspend fun remove(board: String, threadNo: Long) {
-            state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
-        }
-        override suspend fun clearAll() {
-            cleared = true
-            state.value = emptyList()
-        }
-        override suspend fun trim(retainAfterMs: Long) {}
-    }
 
     private suspend fun TurbineTestContext<HistoryUiState>.latest() = latest(dispatcher.scheduler)
 

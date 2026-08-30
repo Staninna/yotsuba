@@ -2,16 +2,14 @@ package dev.stan.yotsuba.feature.thread
 
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.feature.thread.ThreadEnv.Companion.post
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 /** A watched thread with unread replies opens with the read part folded under the OP. */
@@ -20,8 +18,7 @@ class ThreadCollapseReadTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private fun env(readMark: Long? = 102, watched: Boolean = true, collapse: Boolean = true) =
         ThreadEnv(

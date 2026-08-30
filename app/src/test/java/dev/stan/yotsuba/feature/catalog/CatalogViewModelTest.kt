@@ -22,6 +22,9 @@ import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeBoardRepository
+import dev.stan.yotsuba.fake.FakeHiddenThreadsRepository
+import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.fake.latest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -42,7 +45,6 @@ import org.robolectric.RobolectricTestRunner
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@org.robolectric.annotation.Config(sdk = [34])
 class CatalogViewModelTest {
 
     @get:Rule val main = MainDispatcherRule()
@@ -58,40 +60,11 @@ class CatalogViewModelTest {
         }
     }
 
-    private object FakeBoardRepository : BoardRepository {
-        val g = Board(
-            code = "g", title = "Technology", description = "", worksafe = true,
-            category = BoardCategory.INTERESTS, userIds = false, countryFlags = false,
-            boardFlags = false, spoilers = false, webmAudio = false, codeTags = false,
-            mathTags = false, sjisTags = false, textOnly = false,
-        )
-        override suspend fun boards(forceRefresh: Boolean) = DataResult.Success(listOf(g))
-        override suspend fun board(code: String) = g.takeIf { code == "g" }
-    }
-
-    private class FakeSettingsRepository : SettingsRepository {
-        val state = MutableStateFlow(Settings())
-        override val settings: Flow<Settings> = state
-        override suspend fun update(transform: (Settings) -> Settings) {
-            state.value = transform(state.value)
-        }
-    }
-
-    private class FakeHiddenThreadsRepository : HiddenThreadsRepository {
-        val state = MutableStateFlow<List<HiddenThread>>(emptyList())
-        override val all: Flow<List<HiddenThread>> = state
-        override fun forBoard(board: String) = state.map { list -> list.filter { it.board == board } }
-        override suspend fun hide(board: String, threadNo: Long) {
-            state.value = state.value + HiddenThread(board, threadNo)
-        }
-        override suspend fun unhide(board: String, threadNo: Long) {
-            state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
-        }
-    }
+    private val boards = FakeBoardRepository(listOf(FakeBoardRepository.stub("g")))
 
     private inner class Env(
         threads: List<CatalogThread> = listOf(thread(1, subject = "Alpha"), thread(2), thread(3)),
-        val settings: FakeSettingsRepository = FakeSettingsRepository(),
+        val settings: FakeSettings = FakeSettings(),
         val hidden: FakeHiddenThreadsRepository = FakeHiddenThreadsRepository(),
     ) {
         val catalog = FakeCatalogRepository(DataResult.Success(threads))
@@ -101,7 +74,7 @@ class CatalogViewModelTest {
             board = "g",
             initialSearch = initialSearch,
             catalogRepository = catalog,
-            boardRepository = FakeBoardRepository,
+            boardRepository = boards,
             settingsRepository = settings,
             hiddenThreadsRepository = hidden,
             threadSiblings = siblings,
