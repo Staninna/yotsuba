@@ -137,7 +137,7 @@ fun BookmarksList(
             modifier = modifier,
         )
         else -> PullToRefreshBox(
-            isRefreshing = state.checking != null,
+            isRefreshing = state.isRefreshing,
             onRefresh = { haptics.tick(); onRefreshAll() },
             modifier = modifier,
         ) {
@@ -223,15 +223,13 @@ private fun BookmarkActionSheet(
 
 /** "Checking 3/12" under the title while a refresh runs; nothing otherwise. */
 @Composable
-fun BookmarksCheckingSubtitle(checking: Pair<Int, Int>?) {
-    val (current, total) = checking ?: return
-    if (total > 0) {
-        Text(
-            stringResource(R.string.bookmarks_checking, current, total),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+fun BookmarksCheckingSubtitle(checking: RefreshProgress?) {
+    val progress = checking ?: return
+    Text(
+        stringResource(R.string.bookmarks_checking, progress.done, progress.total),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

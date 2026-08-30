@@ -10,6 +10,7 @@ import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.feature.bookmarks.BookmarkSortOrder
 import dev.stan.yotsuba.feature.bookmarks.BookmarksViewModel
+import dev.stan.yotsuba.feature.bookmarks.RefreshProgress
 import dev.stan.yotsuba.feature.bookmarks.SnapshotResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -135,10 +136,16 @@ class BookmarksViewModelTest {
             awaitItem()
             vm.onRefreshAll()
             dispatcher.scheduler.advanceUntilIdle()
-            assertEquals(0 to 2, expectMostRecentItem().checking)
+            expectMostRecentItem().let {
+                assertTrue(it.isRefreshing)
+                assertEquals(RefreshProgress(0, 2), it.checking)
+            }
             repo.gate!!.complete(Unit)
             dispatcher.scheduler.advanceUntilIdle()
-            assertNull(expectMostRecentItem().checking)
+            expectMostRecentItem().let {
+                assertTrue(!it.isRefreshing)
+                assertNull(it.checking)
+            }
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(1, repo.refreshAllCalls)

@@ -24,10 +24,15 @@ sealed interface SnapshotResult {
     data class Failed(val error: VaultError) : SnapshotResult
 }
 
+/** How far a refresh pass has got: boards done out of boards total. */
+data class RefreshProgress(val done: Int, val total: Int)
+
 data class BookmarksUiState(
     val bookmarks: List<Bookmark> = emptyList(),
-    /** Non-null while a refresh pass is running: boards done / boards total. */
-    val checking: Pair<Int, Int>? = null,
+    /** True for the whole refresh pass, from the pull until the repository returns. */
+    val isRefreshing: Boolean = false,
+    /** Non-null once the repository has reported a total for the running pass. */
+    val checking: RefreshProgress? = null,
     val sortOrder: BookmarkSortOrder = BookmarkSortOrder.UNREAD_FIRST,
     val loaded: Boolean = false,
     /** Keys (see [snapshotKey]) whose vault snapshot is still being written. */
@@ -47,7 +52,8 @@ class BookmarksViewModel @Inject constructor(
     private val vault: MediaVaultRepository,
 ) : ViewModel() {
 
-    private val checking = MutableStateFlow<Pair<Int, Int>?>(null)
+    private val refreshing = MutableStateFlow(false)
+    private val checking = MutableStateFlow<RefreshProgress?>(null)
     private val sortOrder = MutableStateFlow(BookmarkSortOrder.UNREAD_FIRST)
     private val snapshotting = MutableStateFlow<Set<String>>(emptySet())
     private val pendingSnapshotResult = MutableStateFlow<SnapshotResult?>(null)
@@ -62,10 +68,11 @@ class BookmarksViewModel @Inject constructor(
     private var lastAutoRefreshAt = 0L
 
     val uiState: StateFlow<BookmarksUiState> = combine(
-        repository.bookmarks, checking, sortOrder, snapshotting,
-    ) { bookmarks, progress, order, snapping ->
+        repository.bookmarks, refreshing, checking, sortOrder, snapshotting,
+    ) { bookmarks, isRefreshing, progress, order, snapping ->
         BookmarksUiState(
             bookmarks = sort(bookmarks, order),
+            isRefreshing = isRefreshing,
             checking = progress,
             sortOrder = order,
             loaded = true,
@@ -88,11 +95,12 @@ class BookmarksViewModel @Inject constructor(
     fun onRefreshAll() {
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
-            checking.value = 0 to 0
+            refreshing.value = true
             try {
-                repository.refreshAll { done, total -> checking.value = done to total }
+                repository.refreshAll { done, total -> checking.value = RefreshProgress(done, total) }
             } finally {
                 checking.value = null
+                refreshing.value = false
             }
         }
     }
@@ -136,10 +144,6 @@ class BookmarksViewModel @Inject constructor(
 
     fun onUndoRemove(bookmark: Bookmark) = viewModelScope.launch {
         repository.add(bookmark)
-    }
-
-    override fun onCleared() {
-        refreshJob?.cancel()
     }
 
     companion object {
