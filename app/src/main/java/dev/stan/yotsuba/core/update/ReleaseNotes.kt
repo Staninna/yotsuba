@@ -4,7 +4,7 @@ package dev.stan.yotsuba.core.update
  * The release body as the updater shows it.
  *
  * bump.sh writes notes in a fixed shape (`## Added` / `## Changed` / `## Fixed` /
- * `## Removed`, one bullet per line, an optional bold lead). Anything else, such as
+ * `## Removed`, one bullet per line, an optional bold lead ending in a period). Anything else, such as
  * GitHub's generated notes for a release cut by hand, is kept as plain paragraphs.
  */
 data class ReleaseNotes(val sections: List<Section>) {
@@ -18,7 +18,8 @@ data class ReleaseNotes(val sections: List<Section>) {
     companion object {
         private val heading = Regex("""^#{1,6}\s+(.+?)\s*#*$""")
         private val bullet = Regex("""^\s*[-*+]\s+(.+)$""")
-        private val lead = Regex("""^\*\*(.+?)\*\*\s*(?:[—–:-]\s*)?(.*)$""")
+        // `**Lead.** text` is the house shape; the dash and colon forms are older changelogs.
+        private val lead = Regex("""^\*\*(.+?)\.?\*\*\s*(?:[—–:-]\s*)?(.*)$""")
         private val link = Regex("""\[([^\]]+)]\([^)]*\)""")
         private val bareUrl = Regex("""<?(https?://\S+?)>?(?=\s|$)""")
         private val inlineCode = Regex("""`([^`]*)`""")

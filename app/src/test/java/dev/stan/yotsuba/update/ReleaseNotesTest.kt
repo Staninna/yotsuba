@@ -17,9 +17,12 @@ class ReleaseNotesTest {
             - Swipe left or right in a thread to move through the catalog
             ## Fixed
             - **Quote previews**: dead links now resolve against the archive
+            - **App lock.** The unlock prompt shows again when you come back.
             """.trimIndent(),
         )
         assertEquals(listOf("Added", "Fixed"), notes.sections.map { it.title })
+        assertEquals("App lock", notes.sections[1].items[1].lead)
+        assertEquals("The unlock prompt shows again when you come back.", notes.sections[1].items[1].text)
         val added = notes.sections[0].items
         assertEquals("Reverse image search", added[0].lead)
         assertEquals("search an image or a video frame from the viewer", added[0].text)
