@@ -74,6 +74,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
@@ -113,7 +117,9 @@ internal fun VaultExplorer(
     val context = LocalContext.current
     // Sort, direction and filter reorder every list; each one scrolls back to the top when
     // they change instead of chasing whichever key happened to be first on screen.
-    val view = Triple(state.sort, state.reversed, state.filter)
+    val view = remember(state.sort, state.reversed, state.filter) {
+        VaultArrangement(state.sort, state.reversed, state.filter)
+    }
     val grid: @Composable (entries: List<VaultEntry>, emptyText: String) -> Unit = { entries, emptyText ->
         Column(Modifier.fillMaxSize()) {
             VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
@@ -185,7 +191,7 @@ internal fun VaultExplorer(
 
 @Composable
 private fun BoardList(
-    view: Any,
+    view: VaultArrangement,
     boards: List<VaultBoardSection>,
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -197,13 +203,7 @@ private fun BoardList(
             val section = boards[i]
             ListItem(
                 headlineContent = { Text(boardTitle(section.board)) },
-                supportingContent = {
-                    val count = section.entries.size
-                    Text(
-                        pluralStringResource(R.plurals.vault_items, count, count) +
-                            " · " + FileSize.format(section.sizeBytes),
-                    )
-                },
+                supportingContent = { Text(itemsSummary(section.entries.size, section.sizeBytes)) },
                 leadingContent = { Icon(Icons.Filled.Folder, contentDescription = null) },
                 trailingContent = {
                     OverflowMenu {
@@ -214,6 +214,7 @@ private fun BoardList(
                         )
                     }
                 },
+                // No animateItem(): an arrangement change already jumps the list to the top.
                 modifier = Modifier.clickable { onOpen(section.board) },
             )
         }
@@ -223,7 +224,7 @@ private fun BoardList(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ThreadList(
-    view: Any,
+    view: VaultArrangement,
     threads: List<VaultThreadSection>,
     selected: Set<String>,
     onOpen: (VaultLocation) -> Unit,
@@ -244,12 +245,7 @@ private fun ThreadList(
             ListItem(
                 headlineContent = { Text(threadTitle(section.location, section.subject), maxLines = 1) },
                 supportingContent = {
-                    val count = section.entries.size
-                    Text(
-                        pluralStringResource(R.plurals.vault_items, count, count) +
-                            " · " + FileSize.format(section.sizeBytes) +
-                            " · " + savedDate(section.savedAt),
-                    )
+                    Text(itemsSummary(section.entries.size, section.sizeBytes) + " · " + savedDate(section.savedAt))
                 },
                 leadingContent = {
                     if (selecting) {
@@ -288,10 +284,12 @@ private fun ThreadList(
                         }
                     }
                 },
+                // No animateItem(): an arrangement change already jumps the list to the top.
                 modifier = Modifier
                     .background(
                         if (checked) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                     )
+                    .selectable(selecting, checked)
                     .combinedClickable(
                         onClick = { if (selecting) onToggleSelected(urls) else onOpen(section.location) },
                         onLongClick = {
@@ -450,7 +448,7 @@ internal fun OverflowMenu(items: @Composable ColumnScope.(close: () -> Unit) -> 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MediaGrid(
-    view: Any,
+    view: VaultArrangement,
     entries: List<VaultEntry>,
     /** Shown instead of the grid when nothing is in it: the filter or the search emptied it. */
     emptyText: String,
@@ -469,18 +467,21 @@ private fun MediaGrid(
         }
         return
     }
+    val spacing = LocalSpacing.current
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(110.dp),
+        columns = GridCells.Adaptive(GRID_CELL_MIN),
         state = gridState,
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(GRID_GUTTER),
+        horizontalArrangement = Arrangement.spacedBy(GRID_GUTTER),
     ) {
         items(entries, key = { it.url }) { entry ->
             val checked = entry.url in selected
+            // No animateItem(): an arrangement change already jumps the grid to the top.
             Box(
                 Modifier
                     .aspectRatio(1f)
+                    .selectable(selecting, checked)
                     .combinedClickable(
                         onClick = { if (selecting) onToggleSelected(entry) else onOpen(entry) },
                         onLongClick = {
@@ -493,14 +494,14 @@ private fun MediaGrid(
                     entry,
                     Modifier
                         .fillMaxSize()
-                        .then(if (checked) Modifier.padding(6.dp) else Modifier),
+                        .then(if (checked) Modifier.padding(SELECTED_INSET) else Modifier),
                 )
                 if (entry.isVideo) {
                     Icon(
                         Icons.Filled.PlayCircle,
                         contentDescription = null,
                         tint = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.align(Alignment.Center).size(32.dp),
+                        modifier = Modifier.align(Alignment.Center).size(spacing.xxl),
                     )
                     entry.durationMs?.let { duration ->
                         Text(
@@ -509,9 +510,9 @@ private fun MediaGrid(
                             color = Color.White,
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(4.dp)
+                                .padding(spacing.xs)
                                 .background(Color.Black.copy(alpha = 0.6f), MaterialTheme.shapes.extraSmall)
-                                .padding(horizontal = 4.dp, vertical = 1.dp),
+                                .padding(horizontal = spacing.xs, vertical = 1.dp),
                         )
                     }
                 }
@@ -520,13 +521,35 @@ private fun MediaGrid(
                         if (checked) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
                         contentDescription = null,
                         tint = if (checked) MaterialTheme.colorScheme.primary else Color.White,
-                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(22.dp),
+                        modifier = Modifier.align(Alignment.TopEnd).padding(spacing.xs).size(SELECT_TICK),
                     )
                 }
             }
         }
     }
 }
+
+private val GRID_CELL_MIN = 110.dp
+private val GRID_GUTTER = 2.dp
+/** How far a ticked thumbnail shrinks inside its cell. */
+private val SELECTED_INSET = 6.dp
+private val SELECT_TICK = 22.dp
+
+/**
+ * Read by TalkBack as a ticked or unticked checkbox while selecting; nothing otherwise, so
+ * the row or cell announces as the plain clickable it is. Kept beside combinedClickable
+ * rather than swapping to toggleable, which has no long press.
+ */
+private fun Modifier.selectable(selecting: Boolean, checked: Boolean): Modifier =
+    if (!selecting) this else semantics {
+        role = Role.Checkbox
+        selected = checked
+    }
+
+/** "N items · 12 MB", the count-and-size line under boards, threads and the top bar. */
+@Composable
+internal fun itemsSummary(count: Int, bytes: Long): String =
+    pluralStringResource(R.plurals.vault_items, count, count) + " · " + FileSize.format(bytes)
 
 @Composable
 internal fun MediaThumb(entry: VaultEntry, modifier: Modifier = Modifier) {

@@ -50,6 +50,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
@@ -70,6 +71,7 @@ internal fun VaultDedupSheet(
     onNotice: (String) -> Unit,
     viewModel: VaultDedupViewModel = hiltViewModel(),
 ) {
+    val spacing = LocalSpacing.current
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Every delete here is permanent, so both the per-group button and "apply all" go
     // through the same confirmation before anything is touched.
@@ -91,10 +93,10 @@ internal fun VaultDedupSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().padding(horizontal = spacing.lg)) {
             item {
                 Text(stringResource(R.string.vault_dedup_title), style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(spacing.md))
             }
             when (val phase = state.phase) {
                 DedupPhase.Idle, DedupPhase.Scanning -> item {
@@ -121,7 +123,7 @@ internal fun VaultDedupSheet(
                             onDistance = viewModel::setMaxDistance,
                             onDistanceCommitted = viewModel::rescan,
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(spacing.md))
                     }
                     if (phase.groups.isEmpty()) {
                         item {
@@ -166,7 +168,7 @@ internal fun VaultDedupSheet(
                     }
                 }
             }
-            item { Spacer(Modifier.height(32.dp)) }
+            item { Spacer(Modifier.height(spacing.xxl)) }
         }
     }
 
@@ -196,12 +198,13 @@ private class PendingDelete(val entries: List<DuplicateEntry>, val run: () -> Un
 
 @Composable
 private fun Progress(label: String, fraction: Float?) {
+    val spacing = LocalSpacing.current
     Column(Modifier.fillMaxWidth()) {
         Text(label, style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(spacing.sm))
         if (fraction == null) LinearProgressIndicator(Modifier.fillMaxWidth())
         else LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(spacing.lg))
     }
 }
 
@@ -214,6 +217,7 @@ private fun ModeControls(
     onDistance: (Int) -> Unit,
     onDistanceCommitted: () -> Unit,
 ) {
+    val spacing = LocalSpacing.current
     Column(Modifier.fillMaxWidth()) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             DedupMode.entries.forEachIndexed { i, m ->
@@ -234,7 +238,7 @@ private fun ModeControls(
             }
         }
         if (mode == DedupMode.SIMILAR) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(spacing.sm))
             Text(
                 stringResource(R.string.vault_dedup_distance, maxDistance),
                 style = MaterialTheme.typography.bodySmall,
@@ -259,13 +263,14 @@ private fun GroupRow(
     onToggle: (String) -> Unit,
     onApply: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    val spacing = LocalSpacing.current
+    Column(Modifier.fillMaxWidth().padding(vertical = spacing.sm)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(spacing.sm)) {
             items(group.entries, key = { it.url }) { entry ->
                 Thumb(entry, selected = entry.url in kept, onClick = { onToggle(entry.url) })
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xs))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 group.entries.firstOrNull { it.url in kept }?.subject
@@ -290,12 +295,13 @@ private fun GroupRow(
 
 @Composable
 private fun Thumb(entry: DuplicateEntry, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
+    val spacing = LocalSpacing.current
+    val shape = RoundedCornerShape(THUMB_CORNER)
     val outline = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-    Column(Modifier.width(112.dp).clickable(onClick = onClick)) {
+    Column(Modifier.width(THUMB_SIZE).clickable(onClick = onClick)) {
         Box(
             Modifier
-                .size(112.dp)
+                .size(THUMB_SIZE)
                 .clip(shape)
                 .border(if (selected) 3.dp else 1.dp, outline, shape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
@@ -308,14 +314,14 @@ private fun Thumb(entry: DuplicateEntry, selected: Boolean, onClick: () -> Unit)
                 },
                 contentDescription = entry.displayName,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(112.dp),
+                modifier = Modifier.size(THUMB_SIZE),
             )
             if (selected) {
                 Icon(
                     Icons.Filled.CheckCircle,
                     contentDescription = stringResource(R.string.vault_dedup_kept),
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(20.dp),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(spacing.xs).size(20.dp),
                 )
             }
         }
@@ -329,6 +335,9 @@ private fun Thumb(entry: DuplicateEntry, selected: Boolean, onClick: () -> Unit)
         )
     }
 }
+
+private val THUMB_SIZE = 112.dp
+private val THUMB_CORNER = 8.dp
 
 /** One formatter for every thumbnail; the sheet is main-thread only. */
 private val shortDate: DateFormat = DateFormat.getDateInstance(DateFormat.SHORT)

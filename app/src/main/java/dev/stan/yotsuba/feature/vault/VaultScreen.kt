@@ -84,6 +84,7 @@ import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerThread
 import dev.stan.yotsuba.feature.media.ViewerPage
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
+import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.feature.media.shareMediaFile
 import java.io.File
 import kotlinx.coroutines.launch
@@ -106,6 +107,7 @@ fun VaultScreen(
     val context = LocalContext.current
     val snackbar = slots.snackbar
     val resources = context.resources
+    val spacing = LocalSpacing.current
     var importMenuOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(state.query.isNotEmpty()) }
     var syncMenuOpen by remember { mutableStateOf(false) }
@@ -290,10 +292,10 @@ fun VaultScreen(
                                         ),
                                         style = MaterialTheme.typography.labelMedium,
                                     )
-                                    Spacer(Modifier.width(8.dp))
+                                    Spacer(Modifier.width(spacing.sm))
                                 }
                                 CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.width(12.dp))
+                                Spacer(Modifier.width(spacing.md))
                             }
                         } else if (state.hasStorageAccess) {
                             Box {
@@ -596,6 +598,7 @@ private fun VaultDeleteDialog(
     onConfirm: (dontAskAgain: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
+    val spacing = LocalSpacing.current
     var dontAsk by remember { mutableStateOf(false) }
     val count = request.entries.size
     AlertDialog(
@@ -609,7 +612,7 @@ private fun VaultDeleteDialog(
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 8.dp).clickable { dontAsk = !dontAsk },
+                    modifier = Modifier.padding(top = spacing.sm).clickable { dontAsk = !dontAsk },
                 ) {
                     Checkbox(checked = dontAsk, onCheckedChange = { dontAsk = it })
                     Text(stringResource(R.string.vault_delete_dont_ask))
@@ -727,8 +730,4 @@ private fun vaultTitle(state: VaultUiState): String = when {
 
 /** Item count and disk use of whatever level is on screen. */
 @Composable
-private fun vaultSubtitle(state: VaultUiState): String {
-    val entries = state.scopeEntries
-    return pluralStringResource(R.plurals.vault_items, entries.size, entries.size) +
-        " · " + FileSize.format(entries.totalBytes)
-}
+private fun vaultSubtitle(state: VaultUiState): String = itemsSummary(state.scopeEntries.size, state.scopeEntries.totalBytes)

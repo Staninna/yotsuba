@@ -54,6 +54,12 @@ enum class VaultSort {
 
 enum class VaultFilter { ALL, IMAGES, VIDEOS }
 
+/**
+ * The chip row's three choices as one value. Stable by construction (two enums and a
+ * Boolean), so a list keyed on it only re-runs when the arrangement itself changes.
+ */
+data class VaultArrangement(val sort: VaultSort, val reversed: Boolean, val filter: VaultFilter)
+
 /** Entries whose file name or thread subject contains [query], case-insensitively. */
 fun searchEntries(entries: List<VaultEntry>, query: String): List<VaultEntry> {
     val q = query.trim()

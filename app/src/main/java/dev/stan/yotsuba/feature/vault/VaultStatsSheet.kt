@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultLocation
 import java.text.DateFormat
@@ -53,18 +54,19 @@ internal fun VaultStatsSheet(
     onDismiss: () -> Unit,
     onOpenThread: (VaultLocation) -> Unit,
 ) {
+    val spacing = LocalSpacing.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
-        LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().padding(horizontal = spacing.lg)) {
             item {
                 Text(stringResource(R.string.vault_stats_title), style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(spacing.md))
             }
             if (stats == null) {
                 item {
-                    Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = spacing.xxl), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator()
                     }
                 }
@@ -77,7 +79,7 @@ internal fun VaultStatsSheet(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(32.dp))
+                    Spacer(Modifier.height(spacing.xxl))
                 }
                 return@LazyColumn
             }
@@ -90,20 +92,21 @@ internal fun VaultStatsSheet(
             item { WeeklyBars(stats.savedPerWeek) }
             item { SectionTitle(stringResource(R.string.vault_stats_dates)) }
             item { SaveDates(stats) }
-            item { Spacer(Modifier.height(32.dp)) }
+            item { Spacer(Modifier.height(spacing.xxl)) }
         }
     }
 }
 
 @Composable
 private fun Totals(stats: VaultStats) {
+    val spacing = LocalSpacing.current
     Column(Modifier.fillMaxWidth()) {
         TotalsRow(
             R.string.vault_stats_files to stats.files.toString(),
             R.string.vault_stats_size to FileSize.format(stats.bytes),
             R.string.vault_stats_threads to stats.threads.toString(),
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(spacing.md))
         TotalsRow(
             R.string.vault_stats_images to stats.images.toString(),
             R.string.vault_stats_videos to stats.videos.toString(),
@@ -130,15 +133,17 @@ private fun TotalsRow(vararg cells: Pair<Int, String>) {
 
 @Composable
 internal fun SectionTitle(text: String) {
-    Spacer(Modifier.height(24.dp))
+    val spacing = LocalSpacing.current
+    Spacer(Modifier.height(spacing.xl))
     Text(text, style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(spacing.sm))
 }
 
 /** Bar length is [section] bytes against [largest], the biggest board, which fills the row. */
 @Composable
 private fun BoardBar(section: VaultBoardSection, largest: Long) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+    val spacing = LocalSpacing.current
+    Column(Modifier.fillMaxWidth().padding(vertical = spacing.xs)) {
         Row(Modifier.fillMaxWidth()) {
             Text("/${section.board}/", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Text(
@@ -147,7 +152,7 @@ private fun BoardBar(section: VaultBoardSection, largest: Long) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xs))
         WeightedBar(fraction = if (largest > 0) section.sizeBytes.toFloat() / largest else 0f)
     }
 }
@@ -159,8 +164,8 @@ private fun WeightedBar(fraction: Float, modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
-            .height(8.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .height(BAR_HEIGHT)
+            .clip(RoundedCornerShape(BAR_HEIGHT / 2))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
         if (filled > 0f) Box(Modifier.weight(filled).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
@@ -192,10 +197,11 @@ private fun ThreadRow(thread: VaultThreadSection, onClick: () -> Unit) {
 /** One column per week, oldest on the left, tallest at the busiest week. */
 @Composable
 private fun WeeklyBars(counts: List<Int>) {
+    val spacing = LocalSpacing.current
     val peak = counts.maxOrNull()?.coerceAtLeast(1) ?: 1
     Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().height(96.dp),
+            Modifier.fillMaxWidth().height(CHART_HEIGHT),
             verticalAlignment = Alignment.Bottom,
         ) {
             counts.forEach { count ->
@@ -224,7 +230,7 @@ private fun WeeklyBars(counts: List<Int>) {
                 }
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(spacing.xs))
         Text(
             stringResource(R.string.vault_stats_per_week_range, counts.size),
             style = MaterialTheme.typography.labelMedium,
@@ -232,6 +238,9 @@ private fun WeeklyBars(counts: List<Int>) {
         )
     }
 }
+
+private val BAR_HEIGHT = 8.dp
+private val CHART_HEIGHT = 96.dp
 
 private val dateFormat: DateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM)
 
