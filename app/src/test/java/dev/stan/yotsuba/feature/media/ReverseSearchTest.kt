@@ -67,10 +67,10 @@ class ReverseSearchTest {
     }
 
     @Test fun `only engines with a usable upload form claim a direct route`() {
-        assertEquals(EngineUploadStyle.REDIRECT, ReverseSearchEngine.TINEYE.uploadStyle)
-        assertEquals(EngineUploadStyle.JSON, ReverseSearchEngine.YANDEX.uploadStyle)
-        assertEquals(EngineUploadStyle.NONE, ReverseSearchEngine.SAUCENAO.uploadStyle)
-        assertEquals(EngineUploadStyle.NONE, ReverseSearchEngine.IQDB.uploadStyle)
-        assertEquals(EngineUploadStyle.NONE, ReverseSearchEngine.GOOGLE_LENS.uploadStyle)
+        assertTrue(ReverseSearchEngine.TINEYE.hasDirectUpload)
+        assertTrue(ReverseSearchEngine.YANDEX.hasDirectUpload)
+        assertFalse(ReverseSearchEngine.SAUCENAO.hasDirectUpload)
+        assertFalse(ReverseSearchEngine.IQDB.hasDirectUpload)
+        assertFalse(ReverseSearchEngine.GOOGLE_LENS.hasDirectUpload)
     }
 }

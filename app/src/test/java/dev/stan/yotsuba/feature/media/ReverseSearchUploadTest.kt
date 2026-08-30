@@ -27,9 +27,10 @@ class ReverseSearchUploadTest {
         uploader = ReverseSearchUploader(
             OkHttpClient(),
             UploadEndpoints(
-                tineye = "$base/tineye/search",
+                tineye = "$base/tineye/result_json/",
+                tineyeResults = "$base/tineye/search/",
                 yandexUpload = "$base/yandex/upload",
-                yandexResults = "$base/yandex/results?rpt=imageview&url=",
+                yandexResults = "$base/yandex/results?rpt=imageview&cbir_id=",
                 litterbox = "$base/litterbox",
                 zeroXZero = "$base/0x0",
             ),
@@ -39,31 +40,28 @@ class ReverseSearchUploadTest {
 
     @After fun tearDown() = server.shutdown()
 
-    @Test fun `tineye follows the redirect it is given`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(302).setHeader("Location", "/search/abc123?sort=score"))
+    @Test fun `tineye query hash becomes the results page`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"page": 1, "query_hash": "abc123", "num_matches": 0}"""))
         val url = uploader.directSearchUrl(ReverseSearchEngine.TINEYE, image, ".jpg").getOrThrow()
-        assertTrue(url, url.endsWith("/search/abc123?sort=score"))
+        assertTrue(url, url.endsWith("/tineye/search/abc123"))
         val recorded = server.takeRequest()
         val body = recorded.body.readUtf8()
         assertTrue(body, body.contains("name=\"image\""))
         assertTrue(body, body.contains("Content-Type: image/jpeg"))
     }
 
-    @Test fun `tineye answering a page instead of a redirect is a failure`() = runTest {
+    @Test fun `tineye answering a page instead of json is a failure`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("<html>results</html>"))
         assertTrue(uploader.directSearchUrl(ReverseSearchEngine.TINEYE, image, ".jpg").isFailure)
     }
 
-    @Test fun `yandex reply with a url becomes a by-url results page`() = runTest {
-        server.enqueue(MockResponse().setBody("""{"url":"https://avatars.mds.yandex.net/i?id=x"}"""))
+    @Test fun `yandex gets the raw bytes and its cbir id opens results`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"cbir_id":"123/abc","namespace":"images-cbir","sizes":{}}"""))
         val url = uploader.directSearchUrl(ReverseSearchEngine.YANDEX, image, ".jpg").getOrThrow()
-        assertTrue(url, url.contains("url=https%3A%2F%2Favatars.mds.yandex.net%2Fi%3Fid%3Dx"))
-    }
-
-    @Test fun `yandex reply with only a cbir id still opens results`() = runTest {
-        server.enqueue(MockResponse().setBody("""{"cbir_id":"123/abc"}"""))
-        val url = uploader.directSearchUrl(ReverseSearchEngine.YANDEX, image, ".jpg").getOrThrow()
-        assertEquals("https://yandex.com/images/search?rpt=imageview&cbir_id=123%2Fabc", url)
+        assertTrue(url, url.endsWith("/yandex/results?rpt=imageview&cbir_id=123%2Fabc"))
+        val recorded = server.takeRequest()
+        assertEquals("image/jpeg", recorded.getHeader("Content-Type"))
+        assertEquals(3, recorded.bodySize)
     }
 
     @Test fun `garbage from yandex is a failure, not a crash`() = runTest {

@@ -42,7 +42,7 @@ class ReverseSearchViewModel @Inject constructor(
             val method = settingsRepository.settings.first().localSearchMethod
             val direct = !forceHost &&
                 method == LocalSearchMethod.DIRECT_UPLOAD &&
-                engine.uploadStyle != EngineUploadStyle.NONE
+                engine.hasDirectUpload
             val result = if (direct) {
                 uploader.directSearchUrl(engine, file, ext)
             } else {

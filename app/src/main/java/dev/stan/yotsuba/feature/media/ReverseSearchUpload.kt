@@ -40,27 +40,22 @@ object ReverseSearchUploadModule {
 }
 
 data class UploadEndpoints(
-    val tineye: String = "https://tineye.com/search",
+    val tineye: String = "https://tineye.com/api/v1/result_json/",
+    val tineyeResults: String = "https://tineye.com/search/",
     val yandexUpload: String = "https://yandex.com/images-apphost/image-download" +
         "?images_avatars_size=preview&images_avatars_namespace=images-cbir",
-    val yandexResults: String = "https://yandex.com/images/search?rpt=imageview&url=",
+    val yandexResults: String = "https://yandex.com/images/search?rpt=imageview&cbir_id=",
     val litterbox: String = "https://litterbox.catbox.moe/resources/internals/api.php",
     val zeroXZero: String = "https://0x0.st",
 )
 
 /**
- * How an engine's own upload form answers. [NONE] means the form gives back an HTML results
- * page with no shareable URL, so a direct upload has nothing to hand the browser and the
- * temporary host is the only route.
+ * Whether the engine's own upload form answers with something that yields a shareable
+ * results URL. The others give back an HTML results page with nothing to hand the
+ * browser, so the temporary host is their only route.
  */
-enum class EngineUploadStyle { NONE, REDIRECT, JSON }
-
-val ReverseSearchEngine.uploadStyle: EngineUploadStyle
-    get() = when (this) {
-        ReverseSearchEngine.TINEYE -> EngineUploadStyle.REDIRECT
-        ReverseSearchEngine.YANDEX -> EngineUploadStyle.JSON
-        else -> EngineUploadStyle.NONE
-    }
+val ReverseSearchEngine.hasDirectUpload: Boolean
+    get() = this == ReverseSearchEngine.TINEYE || this == ReverseSearchEngine.YANDEX
 
 /** Where one local search stands; the sheet renders it. */
 sealed interface LocalSearchState {
@@ -83,24 +78,21 @@ class ReverseSearchUploader @Inject constructor(
     private val endpoints: UploadEndpoints,
 ) {
     // The DI client's rate limiter only fires for a.4cdn.org, so sharing its pool is safe.
-    // Redirects stay unfollowed because for TinEye the Location header is the answer.
     private val client = client.newBuilder()
-        .followRedirects(false)
         .callTimeout(30.seconds.toJavaDuration())
         .build()
 
     /**
      * Uploads [file] to [engine]'s own form and returns the results page URL. Only engines
-     * whose [uploadStyle] is not [EngineUploadStyle.NONE]; anything else fails fast so the
-     * caller falls back to the host.
+     * with [hasDirectUpload]; anything else fails fast so the caller falls back to the host.
      */
     suspend fun directSearchUrl(engine: ReverseSearchEngine, file: File, ext: String): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
-                when (engine.uploadStyle) {
-                    EngineUploadStyle.REDIRECT -> tineyeSearch(file, ext)
-                    EngineUploadStyle.JSON -> yandexSearch(file, ext)
-                    EngineUploadStyle.NONE -> throw IOException("${engine.label} has no direct upload")
+                when (engine) {
+                    ReverseSearchEngine.TINEYE -> tineyeSearch(file, ext)
+                    ReverseSearchEngine.YANDEX -> yandexSearch(file, ext)
+                    else -> throw IOException("${engine.label} has no direct upload")
                 }
             }
         }
@@ -114,33 +106,28 @@ class ReverseSearchUploader @Inject constructor(
     }
 
     private suspend fun tineyeSearch(file: File, ext: String): String {
+        // The site's own form: multipart to result_json, results page keyed by query_hash.
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("image", file.name, file.asRequestBody(mimeOf(ext).toMediaType()))
             .build()
         client.newCall(Request.Builder().url(endpoints.tineye).post(body).build()).await().use { r ->
-            if (!r.isRedirect) throw IOException("TinEye answered ${r.code}, not a redirect")
-            val location = r.header("Location") ?: throw IOException("TinEye redirect without Location")
-            return r.request.url.resolve(location)?.toString()
-                ?: throw IOException("TinEye Location did not resolve: $location")
+            if (!r.isSuccessful) throw IOException("TinEye answered ${r.code}")
+            val root = Json.parseToJsonElement(r.body.string()).jsonObject
+            val hash = root["query_hash"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+                ?: throw IOException("TinEye reply carried no query_hash")
+            return endpoints.tineyeResults + URLEncoder.encode(hash, "UTF-8")
         }
     }
 
     private suspend fun yandexSearch(file: File, ext: String): String {
-        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("upfile", file.name, file.asRequestBody(mimeOf(ext).toMediaType()))
-            .build()
+        // The endpoint rejects multipart with "Incorrect avatar size"; it wants the bytes raw.
+        val body = file.asRequestBody(mimeOf(ext).toMediaType())
         client.newCall(Request.Builder().url(endpoints.yandexUpload).post(body).build()).await().use { r ->
             if (!r.isSuccessful) throw IOException("Yandex answered ${r.code}")
             val root = Json.parseToJsonElement(r.body.string()).jsonObject
-            // The reply shape is not documented; take whichever handle it offers.
-            root["url"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }?.let {
-                return endpoints.yandexResults + URLEncoder.encode(it, "UTF-8")
-            }
-            root["cbir_id"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }?.let {
-                return "https://yandex.com/images/search?rpt=imageview&cbir_id=" +
-                    URLEncoder.encode(it, "UTF-8")
-            }
-            throw IOException("Yandex reply carried neither url nor cbir_id")
+            val cbirId = root["cbir_id"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+                ?: throw IOException("Yandex reply carried no cbir_id")
+            return endpoints.yandexResults + URLEncoder.encode(cbirId, "UTF-8")
         }
     }
 
