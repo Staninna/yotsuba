@@ -12,10 +12,6 @@ class PostGraph(
     private val posts: List<ThreadPost>,
     private val backlinks: Map<Long, List<Long>>,
 ) {
-    /** Map form kept for the media viewer; iteration order of the map is the thread order. */
-    constructor(byNo: Map<Long, ThreadPost>, backlinks: Map<Long, List<Long>>) :
-        this(byNo.values.toList(), backlinks)
-
     private val byNo: Map<Long, ThreadPost> = posts.associateBy { it.no }
     private val indexOf: Map<Long, Int> = posts.withIndex().associate { (i, p) -> p.no to i }
 
