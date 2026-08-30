@@ -108,3 +108,11 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_saved_media_md5` ON `saved_media` (`md5`)")
     }
 }
+
+/** Whether each saved video has sound, and the sound-post URL it came with; a rescan fills them in. */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `hasAudio` INTEGER")
+        db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `soundUrl` TEXT")
+    }
+}

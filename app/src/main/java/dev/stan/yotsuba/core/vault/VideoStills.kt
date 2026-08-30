@@ -12,7 +12,12 @@ import java.io.File
  * and the still is what the grid shows instead of a re-fetched CDN thumbnail.
  */
 object VideoStills {
-    data class Still(val file: File, val durationMs: Long?)
+    data class Still(
+        val file: File,
+        val durationMs: Long?,
+        /** Whether the container reports an audio track; null when the retriever would not say. */
+        val hasAudio: Boolean?,
+    )
 
     private const val MAX_EDGE = 512
 
@@ -25,7 +30,7 @@ object VideoStills {
         if (isVideoExt(VaultPaths.extensionOf(file.name))) capture(file) else null
 
     /**
-     * Captures the still if it is missing and reads the duration. Null when the file cannot
+     * Captures the still if it is missing and reads the duration and whether there is sound. Null when the file cannot
      * be decoded, which for a corrupt or exotic webm is not worth failing a save over.
      */
     fun capture(video: File): Still? {
@@ -33,6 +38,7 @@ object VideoStills {
         return try {
             retriever.setDataSource(video.absolutePath)
             val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            val hasAudio = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
             val still = stillFor(video)
             if (!still.isFile) {
                 val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return null
@@ -48,7 +54,7 @@ object VideoStills {
                     return null
                 }
             }
-            Still(still, duration)
+            Still(still, duration, hasAudio)
         } catch (e: Exception) {
             null
         } finally {

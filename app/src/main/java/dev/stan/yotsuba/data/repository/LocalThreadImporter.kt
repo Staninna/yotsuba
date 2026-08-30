@@ -51,8 +51,7 @@ class LocalThreadImporter @Inject constructor(
                 url = "file://" + target.absolutePath,
                 sizeBytes = target.length(),
                 savedAtMillis = threadNo,
-                durationMs = VideoStills.captureIfVideo(target)?.durationMs,
-            )
+            ).withProbe(VideoStills.captureIfVideo(target))
         }
 
         val meta = store.lock.withLock {

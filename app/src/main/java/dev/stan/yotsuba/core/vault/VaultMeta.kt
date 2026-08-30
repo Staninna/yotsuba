@@ -60,6 +60,10 @@ data class VaultFileMeta(
     val savedAtMillis: Long? = null,
     /** Video length, millis; read off the file when its still was captured. */
     val durationMs: Long? = null,
+    /** Whether the video carries an audio track; null until the file has been probed. */
+    val hasAudio: Boolean? = null,
+    /** External audio of a sound post, when the file was saved from one. */
+    val soundUrl: String? = null,
 )
 
 object VaultMetaCodec {

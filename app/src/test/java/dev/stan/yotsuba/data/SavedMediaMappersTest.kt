@@ -52,6 +52,30 @@ class SavedMediaMappersTest {
         assertEquals("cat.jpg", entity.displayName)
     }
 
+    @Test fun `fresh save carries the probe and the sound-post url both ways`() {
+        val sound = item.copy(ext = ".webm", soundUrl = "https://files.catbox.moe/a.mp3")
+        val entity = savedMediaEntity(
+            sound, board = "g", threadNo = 42, subject = null, target = File("/vault/g/42/cat.webm"), savedAt = 1,
+            durationMs = 1500, hasAudio = false,
+        )
+        assertEquals(false, entity.hasAudio)
+        assertEquals("https://files.catbox.moe/a.mp3", entity.soundUrl)
+        val vaultEntry = entity.toVaultEntry()
+        assertEquals(false, vaultEntry.hasAudio)
+        assertEquals("https://files.catbox.moe/a.mp3", vaultEntry.soundUrl)
+        assertEquals(true, vaultEntry.hasSound)
+    }
+
+    @Test fun `rescan row keeps hasAudio from the sidecar, null when it was never probed`() {
+        val meta = VaultThreadMeta(board = "g", threadNo = 42)
+        val probed = VaultFileMeta(fileName = "a.webm", ext = ".webm", url = "https://i.4cdn.org/g/1.webm", hasAudio = true)
+        val old = VaultFileMeta(fileName = "b.webm", ext = ".webm", url = "https://i.4cdn.org/g/2.webm")
+        assertEquals(true, savedMediaEntity(meta, probed, File("/vault/g/42/a.webm")).toVaultEntry().hasAudio)
+        val unprobed = savedMediaEntity(meta, old, File("/vault/g/42/b.webm")).toVaultEntry()
+        assertNull(unprobed.hasAudio)
+        assertEquals(false, unprobed.hasSound)
+    }
+
     @Test fun `rescan row without url is keyed by file path`() {
         val meta = VaultThreadMeta(board = "_unsorted")
         val file = File("/vault/_unsorted/x.png")
