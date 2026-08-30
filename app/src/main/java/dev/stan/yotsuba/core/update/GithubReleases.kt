@@ -20,12 +20,22 @@ data class Release(
     val sizeBytes: Long,
 )
 
+/** One published version as the changelog list shows it; an APK is not required here. */
+data class ReleaseEntry(
+    val tag: String,
+    val notes: String,
+    val publishedAt: String,
+)
+
 class ReleaseException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
 @Serializable
 private data class ReleaseJson(
     @SerialName("tag_name") val tagName: String = "",
     val body: String = "",
+    val draft: Boolean = false,
+    val prerelease: Boolean = false,
+    @SerialName("published_at") val publishedAt: String = "",
     val assets: List<AssetJson> = emptyList(),
 )
 
@@ -59,6 +69,15 @@ class GithubReleases @Inject constructor() {
         parse(client.newCall(req).execute().use { it.readOrThrow() })
     }
 
+    /** Every published release, newest first, for the version history. */
+    suspend fun all(): List<ReleaseEntry> = withContext(Dispatchers.IO) {
+        val req = Request.Builder()
+            .url("https://api.github.com/repos/$REPO/releases?per_page=100")
+            .header("Accept", "application/vnd.github+json")
+            .build()
+        parseAll(client.newCall(req).execute().use { it.readOrThrow() })
+    }
+
     /** Opens the APK stream; the caller owns closing the response. */
     fun openApk(release: Release): Response =
         client.newCall(Request.Builder().url(release.apkUrl).build()).execute()
@@ -74,6 +93,18 @@ class GithubReleases @Inject constructor() {
         const val REPO = "Staninna/yotsuba"
 
         private val json = Json { ignoreUnknownKeys = true }
+
+        /** Drafts are skipped; the order is GitHub's, which is newest first. */
+        fun parseAll(body: String): List<ReleaseEntry> {
+            val releases = try {
+                json.decodeFromString<List<ReleaseJson>>(body)
+            } catch (e: Exception) {
+                throw ReleaseException("Couldn't read GitHub's answer.", e)
+            }
+            return releases
+                .filter { !it.draft && it.tagName.isNotBlank() }
+                .map { ReleaseEntry(tag = it.tagName, notes = it.body.trim(), publishedAt = it.publishedAt.take(10)) }
+        }
 
         /** Split out from the fetch so the parsing rules are unit-testable. */
         fun parse(body: String): Release {

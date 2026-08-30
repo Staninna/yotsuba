@@ -134,6 +134,9 @@ class SettingsViewModel @Inject constructor(
 
     fun onCheckForUpdates() = viewModelScope.launch { updater.check() }
 
+    val updateHistory: StateFlow<Updater.History> = updater.history
+    fun onLoadUpdateHistory() = viewModelScope.launch { updater.loadHistory() }
+
     fun onInstallUpdate(release: Release) = viewModelScope.launch {
         updater.downloadAndInstall(release)
     }

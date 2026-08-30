@@ -54,4 +54,10 @@
     <string name="settings_hide_from_gallery_summary">Keeps your Yotsuba folder out of Gallery and Photos. Your files stay where they are.</string>
     <string name="settings_hide_from_gallery_updated">Done. The gallery may take a moment to catch up.</string>
     <string name="settings_hide_from_gallery_failed">Couldn\'t change that: %1$s</string>
+    <string name="settings_update_history">Version history</string>
+    <string name="settings_update_history_loading">Loading release notes…</string>
+    <string name="settings_update_history_retry">Try again</string>
+    <string name="settings_update_history_empty">No releases published yet.</string>
+    <string name="settings_update_history_installed">%1$s · installed</string>
+    <string name="settings_update_history_no_notes">This release has no notes.</string>
 </resources>

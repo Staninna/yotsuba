@@ -57,6 +57,7 @@ fun SettingsSectionScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val updateHistory by viewModel.updateHistory.collectAsStateWithLifecycle()
     val restoreAvailable by viewModel.restoreAvailable.collectAsStateWithLifecycle()
     val backupResult by viewModel.backupResult.collectAsStateWithLifecycle()
     val backupBusy by viewModel.backupBusy.collectAsStateWithLifecycle()
@@ -133,6 +134,8 @@ fun SettingsSectionScreen(
                 }
                 SettingsSectionId.UPDATES -> UpdatesSection(
                     state = updateState,
+                    history = updateHistory,
+                    onLoadHistory = viewModel::onLoadUpdateHistory,
                     onCheck = viewModel::onCheckForUpdates,
                     onInstall = viewModel::onInstallUpdate,
                     canInstallPackages = viewModel::canInstallPackages,

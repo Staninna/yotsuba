@@ -14,9 +14,9 @@
 #   ./bump.sh --no-changelog  skip the Claude-written changelog
 #
 # The bump commit carries changelog/vX.Y.Z.md, written by Claude Code from the
-# log and diff since the previous tag. The release workflow uses that file as
-# the release body when it is there and falls back to GitHub's generated notes
-# when it is not; CI itself never calls Claude.
+# log and diff since the previous tag (see changelog.sh, which also backfills).
+# The release workflow uses that file as the release body when it is there and
+# falls back to GitHub's generated notes when it is not; CI never calls Claude.
 #   ./bump.sh --help       this
 set -euo pipefail
 
@@ -49,53 +49,8 @@ done
 
 die() { echo "bump: $*" >&2; exit 1; }
 
-# Ask Claude Code for the changelog since the previous tag. The shape is fixed
-# because the in-app updater parses it (core/update/ReleaseNotes.kt).
-write_changelog() {
-  local version=$1 out="changelog/v$1.md" prev prompt
-  command -v claude >/dev/null || die "claude is not installed; use --no-changelog"
-  prev=$(git describe --tags --abbrev=0 2>/dev/null || true)
-  local range=${prev:+$prev..HEAD}
-  echo "==> changelog for $version (${prev:-first release}..HEAD)"
-  mkdir -p changelog
-  prompt="Write the changelog for $APP $version from the commit log and diff below.
-
-Output only Markdown in exactly this shape, nothing before or after it:
-
-## Added
-- **Short lead** — one sentence on what the user can now do
-## Changed
-- ...
-## Fixed
-- ...
-## Removed
-- ...
-
-Rules: use only those four headings, in that order, and drop any heading with no
-entries. One line per bullet, most important first, at most eight bullets per
-section. Write for the person using the app, not the developer: name the screen
-or setting, skip class names, refactors, test-only and CI-only work unless they
-change what the user sees. No introduction, no version line, no sign-off.
-
-## Commits
-$(git log --no-merges --format='- %s' $range)
-
-## Diff stat
-$(git diff --stat $range -- . ':!app/src/test' ':!app/src/androidTest')
-
-## Diff
-$(git diff $range -- . ':!app/src/test' ':!app/src/androidTest' ':!*.png' ':!*.webp' | head -c 600000)"
-  printf '%s\n' "$prompt" | claude -p --output-format text > "$out.tmp" || { rm -f "$out.tmp"; return 1; }
-  # Strip a stray code fence and anything before the first heading.
-  sed -i -e '/^```/d' -e '0,/^## /{/^## /!d}' "$out.tmp"
-  grep -q '^## ' "$out.tmp" || { rm -f "$out.tmp"; echo "bump: changelog came back without headings" >&2; return 1; }
-  if grep -E '^## ' "$out.tmp" | grep -vqE '^## (Added|Changed|Fixed|Removed)$'; then
-    rm -f "$out.tmp"; echo "bump: changelog used a heading outside Added/Changed/Fixed/Removed" >&2; return 1
-  fi
-  mv "$out.tmp" "$out"
-  echo "==> wrote $out"
-  sed 's/^/    /' "$out"
-}
+# shellcheck source=changelog.sh
+. "$(dirname "$SELF")/changelog.sh"
 
 [ -f "$GRADLE" ] || die "no $GRADLE — run this from the repo root"
 if [ "$BUMP" = none ] && [ "$PUSH" = no ]; then die "--just-push and --no-push cancel out"; fi

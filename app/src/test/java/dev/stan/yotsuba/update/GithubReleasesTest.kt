@@ -57,4 +57,25 @@ class GithubReleasesTest {
     fun `garbage is an error`() {
         assertThrows(ReleaseException::class.java) { GithubReleases.parse("not json") }
     }
+
+    @Test
+    fun `the release list keeps order, skips drafts and needs no apk`() {
+        val list = GithubReleases.parseAll(
+            """
+            [
+              {"tag_name": "v2.2.0", "body": "## Added\n- x", "published_at": "2026-08-30T20:11:00Z", "assets": []},
+              {"tag_name": "v9.9.9", "body": "", "draft": true, "published_at": "2026-08-30T20:11:00Z", "assets": []},
+              {"tag_name": "v2.1.2", "body": " notes ", "published_at": "2026-08-29T10:00:00Z", "assets": []}
+            ]
+            """.trimIndent(),
+        )
+        assertEquals(listOf("v2.2.0", "v2.1.2"), list.map { it.tag })
+        assertEquals("2026-08-30", list[0].publishedAt)
+        assertEquals("notes", list[1].notes)
+    }
+
+    @Test
+    fun `a broken release list is a ReleaseException`() {
+        assertThrows(ReleaseException::class.java) { GithubReleases.parseAll("{") }
+    }
 }

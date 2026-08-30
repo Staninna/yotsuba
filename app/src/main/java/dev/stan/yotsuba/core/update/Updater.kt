@@ -48,6 +48,29 @@ class Updater @Inject constructor(
         data class Failed(val message: String) : State
     }
 
+    sealed interface History {
+        data object Idle : History
+        data object Loading : History
+        data class Loaded(val entries: List<ReleaseEntry>) : History
+        data class Failed(val message: String) : History
+    }
+
+    private val _history = MutableStateFlow<History>(History.Idle)
+    /** Every release's notes, newest first. Loaded once per process, when Updates opens. */
+    val history: StateFlow<History> = _history.asStateFlow()
+
+    suspend fun loadHistory(force: Boolean = false) {
+        if (!force && _history.value is History.Loaded) return
+        _history.value = History.Loading
+        _history.value = try {
+            History.Loaded(releases.all())
+        } catch (e: ReleaseException) {
+            History.Failed(e.message ?: "Couldn't reach GitHub.")
+        } catch (e: Exception) {
+            History.Failed("Couldn't reach GitHub: ${e.message ?: "no connection"}")
+        }
+    }
+
     // Survives the composable: the retry is kicked off from a broadcast callback.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
