@@ -16,6 +16,7 @@ import dev.stan.yotsuba.core.media.GalleryExporter
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.media.mimeOf
 import dev.stan.yotsuba.core.vault.VaultFileMeta
+import dev.stan.yotsuba.core.vault.VaultPostRenumbering
 import dev.stan.yotsuba.core.vault.VaultThreadMeta
 import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.data.repository.toThreadPost
@@ -371,6 +372,15 @@ class MediaVaultRepositoryImpl(
         attempt {
             store.withStore {
                 val fromMeta = store.readMeta(from) ?: VaultThreadMeta(board = fromBoard)
+                val fromPosts = store.readPosts(from)?.posts.orEmpty()
+                // Imported threads both count their synthetic posts from 1; the source's move
+                // past the target's so neither conversation overwrites the other. Files
+                // follow their posts, so the file-to-post link survives the move.
+                val remap = VaultPostRenumbering.plan(
+                    sourceNos = fromPosts.map { it.no } + fromMeta.files.mapNotNull { it.postNo },
+                    targetPostNos = store.readPosts(into)?.posts?.map { it.no }.orEmpty(),
+                    targetNos = store.readMeta(into)?.files?.mapNotNull { it.postNo }.orEmpty(),
+                )
                 // Original name -> entry under its (possibly deduped) new name. Both sidecars
                 // are written once, after the moves; a failed move still records what got
                 // across so no moved file is left unindexed.
@@ -385,7 +395,7 @@ class MediaVaultRepositoryImpl(
                         if (still.isFile) {
                             VideoStills.stillFor(target).let { it.parentFile?.mkdirs(); store.moveFile(still, it) }
                         }
-                        moved[f.fileName] = f.copy(fileName = target.name)
+                        moved[f.fileName] = f.copy(fileName = target.name, postNo = f.postNo?.let { remap[it] ?: it })
                     }
                 } finally {
                     if (moved.isNotEmpty()) {
@@ -393,9 +403,7 @@ class MediaVaultRepositoryImpl(
                         store.updateMeta(from) { moved.keys.fold(it) { acc, name -> acc.remove(name) } }
                     }
                 }
-                store.readPosts(from)?.let { posts ->
-                    store.updatePosts(into, intoBoard, intoThreadNo, posts.posts)
-                }
+                store.updatePosts(into, intoBoard, intoThreadNo, fromPosts.map { VaultPostRenumbering.apply(it, remap) })
                 from.deleteRecursively()
                 from.parentFile?.takeIf { it != store.root && it.listFiles()?.isEmpty() == true }?.delete()
             }

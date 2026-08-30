@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.core.vault
 
+import dev.stan.yotsuba.domain.model.PostAnnotation
 import dev.stan.yotsuba.domain.model.PostText
 import kotlinx.serialization.Serializable
 
@@ -58,6 +59,57 @@ data class VaultPostFile(
     val sizeBytes: Long = 0,
     val spoiler: Boolean = false,
 )
+
+/**
+ * How a merged-in conversation is renumbered so it cannot overwrite the target's posts.
+ *
+ * Two imported threads both number their synthetic posts 1..n, so folding one into the
+ * other by post number would replace the target's conversation with the source's. When
+ * any source number is already [taken] by the target, every source post moves past the
+ * target's highest number, keeping its order; a remote thread's numbers are unique on the
+ * board and never collide, so they pass through untouched.
+ */
+object VaultPostRenumbering {
+    /**
+     * Old source number to new number; empty when nothing collides and nothing moves.
+     * [sourceNos] are the source's post and file numbers; a collision is one of them
+     * already present as a post in the target. [targetNos] are every number the target
+     * uses, posts and files alike, so the offset clears all of them.
+     */
+    fun plan(sourceNos: Collection<Long>, targetPostNos: Collection<Long>, targetNos: Collection<Long>): Map<Long, Long> {
+        if (sourceNos.none { it in targetPostNos }) return emptyMap()
+        val offset = (targetPostNos + targetNos).maxOrNull() ?: 0L
+        return sourceNos.distinct().associateWith { it + offset }
+    }
+
+    /**
+     * [post] under its new number, with every internal reply reference following. A
+     * renumbered post is never an OP: the target already has one.
+     */
+    fun apply(post: VaultPostMeta, remap: Map<Long, Long>): VaultPostMeta {
+        if (remap.isEmpty()) return post
+        fun Long.moved() = remap[this] ?: this
+        return post.copy(
+            no = post.no.moved(),
+            isOp = false,
+            quotedPostNos = post.quotedPostNos.map { it.moved() },
+            body = PostText(
+                post.body.segments.map { segment ->
+                    val quote = segment.annotation as? PostAnnotation.QuotelinkSameThread
+                    if (quote == null || quote.postNo !in remap) {
+                        segment
+                    } else {
+                        val to = quote.postNo.moved()
+                        segment.copy(
+                            text = if (segment.text == ">>${quote.postNo}") ">>$to" else segment.text,
+                            annotation = PostAnnotation.QuotelinkSameThread(to),
+                        )
+                    }
+                },
+            ),
+        )
+    }
+}
 
 object VaultPostsCodec {
     fun encode(posts: VaultThreadPosts): String = SidecarJson.encode(posts)

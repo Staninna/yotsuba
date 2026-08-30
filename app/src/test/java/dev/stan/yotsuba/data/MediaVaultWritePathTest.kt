@@ -319,6 +319,36 @@ class MediaVaultWritePathTest {
         assertEquals(File(into, "4_b (1).jpg").absolutePath, rows.single { it.url.endsWith("/4.jpg") }.absolutePath)
     }
 
+    @Test fun `mergeThreads keeps both conversations when imported threads share post numbers`() = runTest {
+        val local = VaultPaths.LOCAL_BOARD_NAME
+        val from = threadDir(local, "10 - Trip")
+        val into = threadDir(local, "20 - Holiday")
+        sidecarFile(from, 10, "1_a.jpg", "file:///trip/a.jpg", postNo = 1)
+        sidecarFile(from, 10, "2_b.jpg", "file:///trip/b.jpg", postNo = 2)
+        sidecarFile(into, 20, "1_c.jpg", "file:///holiday/c.jpg", postNo = 1)
+        sidecarFile(into, 20, "2_d.jpg", "file:///holiday/d.jpg", postNo = 2)
+        sidecarFile(into, 20, "3_e.jpg", "file:///holiday/e.jpg", postNo = 3)
+        store.updatePosts(from, local, 10, listOf(vaultPost(1, isOp = true), vaultPost(2, listOf(1))))
+        store.updatePosts(into, local, 20, listOf(vaultPost(1, isOp = true), vaultPost(2), vaultPost(3)))
+        repo.rescan()
+
+        assertNull(repo.mergeThreads(local, 10, local, 20))
+
+        val merged = posts(into)!!.posts
+        assertEquals(listOf(1L, 2L, 3L, 4L, 5L), merged.map { it.no })
+        assertEquals(listOf(1L), merged.filter { it.isOp }.map { it.no })
+        assertEquals("post 1", merged.single { it.no == 4L }.body.plainText)
+        assertEquals(listOf(4L), merged.single { it.no == 5L }.quotedPostNos)
+        val files = meta(into).files.associateBy { it.url!! }
+        assertEquals(4L, files.getValue("file:///trip/a.jpg").postNo)
+        assertEquals(5L, files.getValue("file:///trip/b.jpg").postNo)
+        assertEquals(1L, files.getValue("file:///holiday/c.jpg").postNo)
+        val rows = db.savedMediaDao().allOnce()
+        assertEquals(5, rows.size)
+        assertEquals(4L, rows.single { it.url == "file:///trip/a.jpg" }.postNo)
+        assertTrue(rows.all { it.threadNo == 20L })
+    }
+
     @Test fun `mergeThreads into itself or an unknown thread does nothing`() = runTest {
         val dir = threadDir("g", "1 - Cats")
         sidecarFile(dir, 1, "3_a.jpg", "https://i.4cdn.org/g/3.jpg")
