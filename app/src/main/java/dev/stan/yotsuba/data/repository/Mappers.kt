@@ -245,6 +245,7 @@ fun HistoryEntity.toDomain() = HistoryEntry(
     thumbnailUrl = thumbnailUrl,
     viewedAt = viewedAt,
     lastScrollPostNo = lastScrollPostNo,
+    maxReadPostNo = maxReadPostNo,
 )
 
 fun HistoryEntry.toEntity() = HistoryEntity(
@@ -255,4 +256,5 @@ fun HistoryEntry.toEntity() = HistoryEntity(
     thumbnailUrl = thumbnailUrl,
     viewedAt = viewedAt,
     lastScrollPostNo = lastScrollPostNo,
+    maxReadPostNo = maxReadPostNo,
 )
