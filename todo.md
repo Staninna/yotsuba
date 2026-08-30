@@ -80,21 +80,19 @@ serialized blob, `SettingsSectionId` carries its own title/icon, catalog combine
 sealed, thread session state folded into one flow, `MediaSaveQueue` domain interface, deprecated
 vault members deleted.
 
-Known gaps from that pass, none verified on a device yet:
+Known gaps from that pass:
 - Imported-thread merge collides on synthetic post numbers (both sides number 1..n), so the fake
   conversation of the source overwrites the target's; files and metadata merge correctly
 - Trash entries live in memory; a process death empties the trash on next launch
 - Restored bookmarks show 0 unread until the next refresh (no `postNos` until then)
 - Sort order in the Threads tab is not persisted
-- Instrumented flows were updated for the new shell (Threads tab, Boards tab, gear) and compile,
-  but have not run on hardware since the 2026-08-29 link failure
 
 ## 6. Feature ideas (vs Readchan)
 
 ### Reading loop
 - [x] Tree/reply-chain view. Menu toggle, `PostGraph.tree()`, depth capped at 4 with an expandable "N more replies" row
 - [x] "(You)" without posting. `claimed_posts` table (DB 9), long-press "Mark as mine", quotelinks read (You), "N replies to you" under the title
-- [ ] Shared-element thumbnail → viewer transitions, haptics, and a motion pass shipped 2026-08-30 (`core/designsystem/SharedMedia.kt`, `Haptics.kt`, `MotionSpecs.kt`, all collapsing under animator scale 0); none verified on a device
+- [x] Shared-element thumbnail → viewer transitions, haptics, and a motion pass shipped 2026-08-30 (`core/designsystem/SharedMedia.kt`, `Haptics.kt`, `MotionSpecs.kt`, all collapsing under animator scale 0)
 - [ ] Cross-thread ghost quotes. Resolve `>>>/board/no` and dead backlinks against history/archive cache (the archive client now exists in `core/network/ArchiveHosts.kt`; wiring is the remaining half)
 - [~] Thread watcher. Background refresh (WorkManager, per-board catalog fetch, one `readUpTo` mark) and new-reply notifications shipped 2026-08-30; the "collapse everything above the read mark" view is still open
 
@@ -115,3 +113,22 @@ Known gaps from that pass, none verified on a device yet:
 - [x] Regex/keyword/name/flag/ID/filename filters, per-board scoping, Hide or Stub, Settings > Filters with live regex validation and a test field; applied to catalog and thread
 - [~] Favourite boards are the Home tab (swipeable catalog pages, first tab, start destination). Re-ordering favourites and per-board accents are not done
 - [x] Data-saver mode. `Settings.dataSaver` + `NetworkMonitor.metered`; videos stop autoplaying and full images wait behind a "Load (N MB)" pill. Catalog/thread thumbnails still load
+
+## Todo
+
+- [ ] Posting. Reply and new thread, the 4chan slider captcha (WebView or the image endpoints), 4chan Pass login. Posts land in `claimed_posts` so they read (You) without a manual claim
+- [ ] Tablet and foldable two-pane layout. Catalog beside thread, thread beside viewer, on the one outer Scaffold from the 2026-08-30 shell
+
+## Integrations
+
+- [ ] The vault as the sync medium. Write the bookmarks/settings/filters/history backup into the vault root on every change and restore it on first launch when one is present, so a synced vault folder (Syncthing, Nextcloud) carries the whole app state between devices with no server, and bookmarks stop being the thing that dies on uninstall
+
+## Maybe
+
+- [ ] Full-text search across the vault: index every sidecar's `posts.json` in a Room FTS table, search text/name/ID/filename offline. List snapshot-only threads in the explorer at the same time
+- [ ] Collapse everything above the read mark in watched threads
+- [ ] Archive fallthrough in the media viewer (still live → vault only)
+- [ ] Re-orderable favourites and per-board accents on Home
+- [ ] Persist the Threads tab sort order; put the trash on disk so process death does not empty it
+- [ ] Playback speed, loop toggle and frame stepping for webm
+- [ ] Per-bookmark auto-save of all media in a watched thread
