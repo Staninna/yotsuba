@@ -3,24 +3,22 @@ package dev.stan.yotsuba.data.repository
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.dedup.DHash
-import dev.stan.yotsuba.core.media.VIDEO_EXTS
-import dev.stan.yotsuba.core.media.isVideoExt
 import dev.stan.yotsuba.core.dedup.Grouping
 import dev.stan.yotsuba.core.dedup.Keeper
 import dev.stan.yotsuba.core.dedup.Md5
-import dev.stan.yotsuba.core.media.VIDEO_EXTS
-import dev.stan.yotsuba.core.media.isVideoExt
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
+import dev.stan.yotsuba.domain.model.VIDEO_EXTS
+import dev.stan.yotsuba.domain.model.isVideoExt
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import kotlin.coroutines.coroutineContext
 
 @Singleton
 class VaultDedupRepositoryImpl @Inject constructor(

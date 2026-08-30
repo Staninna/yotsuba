@@ -3,12 +3,12 @@ package dev.stan.yotsuba.data.repository
 import dev.stan.yotsuba.core.database.dao.BookmarkDao
 import dev.stan.yotsuba.core.network.FourChanApi
 import dev.stan.yotsuba.core.network.dto.ThreadDto
-import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.apiResult
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository

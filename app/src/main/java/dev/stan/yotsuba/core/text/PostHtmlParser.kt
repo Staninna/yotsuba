@@ -1,6 +1,10 @@
 package dev.stan.yotsuba.core.text
 
 import dev.stan.yotsuba.core.util.Urls
+import dev.stan.yotsuba.domain.model.PostAnnotation
+import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostStyle
+import dev.stan.yotsuba.domain.model.PostText
 
 /**
  * Hand-written tokenizer for 4chan post HTML (D10).

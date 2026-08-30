@@ -8,7 +8,7 @@ import dev.stan.yotsuba.core.database.entity.BookmarkEntity
 import dev.stan.yotsuba.core.database.entity.HiddenThreadEntity
 import dev.stan.yotsuba.core.database.entity.HistoryEntity
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
-import dev.stan.yotsuba.core.media.VIDEO_EXTS
+import dev.stan.yotsuba.domain.model.VIDEO_EXTS
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After

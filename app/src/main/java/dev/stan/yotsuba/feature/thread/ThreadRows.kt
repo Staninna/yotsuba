@@ -1,9 +1,9 @@
 package dev.stan.yotsuba.feature.thread
 
-import dev.stan.yotsuba.core.filter.FilterMatcher
-import dev.stan.yotsuba.core.filter.FilterableFields
 import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
+import dev.stan.yotsuba.domain.model.FilterMatcher
+import dev.stan.yotsuba.domain.model.FilterableFields
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.QuoteTapAction

@@ -11,12 +11,12 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.network.NetworkStatus
-import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.domain.model.Board
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
+import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost

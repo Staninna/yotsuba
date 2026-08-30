@@ -1,6 +1,6 @@
 package dev.stan.yotsuba.domain.model
 
-import dev.stan.yotsuba.core.filter.FilterMatcher
+import dev.stan.yotsuba.domain.model.FilterMatcher
 import kotlinx.serialization.Serializable
 
 /** Which part of a post or catalog entry a [Filter] reads. */

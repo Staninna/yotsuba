@@ -1,8 +1,8 @@
 package dev.stan.yotsuba.domain
 
-import dev.stan.yotsuba.core.text.PostSegment
-import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.domain.model.PostGraph
+import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.domain.model.ThreadPost
 import org.junit.Assert.assertEquals
 import org.junit.Test

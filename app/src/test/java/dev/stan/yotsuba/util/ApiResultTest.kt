@@ -1,9 +1,9 @@
 package dev.stan.yotsuba.util
 
-import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.apiResult
 import dev.stan.yotsuba.core.util.toNetworkError
+import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.NetworkError
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException

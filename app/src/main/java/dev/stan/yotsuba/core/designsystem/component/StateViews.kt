@@ -47,8 +47,8 @@ import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.rememberReducedMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
+import dev.stan.yotsuba.domain.model.NetworkError
 
 /**
  * The shared screen shell: skeleton while loading, error with retry, otherwise [content].

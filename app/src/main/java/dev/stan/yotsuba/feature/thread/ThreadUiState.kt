@@ -1,9 +1,9 @@
 package dev.stan.yotsuba.feature.thread
 
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
+import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 

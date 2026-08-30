@@ -4,9 +4,9 @@ import dev.stan.yotsuba.core.network.ArchiveApi
 import dev.stan.yotsuba.core.network.ArchiveHosts
 import dev.stan.yotsuba.core.network.FourChanApi
 import dev.stan.yotsuba.core.network.dto.parseFoolFuukaThread
-import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.apiResult
+import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import javax.inject.Inject

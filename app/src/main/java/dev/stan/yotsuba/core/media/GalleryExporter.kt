@@ -7,7 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import dagger.hilt.android.qualifiers.ApplicationContext
-import dev.stan.yotsuba.core.vault.VaultPaths
+import dev.stan.yotsuba.domain.model.VaultPaths
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject

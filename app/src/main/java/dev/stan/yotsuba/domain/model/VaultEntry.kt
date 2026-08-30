@@ -1,7 +1,7 @@
 package dev.stan.yotsuba.domain.model
 
-import dev.stan.yotsuba.core.media.isVideoExt
-import dev.stan.yotsuba.core.vault.VaultPaths
+import dev.stan.yotsuba.domain.model.VaultPaths
+import dev.stan.yotsuba.domain.model.isVideoExt
 
 /**
  * Where a vault file is filed: one thread directory under one board directory. The board

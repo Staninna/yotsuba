@@ -39,7 +39,7 @@ interface SavedMediaDao {
 
     /**
      * Rows the hasher still has to visit: no MD5, or an image with no dHash. Callers pass
-     * [dev.stan.yotsuba.core.media.VIDEO_EXTS] as [videoExts].
+     * [dev.stan.yotsuba.domain.model.VIDEO_EXTS] as [videoExts].
      */
     @Query(
         "SELECT * FROM saved_media WHERE absolutePath != '' AND " +

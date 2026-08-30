@@ -68,9 +68,9 @@ import dev.stan.yotsuba.core.designsystem.motionEnter
 import dev.stan.yotsuba.core.designsystem.motionExit
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
+import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.media.saveToVault
 import dev.stan.yotsuba.feature.media.shareText
@@ -85,9 +85,9 @@ import dev.stan.yotsuba.feature.thread.components.ThreadGallerySheet
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
 import java.text.DateFormat
 import java.util.Date
+import kotlin.math.abs
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 
 @Composable
 fun ThreadScreen(

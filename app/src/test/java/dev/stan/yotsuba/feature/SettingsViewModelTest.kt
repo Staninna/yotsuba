@@ -1,16 +1,16 @@
 package dev.stan.yotsuba.feature
 
 import androidx.test.core.app.ApplicationProvider
-import app.cash.turbine.test
 import app.cash.turbine.TurbineTestContext
-import dev.stan.yotsuba.core.util.DataResult
+import app.cash.turbine.test
+import dev.stan.yotsuba.core.update.GithubReleases
+import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
-import dev.stan.yotsuba.core.update.GithubReleases
-import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.domain.repository.BackupRepository
@@ -21,10 +21,10 @@ import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.latest
 import dev.stan.yotsuba.feature.settings.ClearResult
 import dev.stan.yotsuba.feature.settings.SettingsUiState
 import dev.stan.yotsuba.feature.settings.SettingsViewModel
-import dev.stan.yotsuba.fake.latest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow

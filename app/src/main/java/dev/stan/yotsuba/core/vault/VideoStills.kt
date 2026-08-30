@@ -2,7 +2,8 @@ package dev.stan.yotsuba.core.vault
 
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
-import dev.stan.yotsuba.core.media.isVideoExt
+import dev.stan.yotsuba.domain.model.VaultPaths
+import dev.stan.yotsuba.domain.model.isVideoExt
 import java.io.File
 
 /**

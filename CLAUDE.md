@@ -30,7 +30,7 @@ The parts that bite hardest if you don't know them:
 
 ```
 core/     database, network, media, text, vault, design system
-domain/   models and repository interfaces — no Room, no Retrofit
+domain/   models and repository interfaces — pure Kotlin; imports nothing from core
 data/     repository implementations
 feature/  one package per screen: ViewModel + composables
 ```

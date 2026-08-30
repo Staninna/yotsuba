@@ -3,11 +3,11 @@ package dev.stan.yotsuba.feature.boards
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.LoadableFlow
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject

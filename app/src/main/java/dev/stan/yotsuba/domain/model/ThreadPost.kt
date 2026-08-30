@@ -1,6 +1,6 @@
 package dev.stan.yotsuba.domain.model
 
-import dev.stan.yotsuba.core.text.PostText
+import dev.stan.yotsuba.domain.model.PostText
 
 data class ThreadPost(
     val board: String,

@@ -1,6 +1,6 @@
 package dev.stan.yotsuba.vault
 
-import dev.stan.yotsuba.core.vault.VaultPaths
+import dev.stan.yotsuba.domain.model.VaultPaths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

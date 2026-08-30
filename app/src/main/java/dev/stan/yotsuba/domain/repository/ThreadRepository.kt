@@ -1,7 +1,7 @@
 package dev.stan.yotsuba.domain.repository
 
-import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.NetworkError
+import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadDetails
 
 interface ThreadRepository {

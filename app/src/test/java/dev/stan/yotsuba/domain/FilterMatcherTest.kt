@@ -1,9 +1,11 @@
-package dev.stan.yotsuba.core.filter
+package dev.stan.yotsuba.domain
 
-import dev.stan.yotsuba.core.text.PostSegment
-import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterField
+import dev.stan.yotsuba.domain.model.FilterMatcher
+import dev.stan.yotsuba.domain.model.FilterableFields
+import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.domain.model.ThreadPost
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

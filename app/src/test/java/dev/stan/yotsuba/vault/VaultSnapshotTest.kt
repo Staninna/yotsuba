@@ -1,8 +1,8 @@
 package dev.stan.yotsuba.vault
 
 import dev.stan.yotsuba.core.vault.VaultFileMeta
-import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.data.repository.VaultStore
+import dev.stan.yotsuba.data.repository.toThreadPost
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull

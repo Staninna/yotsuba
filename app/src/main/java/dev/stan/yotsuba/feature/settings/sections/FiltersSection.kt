@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -45,10 +45,10 @@ import dev.stan.yotsuba.core.designsystem.component.SwipeToDeleteRow
 import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.core.designsystem.component.showUndo
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
-import dev.stan.yotsuba.core.filter.FilterMatcher
 import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterField
+import dev.stan.yotsuba.domain.model.FilterMatcher
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.insertFilter
 import dev.stan.yotsuba.domain.model.removeFilter

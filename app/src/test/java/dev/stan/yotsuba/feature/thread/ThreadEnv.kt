@@ -1,16 +1,16 @@
 package dev.stan.yotsuba.feature.thread
 
-import dev.stan.yotsuba.core.text.PostSegment
-import dev.stan.yotsuba.core.text.PostText
-import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.PostMedia
+import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.VaultError
@@ -20,8 +20,8 @@ import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
-import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.ThreadRepository
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.feature.media.MediaSessionStore

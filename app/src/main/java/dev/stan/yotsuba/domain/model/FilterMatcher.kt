@@ -1,9 +1,5 @@
-package dev.stan.yotsuba.core.filter
+package dev.stan.yotsuba.domain.model
 
-import dev.stan.yotsuba.domain.model.CatalogThread
-import dev.stan.yotsuba.domain.model.Filter
-import dev.stan.yotsuba.domain.model.FilterField
-import dev.stan.yotsuba.domain.model.ThreadPost
 
 /**
  * The parts of a post a [Filter] can read, flattened so the catalog and the thread screen
