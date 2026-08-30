@@ -6,8 +6,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Auto-refresh loop with backoff (D17). Runs only between [start] and [stop] — the screen's
- * visibility drives both — and re-checks [isEnabled] every [idleRecheckMs] while disabled.
+ * Auto-refresh loop with backoff (D17). Runs only between [start] and [stop], both driven by the
+ * screen's visibility, and re-checks [isEnabled] every [idleRecheckMs] while disabled.
  */
 class ThreadPoller(
     private val isEnabled: suspend () -> Boolean,

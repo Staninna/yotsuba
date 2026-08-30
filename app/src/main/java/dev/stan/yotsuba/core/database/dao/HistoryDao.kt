@@ -31,7 +31,7 @@ interface HistoryDao {
     suspend fun insertIgnore(entity: HistoryEntity)
 
     /**
-     * Upsert of the visit columns only — scroll and read marks are owned by
+     * Upsert of the visit columns only. Scroll and read marks are owned by
      * updateScroll/updateMaxRead and survive revisits.
      */
     @Transaction

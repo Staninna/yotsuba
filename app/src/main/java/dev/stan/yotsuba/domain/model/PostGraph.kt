@@ -32,7 +32,7 @@ class PostGraph(
         backlinks[postNo].orEmpty().mapNotNull { byNo[it] }.sortedBy { indexOf[it.no] }
 
     /**
-     * The post itself plus everything above and below it — the conversation a reader would
+     * The post itself plus everything above and below it, the conversation a reader would
      * need to make sense of it on its own, long after the thread is gone.
      */
     fun conversationAround(postNo: Long): List<ThreadPost> {

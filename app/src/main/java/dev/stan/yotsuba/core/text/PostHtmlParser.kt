@@ -122,7 +122,7 @@ object PostHtmlParser {
     }
 
     private fun parseQuotelink(href: String): PostAnnotation {
-        // "#p109582912" — same thread; "/g/thread/109593884#p109593884" — cross-thread.
+        // "#p109582912" is same thread; "/g/thread/109593884#p109593884" is cross-thread.
         if (href.startsWith("#p")) {
             val no = href.removePrefix("#p").toLongOrNull()
             if (no != null) return PostAnnotation.QuotelinkSameThread(no)

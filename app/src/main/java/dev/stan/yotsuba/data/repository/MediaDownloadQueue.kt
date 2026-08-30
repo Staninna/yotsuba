@@ -21,8 +21,8 @@ import kotlinx.coroutines.launch
 
 /**
  * App-wide save queue: enqueueing is instant, one background worker walks the queue
- * sequentially (the vault write streams from cache or network — no point fanning out
- * against the 1 s API courtesy). A successful save simply drops out of the queue's own
+ * sequentially (the vault write streams from cache or network, so there is no point fanning out
+ * against the 1 s API courtesy). A successful save drops out of the queue's own
  * map; the vault's saved table takes over and [statuses] reads it as saved. A file whose MD5
  * the vault already holds is not fetched: it reads [MediaSaveStatus.AlreadySaved] instead.
  *
@@ -54,7 +54,7 @@ class MediaDownloadQueue @Inject constructor(
     init {
         scope.launch(io) {
             for ((item, ctx) in channel) {
-                // A cancelled entry was removed from the map — skip its stale channel element.
+                // A cancelled entry was removed from the map, so skip its stale channel element.
                 if (queued.value[item.fullUrl] != MediaSaveStatus.Queued) continue
                 queued.update { it + (item.fullUrl to MediaSaveStatus.Downloading) }
                 val existing = item.md5?.let { dedup.findByMd5(it) }

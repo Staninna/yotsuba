@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 /**
  * `posts.json`: the conversation around the saved media, as text.
  *
- * Written beside `meta.json` rather than inside it — meta.json is read-modify-written on
+ * Written beside `meta.json` rather than inside it, because meta.json is read-modify-written on
  * every single file save, and a few hundred posts folded into it would be rewritten each
  * time. Both files are plain JSON next to the media, so the vault stays self-describing.
  *
@@ -40,7 +40,7 @@ data class VaultPostMeta(
     val countryName: String? = null,
     val timeSeconds: Long = 0,
     val subject: String? = null,
-    /** Parsed segments, not raw markup — so greentext and quotelinks render as they did live. */
+    /** Parsed segments, not raw markup, so greentext and quotelinks render as they did live. */
     val body: PostText = PostText.Empty,
     val quotedPostNos: List<Long> = emptyList(),
     /** The attachment this post carried, if any. Recorded, never downloaded by itself. */

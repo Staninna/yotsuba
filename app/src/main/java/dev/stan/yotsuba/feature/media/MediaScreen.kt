@@ -239,7 +239,7 @@ private fun ViewerPlaceholder(onClose: () -> Unit, content: @Composable ColumnSc
 }
 
 private fun MediaItem.toViewerPage(context: Context, state: MediaUiState): ViewerPage {
-    // Already-saved media plays straight from the vault file — no buffering.
+    // Already-saved media plays straight from the vault file, so no buffering.
     val localPath = state.savedPath(fullUrl)
     val description = context.getString(R.string.media_image_description, displayName, width, height)
     return if (isVideo) {

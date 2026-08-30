@@ -325,7 +325,7 @@ private fun ThreadBadge(icon: ImageVector, label: String) {
     }
 }
 
-/** "Quoted by: >>1 >>2" — each number is a quotelink: tap and hold follow the quote-tap setting. */
+/** "Quoted by: >>1 >>2". Each number is a quotelink; tap and hold follow the quote-tap setting. */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit, onLongPress: ((Long) -> Unit)?) {

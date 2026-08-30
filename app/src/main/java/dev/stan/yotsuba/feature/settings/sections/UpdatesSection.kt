@@ -25,7 +25,7 @@ import dev.stan.yotsuba.core.update.Updater
 
 /**
  * The Settings "Updates" block: one button that asks GitHub for the newest
- * release, and — only when there is a newer one — a second that fetches that
+ * release, and, only when there is a newer one, a second that fetches that
  * APK and installs it. Nothing here happens without a tap.
  */
 @Composable

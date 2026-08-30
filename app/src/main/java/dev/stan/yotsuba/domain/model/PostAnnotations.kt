@@ -11,11 +11,11 @@ enum class PostStyle {
 /** Typed payloads for tappable (or deliberately inert) ranges (D10/D11). */
 @Serializable
 sealed interface PostAnnotation {
-    /** `href="#p123"` — same thread: floating preview card. */
+    /** `href="#p123"`, same thread: floating preview card. */
     @Serializable
     data class QuotelinkSameThread(val postNo: Long) : PostAnnotation
 
-    /** `href="/g/thread/456#p789"` — navigate with a scroll-to-post target. */
+    /** `href="/g/thread/456#p789"`, cross-thread: navigate with a scroll-to-post target. */
     @Serializable
     data class QuotelinkCrossThread(
         val board: String,
@@ -23,7 +23,7 @@ sealed interface PostAnnotation {
         val postNo: Long?,
     ) : PostAnnotation
 
-    /** `<span class="deadlink">` — inert styled text, no tap target. */
+    /** `<span class="deadlink">`: inert styled text, no tap target. */
     @Serializable
     data object Deadlink : PostAnnotation
 
@@ -40,7 +40,7 @@ sealed interface PostAnnotation {
  * One run of text with uniform styling and at most one annotation.
  *
  * [spoilerId] is set for every segment inside an `<s>` run, even when a nested link's
- * annotation wins [annotation] — the reveal state must not leak spoilered link text.
+ * annotation wins [annotation]. The reveal state must not leak spoilered link text.
  */
 @Serializable
 data class PostSegment(

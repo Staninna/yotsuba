@@ -17,7 +17,7 @@ class SpoilerFlowTest : FlowTest() {
         composeRule.waitForText(TestSeed.SPOILER_REPLY_TEXT)
         composeRule.waitForContentDescription(TestSeed.SPOILER_FILENAME)
 
-        // First tap only reveals the image — the viewer must NOT open.
+        // First tap only reveals the image. The viewer must NOT open.
         composeRule.onNodeWithContentDescription(
             TestSeed.SPOILER_FILENAME, substring = true, ignoreCase = true,
         ).performClick()

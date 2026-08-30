@@ -19,7 +19,7 @@ data class BoardDto(
     val image_limit: Int = 0,
     val meta_description: String = "",
     val is_archived: Int = 0,
-    // Capability flags (D21) — declared data, not inferred from posts.
+    // Capability flags (D21). Declared data, not inferred from posts.
     val user_ids: Int = 0,
     val country_flags: Int = 0,
     val board_flags: Map<String, String> = emptyMap(),

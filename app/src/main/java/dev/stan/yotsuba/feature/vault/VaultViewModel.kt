@@ -351,7 +351,7 @@ class VaultViewModel @Inject constructor(
     /** URL of the entry open in the full-screen viewer, or null. */
     private val viewingUrl = MutableStateFlow<String?>(null)
     /**
-     * When set, the viewer plays this url order instead of the current thread — the result of
+     * When set, the viewer plays this url order instead of the current thread, the result of
      * a shuffle button. Reshuffled on every press; kept here so rotation replays the same order.
      */
     private val shuffleOrder = MutableStateFlow<List<String>?>(null)
