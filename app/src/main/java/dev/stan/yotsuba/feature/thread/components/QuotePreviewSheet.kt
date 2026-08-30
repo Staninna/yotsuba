@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,8 +32,8 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,9 +68,9 @@ fun QuotePreviewSheet(
 ) {
     val spacing = LocalSpacing.current
     val focus = preview.focus
-    val scrollStates = remember { mutableMapOf<Long, LazyListState>() }
-    scrollStates.keys.retainAll(preview.path.toSet())
-    val listState = scrollStates.getOrPut(focus.no) { LazyListState() }
+    // Each focused post's list state lives under its own saveable key, so it survives
+    // rotation and is still there when the back arrow returns to that post.
+    val focusStates = rememberSaveableStateHolder()
     var parentsShown by rememberSaveable(focus.no) { mutableStateOf(false) }
 
     ModalBottomSheet(
@@ -78,6 +78,8 @@ fun QuotePreviewSheet(
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
     ) {
+        focusStates.SaveableStateProvider(focus.no) {
+        val listState = rememberLazyListState()
         Column(Modifier.fillMaxHeight(0.7f)) {
             Header(preview, onBack = onBack, onGoTo = { onGoTo(focus.no) }, onDismiss = onDismiss)
             HorizontalDivider()
@@ -118,6 +120,7 @@ fun QuotePreviewSheet(
                     }
                 }
             }
+        }
         }
     }
 }
