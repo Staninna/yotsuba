@@ -2,6 +2,16 @@
 
 A 4chan browser for Android, with a media vault that outlives the app.
 
+Yotsuba is a free, open source 4chan client and imageboard reader for Android
+phones, written in Kotlin with Jetpack Compose. It reads boards, catalogs and
+threads, saves images and webm to shared storage, keeps offline copies of
+threads, falls back to the archives when a thread 404s, and updates itself from
+the GitHub releases page. No account, no ads, no analytics.
+
+**Download:** the latest APK is on the
+[releases page](https://github.com/Staninna/yotsuba/releases/latest). It needs
+Android 8.0 or newer.
+
 Four tabs. Home shows the boards you starred, each as a swipeable catalog tab.
 Boards is the full list, with favourites and hidden boards. Threads is your
 bookmarks and history in one place. Vault is everything you saved, on shared

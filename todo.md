@@ -6,10 +6,6 @@ Open work first; everything finished lives under `# Done` at the bottom.
 - [ ] 100% unit test coverage. Not met; last measured 2026-08-29 at 22.8% line / 20.1% instruction / 21.8% branch (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`). 391 JVM tests pass as of 2026-08-30 (up from 269); the percentage has not been re-measured since the overhaul and is due. One unit-test run failed once and passed on three reruns without a code change, so there is a flaky test somewhere in the suite. Seen again 2026-08-30 in `LoadableFlowTest` and `ApiResultTest` (leaked `Dispatchers.Main`, "uncaught exceptions before the test started"); both pass alone, so some earlier test leaks its dispatcher. Near-100% where JVM-testable: domain/model 99.4%, core/text 98.5%, core/vault 97.6%, core/util 97.1%, network DTOs 96.1%. `feature/thread` 55.9%, `data/repository` 43.9%. The remainder is mostly Compose UI (designsystem, screens, navigation) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource, SettingsDataStore) whose sandbox classloader bypasses JaCoCo, so they record 0% despite passing. `core/datastore` reads 0% for that reason alone. `feature/media` is 4.7%: the viewer VMs depend on Context/ExoPlayer, though `ViewerBehaviour` and `PostGraph` are now pure and fully covered
 - [ ] 100% e2e test coverage. 8 instrumented Compose tests in `app/src/androidTest/` cover every screen's primary flow (boards → catalog → thread → media viewer, bookmark add/remove, history, vault, settings toggle) with Hilt `@TestInstallIn` fake repositories, no network. They compile (`:app:compileDebugAndroidTestKotlin`) but need a device: `./gradlew :app:connectedDebugAndroidTest`. Attempted on hardware 2026-08-29 and did not run: the test APK failed to link against the installed app APK (`NoSuchMethodError: kotlinx.coroutines.BuildersKt.runBlockingK`), a stale-artifact mismatch rather than a test failure. Unresolved. Secondary flows (search, spoilers, PiP, downloads, hold-to-save, edge-seek) are uncovered, and the gesture work in particular cannot be trusted without a device
 
-- [ ] Test Room migrations 1 through 10. `app/schemas/` starts at `6.json`, so `MIGRATION_1_2` to `MIGRATION_5_6` cannot ever get a `MigrationTestHelper` test; 6 through 10 simply have none. `MigrationTest` (androidTest) covers only 10→11 and 11→12 and has never run on a device. No destructive fallback (`Modules.kt:129`, correct), so a bad migration is a hard crash on upgrade with nothing in CI to catch it
-- [ ] One `MainDispatcherRule`. `fake/MainDispatcherRule.kt` exists as "the one home for setMain/resetMain"; one file uses it, 16 hand-roll the pair
-- [ ] Share the fakes. `FakeBoardRepository` x4, `FakeHistoryRepository` x4, `FakeSettingsRepository` x4, `FakeVault` x4, `FakeBookmarkRepository` x3, `FakeThreadRepository` x3 across `src/test` and `androidTest/di/TestRepositoryModule.kt`; the `fake/` package holds six. The androidTest `FakeMediaVaultRepository` (`TestRepositoryModule.kt:281-335`) returns null/Unit for everything, so `MediaSaveFlowTest` proves a button exists, not that saving works
-- [ ] Robolectric details. `robolectric.properties` pins SDK 34, `RoomTest.kt:24` pins 35, so two sandbox boots per run. `testOptions.unitTests.isReturnDefaultValues = true` makes every un-mocked Android call silently return 0/null/false; Robolectric is already on the classpath, drop the flag
 - [ ] Small test smells. `NetworkLayerTest` uses `runBlocking` and `File.createTempFile` instead of `TemporaryFolder`, and the rate-limiter test asserts wall-clock >= 400 ms. `HomeViewModelTest.kt:89` has a `delay(100)` inside a fake
 - [ ] The numbers above are stale: there are 19 `@Test`s in 15 instrumented files (not 8) and roughly 580 JVM `@Test`s (not 391). Re-measure coverage and rewrite the first two items
 
@@ -20,12 +16,6 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## 2. Bugs
 
-- [ ] `renameThread` (`MediaVaultRepositoryImpl.kt:348-372`) and `mergeThreads` (374-386) end with a full `rescan()`, which walks the tree, rewrites the Room table and probes every video lacking a still. A one-folder rename should not re-index the vault
-- [ ] `VaultPaths.fileName` (line 76) appends `ext` unsanitised. For local imports `ext` comes from `extensionOf(displayName)` of whatever a content provider reports (`LocalThreadImporter.kt:42`); a hostile provider can get a `/` in. It cannot escape the thread directory, but sanitise it
-- [ ] `AppNavHost.kt:97, 166`: `threadSwipe` is a `mutableStateOf<Boolean?>` set from a click callback and cleared by `LaunchedEffect(entry)` so the transition lambdas can peek at it. A race between swap and clear slides the wrong way
-- [ ] `themes.xml` uses `android:Theme.Material.NoActionBar` (dark) as the window theme, so light-theme users see a dark frame for one frame at launch
-- [ ] `VideoPage.kt` `Slider.onValueChange` calls `seekTo` on every drag frame; throttle to `onValueChangeFinished` with a local preview value. `formatMs` uses `String.format` without a `Locale`
-- [ ] `ThreadScreen.kt:131` and two other `openExternal` sites `runCatching { startActivity }` and swallow `ActivityNotFoundException` with no feedback
 
 ## 3. Privacy and third parties
 
@@ -33,26 +23,15 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## 4. Code quality
 
-- [ ] `core/di/Modules.kt:37-48` imports every `data.repository.*Impl`, so `core` depends on `data`, inverting the documented arrow. A root `di/` package fixes it for free
 - [ ] `ThreadViewModel` has about 60 public `on*` methods and a `Session` with about 20 fields: previews, ghosts, search, gallery, spoilers, claims, links, save, bookmarks, history. Internals are factored (`ThreadPoller`, `GhostResolver`, `threadRows`); the surface is the god-class symptom
 - [ ] `VaultViewModel.selectedEntries`, `openBoard`, `openThread`, `scopeEntries` (286-305) are linear-scan getters read from composables
-- [ ] `board + "/" + threadNo` as a lazy key is hand-rolled in `HistoryList.kt:93`, `VaultStatsSheet.kt:43`, `BookmarksList.kt:143`, `BoardsSection.kt:36`; `VaultStatsSheet.lazyKey` already exists
-- [ ] Raw SDK ints: `SDK_INT >= 30` (`MediaVaultRepositoryImpl.kt:66`), `>= 33` (`Updater.kt:242`), `>= 29` (`GalleryExporter.kt:26`). Use `VERSION_CODES`
 - [ ] `VaultStore.writeAtomically` (214-221) does not fsync before rename, so atomic against a crash, not a power loss. Fine for sidecars; say so in a comment
-- [ ] No Compose compiler stability config, so stability of domain types is on trust (`VaultArrangement` doc: "stable by construction"). A `compose_compiler_config.conf` and `reportsDestination` would let you stop guessing
-- [ ] 11 bare `runCatching { }.getOrNull()` sites swallow failures to null. Mostly vault IO and probably intended; audit each once logging exists
-
-## 5. Known gaps from the 2026-08-30 overhaul
-
-- Imported-thread merge collides on synthetic post numbers (both sides number 1..n), so the fake
-  conversation of the source overwrites the target's; files and metadata merge correctly
 
 ## 6. Feature ideas (vs Readchan)
 
 ### Archival (the killer read-only feature)
 
 - [~] Full offline thread snapshots, **mostly done.** Saving media writes `posts.json` beside it with the saved post's transitive parents and replies, as parsed segments so greentext, quotelinks and spoilers survive. The vault's Sync button then walks every saved thread, fetches the live one and merges its **whole** comment section in. While the thread still exists, that is the only chance to take it. `MediaVaultRepository.savedThread()` rebuilds a `ThreadDetails` from the sidecar, and the media viewer falls back to it when the live fetch fails, so a 404'd thread stays readable. Sync is rate-limited to ~1 thread/second by `RateLimitInterceptor` and reports a `done / total` counter; a `RateLimited` response stops the pass rather than hammering. Bookmarked threads now snapshot without a save (`snapshotThread`, a row action, and `VaultSyncWorker` every 6 h with `Settings.snapshotWatchedThreads`), and a dead thread's sidecar can be pruned to the OP plus the conversations around saved files (`Settings.pruneDeadSidecars`, off by default; snapshot-only threads are never pruned). Still missing: thumbnails for unsaved posts, and the explorer does not list snapshot-only threads (no media rows), so they are reachable only through the thread screen's offline fallback. The thread screen itself opens the sidecar copy when live and archive both fail ("Offline copy from <date>")
-- [~] Archive fallthrough. Desuarchive and arch.b4k.co through the FoolFuuka JSON API, order live → vault snapshot → archive. Warosu has no JSON API and is a documented hook only. The media viewer still does live → vault, no archive
 
 ### Filtering & comfort
 
@@ -60,7 +39,6 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 ## 7. Docs and repo hygiene
 
-- [ ] ADR-0001 admits a fresh install "looks exactly like data loss" until Rescan is pressed; neither doc says the app could prompt. Product gap dressed as a documentation fact
 - [ ] The todo.md same-commit rule is honoured in outcome, not practice: 11 of the last 60 commits touch this file, and `7b71e9d` / `ec2a874` exist only to move finished items. Section numbering in the open half is 0, 5, 6, then unnumbered
 - [ ] Scripts are GNU-only (`readlink -f`, `sed -i`, `sed '0,/re/'` in `changelog.sh:98`, `grep -P` in `changelog.sh:112` and `release.yml:27`). Fine for this machine and ubuntu runners; will not survive macOS
 - [ ] `changelog.sh --check` greps for shape and dash characters only, so the writing rules are a prompt, not a gate; and `bump.sh` depends on a `claude` binary unless `--no-changelog`
@@ -77,7 +55,6 @@ Open work first; everything finished lives under `# Done` at the bottom.
 ## Maybe
 
 - [ ] Full-text search across the vault: index every sidecar's `posts.json` in a Room FTS table, search text/name/ID/filename offline. List snapshot-only threads in the explorer at the same time
-- [ ] Archive fallthrough in the media viewer (still live → vault only)
 - [ ] Re-orderable favourites and per-board accents on Home
 - [ ] Playback speed, loop toggle and frame stepping for webm
 - [ ] Per-bookmark auto-save of all media in a watched thread
@@ -140,6 +117,44 @@ Two waves of four parallel worktrees off the 2026-08-31 audit; items shipped as 
 - [x] CONTEXT-MAP.md is stale the same way: says `feature/{bookmarks,history}`, screen is `feature/threads/ThreadsScreen.kt`; no context covers `core/{lock,widget,work,backup,dedup}` or archives. CLAUDE.md lists six `core/` subpackages; there are fifteen. ADR-0002 says "38 test files"; there are 86
 - [x] `.idea/` is tracked (10 files, including `caches/deviceStreaming.xml` with a Sony device selection). `.scratch/ux-report/ux-ui-improvements.md` is tracked despite `.gitignore` ignoring `.scratch/`, references `app/app/src/main/...` and has an em dash in a heading. `review/REPORT.md` and `findings.md` sit at the repo root as a one-day artefact of the 2026-08-30 pass. `.kotlin/` and `.claude/worktrees/` are not ignored
 - [x] The em-dash ban is broken in `release.yml:30`, `bump.sh:5`, `bump.sh:55`
+
+### 9. Review wave of 2026-08-31, second pass
+
+#### 0. Testing
+
+- [x] Test Room migrations. `MigrationChainTest` (JVM, Robolectric) builds v6 from `schemas/6.json`, seeds every table, runs the real migrations to the current version with no destructive fallback and checks the identity hash. 1 through 5 stay untestable forever: their schemas were never exported
+- [x] One `MainDispatcherRule`. `fake/MainDispatcherRule.kt` exists as "the one home for setMain/resetMain"; one file uses it, 16 hand-roll the pair
+- [x] Share the fakes. `FakeBoardRepository` x4, `FakeHistoryRepository` x4, `FakeSettingsRepository` x4, `FakeVault` x4, `FakeBookmarkRepository` x3, `FakeThreadRepository` x3 across `src/test` and `androidTest/di/TestRepositoryModule.kt`; the `fake/` package holds six. The androidTest `FakeMediaVaultRepository` (`TestRepositoryModule.kt:281-335`) returns null/Unit for everything, so `MediaSaveFlowTest` proves a button exists, not that saving works
+- [x] Robolectric details. `robolectric.properties` pins SDK 34, `RoomTest.kt:24` pins 35, so two sandbox boots per run. `testOptions.unitTests.isReturnDefaultValues = true` makes every un-mocked Android call silently return 0/null/false; Robolectric is already on the classpath, drop the flag
+
+#### 2. Bugs
+
+- [x] `renameThread` (`MediaVaultRepositoryImpl.kt:348-372`) and `mergeThreads` (374-386) end with a full `rescan()`, which walks the tree, rewrites the Room table and probes every video lacking a still. A one-folder rename should not re-index the vault
+- [x] `VaultPaths.fileName` (line 76) appends `ext` unsanitised. For local imports `ext` comes from `extensionOf(displayName)` of whatever a content provider reports (`LocalThreadImporter.kt:42`); a hostile provider can get a `/` in. It cannot escape the thread directory, but sanitise it
+- [x] `AppNavHost.kt:97, 166`: `threadSwipe` is a `mutableStateOf<Boolean?>` set from a click callback and cleared by `LaunchedEffect(entry)` so the transition lambdas can peek at it. A race between swap and clear slides the wrong way
+- [x] `themes.xml` uses `android:Theme.Material.NoActionBar` (dark) as the window theme, so light-theme users see a dark frame for one frame at launch
+- [x] `VideoPage.kt` `Slider.onValueChange` calls `seekTo` on every drag frame; throttle to `onValueChangeFinished` with a local preview value. `formatMs` uses `String.format` without a `Locale`
+- [x] `ThreadScreen.kt:131` and two other `openExternal` sites `runCatching { startActivity }` and swallow `ActivityNotFoundException` with no feedback
+
+#### 4. Code quality
+
+- [x] `core/di/Modules.kt:37-48` imports every `data.repository.*Impl`, so `core` depends on `data`, inverting the documented arrow. A root `di/` package fixes it for free
+- [x] `board + "/" + threadNo` as a lazy key is hand-rolled in `HistoryList.kt:93`, `VaultStatsSheet.kt:43`, `BookmarksList.kt:143`, `BoardsSection.kt:36`; `VaultStatsSheet.lazyKey` already exists
+- [x] Raw SDK ints replaced with `VERSION_CODES` in `Updater.kt` and `GalleryExporter.kt`; the `>= 30` in `MediaVaultRepositoryImpl.kt` is still a bare number
+- [x] No Compose compiler stability config, so stability of domain types is on trust (`VaultArrangement` doc: "stable by construction"). A `compose_compiler_config.conf` and `reportsDestination` would let you stop guessing
+- [x] 11 bare `runCatching { }.getOrNull()` sites swallow failures to null. Mostly vault IO and probably intended; audit each once logging exists
+
+#### 5. Known gaps from the 2026-08-30 overhaul
+
+- [x] Imported-thread merge collides on synthetic post numbers (both sides number 1..n), so the fake conversation of the source overwrites the target's; files and metadata merge correctly. Fixed 2026-08-31: merged posts are renumbered past the target's highest number and their quotes remapped
+
+#### 6. Feature ideas (vs Readchan)
+
+- [x] Archive fallthrough. Desuarchive and arch.b4k.co through the FoolFuuka JSON API, order live → vault snapshot → archive, in the thread screen and, since 2026-08-31, the media viewer too. Warosu has no JSON API and is a documented hook only
+
+#### 7. Docs and repo hygiene
+
+- [x] ADR-0001 admits a fresh install "looks exactly like data loss" until Rescan is pressed; neither doc says the app could prompt. Product gap dressed as a documentation fact
 
 ### 5. Known gaps from the 2026-08-30 overhaul
 
