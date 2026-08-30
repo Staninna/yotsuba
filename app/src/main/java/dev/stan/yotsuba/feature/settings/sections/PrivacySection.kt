@@ -1,25 +1,18 @@
 package dev.stan.yotsuba.feature.settings.sections
 
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.fragment.app.FragmentActivity
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.core.designsystem.component.EnumSegmentedRow
+import dev.stan.yotsuba.core.designsystem.component.ChipRow
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.designsystem.component.SwitchRow
-import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.lock.DeviceUnlock
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.appLockDelayLabel
@@ -61,16 +54,12 @@ fun PrivacySection(
         },
     )
     if (settings.appLock) {
-        val spacing = LocalSpacing.current
-        Column(Modifier.padding(horizontal = spacing.lg, vertical = spacing.xs)) {
-            Text(stringResource(R.string.settings_app_lock_delay), style = MaterialTheme.typography.bodyLarge)
-            EnumSegmentedRow(
-                options = (AppLockDelays + settings.appLockDelaySeconds).distinct().sorted(),
-                selected = settings.appLockDelaySeconds,
-                onSelect = { v -> update { it.copy(appLockDelaySeconds = v) } },
-                modifier = Modifier.fillMaxWidth().padding(top = spacing.xs),
-                label = { Text(appLockDelayLabel(it)) },
-            )
-        }
+        ChipRow(
+            label = stringResource(R.string.settings_app_lock_delay),
+            options = (AppLockDelays + settings.appLockDelaySeconds).distinct().sorted(),
+            selected = settings.appLockDelaySeconds,
+            onSelect = { v -> update { it.copy(appLockDelaySeconds = v) } },
+            labelOf = { appLockDelayLabel(it) },
+        )
     }
 }
