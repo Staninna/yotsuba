@@ -89,9 +89,14 @@ class Updater @Inject constructor(
             _state.value = State.Failed("Download failed: ${e.message ?: "unknown error"}")
             return
         }
+        runInstall(apk, allowSilent = true)
+    }
+
+    /** The one place the install transition is authored: Installing, then Failed on a throw. */
+    private suspend fun runInstall(apk: File, allowSilent: Boolean) {
         _state.value = State.Installing
         try {
-            install(apk, allowSilent = true)
+            install(apk, allowSilent)
         } catch (e: Exception) {
             _state.value = State.Failed("Install failed: ${e.message ?: "unknown error"}")
         }
@@ -105,14 +110,7 @@ class Updater @Inject constructor(
      * ordinary way, with the system's confirmation dialog.
      */
     private fun retryWithConfirmation(apk: File) {
-        scope.launch {
-            _state.value = State.Installing
-            try {
-                install(apk, allowSilent = false)
-            } catch (e: Exception) {
-                _state.value = State.Failed("Install failed: ${e.message ?: "unknown error"}")
-            }
-        }
+        scope.launch { runInstall(apk, allowSilent = false) }
     }
 
     private suspend fun download(release: Release): File = withContext(Dispatchers.IO) {
@@ -181,6 +179,10 @@ class Updater @Inject constructor(
     private fun statusReceiver(sessionId: Int, apk: File, allowSilent: Boolean): PendingIntent {
         val action = "${context.packageName}.INSTALL_STATUS.$sessionId"
         val receiver = object : BroadcastReceiver() {
+            // Once the installer screen has been shown, a failure is the user's answer, not an
+            // OEM refusing silent install: retrying would put the same dialog up twice.
+            var userActionShown = false
+
             override fun onReceive(ctx: Context, intent: Intent) {
                 when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1)) {
                     PackageInstaller.STATUS_PENDING_USER_ACTION -> {
@@ -189,7 +191,9 @@ class Updater @Inject constructor(
                         )
                         if (confirm != null) {
                             context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            userActionShown = true
                         } else {
+                            unregister(this)
                             _state.value = State.Failed("Android wants confirmation but gave no screen.")
                         }
                     }
@@ -202,7 +206,7 @@ class Updater @Inject constructor(
                     else -> {
                         unregister(this)
                         val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                        if (allowSilent) {
+                        if (allowSilent && !userActionShown) {
                             retryWithConfirmation(apk)
                         } else {
                             _state.value = State.Failed(msg ?: "Android refused the install.")
