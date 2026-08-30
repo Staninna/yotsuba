@@ -29,6 +29,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.After
@@ -94,6 +95,7 @@ class MediaVaultMigrationFlagTest {
             settings = settings,
             storageCheck = StorageAccessCheck { true },
             runMigration = migration,
+            ioDispatcher = UnconfinedTestDispatcher(),
         )
     }
 

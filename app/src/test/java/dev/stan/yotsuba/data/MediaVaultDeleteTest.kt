@@ -31,6 +31,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.After
@@ -83,6 +84,7 @@ class MediaVaultDeleteTest {
             settings = settings,
             storageCheck = StorageAccessCheck { false },
             runMigration = {},
+            ioDispatcher = UnconfinedTestDispatcher(),
         )
     }
 

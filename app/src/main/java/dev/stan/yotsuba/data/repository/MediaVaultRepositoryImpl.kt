@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
+import dev.stan.yotsuba.core.di.IoDispatcher
 import dev.stan.yotsuba.core.media.GalleryExporter
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.media.mimeOf
@@ -38,7 +39,7 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -63,6 +64,7 @@ class MediaVaultRepositoryImpl(
     private val storageCheck: StorageAccessCheck,
     /** The legacy-layout migration; a parameter so a test can hand in one that fails. */
     private val runMigration: suspend () -> Unit,
+    private val ioDispatcher: CoroutineDispatcher,
 ) : MediaVaultRepository {
 
     @Inject constructor(
@@ -77,11 +79,13 @@ class MediaVaultRepositoryImpl(
         threadRepository: ThreadRepository,
         preferences: DataStore<Preferences>,
         settings: SettingsRepository,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher,
     ) : this(
         savedMediaDao, store, vaultTrash, localImporter, galleryExporter, byteSource, threadRepository,
         preferences, settings,
         storageCheck = StorageAccessCheck { allFilesAccessGranted(context) },
         runMigration = migration::run,
+        ioDispatcher = ioDispatcher,
     )
 
     override fun hasStorageAccess(): Boolean = storageCheck.granted()
@@ -104,7 +108,7 @@ class MediaVaultRepositoryImpl(
     }
 
     override suspend fun save(item: MediaItem, saveContext: VaultSaveContext): VaultError? =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             if (!hasStorageAccess()) return@withContext VaultError.NoAccess
             attempt {
                 store.ensureRoot()
@@ -140,7 +144,7 @@ class MediaVaultRepositoryImpl(
         }
 
     override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             if (!hasStorageAccess()) return@withContext null
             val dir = store.threadDir(board, threadNo) ?: return@withContext null
             val saved = store.readPosts(dir)?.takeIf { it.posts.isNotEmpty() } ?: return@withContext null
@@ -151,7 +155,7 @@ class MediaVaultRepositoryImpl(
             )
         }
 
-    override suspend fun delete(url: String): VaultError? = withContext(Dispatchers.IO) {
+    override suspend fun delete(url: String): VaultError? = withContext(ioDispatcher) {
         val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
         attempt {
             if (entity.absolutePath.isNotEmpty()) {
@@ -171,7 +175,7 @@ class MediaVaultRepositoryImpl(
         }
     }
 
-    override suspend fun trash(url: String): VaultError? = withContext(Dispatchers.IO) {
+    override suspend fun trash(url: String): VaultError? = withContext(ioDispatcher) {
         val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
         if (entity.absolutePath.isEmpty()) return@withContext delete(url)
         vaultTrash.trash(entity)
@@ -179,21 +183,21 @@ class MediaVaultRepositoryImpl(
 
     override val trashed: Flow<List<VaultEntry>> = vaultTrash.entries.map { rows -> rows.map { it.toVaultEntry() } }
 
-    override suspend fun restoreTrashed(url: String): VaultError? = withContext(Dispatchers.IO) {
+    override suspend fun restoreTrashed(url: String): VaultError? = withContext(ioDispatcher) {
         vaultTrash.restore(url)
     }
 
-    override suspend fun emptyTrash() = withContext(Dispatchers.IO) {
+    override suspend fun emptyTrash() = withContext(ioDispatcher) {
         if (!hasStorageAccess()) return@withContext
         vaultTrash.empty()
     }
 
-    override suspend fun purgeExpiredTrash() = withContext(Dispatchers.IO) {
+    override suspend fun purgeExpiredTrash() = withContext(ioDispatcher) {
         if (!hasStorageAccess()) return@withContext
         vaultTrash.purgeExpired()
     }
 
-    override suspend fun exportToGallery(url: String): VaultError? = withContext(Dispatchers.IO) {
+    override suspend fun exportToGallery(url: String): VaultError? = withContext(ioDispatcher) {
         val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
         val file = File(entity.absolutePath).takeIf { it.isFile } ?: return@withContext VaultError.NotFound
         attempt { galleryExporter.export(file, mimeOf(entity.ext.orEmpty())) }
@@ -202,7 +206,7 @@ class MediaVaultRepositoryImpl(
     override suspend fun importLocalThread(
         name: String,
         sources: List<ImportSource>,
-    ): VaultError? = withContext(Dispatchers.IO) {
+    ): VaultError? = withContext(ioDispatcher) {
         if (!hasStorageAccess()) return@withContext VaultError.NoAccess
         if (sources.isEmpty()) return@withContext null
         localImporter.import(name, sources)
@@ -211,7 +215,7 @@ class MediaVaultRepositoryImpl(
     override suspend fun syncSavedThreads(
         onProgress: (done: Int, total: Int) -> Unit,
         skip: Set<VaultLocation>,
-    ): VaultSyncSummary = withContext(Dispatchers.IO) {
+    ): VaultSyncSummary = withContext(ioDispatcher) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext VaultSyncSummary()
         val targets = savedThreads().filterNot { it in skip }
         runPass(targets, onProgress) { location, thread ->
@@ -228,7 +232,7 @@ class MediaVaultRepositoryImpl(
     }
 
     override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             if (!hasStorageAccess()) return@withContext VaultError.NoAccess
             when (val result = threadRepository.thread(board, threadNo, forceRefresh = true)) {
                 is DataResult.Success -> attempt {
@@ -248,7 +252,7 @@ class MediaVaultRepositoryImpl(
     override suspend fun snapshotThreads(
         targets: List<VaultLocation>,
         onProgress: (done: Int, total: Int) -> Unit,
-    ): VaultSyncSummary = withContext(Dispatchers.IO) {
+    ): VaultSyncSummary = withContext(ioDispatcher) {
         if (!hasStorageAccess()) return@withContext VaultSyncSummary()
         store.ensureRoot()
         runPass(targets.filter { it.isRemote }, onProgress) { location, thread ->
@@ -338,7 +342,7 @@ class MediaVaultRepositoryImpl(
         }
 
     override suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? =
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             if (!hasStorageAccess()) return@withContext VaultError.NoAccess
             if (!VaultLocation(board, threadNo).isLocal) return@withContext VaultError.Io("only imported threads can be renamed")
             val dir = store.threadDir(board, threadNo) ?: return@withContext VaultError.NotFound
@@ -360,7 +364,7 @@ class MediaVaultRepositoryImpl(
 
     override suspend fun mergeThreads(
         fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long,
-    ): VaultError? = withContext(Dispatchers.IO) {
+    ): VaultError? = withContext(ioDispatcher) {
         if (!hasStorageAccess()) return@withContext VaultError.NoAccess
         if (fromBoard == intoBoard && fromThreadNo == intoThreadNo) return@withContext null
         val from = store.threadDir(fromBoard, fromThreadNo) ?: return@withContext VaultError.NotFound
@@ -400,7 +404,7 @@ class MediaVaultRepositoryImpl(
         }
     }
 
-    override suspend fun rescan() = withContext(Dispatchers.IO) {
+    override suspend fun rescan() = withContext(ioDispatcher) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext
         // The sidecars never held the hashes, so the old rows are the only copy. Room call,
         // kept outside the store lock.
@@ -437,7 +441,7 @@ class MediaVaultRepositoryImpl(
         }
     }
 
-    override suspend fun migrateLegacyIfNeeded() = withContext(Dispatchers.IO) {
+    override suspend fun migrateLegacyIfNeeded() = withContext(ioDispatcher) {
         if (preferences.data.first()[VAULT_MIGRATED] == true) return@withContext
         if (!hasStorageAccess()) return@withContext
 
