@@ -121,7 +121,7 @@ fun UpdatesSection(
                                     .padding(top = spacing.sm)
                                     .clickable { notesOpen = !notesOpen },
                             )
-                            if (notesOpen) Body(state.release.notes)
+                            if (notesOpen) ReleaseNotesView(state.release.notes)
                         }
                         Button(
                             onClick = {

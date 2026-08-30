@@ -61,8 +61,22 @@ jobs:
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk "yotsuba-${GITHUB_REF_NAME}.apk"
 
+      # bump.sh writes changelog/<tag>.md locally; when it is there it is the
+      # release body, otherwise GitHub's generated notes stand in.
+      - name: Pick the release notes
+        id: notes
+        run: |
+          if [ -f "changelog/${GITHUB_REF_NAME}.md" ]; then
+            echo "path=changelog/${GITHUB_REF_NAME}.md" >> "$GITHUB_OUTPUT"
+            echo "generate=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=" >> "$GITHUB_OUTPUT"
+            echo "generate=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
         with:
           files: yotsuba-*.apk
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.generate }}
