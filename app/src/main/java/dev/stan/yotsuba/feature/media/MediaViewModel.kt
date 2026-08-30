@@ -188,30 +188,9 @@ class MediaViewModel @AssistedInject constructor(
     /** Queues a vault save with full thread/post context; returns immediately. */
     fun enqueueSave(item: MediaItem) {
         val loaded = details.value
-        val op = loaded?.posts?.firstOrNull { it.isOp }
-        downloadQueue.enqueue(
-            item,
-            VaultSaveContext(
-                board = board,
-                threadNo = threadNo,
-                threadSubject = op?.subject,
-                opExcerpt = op?.body?.plainText?.takeIf { it.isNotBlank() },
-                post = loaded?.posts?.firstOrNull { it.no == item.postNo },
-                conversation = conversationFor(item.postNo, loaded),
-            ),
-        )
+        val post = loaded?.posts?.firstOrNull { it.no == item.postNo }
+        downloadQueue.enqueue(item, VaultSaveContext.of(board, threadNo, loaded, post, uiState.value.saveReplies))
     }
-
-    /**
-     * The posts worth keeping beside [postNo]: everything it quotes and everything that
-     * quotes it, transitively. Empty when the user has reply capture off.
-     */
-    private fun conversationFor(postNo: Long, loaded: ThreadDetails?): List<ThreadPost> =
-        if (loaded == null || !uiState.value.saveReplies) {
-            emptyList()
-        } else {
-            PostGraph.of(loaded).conversationAround(postNo)
-        }
 
     /** Deletes the saved file, its meta entry, and DB row. */
     fun removeDownload(url: String) {

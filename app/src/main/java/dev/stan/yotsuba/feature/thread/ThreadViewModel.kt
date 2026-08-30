@@ -21,7 +21,6 @@ import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
-import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
@@ -476,21 +475,9 @@ class ThreadViewModel @AssistedInject constructor(
     fun onSaveMedia(post: ThreadPost) {
         val item = post.presentMedia ?: return
         val loaded = (result.value as? DataResult.Success)?.value
-        val op = loaded?.posts?.firstOrNull { it.isOp }
         downloadQueue.enqueue(
             item,
-            VaultSaveContext(
-                board = board,
-                threadNo = threadNo,
-                threadSubject = op?.subject,
-                opExcerpt = op?.body?.plainText?.takeIf { it.isNotBlank() },
-                post = post,
-                conversation = if (loaded != null && settingsState.value.saveRepliesWithMedia) {
-                    PostGraph.of(loaded).conversationAround(post.no)
-                } else {
-                    emptyList()
-                },
-            ),
+            VaultSaveContext.of(board, threadNo, loaded, post, settingsState.value.saveRepliesWithMedia),
         )
     }
 
