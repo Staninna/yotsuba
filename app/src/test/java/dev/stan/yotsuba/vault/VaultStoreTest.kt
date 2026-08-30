@@ -31,7 +31,7 @@ class VaultStoreTest {
 
     @get:Rule val tmp = TemporaryFolder()
 
-    private val store = VaultStore()
+    private val store by lazy { VaultStore(tmp.root) }
 
     private fun mediaItem() = MediaItem(
         postNo = 123,
