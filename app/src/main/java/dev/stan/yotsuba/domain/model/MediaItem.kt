@@ -30,6 +30,13 @@ data class MediaItem(
     val isVideo: Boolean get() = isVideoExt(ext)
     val isAnimated: Boolean get() = isVideo || ext == ".gif"
     val displayName: String get() = "$filename$ext"
+
+    /**
+     * Whether playing this file could produce audio. A heuristic: a sound post always can;
+     * on a board that serves webm audio every video may. Images never do.
+     */
+    fun mayHaveSound(boardAllowsAudio: Boolean): Boolean =
+        isVideo && (soundUrl != null || boardAllowsAudio)
 }
 
 /** The extensions 4chan serves as video; the DAO binds this set so its SQL never repeats it. */

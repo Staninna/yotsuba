@@ -449,14 +449,15 @@ fun ThreadScreen(
                     ThreadGallerySheet(
                         posts = s.mediaPosts,
                         revealAll = s.revealAllSpoilers,
+                        boardAllowsAudio = s.board?.webmAudio == true,
                         onOpen = viewModel::onOpenMediaFromGallery,
-                        onSaveAll = {
+                        onSaveAll = { shown ->
                             saveToVault(
                                 context = context,
                                 hasAccess = viewModel.hasStorageAccess(),
                                 onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
                                 save = {
-                                    viewModel.onSaveAllMedia()
+                                    viewModel.onSaveAllMedia(shown)
                                     scope.launch { snackbar.showSnackbar(saveAllMessage) }
                                 },
                             )

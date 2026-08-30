@@ -242,6 +242,19 @@ class ThreadViewModelTest {
         )
     }
 
+    @Test fun `save all over a subset queues only those posts`() = runTest(dispatcher.scheduler) {
+        val env = ThreadEnv(
+            posts = listOf(ThreadEnv.postWithMedia(100), ThreadEnv.postWithMedia(102)),
+            queueScope = backgroundScope, io = dispatcher,
+        )
+        val vm = env.collectedVm(backgroundScope)
+        dispatcher.scheduler.advanceUntilIdle()
+        val shown = content(vm).mediaPosts.filter { it.no == 102L }
+        vm.onSaveAllMedia(shown)
+        dispatcher.scheduler.runCurrent()
+        assertEquals(listOf("https://i.4cdn.org/g/102.jpg"), env.vault.saves.map { it.first.fullUrl })
+    }
+
     @Test fun `tree view nests replies, caps the depth behind a more row, and expands it`() =
         runTest(dispatcher.scheduler) {
             // 100 <- 101 <- 102 <- 103 <- 104 <- 105 <- 106 (a chain), plus 107 replying to the OP.

@@ -30,7 +30,16 @@
     <string name="thread_gallery_save_all">Save all</string>
     <string name="thread_gallery_empty">No files in this thread</string>
     <string name="thread_gallery_empty_explanation">Attachments posted here will show up in the gallery.</string>
-    <string name="thread_gallery_save_all_queued">Saving every file in this thread</string>
+    <string name="thread_gallery_save_all_queued">Saving these files</string>
+    <!-- Gallery filter chips. -->
+    <string name="thread_gallery_filter_all">All</string>
+    <string name="thread_gallery_filter_images">Images</string>
+    <string name="thread_gallery_filter_videos">Videos</string>
+    <string name="thread_gallery_filter_with_sound">With sound</string>
+    <string name="thread_gallery_filter_silent">Silent</string>
+    <string name="thread_gallery_sound_hint">On this board every video may have sound.</string>
+    <string name="thread_gallery_filter_empty">Nothing matches this filter</string>
+    <string name="thread_gallery_filter_empty_explanation">Pick another filter, or All to see every file.</string>
     <string name="thread_jump_top">Jump to top</string>
     <string name="thread_jump_first_new">Jump to first new post</string>
     <string name="thread_jump_bottom">Jump to bottom</string>
