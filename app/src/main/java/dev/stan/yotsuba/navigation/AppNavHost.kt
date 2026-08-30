@@ -22,8 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -96,9 +94,6 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
         shell.linkConsumed()
     }
     val openSettings = { navController.push(Route.Settings) }
-    // Set just before a thread is swapped for its neighbour, so the transition lambdas can
-    // slide the right way; null again once the transition has been asked for.
-    var threadSwipe by remember { mutableStateOf<Boolean?>(null) }
 
     Row(Modifier.fillMaxSize()) {
         if (expanded && showChrome) {
@@ -135,11 +130,11 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         startDestination = Route.Home,
                         modifier = Modifier.fillMaxSize(),
                         enterTransition = {
-                            threadSwipe.takeIf { isThreadSwap() }?.let { transitions.swipeEnter(it) }
+                            threadSwipeDirection()?.let { transitions.swipeEnter(it) }
                                 ?: transitions.enter(tabSwitch = isTabSwitch())
                         },
                         exitTransition = {
-                            threadSwipe.takeIf { isThreadSwap() }?.let { transitions.swipeExit(it) }
+                            threadSwipeDirection()?.let { transitions.swipeExit(it) }
                                 ?: transitions.exit()
                         },
                         popEnterTransition = { transitions.popEnter(tabSwitch = isTabSwitch()) },
@@ -181,13 +176,9 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                                 onOpenInternal = { link -> navController.openInternal(link, from = route) },
                                 siblings = { siblings.neighbours(route.board, route.threadNo) },
                                 onOpenSibling = { threadNo, forward ->
-                                    threadSwipe = forward
-                                    navController.openSibling(Route.Thread(route.board, threadNo))
+                                    navController.openSibling(Route.Thread(route.board, threadNo, swipeForward = forward))
                                 },
                             )
-                            // The transition reads the direction while the swap composes; once the
-                            // new entry is current, forget it so a later push or pop slides normally.
-                            LaunchedEffect(entry) { threadSwipe = null }
                         }
                         screen<Route.Media> { entry ->
                             val route = entry.toRoute<Route.Media>()
@@ -309,9 +300,16 @@ private fun NavController.openSibling(target: Route.Thread) = navigate(target) {
 private fun NavDestination.isTopLevel(): Boolean =
     TopLevelDestination.entries.any { hasRoute(it.route::class) }
 
-/** Both ends of the transition are threads: one was swapped for its neighbour. */
-private fun AnimatedContentTransitionScope<NavBackStackEntry>.isThreadSwap(): Boolean =
-    initialState.destination.hasRoute<Route.Thread>() && targetState.destination.hasRoute<Route.Thread>()
+/**
+ * The direction of a thread-for-neighbour swap, read off the target entry's own arguments
+ * so nothing outside the transition has to be set and cleared around it: true for
+ * forward, false for back, null when this is not a swipe between two threads.
+ */
+private fun AnimatedContentTransitionScope<NavBackStackEntry>.threadSwipeDirection(): Boolean? {
+    if (!initialState.destination.hasRoute<Route.Thread>()) return null
+    if (!targetState.destination.hasRoute<Route.Thread>()) return null
+    return targetState.toRoute<Route.Thread>().swipeForward
+}
 
 /** Both ends of the transition are tab roots: a bottom-bar tap, not a push or a pop. */
 private fun AnimatedContentTransitionScope<NavBackStackEntry>.isTabSwitch(): Boolean =

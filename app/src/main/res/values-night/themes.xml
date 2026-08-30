@@ -1,0 +1,4 @@
+<resources>
+    <!-- The dark window frame the app always had, now only when the system is dark. -->
+    <style name="Theme.Yotsuba" parent="android:Theme.Material.NoActionBar" />
+</resources>

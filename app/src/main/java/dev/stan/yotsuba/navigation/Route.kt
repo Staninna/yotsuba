@@ -11,6 +11,12 @@ sealed interface Route {
         val board: String,
         val threadNo: Long,
         val scrollToPostNo: Long? = null,
+        /**
+         * Set when this thread replaced a catalog neighbour by a swipe: true for the next
+         * thread, false for the previous one. The transition reads it off the target entry
+         * to slide the same way the finger went; a tap or a link leaves it null.
+         */
+        val swipeForward: Boolean? = null,
     ) : Route
     @Serializable data class Media(val board: String, val threadNo: Long, val initialPostNo: Long) : Route
     @Serializable data object Threads : Route
