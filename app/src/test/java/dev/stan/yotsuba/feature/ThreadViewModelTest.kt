@@ -11,10 +11,12 @@ import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.thread.FakeHistoryRepository
 import dev.stan.yotsuba.feature.thread.LinkAction
+import dev.stan.yotsuba.feature.thread.PreviewSheet
 import dev.stan.yotsuba.feature.thread.QuoteLabel
 import dev.stan.yotsuba.feature.thread.Session
 import dev.stan.yotsuba.feature.thread.ThreadEnv
 import dev.stan.yotsuba.feature.thread.ThreadRow
+import dev.stan.yotsuba.feature.thread.ThreadViewModel
 import dev.stan.yotsuba.feature.thread.content
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,6 +40,8 @@ class ThreadViewModelTest {
 
     @Before fun setUp() { Dispatchers.setMain(dispatcher) }
     @After fun tearDown() { Dispatchers.resetMain() }
+
+    private fun focused(vm: ThreadViewModel) = content(vm).preview as? PreviewSheet.Post
 
     @Test fun `saving queues the attachment, and a post without media is a no-op`() =
         runTest(dispatcher.scheduler) {
@@ -498,14 +502,14 @@ class ThreadViewModelTest {
             vm.onOpenPreview(101)
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(listOf(101L), content(vm).preview?.path)
-            assertEquals(101L, content(vm).preview?.focus?.no)
+            assertEquals(101L, focused(vm)?.focus?.no)
             assertFalse(content(vm).preview!!.canGoBack)
 
             vm.onOpenPreview(101) // already on top: no duplicate step
             vm.onOpenPreview(103) // refocus: pushes
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(listOf(101L, 103L), content(vm).preview?.path)
-            assertEquals(103L, content(vm).preview?.focus?.no)
+            assertEquals(103L, focused(vm)?.focus?.no)
             assertTrue(content(vm).preview!!.canGoBack)
 
             vm.onClosePreview() // back arrow: one step
@@ -533,13 +537,13 @@ class ThreadViewModelTest {
 
             vm.onOpenPreview(102)
             dispatcher.scheduler.advanceUntilIdle()
-            val sheet = content(vm).preview!!
+            val sheet = focused(vm)!!
             assertEquals(listOf(100L, 101L), sheet.parents.map { it.no }) // thread order, 999 dropped
             assertEquals(listOf(103L, 104L), sheet.replies.map { it.no })
 
             vm.onOpenPreview(101) // a "quoted by" tap: the post with its replies inline
             dispatcher.scheduler.advanceUntilIdle()
-            val quoted = content(vm).preview!!
+            val quoted = focused(vm)!!
             assertEquals(emptyList<Long>(), quoted.parents.map { it.no })
             assertEquals(listOf(102L, 104L), quoted.replies.map { it.no })
             assertEquals(listOf(102L, 101L), quoted.path)

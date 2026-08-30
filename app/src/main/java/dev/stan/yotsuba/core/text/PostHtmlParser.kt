@@ -26,10 +26,11 @@ object PostHtmlParser {
 
         fun flush() {
             if (text.isNotEmpty()) {
+                val annotation = stack.lastOrNull { it.annotation != null }?.annotation
                 segments += PostSegment(
                     text.toString(),
                     stack.mapNotNull { it.style }.toSet(),
-                    stack.lastOrNull { it.annotation != null }?.annotation,
+                    if (annotation is PostAnnotation.Deadlink) deadlinkFor(text) else annotation,
                     stack.firstNotNullOfOrNull { (it.annotation as? PostAnnotation.Spoiler)?.id },
                 )
                 text.clear()
@@ -73,7 +74,7 @@ object PostHtmlParser {
                                 stack.addLast(
                                     when {
                                         "quote" in classes -> Frame("span", PostStyle.GREENTEXT, null)
-                                        "deadlink" in classes -> Frame("span", PostStyle.DEADLINK, PostAnnotation.Deadlink)
+                                        "deadlink" in classes -> Frame("span", PostStyle.DEADLINK, PostAnnotation.Deadlink())
                                         "sjis" in classes -> Frame("span", PostStyle.SJIS, null)
                                         "math" in classes -> Frame("span", PostStyle.MATH, null)
                                         // Unknown span class: content kept, no style.
@@ -138,6 +139,10 @@ object PostHtmlParser {
         return PostAnnotation.Link(Urls.absolute(href))
     }
 
+    /** The span's text is what says which post died: 4chan writes `>>123`, nothing else. */
+    private fun deadlinkFor(text: CharSequence): PostAnnotation.Deadlink =
+        PostAnnotation.Deadlink(DEAD_QUOTE.matchEntire(text.trim())?.groupValues?.get(1)?.toLongOrNull())
+
     /** Whitespace-separated class names; attribute order is not assumed (D10). */
     private fun classTokens(tagBody: String): Set<String> =
         CLASS_ATTR.find(tagBody)?.groupValues?.get(1)?.split(' ')?.filter { it.isNotEmpty() }?.toSet().orEmpty()
@@ -161,5 +166,6 @@ object PostHtmlParser {
     private val FRAMED_TAGS = setOf("s", "b", "i", "u", "pre", "span", "a")
     private val HREF_ATTR = Regex("""href\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)
     private val CLASS_ATTR = Regex("""class\s*=\s*"([^"]*)"""", RegexOption.IGNORE_CASE)
+    private val DEAD_QUOTE = Regex(""">>(\d+)""")
     private val CROSS_THREAD = Regex("""(?:https?:)?(?://boards\.4chan(?:nel)?\.org)?/(\w+)/thread/(\d+)(?:#p(\d+))?""")
 }
