@@ -9,7 +9,6 @@ import androidx.compose.ui.test.performTextInput
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.di.FakeSettingsRepository
 import dev.stan.yotsuba.di.TestSeed
-import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import org.junit.Test
 
@@ -17,17 +16,16 @@ import org.junit.Test
 class BoardsFavouriteFlowTest : FlowTest() {
 
     @Inject
-    lateinit var settingsRepository: SettingsRepository
+    lateinit var settings: FakeSettingsRepository
 
     @Test
     fun favouritingABoard_showsTheFavouritesSection_andPersists() {
-        val fake = settingsRepository as FakeSettingsRepository
         composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
 
         composeRule.onAllNodesWithContentDescription("Toggle favourite")[0].performClick()
         composeRule.waitForText("Favourites")
-        composeRule.waitUntil(UI_TIMEOUT_MS) { TestSeed.BOARD in fake.state.value.favouriteBoards }
+        composeRule.waitUntil(UI_TIMEOUT_MS) { TestSeed.BOARD in settings.state.value.favouriteBoards }
 
         // Toggling again clears the section.
         composeRule.onAllNodesWithContentDescription("Toggle favourite")[0].performClick()

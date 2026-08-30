@@ -9,7 +9,6 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.di.FakeSettingsRepository
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.CatalogLayout
-import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -19,7 +18,7 @@ import org.junit.Test
 class CatalogFlowTest : FlowTest() {
 
     @Inject
-    lateinit var settingsRepository: SettingsRepository
+    lateinit var settings: FakeSettingsRepository
 
     private fun openCatalog() {
         composeRule.openBoardsTab()
@@ -47,15 +46,14 @@ class CatalogFlowTest : FlowTest() {
 
     @Test
     fun layoutSwitch_persistsIntoSettings() {
-        val fake = settingsRepository as FakeSettingsRepository
-        assertEquals(CatalogLayout.COMFORTABLE, fake.state.value.catalogLayout)
+        assertEquals(CatalogLayout.COMFORTABLE, settings.state.value.catalogLayout)
 
         openCatalog()
         composeRule.onNodeWithContentDescription("Switch layout").performClick()
 
         composeRule.waitUntil(UI_TIMEOUT_MS) {
-            fake.state.value.catalogLayout != CatalogLayout.COMFORTABLE
+            settings.state.value.catalogLayout != CatalogLayout.COMFORTABLE
         }
-        assertNotEquals(CatalogLayout.COMFORTABLE, fake.state.value.catalogLayout)
+        assertNotEquals(CatalogLayout.COMFORTABLE, settings.state.value.catalogLayout)
     }
 }

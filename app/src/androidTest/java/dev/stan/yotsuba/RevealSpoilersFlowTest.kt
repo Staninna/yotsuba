@@ -5,7 +5,6 @@ import androidx.compose.ui.test.performClick
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.di.FakeSettingsRepository
 import dev.stan.yotsuba.di.TestSeed
-import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import org.junit.Test
 
@@ -13,13 +12,12 @@ import org.junit.Test
 class RevealSpoilersFlowTest : FlowTest() {
 
     @Inject
-    lateinit var settingsRepository: SettingsRepository
+    lateinit var settings: FakeSettingsRepository
 
     /** With "Reveal all spoilers" on, the first tap opens the viewer — no reveal step. */
     @Test
     fun revealAllSpoilersOn_singleTapOpensViewer() {
-        val fake = settingsRepository as FakeSettingsRepository
-        fake.state.value = fake.state.value.copy(revealAllSpoilers = true)
+        settings.state.value = settings.state.value.copy(revealAllSpoilers = true)
 
         composeRule.openSeededThread()
         composeRule.waitForContentDescription(TestSeed.SPOILER_FILENAME)
