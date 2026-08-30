@@ -110,11 +110,7 @@ fun urlOnlySavedMediaEntity(url: String, downloadedAt: Long): SavedMediaEntity =
 
 fun SavedMediaEntity.toVaultEntry(): VaultEntry = VaultEntry(
     url = url,
-    location = if (board != null && board != VaultPaths.UNSORTED_DIR_NAME && threadNo != null) {
-        VaultLocation(board = board!!, threadNo = threadNo!!)
-    } else {
-        VaultLocation.Unsorted
-    },
+    location = location(),
     subject = subject,
     postNo = postNo,
     displayName = displayName,
@@ -128,3 +124,10 @@ fun SavedMediaEntity.toVaultEntry(): VaultEntry = VaultEntry(
     localThumbnailPath = thumbnailPath,
     durationMs = durationMs,
 )
+
+/** Legacy rows keep the unsorted marker in their columns; the domain has one value for it. */
+private fun SavedMediaEntity.location(): VaultLocation {
+    val b = board ?: return VaultLocation.Unsorted
+    val t = threadNo ?: return VaultLocation.Unsorted
+    return VaultLocation(b, t).takeUnless { it.isUnsorted } ?: VaultLocation.Unsorted
+}
