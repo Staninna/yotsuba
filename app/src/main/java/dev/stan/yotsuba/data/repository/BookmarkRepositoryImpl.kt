@@ -19,14 +19,15 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 @Singleton
-class BookmarkRepositoryImpl @Inject constructor(
+class BookmarkRepositoryImpl(
     private val dao: BookmarkDao,
     private val api: FourChanApi,
     private val catalogRepository: CatalogRepository,
+    private val clock: () -> Long,
 ) : BookmarkRepository {
 
-    /** Test seam; the injected constructor keeps wall-clock time. */
-    internal var clock: () -> Long = System::currentTimeMillis
+    @Inject constructor(dao: BookmarkDao, api: FourChanApi, catalogRepository: CatalogRepository) :
+        this(dao, api, catalogRepository, System::currentTimeMillis)
 
     override val bookmarks: Flow<List<Bookmark>> =
         dao.all().map { list -> list.map { it.toDomain() } }

@@ -32,15 +32,26 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 @Singleton
-class BackupRepositoryImpl @Inject constructor(
+class BackupRepositoryImpl(
     private val store: VaultStore,
     private val bookmarks: BookmarkRepository,
     private val hiddenThreads: HiddenThreadsRepository,
     private val settings: SettingsRepository,
     private val preferences: DataStore<Preferences>,
     private val storageAccess: StorageAccessCheck,
-    @ApplicationScope scope: CoroutineScope,
+    scope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher,
 ) : BackupRepository {
+
+    @Inject constructor(
+        store: VaultStore,
+        bookmarks: BookmarkRepository,
+        hiddenThreads: HiddenThreadsRepository,
+        settings: SettingsRepository,
+        preferences: DataStore<Preferences>,
+        storageAccess: StorageAccessCheck,
+        @ApplicationScope scope: CoroutineScope,
+    ) : this(store, bookmarks, hiddenThreads, settings, preferences, storageAccess, scope, Dispatchers.IO)
 
     /**
      * Any change to what the backup holds re-exports it, once the burst settles. The first
@@ -55,11 +66,7 @@ class BackupRepositoryImpl @Inject constructor(
         .onEach { export() }
         .launchIn(scope)
 
-    /** Test seam: the impl reads and writes under [store]'s root by default. */
-    internal var rootOverride: File? = null
-    internal var ioDispatcher: CoroutineDispatcher = Dispatchers.IO
-
-    private val file: File get() = File(rootOverride ?: store.root, BackupFile.FILE_NAME)
+    private val file: File get() = File(store.root, BackupFile.FILE_NAME)
     private val lock = Mutex()
 
     override suspend fun export(): BackupResult = withContext(ioDispatcher) {
@@ -74,12 +81,7 @@ class BackupRepositoryImpl @Inject constructor(
                     hidden = hiddenThreads.all.first(),
                 )
                 file.parentFile?.mkdirs()
-                val tmp = File(file.parentFile, file.name + ".tmp")
-                tmp.writeText(BackupCodec.encode(snapshot))
-                if (!tmp.renameTo(file)) {
-                    file.writeText(tmp.readText())
-                    tmp.delete()
-                }
+                store.writeAtomically(file, BackupCodec.encode(snapshot))
                 BackupResult.Exported(now)
             } catch (e: CancellationException) {
                 throw e
