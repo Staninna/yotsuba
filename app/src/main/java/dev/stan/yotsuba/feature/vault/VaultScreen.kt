@@ -10,54 +10,35 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -66,14 +47,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.designsystem.component.TabChrome
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
-import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import androidx.compose.foundation.lazy.LazyColumn
@@ -107,10 +86,8 @@ fun VaultScreen(
     val context = LocalContext.current
     val snackbar = slots.snackbar
     val resources = context.resources
-    val spacing = LocalSpacing.current
-    var importMenuOpen by remember { mutableStateOf(false) }
+    // Read and written by a BackHandler below, so it stays here rather than in the bar.
     var searchOpen by remember { mutableStateOf(state.query.isNotEmpty()) }
-    var syncMenuOpen by remember { mutableStateOf(false) }
     var statsOpen by remember { mutableStateOf(false) }
     var dedupOpen by remember { mutableStateOf(false) }
 
@@ -193,14 +170,16 @@ fun VaultScreen(
     }
 
     OnResumeEffect(viewModel::refreshStorageAccess)
-    // Back peels layers in order: the viewer's own reply panel (its BackHandler is composed
-    // later, so it wins while enabled), then the viewer, then the drill-down.
-    BackHandler(enabled = state.selection.board != null && state.viewer == null) { viewModel.navigateUp() }
-    BackHandler(enabled = state.selecting && state.viewer == null) { viewModel.clearSelection() }
-    BackHandler(enabled = searchOpen && !state.selecting && state.viewer == null) {
+    // Back peels layers innermost first. The last enabled BackHandler composed wins, so the
+    // order here is the precedence: the viewer's own reply panel (composed later still),
+    // the viewer, search, a selection, then the drill-down. Search sits below selection
+    // because a selection can be made while searching and should clear first.
+    BackHandler(enabled = state.selection.board != null) { viewModel.navigateUp() }
+    BackHandler(enabled = searchOpen && !state.selecting) {
         searchOpen = false
         viewModel.setQuery("")
     }
+    BackHandler(enabled = state.selecting) { viewModel.clearSelection() }
     BackHandler(enabled = state.viewer != null) { viewModel.closeViewer() }
 
     Box(Modifier.fillMaxSize()) {
@@ -223,137 +202,22 @@ fun VaultScreen(
                         onQuery = viewModel::setQuery,
                         onClose = { searchOpen = false; viewModel.setQuery("") },
                     )
-                } else TopAppBar(
-                    title = {
-                        Column {
-                            Text(vaultTitle(state), maxLines = 1)
-                            if (state.hasStorageAccess && state.entries.isNotEmpty()) {
-                                Text(
-                                    vaultSubtitle(state),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                )
-                            }
-                        }
-                    },
-                    navigationIcon = {
-                        if (state.selection.board != null) {
-                            IconButton(onClick = { viewModel.navigateUp() }) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.media_back))
-                            }
-                        }
-                    },
-                    actions = {
-                        if (state.hasStorageAccess && state.entries.isNotEmpty()) {
-                            IconButton(onClick = { searchOpen = true }) {
-                                Icon(Icons.Filled.Search, stringResource(R.string.vault_search))
-                            }
-                        }
-                        if (state.hasStorageAccess) {
-                            Box {
-                                IconButton(
-                                    enabled = !state.importing,
-                                    onClick = { importMenuOpen = true },
-                                ) {
-                                    Icon(Icons.Filled.Add, stringResource(R.string.vault_import))
-                                }
-                                DropdownMenu(
-                                    expanded = importMenuOpen,
-                                    onDismissRequest = { importMenuOpen = false },
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.vault_import_files)) },
-                                        onClick = {
-                                            importMenuOpen = false
-                                            pickFiles.launch(arrayOf("image/*", "video/*"))
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.vault_import_folder)) },
-                                        onClick = {
-                                            importMenuOpen = false
-                                            pickFolder.launch(null)
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                        if (state.sync.running) {
-                            // The counter matters: a rate-limited sync of many threads
-                            // takes about a second each, and a bare spinner looks hung.
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (state.sync.total > 0) {
-                                    Text(
-                                        stringResource(
-                                            R.string.vault_sync_progress,
-                                            state.sync.done,
-                                            state.sync.total,
-                                        ),
-                                        style = MaterialTheme.typography.labelMedium,
-                                    )
-                                    Spacer(Modifier.width(spacing.sm))
-                                }
-                                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                                Spacer(Modifier.width(spacing.md))
-                            }
-                        } else if (state.hasStorageAccess) {
-                            Box {
-                                IconButton(onClick = { syncMenuOpen = true }) {
-                                    Icon(Icons.Filled.Refresh, stringResource(R.string.vault_sync))
-                                }
-                                DropdownMenu(
-                                    expanded = syncMenuOpen,
-                                    onDismissRequest = { syncMenuOpen = false },
-                                ) {
-                                    DropdownMenuItem(
-                                        text = {
-                                            MenuLabel(R.string.vault_rescan_label, R.string.vault_rescan_explanation)
-                                        },
-                                        leadingIcon = { Icon(Icons.Filled.Refresh, contentDescription = null) },
-                                        onClick = {
-                                            syncMenuOpen = false
-                                            viewModel.rescan { scope.launch { snackbar.showSnackbar(rescanDone) } }
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            MenuLabel(R.string.vault_fetch_replies, R.string.vault_fetch_replies_explanation)
-                                        },
-                                        leadingIcon = { Icon(Icons.Filled.CloudDownload, contentDescription = null) },
-                                        onClick = {
-                                            syncMenuOpen = false
-                                            viewModel.fetchReplies { summary -> reportSync(summary) }
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            MenuLabel(R.string.vault_stats_label, R.string.vault_stats_explanation)
-                                        },
-                                        leadingIcon = { Icon(Icons.Filled.BarChart, contentDescription = null) },
-                                        onClick = {
-                                            syncMenuOpen = false
-                                            statsOpen = true
-                                        },
-                                    )
-                                    DropdownMenuItem(
-                                        text = {
-                                            MenuLabel(R.string.vault_dedup_label, R.string.vault_dedup_explanation)
-                                        },
-                                        leadingIcon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
-                                        onClick = {
-                                            syncMenuOpen = false
-                                            dedupOpen = true
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                        IconButton(onClick = onOpenSettings) {
-                            Icon(Icons.Outlined.Settings, stringResource(R.string.action_open_settings))
-                        }
-                    },
-                )
+                } else {
+                    VaultBrowseTopBar(
+                        state = state,
+                        actions = VaultBarActions(
+                            onNavigateUp = viewModel::navigateUp,
+                            onSearch = { searchOpen = true },
+                            onImportFiles = { pickFiles.launch(arrayOf("image/*", "video/*")) },
+                            onImportFolder = { pickFolder.launch(null) },
+                            onRescan = { viewModel.rescan { scope.launch { snackbar.showSnackbar(rescanDone) } } },
+                            onFetchReplies = { viewModel.fetchReplies(::reportSync) },
+                            onStats = { statsOpen = true },
+                            onDedup = { dedupOpen = true },
+                            onOpenSettings = onOpenSettings,
+                        ),
+                    )
+                }
             },
             floatingActionButton = {
                 // The viewer covers the whole tab; a FAB floating over it would be a stray.
@@ -516,81 +380,6 @@ private fun MergeDialog(
     )
 }
 
-/** A menu entry that says what it does underneath its name. */
-@Composable
-private fun MenuLabel(titleRes: Int, explanationRes: Int) {
-    Column {
-        Text(stringResource(titleRes))
-        Text(
-            stringResource(explanationRes),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-/** The top bar as a search field; the query lives in the VM so rotation keeps it. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SearchTopBar(query: String, onQuery: (String) -> Unit, onClose: () -> Unit) {
-    val focus = remember { FocusRequester() }
-    TopAppBar(
-        title = {
-            TextField(
-                value = query,
-                onValueChange = onQuery,
-                placeholder = { Text(stringResource(R.string.vault_search_hint)) },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                ),
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = onClose) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.media_back))
-            }
-        },
-        actions = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { onQuery("") }) {
-                    Icon(Icons.Filled.Close, stringResource(R.string.vault_search_clear))
-                }
-            }
-        },
-    )
-    LaunchedEffect(Unit) { focus.requestFocus() }
-}
-
-/** Replaces the top bar while items are ticked: the count, and what can be done with them. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SelectionTopBar(
-    count: Int,
-    onClear: () -> Unit,
-    onShare: () -> Unit,
-    onSaveToGallery: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    TopAppBar(
-        title = { Text(pluralStringResource(R.plurals.vault_selected_count, count, count)) },
-        navigationIcon = {
-            IconButton(onClick = onClear) {
-                Icon(Icons.Filled.Close, stringResource(R.string.vault_clear_selection))
-            }
-        },
-        actions = {
-            IconButton(onClick = onShare) { Icon(Icons.Filled.Share, stringResource(R.string.thread_share)) }
-            IconButton(onClick = onSaveToGallery) {
-                Icon(Icons.Filled.SaveAlt, stringResource(R.string.vault_save_to_gallery))
-            }
-            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, stringResource(R.string.vault_delete)) }
-        },
-    )
-}
-
 /** Confirmation with a "don't ask again" box that turns the setting off for good. */
 @Composable
 private fun VaultDeleteDialog(
@@ -720,14 +509,3 @@ private fun VaultEntry.toViewerPage(): ViewerPage = if (isVideo) {
         contentDescription = displayName,
     )
 }
-
-@Composable
-private fun vaultTitle(state: VaultUiState): String = when {
-    state.selection.board == null -> stringResource(R.string.vault_title)
-    state.selection.thread == null -> boardTitle(state.selection.board!!)
-    else -> threadTitle(state.selection.thread!!, state.openThread?.subject)
-}
-
-/** Item count and disk use of whatever level is on screen. */
-@Composable
-private fun vaultSubtitle(state: VaultUiState): String = itemsSummary(state.scopeEntries.size, state.scopeEntries.totalBytes)
