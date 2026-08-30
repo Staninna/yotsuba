@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PermMedia
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.Circle
@@ -83,6 +82,7 @@ import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.EnumSegmentedRow
 import dev.stan.yotsuba.core.designsystem.component.IconMenuItem
 import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
+import dev.stan.yotsuba.core.designsystem.component.VideoBadge
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
@@ -483,26 +483,7 @@ private fun MediaGrid(
                         .fillMaxSize()
                         .then(if (checked) Modifier.padding(SELECTED_INSET) else Modifier),
                 )
-                if (entry.isVideo) {
-                    Icon(
-                        Icons.Filled.PlayCircle,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.align(Alignment.Center).size(spacing.xxl),
-                    )
-                    entry.durationMs?.let { duration ->
-                        Text(
-                            TimeFormat.duration(duration),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color.White,
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(spacing.xs)
-                                .background(Color.Black.copy(alpha = 0.6f), MaterialTheme.shapes.extraSmall)
-                                .padding(horizontal = spacing.xs, vertical = 1.dp),
-                        )
-                    }
-                }
+                if (entry.isVideo) VideoBadge(entry.durationMs)
                 if (selecting) {
                     Icon(
                         if (checked) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
