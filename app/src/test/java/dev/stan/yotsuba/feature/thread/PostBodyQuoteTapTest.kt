@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInWindow
@@ -17,6 +18,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.stan.yotsuba.core.designsystem.theme.LocalPostTypography
 import dev.stan.yotsuba.domain.model.PostAnnotation
 import dev.stan.yotsuba.domain.model.PostSegment
 import dev.stan.yotsuba.domain.model.PostText
@@ -109,10 +111,11 @@ class PostBodyQuoteTapTest {
      */
     @Composable
     private fun PlainBodyTheme(content: @Composable () -> Unit) {
-        MaterialTheme(
-            typography = Typography(bodyMedium = TextStyle(fontSize = 14.sp)),
-            content = content,
-        )
+        val plain = Typography(bodyMedium = TextStyle(fontSize = 14.sp))
+        // PostBody reads the post typography local, not MaterialTheme, so override both.
+        CompositionLocalProvider(LocalPostTypography provides plain) {
+            MaterialTheme(typography = plain, content = content)
+        }
     }
 
     private fun tap(activity: ComponentActivity, x: Float, y: Float) {
