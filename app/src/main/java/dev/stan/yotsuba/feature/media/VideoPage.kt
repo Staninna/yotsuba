@@ -64,7 +64,7 @@ import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import kotlin.math.abs
@@ -273,7 +273,7 @@ fun VideoPage(
             // actually render scaled.
             val surfaceAlpha by animateFloatAsState(
                 targetValue = if (firstFrameRendered) 1f else 0f,
-                animationSpec = tween(LocalMotion.current.short),
+                animationSpec = rememberMotionSpec(LocalMotion.current.short),
                 label = "videoSurfaceFadeIn",
             )
             PlayerSurface(
@@ -332,10 +332,11 @@ fun VideoPage(
                 color = Color.White.copy(alpha = 0.8f),
             )
         }
+        val motion = LocalMotion.current
         AnimatedVisibility(
             visible = chromeVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(rememberMotionSpec(motion.short)),
+            exit = fadeOut(rememberMotionSpec(motion.short)),
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
             val spacing = LocalSpacing.current

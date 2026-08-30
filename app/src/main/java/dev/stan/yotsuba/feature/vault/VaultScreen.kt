@@ -5,7 +5,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
@@ -84,6 +83,7 @@ import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerThread
 import dev.stan.yotsuba.feature.media.ViewerPage
+import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.feature.media.shareMediaFile
 import java.io.File
@@ -383,8 +383,8 @@ fun VaultScreen(
         val motion = LocalMotion.current
         AnimatedVisibility(
             visible = state.viewer != null,
-            enter = fadeIn(tween(motion.medium)),
-            exit = fadeOut(tween(motion.medium)),
+            enter = fadeIn(rememberMotionSpec(motion.medium)),
+            exit = fadeOut(rememberMotionSpec(motion.medium)),
         ) {
             val viewer = shownViewer ?: return@AnimatedVisibility
             VaultViewer(

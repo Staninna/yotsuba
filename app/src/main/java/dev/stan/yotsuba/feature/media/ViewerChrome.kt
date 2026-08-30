@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.sharedMedia
+import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
@@ -66,7 +68,13 @@ fun ViewerTopChrome(
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     val spacing = LocalSpacing.current
-    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+    val motion = LocalMotion.current
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(rememberMotionSpec(motion.short)),
+        exit = fadeOut(rememberMotionSpec(motion.short)),
+        modifier = modifier,
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -149,7 +157,13 @@ fun AutoAdvanceButton(autoAdvance: Boolean, onToggle: () -> Unit) {
 fun DownloadIndicator(count: Int, visible: Boolean, modifier: Modifier = Modifier) {
     val spacing = LocalSpacing.current
     val label = pluralStringResource(R.plurals.media_downloading, count, count)
-    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+    val motion = LocalMotion.current
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(rememberMotionSpec(motion.short)),
+        exit = fadeOut(rememberMotionSpec(motion.short)),
+        modifier = modifier,
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
