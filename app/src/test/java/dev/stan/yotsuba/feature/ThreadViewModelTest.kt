@@ -271,6 +271,27 @@ class ThreadViewModelTest {
             assertEquals(List(8) { 0 }, content(vm).rows.map { (it as ThreadRow.Post).depth })
         }
 
+    @Test fun `tree view re-indents replies whose parents the ID filter removed`() =
+        runTest(dispatcher.scheduler) {
+            // 100 <- 101 <- 102 <- 103; only 101 is by another poster.
+            val posts = listOf(
+                ThreadEnv.post(100).copy(isOp = true, posterId = "AAAA"),
+                ThreadEnv.post(101).copy(posterId = "BBBB", quotedPostNos = listOf(100)),
+                ThreadEnv.post(102).copy(posterId = "AAAA", quotedPostNos = listOf(101)),
+                ThreadEnv.post(103).copy(posterId = "AAAA", quotedPostNos = listOf(102)),
+            )
+            val env = ThreadEnv(posts = posts)
+            val vm = env.collectedVm(backgroundScope)
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.onToggleTreeView()
+            vm.onFilterPosterId("AAAA")
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(
+                listOf(100L to 0, 102L to 1, 103L to 2),
+                content(vm).rows.map { (it as ThreadRow.Post).let { row -> row.post.no to row.depth } },
+            )
+        }
+
     @Test fun `search step is a no-op without matches`() = runTest(dispatcher.scheduler) {
         val vm = ThreadEnv().vm()
         dispatcher.scheduler.advanceUntilIdle()

@@ -65,24 +65,35 @@ private fun linearRows(posts: List<ThreadPost>, session: Session, verdicts: Map<
  * follow it directly in the walk, so they fold into one "N more" row until expanded,
  * then show flattened at the cap. The ID filter applies as in the linear view; the
  * new-posts divider does not exist here since the order is no longer chronological.
+ *
+ * Depth counts retained ancestors only: a reply whose parent the filters removed moves
+ * up under its nearest shown ancestor, or to the top level when none is left.
  */
 private fun treeRows(details: ThreadDetails, session: Session, verdicts: Map<Long, Filter>): List<ThreadRow> {
     val visible = visiblePosts(details.posts, session).mapTo(HashSet()) { it.no }
-    val nodes = PostGraph.of(details).tree().filter {
-        it.post.no in visible && verdicts[it.post.no]?.action != FilterAction.HIDE
+    val all = PostGraph.of(details).tree()
+    val parentOf = HashMap<Long, Long?>(all.size).apply { all.forEach { put(it.post.no, it.parentNo) } }
+    val nodes = all.filter { it.post.no in visible && verdicts[it.post.no]?.action != FilterAction.HIDE }
+    val depthOf = HashMap<Long, Int>(nodes.size)
+    val depths = nodes.map { node ->
+        var ancestor = node.parentNo
+        while (ancestor != null && ancestor !in depthOf) ancestor = parentOf[ancestor]
+        val depth = if (ancestor == null) 0 else depthOf.getValue(ancestor) + 1
+        depthOf[node.post.no] = depth
+        depth
     }
     val out = mutableListOf<ThreadRow>()
     var i = 0
     while (i < nodes.size) {
         val node = nodes[i]
-        val depth = node.depth.coerceAtMost(MAX_TREE_DEPTH)
+        val depth = depths[i].coerceAtMost(MAX_TREE_DEPTH)
         val filter = verdicts[node.post.no]
         out += if (filter == null) ThreadRow.Post(node.post, depth)
         else filteredRow(node.post, filter, session, depth) ?: error("hidden posts were dropped above")
         i++
-        if (node.depth != MAX_TREE_DEPTH) continue
+        if (depth != MAX_TREE_DEPTH) continue
         val tailStart = i
-        while (i < nodes.size && nodes[i].depth > MAX_TREE_DEPTH) i++
+        while (i < nodes.size && depths[i] > MAX_TREE_DEPTH) i++
         val tail = nodes.subList(tailStart, i)
         if (tail.isEmpty()) continue
         if (node.post.no in session.expandedTails) {
