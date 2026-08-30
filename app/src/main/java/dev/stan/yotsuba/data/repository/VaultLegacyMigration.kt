@@ -17,7 +17,6 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.sync.withLock
 
 /** How many recent history threads the legacy migration will fetch looking for matches. */
 private const val MIGRATION_HISTORY_FETCH_CAP = 25
@@ -105,7 +104,7 @@ class VaultLegacyMigration @Inject constructor(
         val dir = store.threadDirFor(match.board, match.threadNo, match.subject).apply { mkdirs() }
         val target = store.uniqueFile(dir, VaultPaths.fileName(item.postNo, item.filename, item.ext))
         if (!store.moveFile(file, target)) return false
-        val row = store.lock.withLock {
+        val row = store.withStore {
             store.recordSavedFile(dir, match.board, match.threadNo, match.subject, target, item, match.post, savedAt)
         }
         savedMediaDao.insert(row)
@@ -116,7 +115,7 @@ class VaultLegacyMigration @Inject constructor(
         val dir = File(store.root, VaultPaths.UNSORTED_DIR_NAME).apply { mkdirs() }
         val target = store.uniqueFile(dir, VaultPaths.sanitizeSegment(file.name))
         if (!store.moveFile(file, target)) return false
-        store.lock.withLock {
+        store.withStore {
             store.updateMeta(dir) { meta ->
                 meta.copy(board = VaultPaths.UNSORTED_DIR_NAME)
                     .upsert(

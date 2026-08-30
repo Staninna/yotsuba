@@ -3,15 +3,25 @@ package dev.stan.yotsuba.vault
 import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultMetaCodec
 import dev.stan.yotsuba.data.repository.VaultStore
+import dev.stan.yotsuba.data.repository.attempt
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultPaths
 import java.io.File
+import java.io.IOException
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.fail
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -138,5 +148,43 @@ class VaultStoreTest {
         assertNull(meta.posterName)
         assertNull(meta.tripcode)
         assertNull(meta.postedAtSeconds)
+    }
+
+    @Test
+    fun `attempt maps io and security failures to Io`() {
+        assertEquals(VaultError.Io("disk full"), attempt { throw IOException("disk full") })
+        assertEquals(VaultError.Io("denied"), attempt { throw SecurityException("denied") })
+        assertNull(attempt { })
+    }
+
+    @Test
+    fun `attempt lets bugs and cancellation through`() {
+        assertThrows(IllegalStateException::class.java) { attempt { error("broken invariant") } }
+        assertThrows(NullPointerException::class.java) { attempt { throw NullPointerException() } }
+        assertThrows(IndexOutOfBoundsException::class.java) { attempt { emptyList<Int>()[1] } }
+        assertThrows(CancellationException::class.java) { attempt { throw CancellationException() } }
+    }
+
+    @Test
+    fun `withStore runs one block at a time`() = runTest {
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val order = mutableListOf<String>()
+        val first = async {
+            store.withStore {
+                entered.complete(Unit)
+                release.await()
+                order += "first"
+            }
+        }
+        entered.await()
+        val second = async { store.withStore { order += "second" } }
+        repeat(5) { yield() }
+        if (order.isNotEmpty()) fail("second entered while first held the store")
+        release.complete(Unit)
+        first.await()
+        second.await()
+        assertEquals(listOf("first", "second"), order)
+        assertEquals(7, store.withStore { 7 })
     }
 }

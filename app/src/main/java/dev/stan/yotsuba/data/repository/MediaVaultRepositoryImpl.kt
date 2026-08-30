@@ -45,7 +45,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 private val VAULT_MIGRATED = booleanPreferencesKey("vault_legacy_migrated_v1")
@@ -123,7 +122,7 @@ class MediaVaultRepositoryImpl(
                 val still = VideoStills.captureIfVideo(target)
 
                 val savedAt = System.currentTimeMillis()
-                val row = store.lock.withLock {
+                val row = store.withStore {
                     val row = store.recordSavedFile(
                         dir, saveContext.board, saveContext.threadNo, saveContext.threadSubject,
                         target, item, saveContext.post, savedAt, still,
@@ -165,7 +164,7 @@ class MediaVaultRepositoryImpl(
                 // Images have no still; a missing one is nothing to report.
                 VideoStills.stillFor(file).delete()
                 if (dir != null) {
-                    store.lock.withLock {
+                    store.withStore {
                         store.updateMeta(dir) { it.remove(file.name) }
                         store.pruneIfEmpty(dir)
                     }
@@ -237,11 +236,11 @@ class MediaVaultRepositoryImpl(
             when (val result = threadRepository.thread(board, threadNo, forceRefresh = true)) {
                 is DataResult.Success -> attempt {
                     store.ensureRoot()
-                    store.lock.withLock { writeSnapshot(board, threadNo, result.value) }
+                    store.withStore { writeSnapshot(board, threadNo, result.value) }
                 }
                 is DataResult.Failure -> when (result.error) {
                     NetworkError.NotFound -> {
-                        store.lock.withLock { pruneIfDead(board, threadNo) }
+                        store.withStore { pruneIfDead(board, threadNo) }
                         VaultError.NotFound
                     }
                     else -> VaultError.Io(result.error.toString())
@@ -260,7 +259,7 @@ class MediaVaultRepositoryImpl(
         }
     }
 
-    /** Under the store lock. */
+    /** Inside [VaultStore.withStore]. */
     private fun writeSnapshot(board: String, threadNo: Long, thread: ThreadDetails) {
         val op = thread.posts.firstOrNull { it.isOp } ?: thread.posts.firstOrNull()
         store.snapshot(
@@ -274,7 +273,7 @@ class MediaVaultRepositoryImpl(
 
     /**
      * One rate-limited walk over [targets]: fetch each live thread and hand it to [apply]
-     * under the store lock. A 404 is the thread's end, and the moment its sidecar may be
+     * inside [VaultStore.withStore]. A 404 is the thread's end, and the moment its sidecar may be
      * compacted; a rate limit ends the pass.
      */
     private suspend fun runPass(
@@ -293,7 +292,7 @@ class MediaVaultRepositoryImpl(
         for ((index, target) in targets.withIndex()) {
             when (val result = threadRepository.thread(target.board, target.threadNo, forceRefresh = true)) {
                 is DataResult.Success -> {
-                    val outcome = attempt { store.lock.withLock { apply(target, result.value) } }
+                    val outcome = attempt { store.withStore { apply(target, result.value) } }
                     if (outcome == null) {
                         updated++
                         touched += target
@@ -307,7 +306,7 @@ class MediaVaultRepositoryImpl(
                     NetworkError.NotFound -> {
                         gone++
                         touched += target
-                        if (store.lock.withLock { pruneIfDead(target.board, target.threadNo) }) pruned++
+                        if (store.withStore { pruneIfDead(target.board, target.threadNo) }) pruned++
                     }
                     // Backing off is the whole point of a rate limit; finish another day.
                     NetworkError.RateLimited -> {
@@ -325,7 +324,7 @@ class MediaVaultRepositoryImpl(
         )
     }
 
-    /** Under the store lock. True when the thread's sidecar was compacted this time. */
+    /** Inside [VaultStore.withStore]. True when the thread's sidecar was compacted this time. */
     private suspend fun pruneIfDead(board: String, threadNo: Long): Boolean {
         if (!settings.settings.first().pruneDeadSidecars) return false
         val dir = store.threadDir(board, threadNo) ?: return false
@@ -348,7 +347,7 @@ class MediaVaultRepositoryImpl(
             val dir = store.threadDir(board, threadNo) ?: return@withContext VaultError.NotFound
             val trimmed = name.trim().ifEmpty { return@withContext VaultError.Io("empty name") }
             attempt {
-                store.lock.withLock {
+                store.withStore {
                     store.updateMeta(dir) { it.copy(subject = trimmed) }
                     store.updatePosts(
                         dir, board, threadNo,
@@ -370,7 +369,7 @@ class MediaVaultRepositoryImpl(
         val from = store.threadDir(fromBoard, fromThreadNo) ?: return@withContext VaultError.NotFound
         val into = store.threadDir(intoBoard, intoThreadNo) ?: return@withContext VaultError.NotFound
         attempt {
-            store.lock.withLock {
+            store.withStore {
                 val fromMeta = store.readMeta(from) ?: VaultThreadMeta(board = fromBoard)
                 // Original name -> entry under its (possibly deduped) new name. Both sidecars
                 // are written once, after the moves; a failed move still records what got
@@ -409,7 +408,7 @@ class MediaVaultRepositoryImpl(
         // The sidecars never held the hashes, so the old rows are the only copy. Room call,
         // kept outside the store lock.
         val previous = savedMediaDao.allOnce()
-        val rebuilt = store.lock.withLock {
+        val rebuilt = store.withStore {
             store.threadMetas().flatMap { (dir, meta) ->
                 meta.files.mapNotNull { f ->
                     val file = File(dir, f.fileName)
@@ -433,7 +432,7 @@ class MediaVaultRepositoryImpl(
     /** Writes what a rescan learned about a video back into the sidecar, so the next rescan has it. */
     private suspend fun recordProbe(file: File, still: VideoStills.Still) {
         val dir = file.parentFile ?: return
-        store.lock.withLock {
+        store.withStore {
             store.updateMeta(dir) { meta ->
                 val entry = meta.files.firstOrNull { it.fileName == file.name } ?: return@updateMeta meta
                 meta.upsert(entry.withProbe(still))
