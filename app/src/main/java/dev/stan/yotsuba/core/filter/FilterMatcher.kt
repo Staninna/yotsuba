@@ -62,9 +62,8 @@ class FilterMatcher(filters: List<Filter>) {
     private val compiled: List<Compiled> = filters
         .filter { it.enabled && it.pattern.isNotEmpty() }
         .map { f ->
-            // A broken regex compiles to null and so never matches; Filter.error reports it.
-            val regex = if (f.isRegex) runCatching { Regex(f.pattern) }.getOrNull() else null
-            Compiled(f, regex)
+            // A broken regex compiles to null and so never matches; Filter.error() reports it.
+            Compiled(f, compile(f)?.getOrNull())
         }
 
     val isEmpty: Boolean get() = compiled.isEmpty()
@@ -77,6 +76,13 @@ class FilterMatcher(filters: List<Filter>) {
 
     companion object {
         val Empty = FilterMatcher(emptyList())
+
+        /**
+         * The regex a filter runs, or the failure explaining why it cannot; null for plain
+         * substring filters. The one place a pattern's language is decided.
+         */
+        fun compile(filter: Filter): Result<Regex>? =
+            if (filter.isRegex) runCatching { Regex(filter.pattern) } else null
 
         /** Whether [sample] would be caught by a filter with these settings; for the settings "Test" field. */
         fun test(pattern: String, isRegex: Boolean, sample: String): Boolean =

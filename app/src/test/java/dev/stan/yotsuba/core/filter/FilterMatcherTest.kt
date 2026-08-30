@@ -52,10 +52,10 @@ class FilterMatcherTest {
 
     @Test fun `invalid regex never matches and reports an error`() {
         val f = filter("[unclosed", isRegex = true)
-        assertNotNull(f.error)
+        assertNotNull(f.error())
         assertNull(matcher(f).matches(FilterableFields(comment = "[unclosed"), "g"))
-        assertNull(filter("[fine]", isRegex = true).error)
-        assertNull(filter("[unclosed").error)
+        assertNull(filter("[fine]", isRegex = true).error())
+        assertNull(filter("[unclosed").error())
     }
 
     @Test fun `only the selected field is read`() {
