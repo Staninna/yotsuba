@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
@@ -278,6 +279,15 @@ class VaultViewModel @Inject constructor(
         viewModelScope.launch { mediaVault.purgeTrash() }
     }
 
+    /**
+     * One subscription to the vault for everything below. The repository's flow is cold and
+     * maps every row on each emission; three collectors meant three Room queries and three
+     * mapping passes per write, one of them on the main thread.
+     */
+    private val entries = mediaVault.entries()
+        .flowOn(compute)
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+
     /** Playback preferences for the full-screen viewer. Saving does not apply here. */
     val behaviour: StateFlow<ViewerBehaviour> = settingsRepository.settings
         .map {
@@ -365,12 +375,13 @@ class VaultViewModel @Inject constructor(
         Activity(i, n, a, d, u)
     }
 
-    /** Everything the user is in the middle of editing on the explorer itself. */
+    /** Everything the user is in the middle of editing on the explorer itself, and where they are in it. */
     private data class Editing(
         val selected: Set<String>,
         val inspecting: String?,
         val view: View,
         val threadEdit: VaultThreadEdit?,
+        val selection: VaultSelection,
     )
 
     /** How the entries are arranged on screen. */
@@ -404,7 +415,9 @@ class VaultViewModel @Inject constructor(
         this.query.value = query
     }
 
-    private val editing = combine(selected, inspectingUrl, view, threadEdit) { s, i, v, t -> Editing(s, i, v, t) }
+    private val editing = combine(selected, inspectingUrl, view, threadEdit, selection) { s, i, v, t, sel ->
+        Editing(s, i, v, t, sel)
+    }
 
     fun requestRename(location: VaultLocation) {
         if (location.isLocal) threadEdit.value = VaultThreadEdit.Rename(location)
@@ -461,16 +474,10 @@ class VaultViewModel @Inject constructor(
         savedState[KEY_FILTER] = filter.name
     }
 
-    @Suppress("UNCHECKED_CAST")
     val uiState: StateFlow<VaultUiState> = combine(
-        mediaVault.entries(), syncState, selection, viewing, activity, editing,
-    ) { args ->
-        val entries = args[0] as List<VaultEntry>
-        val sync = args[1] as VaultSyncState
-        val sel = args[2] as VaultSelection
-        val viewing = args[3] as Viewing
-        val activity = args[4] as Activity
-        val editing = args[5] as Editing
+        entries, syncState, viewing, activity, editing,
+    ) { entries, sync, viewing, activity, editing ->
+        val sel = editing.selection
         val urls = entries.mapTo(HashSet(entries.size)) { it.url }
         val visible = arrangeEntries(entries, editing.view.sort, editing.view.filter, editing.view.reversed)
         val recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT).let { newest ->
@@ -521,6 +528,9 @@ class VaultViewModel @Inject constructor(
     fun openBoard(board: String) = selection.update { VaultSelection(board = board) }
 
     fun openThread(location: VaultLocation) = selection.update { it.copy(thread = location) }
+
+    /** Jumps straight to [location] from anywhere, in one state write: no board-level frame on the way. */
+    fun reveal(location: VaultLocation) = selection.update { VaultSelection(board = location.board, thread = location) }
 
     /** One step up the drill-down: thread → board → root. */
     fun navigateUp() {
@@ -582,7 +592,7 @@ class VaultViewModel @Inject constructor(
      * captured -- the explorer hides the affordance rather than opening a blank panel.
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val viewerThread: StateFlow<ViewerThread> = combine(viewingUrl, mediaVault.entries()) { url, entries ->
+    val viewerThread: StateFlow<ViewerThread> = combine(viewingUrl, entries) { url, entries ->
         url?.let { u -> entries.firstOrNull { it.url == u }?.location }
     }
         .distinctUntilChanged()
@@ -630,53 +640,33 @@ class VaultViewModel @Inject constructor(
     fun refreshStorageAccess() = mediaVault.refreshStorageAccess()
 
     /**
-     * Brings the vault up to date: rebuild the local index, then refresh every saved
-     * thread's comment section from the live thread while it is still there. The second
-     * half is rate-limited to about one thread a second, hence the progress counter.
+     * Runs one vault sync at a time: presses while one is running are ignored, the running
+     * flag (and progress counter) is cleared however [block] ends, and [onDone] gets its
+     * result. [block] reports thread-by-thread progress through the callback it is given,
+     * because a rate-limited pass takes about a second a thread and a bare spinner looks hung.
      */
-    fun sync(onDone: (VaultSyncSummary) -> Unit = {}) {
+    private fun <T> runSync(onDone: (T) -> Unit, block: suspend (progress: (Int, Int) -> Unit) -> T) {
         if (syncState.value.running) return
         viewModelScope.launch {
             syncState.value = VaultSyncState(running = true)
-            mediaVault.migrateLegacyIfNeeded()
-            mediaVault.rescan()
-            val summary = mediaVault.syncSavedThreads { done, total ->
-                syncState.value = VaultSyncState(running = true, done = done, total = total)
-            }
-            syncState.value = VaultSyncState()
-            onDone(summary)
-        }
-    }
-
-    /** The index half of [sync] on its own: reads the sidecars on disk, touches no network. */
-    fun rescan(onDone: () -> Unit = {}) {
-        if (syncState.value.running) return
-        viewModelScope.launch {
-            syncState.value = VaultSyncState(running = true)
-            try {
-                mediaVault.migrateLegacyIfNeeded()
-                mediaVault.rescan()
+            val result = try {
+                block { done, total -> syncState.value = VaultSyncState(running = true, done = done, total = total) }
             } finally {
                 syncState.value = VaultSyncState()
             }
-            onDone()
+            onDone(result)
         }
     }
 
-    /** The network half of [sync] on its own: refreshes the saved comment sections. */
-    fun fetchReplies(onDone: (VaultSyncSummary) -> Unit = {}) {
-        if (syncState.value.running) return
-        viewModelScope.launch {
-            syncState.value = VaultSyncState(running = true)
-            val summary = try {
-                mediaVault.syncSavedThreads { done, total ->
-                    syncState.value = VaultSyncState(running = true, done = done, total = total)
-                }
-            } finally {
-                syncState.value = VaultSyncState()
-            }
-            onDone(summary)
-        }
+    /** Rebuilds the index from the sidecars on disk; touches no network. */
+    fun rescan(onDone: () -> Unit = {}) = runSync({ onDone() }) {
+        mediaVault.migrateLegacyIfNeeded()
+        mediaVault.rescan()
+    }
+
+    /** Refreshes every saved thread's comment section from the live thread while it is still there. */
+    fun fetchReplies(onDone: (VaultSyncSummary) -> Unit = {}) = runSync(onDone) { progress ->
+        mediaVault.syncSavedThreads(progress)
     }
 
     /**

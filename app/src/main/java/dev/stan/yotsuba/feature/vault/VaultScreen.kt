@@ -412,8 +412,7 @@ fun VaultScreen(
             onDismiss = { statsOpen = false },
             onOpenThread = { location ->
                 statsOpen = false
-                viewModel.openBoard(location.board)
-                viewModel.openThread(location)
+                viewModel.reveal(location)
             },
         )
     }

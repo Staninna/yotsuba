@@ -199,6 +199,20 @@ class VaultViewModelTest {
         }
     }
 
+    @Test fun `reveal lands on the thread in one write`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
+        val vm = vm(vault)
+        vm.uiState.test {
+            latest()
+            vm.reveal(threadA)
+            val state = latest()
+            assertEquals("a", state.selection.board)
+            assertEquals(threadA, state.selection.thread)
+            assertEquals(listOf("a/1.jpg"), state.scopeEntries.map { it.url })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test fun `drill-down selection scopes the visible entries and navigates back up`() =
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
@@ -579,17 +593,19 @@ class VaultViewModelTest {
             }
         }
 
-    @Test fun `sync ignores presses while one is already running`() = runTest(dispatcher.scheduler) {
+    @Test fun `a sync ignores presses while one is already running`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
         vault.rescanGate = gate
         val vm = vm(vault)
-        vm.sync()
+        vm.rescan()
         dispatcher.scheduler.advanceUntilIdle() // first pass is now suspended on the gate
-        vm.sync() // busy flag must gate this press
+        vm.rescan() // busy flag must gate this press
+        vm.fetchReplies() // and the other kind of sync too
         gate.complete(Unit)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vault.rescans)
+        assertEquals(0, vault.syncs)
     }
 
     @Test fun `importing forwards the picked files and reports a failure`() = runTest(dispatcher.scheduler) {
@@ -661,7 +677,7 @@ class VaultViewModelTest {
         }
     }
 
-    @Test fun `sync shows a live progress counter and clears it when done`() =
+    @Test fun `fetching replies shows a live progress counter and clears it when done`() =
         runTest(dispatcher.scheduler) {
             val vault = FakeVault(emptyList())
             vault.syncSteps = 3
@@ -671,7 +687,7 @@ class VaultViewModelTest {
 
             vm.uiState.test {
                 latest()
-                vm.sync()
+                vm.fetchReplies()
                 dispatcher.scheduler.advanceUntilIdle() // held open on the gate, mid-pass
                 // The counter is what stops a rate-limited pass over many threads
                 // looking hung: it ticks once per thread.
@@ -690,21 +706,21 @@ class VaultViewModelTest {
             vault.syncSummary = VaultSyncSummary(updated = 4, gone = 2, failed = 1, rateLimited = true)
             var reported: VaultSyncSummary? = null
 
-            vm(vault).sync { reported = it }
+            vm(vault).fetchReplies { reported = it }
             dispatcher.scheduler.advanceUntilIdle()
 
             assertEquals(7, reported?.checked)
             assertEquals(true, reported?.rateLimited)
         }
 
-    @Test fun `sync migrates, rebuilds the index, then refreshes live threads`() = runTest(dispatcher.scheduler) {
+    @Test fun `rescan migrates before it rebuilds the index`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
         val vm = vm(vault)
-        vm.sync()
+        vm.rescan()
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, vault.migrations)
         assertEquals(1, vault.rescans)
-        assertEquals(1, vault.syncs)
+        assertEquals(0, vault.syncs)
     }
 
     @Test fun `rescan touches only the index and fetch only the network`() = runTest(dispatcher.scheduler) {
