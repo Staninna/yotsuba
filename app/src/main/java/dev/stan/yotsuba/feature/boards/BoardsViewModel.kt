@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -28,7 +30,10 @@ class BoardsViewModel @Inject constructor(
     private val searchQuery = MutableStateFlow("")
     private val editMode = MutableStateFlow(false)
 
-    init { load() }
+    init {
+        load()
+        migrateHiddenCategories()
+    }
 
     fun load(forceRefresh: Boolean = false) {
         boardsResult.load(forceRefresh, showLoading = true)
@@ -42,9 +47,9 @@ class BoardsViewModel @Inject constructor(
             is DataResult.Failure -> UiState.Error(result.error)
             is DataResult.Success -> {
                 val all = result.value
-                val visibility = settings.visibility()
+                val hidden = settings.hiddenBoards
                 val matching = search(all, query)
-                val visible = matching.filter { editing || visibility.isVisible(it) }
+                val visible = matching.filter { editing || it.code !in hidden }
                 // A query sorts the categories by their best match too, so /g/ comes before
                 // every earlier category whose titles merely contain a g.
                 val order = if (query.isBlank()) BoardCategory.entries else visible.map { it.category }.distinct()
@@ -57,10 +62,10 @@ class BoardsViewModel @Inject constructor(
                             BoardRowState(
                                 board = board,
                                 favourite = board.code in settings.favouriteBoards,
-                                visible = visibility.isVisible(board),
+                                visible = board.code !in hidden,
                             )
                         },
-                        allVisible = visibility.state(cat, all),
+                        allVisible = categoryState(cat, all, hidden),
                     )
                 }
                 UiState.Success(BoardsContent(
@@ -103,13 +108,50 @@ class BoardsViewModel @Inject constructor(
     }
 
     fun onToggleBoardVisible(board: String) = viewModelScope.launch {
-        val all = loadedBoards()
-        settingsRepository.update { it.visibility().toggleBoard(board, all).into(it) }
+        settingsRepository.update { s ->
+            s.copy(hiddenBoards = if (board in s.hiddenBoards) s.hiddenBoards - board else s.hiddenBoards + board)
+        }
     }
 
+    /**
+     * A header toggle acts on the boards currently in the category: every one hidden shows
+     * them all, anything else hides them all (tri-state, D13). A board 4chan adds to the
+     * category later is shown until the user hides it.
+     */
     fun onToggleCategoryVisible(category: BoardCategory) = viewModelScope.launch {
         val all = loadedBoards()
-        settingsRepository.update { it.visibility().toggleCategory(category, all).into(it) }
+        val codes = all.filter { it.category == category }.map { it.code }.toSet()
+        settingsRepository.update { s ->
+            val hiddenBoards = if (categoryState(category, all, s.hiddenBoards) == false) {
+                s.hiddenBoards - codes
+            } else {
+                s.hiddenBoards + codes
+            }
+            s.copy(hiddenBoards = hiddenBoards)
+        }
+    }
+
+    /** true = every board in [category] shown, false = none, null = mixed. */
+    private fun categoryState(category: BoardCategory, all: List<Board>, hidden: Set<String>): Boolean? {
+        val inCat = all.filter { it.category == category }
+        return when (inCat.count { it.code !in hidden }) {
+            inCat.size -> true
+            0 -> false
+            else -> null
+        }
+    }
+
+    /**
+     * Older installs hid whole categories by name. Once the board list is in, fold those
+     * boards into [Settings.hiddenBoards] and clear the legacy set, in one write.
+     */
+    private fun migrateHiddenCategories() = viewModelScope.launch {
+        if (settingsRepository.settings.first().hiddenCategories.isEmpty()) return@launch
+        val all = boardsResult.flow.filterIsInstance<DataResult.Success<List<Board>>>().first().value
+        settingsRepository.update { s ->
+            val codes = all.filter { it.category.name in s.hiddenCategories }.map { it.code }
+            s.copy(hiddenBoards = s.hiddenBoards + codes, hiddenCategories = emptySet())
+        }
     }
 
     /**

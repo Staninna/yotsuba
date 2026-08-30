@@ -68,7 +68,13 @@ data class Settings(
     /** Turn off transitions and list animations regardless of the system animator scale. */
     val reduceMotion: Boolean = false,
     val favouriteBoards: Set<String> = emptySet(),
+    /** The only board-visibility state: a board is shown unless its code is in here. */
     val hiddenBoards: Set<String> = emptySet(),
+    /**
+     * Legacy. Older installs hid whole categories by name. [BoardsViewModel] folds every
+     * board in these into [hiddenBoards] the first time it sees the board list and clears
+     * this; nothing writes to it any more.
+     */
     val hiddenCategories: Set<String> = emptySet(),
     /** Content filters, applied in order; the first match wins. */
     val filters: List<Filter> = emptyList(),
