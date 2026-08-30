@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.boards
 
 import app.cash.turbine.test
+import app.cash.turbine.TurbineTestContext
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
@@ -9,6 +10,7 @@ import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.latest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -61,10 +63,7 @@ class BoardsViewModelTest {
         settings: FakeSettingsRepository = FakeSettingsRepository(),
     ) = BoardsViewModel(boards, settings)
 
-    private suspend fun app.cash.turbine.TurbineTestContext<UiState<BoardsContent>>.latest(): UiState<BoardsContent> {
-        dispatcher.scheduler.advanceUntilIdle()
-        return expectMostRecentItem()
-    }
+    private suspend fun TurbineTestContext<UiState<BoardsContent>>.latest() = latest(dispatcher.scheduler)
 
     @Test fun `successful load groups boards by category in declaration order`() =
         runTest(dispatcher.scheduler) {

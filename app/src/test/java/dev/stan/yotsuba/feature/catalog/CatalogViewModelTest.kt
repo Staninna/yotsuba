@@ -2,6 +2,7 @@ package dev.stan.yotsuba.feature.catalog
 
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import app.cash.turbine.TurbineTestContext
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
@@ -22,6 +23,7 @@ import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.fake.MainDispatcherRule
+import dev.stan.yotsuba.fake.latest
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -114,10 +116,7 @@ class CatalogViewModelTest {
         )
     }
 
-    private suspend fun app.cash.turbine.TurbineTestContext<UiState<CatalogContent>>.latest(): UiState<CatalogContent> {
-        dispatcher.scheduler.advanceUntilIdle()
-        return expectMostRecentItem()
-    }
+    private suspend fun TurbineTestContext<UiState<CatalogContent>>.latest() = latest(dispatcher.scheduler)
 
     @Test fun `successful load exposes the board info and threads`() = runTest(dispatcher.scheduler) {
         val env = Env()

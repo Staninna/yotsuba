@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature
 
 import app.cash.turbine.test
+import app.cash.turbine.TurbineTestContext
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.domain.model.Board
@@ -29,6 +30,8 @@ import dev.stan.yotsuba.feature.vault.VaultImport
 import dev.stan.yotsuba.feature.vault.VaultMode
 import dev.stan.yotsuba.feature.vault.RECENT_LIMIT
 import dev.stan.yotsuba.feature.vault.VaultSort
+import dev.stan.yotsuba.fake.latest
+import dev.stan.yotsuba.fake.now
 import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -132,16 +135,9 @@ class VaultViewModelTest {
         override suspend fun migrateLegacyIfNeeded() { migrations++ }
     }
 
-    private suspend fun app.cash.turbine.TurbineTestContext<VaultUiState>.latest(): VaultUiState {
-        dispatcher.scheduler.advanceUntilIdle()
-        return expectMostRecentItem()
-    }
+    private suspend fun TurbineTestContext<VaultUiState>.latest() = latest(dispatcher.scheduler)
 
-    /** Like [latest] but without running the clock forward: for states behind a timer. */
-    private suspend fun app.cash.turbine.TurbineTestContext<VaultUiState>.now(): VaultUiState {
-        dispatcher.scheduler.runCurrent()
-        return expectMostRecentItem()
-    }
+    private suspend fun TurbineTestContext<VaultUiState>.now() = now(dispatcher.scheduler)
 
     private val boards = FakeBoards()
 
