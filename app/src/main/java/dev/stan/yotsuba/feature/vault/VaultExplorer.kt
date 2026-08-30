@@ -76,7 +76,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
@@ -516,8 +515,7 @@ private fun MediaGrid(
                     entry,
                     Modifier
                         .fillMaxSize()
-                        .then(if (checked) Modifier.padding(6.dp) else Modifier)
-                        .sharedMedia(entry.absolutePath),
+                        .then(if (checked) Modifier.padding(6.dp) else Modifier),
                 )
                 if (entry.isVideo) {
                     Icon(
