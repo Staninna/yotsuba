@@ -6,7 +6,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.stan.yotsuba.core.di.ComputeDispatcher
+import dev.stan.yotsuba.di.ComputeDispatcher
 import dev.stan.yotsuba.core.network.ArchiveHosts
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls

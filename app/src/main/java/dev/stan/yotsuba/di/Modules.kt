@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.core.di
+package dev.stan.yotsuba.di
 
 import android.content.Context
 import androidx.datastore.core.DataStore

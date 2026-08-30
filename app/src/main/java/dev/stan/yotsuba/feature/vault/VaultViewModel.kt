@@ -5,8 +5,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.stan.yotsuba.core.di.ComputeDispatcher
-import dev.stan.yotsuba.core.di.IoDispatcher
+import dev.stan.yotsuba.di.ComputeDispatcher
+import dev.stan.yotsuba.di.IoDispatcher
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.VaultEntry
