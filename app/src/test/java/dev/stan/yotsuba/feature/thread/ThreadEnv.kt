@@ -23,6 +23,7 @@ import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -140,7 +141,7 @@ class ThreadEnv(
         ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = emptyMap())
 
     val vault = FakeVault()
-    val queue = MediaDownloadQueue(vault)
+    val queue = MediaDownloadQueue(vault, NoDedup)
 
     fun vm(initialPostNo: Long? = null) = ThreadViewModel(
         board = "g", threadNo = 100, initialPostNo = initialPostNo,

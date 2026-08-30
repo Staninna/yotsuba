@@ -25,6 +25,7 @@ import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import dev.stan.yotsuba.feature.media.MediaUiState
 import dev.stan.yotsuba.feature.media.MediaViewModel
@@ -138,7 +139,7 @@ class MediaViewModelTest {
             ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks),
             fails = threadFails,
         )
-        val queue = MediaDownloadQueue(vault)
+        val queue = MediaDownloadQueue(vault, NoDedup)
         val context: Context = ApplicationProvider.getApplicationContext()
 
         fun vm(initialPostNo: Long = 0) = MediaViewModel(
