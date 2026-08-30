@@ -17,7 +17,6 @@ import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.sync.withLock
 
 /** Assembles a thread under [VaultPaths.LOCAL_BOARD_NAME] from files the user picked. */
 @Singleton
@@ -54,7 +53,7 @@ class LocalThreadImporter @Inject constructor(
             ).withProbe(VideoStills.captureIfVideo(target))
         }
 
-        val meta = store.lock.withLock {
+        val meta = store.withStore {
             store.updatePosts(
                 dir, VaultPaths.LOCAL_BOARD_NAME, threadNo,
                 files.map { it.toLocalPost(name, threadNo) },

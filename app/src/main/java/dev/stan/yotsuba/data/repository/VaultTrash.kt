@@ -90,7 +90,7 @@ class VaultTrash @Inject constructor(
             val target = store.uniqueFile(trashDir, "${System.nanoTime()}_${file.name}")
             if (!store.moveFile(file, target)) throw IOException("Couldn't move ${file.name} to trash")
             var removed: VaultFileMeta? = null
-            store.lock.withLock {
+            store.withStore {
                 store.updateMeta(dir) { meta ->
                     removed = meta.files.firstOrNull { it.fileName == file.name }
                     meta.remove(file.name)
@@ -111,7 +111,7 @@ class VaultTrash @Inject constructor(
             val dir = File(item.dir).apply { mkdirs() }
             val back = File(item.entity.absolutePath)
             if (!store.moveFile(File(item.trashFile), back)) throw IOException("Couldn't restore ${back.name}")
-            store.lock.withLock {
+            store.withStore {
                 store.updateMeta(dir) { meta -> item.fileMeta?.let { meta.upsert(it) } ?: meta }
             }
             savedMediaDao.insert(item.entity)
@@ -146,7 +146,7 @@ class VaultTrash @Inject constructor(
             VideoStills.stillFor(File(it.entity.absolutePath)).delete()
         }
         val dirs = gone.map { File(it.dir) }.toSet()
-        store.lock.withLock { dirs.forEach { if (it.isDirectory) store.pruneIfEmpty(it) } }
+        store.withStore { dirs.forEach { if (it.isDirectory) store.pruneIfEmpty(it) } }
     }
 
     companion object {

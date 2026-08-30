@@ -17,10 +17,12 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultPaths
 import java.io.File
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** File-system plumbing shared by the vault repository and the legacy migration. */
 @Singleton
@@ -32,7 +34,14 @@ class VaultStore(private val rootOverride: File?) {
         get() = rootOverride ?: File(Environment.getExternalStorageDirectory(), VaultPaths.ROOT_DIR_NAME)
 
     /** meta.json read-modify-write and migration must not interleave. */
-    val lock = Mutex()
+    private val lock = Mutex()
+
+    /**
+     * Runs [block] as the only thing touching the sidecars. Every read-modify-write of
+     * meta.json or posts.json goes through here; Room calls stay outside, so a slow query
+     * never holds up a save. Not reentrant.
+     */
+    suspend fun <T> withStore(block: suspend () -> T): T = lock.withLock { block() }
 
     /**
      * A brand-new vault starts hidden from the gallery; an existing one keeps whatever the
@@ -76,7 +85,7 @@ class VaultStore(private val rootOverride: File?) {
 
     /**
      * Files [target] under its thread in meta.json and returns the index row for it. The
-     * row is the caller's to insert; Room stays outside [lock], which this must be held under.
+     * row is the caller's to insert, outside [withStore], which this runs inside.
      */
     fun recordSavedFile(
         dir: File,
@@ -255,12 +264,18 @@ class VaultStore(private val rootOverride: File?) {
 fun VaultFileMeta.withProbe(still: VideoStills.Still?): VaultFileMeta =
     if (still == null) this else copy(durationMs = still.durationMs, hasAudio = still.hasAudio)
 
-/** Runs [block], mapping any failure to a typed [VaultError]; cancellation passes through. */
+/**
+ * Runs [block], mapping what the file system and the network can do to it into a typed
+ * [VaultError]. Cancellation passes through, and so does everything that is not an I/O
+ * failure: an NPE or a broken invariant is a bug to crash on, not an "Io(null)" to show.
+ */
 internal inline fun attempt(block: () -> Unit): VaultError? = try {
     block()
     null
 } catch (e: CancellationException) {
     throw e
-} catch (e: Exception) {
+} catch (e: IOException) {
+    VaultError.Io(e.message)
+} catch (e: SecurityException) {
     VaultError.Io(e.message)
 }
