@@ -39,9 +39,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** How long a grid delete can be undone before the trash is emptied. */
-const val UNDO_WINDOW_MS = 30_000L
-
 private const val KEY_SORT = "vault_sort"
 private const val KEY_FILTER = "vault_filter"
 private const val KEY_REVERSED = "vault_reversed"
@@ -185,11 +182,6 @@ sealed interface VaultThreadEdit {
     data class Merge(override val location: VaultLocation) : VaultThreadEdit
 }
 
-/** Entries queued for deletion and whether the grid's undo window applies to them. */
-data class VaultDeleteRequest(val entries: List<VaultEntry>, val undoable: Boolean) {
-    val single: VaultEntry? get() = entries.singleOrNull()
-}
-
 /** Progress of a vault sync: local rebuild, then one live thread at a time. */
 data class VaultSyncState(
     val running: Boolean = false,
@@ -318,12 +310,11 @@ class VaultViewModel @Inject constructor(
 
     private val importing = MutableStateFlow(false)
     private val notice = MutableStateFlow<VaultNotice?>(null)
-    private val deleting = MutableStateFlow<VaultDeleteRequest?>(null)
-    private val undo = MutableStateFlow<List<VaultEntry>?>(null)
     private val selected = MutableStateFlow<Set<String>>(emptySet())
     private val inspectingUrl = MutableStateFlow<String?>(null)
     private val threadEdit = MutableStateFlow<VaultThreadEdit?>(null)
-    private var undoWindow: Job? = null
+
+    private val deletes = VaultDeletes(mediaVault, settingsRepository, viewModelScope) { notice.value = it }
 
     /**
      * Copies the picked files into a new local thread. The explorer refreshes itself: the
@@ -367,12 +358,11 @@ class VaultViewModel @Inject constructor(
         val importing: Boolean,
         val notice: VaultNotice?,
         val access: Boolean,
-        val deleting: VaultDeleteRequest?,
-        val undo: List<VaultEntry>?,
+        val delete: VaultDeleteState,
     )
 
-    private val activity = combine(importing, notice, mediaVault.storageAccess, deleting, undo) { i, n, a, d, u ->
-        Activity(i, n, a, d, u)
+    private val activity = combine(importing, notice, mediaVault.storageAccess, deletes.state) { i, n, a, d ->
+        Activity(i, n, a, d)
     }
 
     /** Everything the user is in the middle of editing on the explorer itself, and where they are in it. */
@@ -504,8 +494,8 @@ class VaultViewModel @Inject constructor(
             hasStorageAccess = activity.access,
             importing = activity.importing,
             notice = activity.notice,
-            deleting = activity.deleting,
-            undo = activity.undo,
+            deleting = activity.delete.deleting,
+            undo = activity.delete.undo,
             // Selection follows the entries: a deleted or rescanned-away file drops out.
             selected = editing.selected.filterTo(mutableSetOf()) { it in urls },
             inspecting = editing.inspecting?.let { url -> entries.firstOrNull { it.url == url } },
@@ -669,86 +659,16 @@ class VaultViewModel @Inject constructor(
         mediaVault.syncSavedThreads(progress)
     }
 
-    /**
-     * Queues [entries] for deletion. With the confirmation setting on, the dialog shows
-     * first; off, the delete runs at once. [undoable] deletes go through the trash and stay
-     * recoverable for [UNDO_WINDOW_MS]; the viewer's delete is final, the grid's is not.
-     */
-    fun requestDelete(entries: List<VaultEntry>, undoable: Boolean) {
-        if (entries.isEmpty()) return
-        val request = VaultDeleteRequest(entries, undoable)
-        if (confirmDelete.value) {
-            deleting.value = request
-        } else {
-            viewModelScope.launch { delete(request) }
-        }
-    }
+    /** See [VaultDeletes.request]. The public surface stays here; the screen and tests call these. */
+    fun requestDelete(entries: List<VaultEntry>, undoable: Boolean) = deletes.request(entries, undoable)
 
-    /** The confirmation setting, kept current so [requestDelete] can answer at once. */
-    private val confirmDelete: StateFlow<Boolean> = settingsRepository.settings
-        .map { it.confirmVaultDelete }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Settings().confirmVaultDelete)
+    fun requestDelete(entry: VaultEntry, undoable: Boolean = false) = deletes.request(listOf(entry), undoable)
 
-    fun requestDelete(entry: VaultEntry, undoable: Boolean = false) = requestDelete(listOf(entry), undoable)
+    fun cancelDelete() = deletes.cancel()
 
-    fun cancelDelete() {
-        deleting.value = null
-    }
+    fun confirmDelete(dontAskAgain: Boolean = false) = deletes.confirm(dontAskAgain)
 
-    /**
-     * Deletes whatever [requestDelete] queued and dismisses the dialog. [dontAskAgain]
-     * flips the confirmation setting off, so the next delete skips the dialog.
-     */
-    fun confirmDelete(dontAskAgain: Boolean = false) {
-        val request = deleting.value ?: return
-        deleting.value = null
-        viewModelScope.launch {
-            if (dontAskAgain) settingsRepository.update { it.copy(confirmVaultDelete = false) }
-            delete(request)
-        }
-    }
-
-    private suspend fun delete(request: VaultDeleteRequest) {
-        if (request.undoable) {
-            trash(request.entries)
-            return
-        }
-        var failed: VaultNotice? = null
-        for (entry in request.entries) {
-            mediaVault.delete(entry.url)?.let { failed = VaultNotice.DeleteFailed(entry, it) }
-        }
-        notice.value = failed ?: VaultNotice.Deleted
-    }
-
-    private suspend fun trash(entries: List<VaultEntry>) {
-        // A second delete inside the window commits the first: one undo at a time.
-        undoWindow?.cancel()
-        mediaVault.purgeTrash()
-        val moved = entries.filter { entry ->
-            when (val error = mediaVault.trash(entry.url)) {
-                null -> true
-                else -> { notice.value = VaultNotice.DeleteFailed(entry, error); false }
-            }
-        }
-        undo.value = moved.ifEmpty { null }
-        if (moved.isEmpty()) return
-        undoWindow = viewModelScope.launch {
-            delay(UNDO_WINDOW_MS)
-            undo.value = null
-            mediaVault.purgeTrash()
-        }
-    }
-
-    /** Brings back whatever the last grid delete moved to the trash. */
-    fun undoDelete() {
-        val entries = undo.value ?: return
-        undoWindow?.cancel()
-        undo.value = null
-        viewModelScope.launch {
-            entries.forEach { mediaVault.restoreTrashed(it.url) }
-            notice.value = VaultNotice.Restored
-        }
-    }
+    fun undoDelete() = deletes.undo()
 
     /**
      * The viewer's play order and position; null once the viewed entry is gone (deleted).
