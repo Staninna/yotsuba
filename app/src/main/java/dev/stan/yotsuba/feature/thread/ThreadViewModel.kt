@@ -118,17 +118,19 @@ class ThreadViewModel @AssistedInject constructor(
     private val claimed = claimedPosts.claimed(board, threadNo)
 
     /** Slow-changing companions of the thread, folded so the top-level combine stays typed. */
-    private val meta = combine(boardInfo, bookmarked, downloadQueue.statuses, claimed, ::Meta)
+    private val meta = combine(boardInfo, bookmarked, downloadQueue.statuses, claimed, mediaVault.saved(), ::Meta)
     private data class Meta(
         val board: Board?,
         val bookmarked: Boolean,
         val saveStatuses: Map<String, MediaSaveStatus>,
         val claimed: Set<Long>,
+        /** URL -> vault file, for an expanded image to read from disk instead of the network. */
+        val savedPaths: Map<String, String?>,
     )
 
     val uiState: StateFlow<UiState<ThreadContent>> = combine(
         result, settingsRepository.settings, meta, _session, matcher,
-    ) { res, settings, (board, bookmarked, saveStatuses, claimed), session, matcher ->
+    ) { res, settings, (board, bookmarked, saveStatuses, claimed, savedPaths), session, matcher ->
         when (res) {
             null -> UiState.Loading
             is DataResult.Failure -> UiState.Error(res.error)
@@ -147,7 +149,7 @@ class ThreadViewModel @AssistedInject constructor(
                         board = board,
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
-                        postStates = postStates(details, session, saveStatuses),
+                        postStates = postStates(details, session, saveStatuses, savedPaths, settings.dataSaver),
                         rows = rows,
                         filteredCount = verdicts.size,
                         treeView = session.treeView,
@@ -368,12 +370,20 @@ class ThreadViewModel @AssistedInject constructor(
     fun onRevealImageSpoiler(postNo: Long) =
         _session.update { it.copy(revealedImages = it.revealedImages + postNo) }
 
-    /** A spoilered thumbnail reveals on the first tap and opens on the next. */
+    /** See [thumbnailTap] for what a tap does; a spoiler reveals first, then it expands or opens. */
     fun onThumbnailTap(post: ThreadPost) {
         val media = post.presentMedia ?: return
-        val hidden = media.spoiler && !settingsState.value.revealAllSpoilers &&
-            post.no !in _session.value.revealedImages
-        if (hidden) onRevealImageSpoiler(post.no) else mediaToOpenFlow.value = post.no
+        when (thumbnailTap(media, post.no, _session.value, settingsState.value)) {
+            ThumbnailTap.REVEAL_SPOILER -> onRevealImageSpoiler(post.no)
+            ThumbnailTap.COLLAPSE -> _session.update { it.copy(expandedImages = it.expandedImages - post.no) }
+            ThumbnailTap.EXPAND -> _session.update { it.copy(expandedImages = it.expandedImages + post.no) }
+            ThumbnailTap.OPEN_VIEWER -> mediaToOpenFlow.value = post.no
+        }
+    }
+
+    /** The full image shown in the card was tapped: the viewer opens on it. */
+    fun onExpandedImageTap(post: ThreadPost) {
+        if (post.presentMedia != null) mediaToOpenFlow.value = post.no
     }
 
     fun onMediaOpened() { mediaToOpenFlow.value = null }

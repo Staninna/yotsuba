@@ -83,11 +83,23 @@ data class PostUiState(
     /** OP only: the thread is closed / stickied. */
     val closed: Boolean = false,
     val sticky: Boolean = false,
+    /** Set while the full image is shown in the card instead of its thumbnail. */
+    val inlineImage: InlineImage? = null,
 ) {
+    val imageExpanded: Boolean get() = inlineImage != null
+
     companion object {
         val Default = PostUiState()
     }
 }
+
+/** What an expanded card needs to draw the full image: where the bytes come from and whether to ask first. */
+data class InlineImage(
+    /** The vault file when the image is already saved, so nothing is fetched twice. */
+    val localPath: String? = null,
+    /** Data saver is on; on a metered connection the card shows "Load" instead of fetching. */
+    val dataSaver: Boolean = false,
+)
 
 /** One list item on the thread screen; the VM decides the order, the screen only draws. */
 sealed interface ThreadRow {
@@ -125,6 +137,8 @@ data class Session(
     /** Text spoilers revealed by tapping, as (postNo, spoiler id). */
     val revealedText: Set<Pair<Long, Int>> = emptySet(),
     val revealedImages: Set<Long> = emptySet(),
+    /** Posts whose full image is shown in place of the thumbnail. */
+    val expandedImages: Set<Long> = emptySet(),
     val searchQuery: String? = null,
     val searchIndex: Int = 0,
     /** Posts focused in the preview sheet, oldest first; empty means no sheet. */
