@@ -3,6 +3,7 @@ package dev.stan.yotsuba.feature
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import app.cash.turbine.TurbineTestContext
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.text.PostSegment
@@ -30,6 +31,7 @@ import dev.stan.yotsuba.feature.media.MediaSessionStore
 import dev.stan.yotsuba.feature.media.MediaUiState
 import dev.stan.yotsuba.feature.media.MediaViewModel
 import dev.stan.yotsuba.feature.media.ViewerPhase
+import dev.stan.yotsuba.fake.latest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -156,10 +158,7 @@ class MediaViewModelTest {
         )
     }
 
-    private suspend fun app.cash.turbine.TurbineTestContext<MediaUiState>.latest(): MediaUiState {
-        dispatcher.scheduler.advanceUntilIdle()
-        return expectMostRecentItem()
-    }
+    private suspend fun TurbineTestContext<MediaUiState>.latest() = latest(dispatcher.scheduler)
 
     @Test fun `a dead thread falls back to the conversation saved on disk`() =
         runTest(dispatcher.scheduler) {

@@ -23,10 +23,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.labelRes
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.theme.LocalYotsubaColors
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
-import dev.stan.yotsuba.domain.model.VaultError
 
 /**
  * The viewer's save button: status icon plus the manage menu (remove/redownload/cancel/
@@ -79,7 +79,7 @@ internal fun DownloadAction(
                 MediaSaveStatus.Downloading ->
                     MenuItem(R.string.media_downloading, enabled = false) {}
                 is MediaSaveStatus.Failed -> {
-                    MenuItem(errorLabel(status.error), enabled = false) {}
+                    MenuItem(status.error.labelRes, enabled = false) {}
                     MenuItem(R.string.media_retry_download) { close(); onRetry() }
                     MenuItem(R.string.media_dismiss_failed) { close(); onDismissFailed() }
                 }
@@ -137,10 +137,4 @@ private fun SaveStatusIcon(status: MediaSaveStatus?) {
             tint = Color.White,
         )
     }
-}
-
-private fun errorLabel(error: VaultError): Int = when (error) {
-    is VaultError.NoAccess -> R.string.vault_error_no_access
-    is VaultError.NotFound -> R.string.vault_error_not_found
-    is VaultError.Io -> R.string.vault_error_io
 }

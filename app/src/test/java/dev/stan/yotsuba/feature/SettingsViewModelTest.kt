@@ -2,6 +2,7 @@ package dev.stan.yotsuba.feature
 
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import app.cash.turbine.TurbineTestContext
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
@@ -23,6 +24,7 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.feature.settings.ClearResult
 import dev.stan.yotsuba.feature.settings.SettingsUiState
 import dev.stan.yotsuba.feature.settings.SettingsViewModel
+import dev.stan.yotsuba.fake.latest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -142,10 +144,7 @@ class SettingsViewModelTest {
         )
     }
 
-    private suspend fun app.cash.turbine.TurbineTestContext<SettingsUiState>.latest(): SettingsUiState {
-        dispatcher.scheduler.advanceUntilIdle()
-        return expectMostRecentItem()
-    }
+    private suspend fun TurbineTestContext<SettingsUiState>.latest() = latest(dispatcher.scheduler)
 
     @Test fun `settings and hidden threads pass through to the ui state`() =
         runTest(dispatcher.scheduler) {

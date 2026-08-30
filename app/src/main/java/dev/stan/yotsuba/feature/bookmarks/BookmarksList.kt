@@ -61,12 +61,12 @@ import dev.stan.yotsuba.core.designsystem.component.SheetActionRow
 import dev.stan.yotsuba.core.designsystem.component.SwipeToDeleteRow
 import dev.stan.yotsuba.core.designsystem.component.ThreadSummaryRow
 import dev.stan.yotsuba.core.designsystem.component.showUndo
+import dev.stan.yotsuba.core.designsystem.labelRes
 import dev.stan.yotsuba.core.designsystem.rememberCountTransition
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
-import dev.stan.yotsuba.domain.model.VaultError
 import kotlinx.coroutines.launch
 
 /**
@@ -95,10 +95,11 @@ fun BookmarksList(
     val scope = rememberCoroutineScope()
     val removedMessage = stringResource(R.string.bookmarks_removed)
     val undoLabel = stringResource(R.string.action_undo)
-    val snapshotSaved = stringResource(R.string.bookmarks_snapshot_saved)
-    val noAccess = stringResource(R.string.vault_error_no_access)
-    val notFound = stringResource(R.string.vault_error_not_found)
-    val ioError = stringResource(R.string.vault_error_io)
+    val snapshotMessage = when (snapshotResult) {
+        null -> null
+        SnapshotResult.Saved -> stringResource(R.string.bookmarks_snapshot_saved)
+        is SnapshotResult.Failed -> stringResource(snapshotResult.error.labelRes)
+    }
     var sheetFor by remember { mutableStateOf<Bookmark?>(null) }
     val removeWithUndo: (Bookmark) -> Unit = { bookmark ->
         onRemove(bookmark)
@@ -110,17 +111,7 @@ fun BookmarksList(
     // The result is held in the ViewModel until shown, so a snapshot finishing while this
     // segment is off screen still gets its snackbar when the user comes back.
     LaunchedEffect(snapshotResult) {
-        val result = snapshotResult ?: return@LaunchedEffect
-        snackbar.showSnackbar(
-            when (result) {
-                SnapshotResult.Saved -> snapshotSaved
-                is SnapshotResult.Failed -> when (result.error) {
-                    VaultError.NoAccess -> noAccess
-                    VaultError.NotFound -> notFound
-                    is VaultError.Io -> ioError
-                }
-            },
-        )
+        snackbar.showSnackbar(snapshotMessage ?: return@LaunchedEffect)
         onSnapshotResultShown()
     }
 

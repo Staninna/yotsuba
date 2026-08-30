@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.boards
 
 import app.cash.turbine.test
+import app.cash.turbine.TurbineTestContext
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
@@ -9,6 +10,7 @@ import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.latest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -61,10 +63,7 @@ class BoardsViewModelTest {
         settings: FakeSettingsRepository = FakeSettingsRepository(),
     ) = BoardsViewModel(boards, settings)
 
-    private suspend fun app.cash.turbine.TurbineTestContext<UiState<BoardsContent>>.latest(): UiState<BoardsContent> {
-        dispatcher.scheduler.advanceUntilIdle()
-        return expectMostRecentItem()
-    }
+    private suspend fun TurbineTestContext<UiState<BoardsContent>>.latest() = latest(dispatcher.scheduler)
 
     @Test fun `successful load groups boards by category in declaration order`() =
         runTest(dispatcher.scheduler) {
@@ -139,6 +138,31 @@ class BoardsViewModelTest {
             }
         }
 
+    @Test fun `search orders categories by their best match`() =
+        runTest(dispatcher.scheduler) {
+            val repo = FakeBoardRepository(DataResult.Success(listOf(
+                board("a", title = "Anime & Manga", category = BoardCategory.JAPANESE_CULTURE),
+                board("g", title = "Technology", category = BoardCategory.INTERESTS),
+            )))
+            val vm = vm(repo)
+            vm.uiState.test {
+                latest()
+                vm.onSearchChange("g")
+                val ranked = (latest() as UiState.Success).data
+                assertEquals(
+                    listOf(BoardCategory.INTERESTS, BoardCategory.JAPANESE_CULTURE),
+                    ranked.sections.map { it.category },
+                )
+                vm.onSearchChange("")
+                val declared = (latest() as UiState.Success).data
+                assertEquals(
+                    listOf(BoardCategory.JAPANESE_CULTURE, BoardCategory.INTERESTS),
+                    declared.sections.map { it.category },
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `hidden boards are filtered out unless edit mode is on`() =
         runTest(dispatcher.scheduler) {
             val repo = FakeBoardRepository(DataResult.Success(listOf(board("g"), board("v"))))
@@ -162,17 +186,20 @@ class BoardsViewModelTest {
             vm.uiState.test {
                 val content = (latest() as UiState.Success).data
                 assertEquals(listOf("g"), content.favourites.map { it.code })
-                vm.onToggleFavourite("v")
+                vm.addFavourite("v")
                 val added = (latest() as UiState.Success).data
                 assertEquals(listOf("g", "v"), added.favourites.map { it.code })
                 assertTrue(added.sections.flatMap { it.boards }.all { it.favourite })
-                vm.onToggleFavourite("g")
+                val undo = vm.removeFavourite("g")
                 val removed = (latest() as UiState.Success).data
                 assertEquals(listOf("v"), removed.favourites.map { it.code })
                 assertEquals(
                     listOf(false, true),
                     removed.sections.flatMap { it.boards }.map { it.favourite },
                 )
+                undo()
+                val restored = (latest() as UiState.Success).data
+                assertEquals(listOf("g", "v"), restored.favourites.map { it.code })
                 cancelAndIgnoreRemainingEvents()
             }
         }

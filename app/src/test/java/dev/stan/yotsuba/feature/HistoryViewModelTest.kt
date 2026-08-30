@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature
 
 import app.cash.turbine.test
+import app.cash.turbine.TurbineTestContext
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.HistoryRepository
@@ -10,6 +11,7 @@ import dev.stan.yotsuba.feature.history.HistoryBucket
 import dev.stan.yotsuba.feature.history.HistoryUiState
 import dev.stan.yotsuba.feature.history.HistoryViewModel
 import dev.stan.yotsuba.feature.history.bucketOf
+import dev.stan.yotsuba.fake.latest
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -93,10 +95,7 @@ class HistoryViewModelTest {
         override suspend fun trim(retainAfterMs: Long) {}
     }
 
-    private suspend fun app.cash.turbine.TurbineTestContext<HistoryUiState>.latest(): HistoryUiState {
-        dispatcher.scheduler.advanceUntilIdle()
-        return expectMostRecentItem()
-    }
+    private suspend fun TurbineTestContext<HistoryUiState>.latest() = latest(dispatcher.scheduler)
 
     @Test fun `entries are grouped into date buckets`() = runTest(dispatcher.scheduler) {
         val repo = FakeHistoryRepository(listOf(

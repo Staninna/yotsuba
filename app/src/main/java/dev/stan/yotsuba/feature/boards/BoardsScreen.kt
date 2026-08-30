@@ -28,6 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -43,10 +44,12 @@ import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import dev.stan.yotsuba.core.designsystem.component.TabChrome
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.component.UiStateContent
+import dev.stan.yotsuba.core.designsystem.component.showUndo
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +62,19 @@ fun BoardsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
+    val removedTemplate = stringResource(R.string.boards_favourite_removed)
+    val undoLabel = stringResource(R.string.action_undo)
+    // Adding is silent; removing gets the same undo snackbar as Home's tab strip.
+    val toggleFavourite: (String, Boolean) -> Unit = { code, favourite ->
+        haptics.tick()
+        if (favourite) {
+            val undo = viewModel.removeFavourite(code)
+            scope.launch { slots.snackbar.showUndo(removedTemplate.format(code), undoLabel, undo) }
+        } else {
+            viewModel.addFavourite(code)
+        }
+    }
     TabChrome(
         slots = slots,
         topBar = {
@@ -112,10 +128,7 @@ fun BoardsScreen(
                                     editMode = false,
                                     visible = true,
                                     onClick = { onOpenBoard(s.favourites[i].code) },
-                                    onToggleFavourite = {
-                                        haptics.tick()
-                                        viewModel.onToggleFavourite(s.favourites[i].code)
-                                    },
+                                    onToggleFavourite = { toggleFavourite(s.favourites[i].code, true) },
                                     onToggleVisible = {},
                                 )
                             }
@@ -156,7 +169,7 @@ fun BoardsScreen(
                                     editMode = s.editMode,
                                     visible = row.visible,
                                     onClick = { if (!s.editMode) onOpenBoard(code) },
-                                    onToggleFavourite = { haptics.tick(); viewModel.onToggleFavourite(code) },
+                                    onToggleFavourite = { toggleFavourite(code, row.favourite) },
                                     onToggleVisible = { viewModel.onToggleBoardVisible(code) },
                                 )
                             }
