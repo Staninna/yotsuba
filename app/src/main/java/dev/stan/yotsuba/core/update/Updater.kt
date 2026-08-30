@@ -1,6 +1,5 @@
 package dev.stan.yotsuba.core.update
 
-import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -10,15 +9,20 @@ import android.content.pm.PackageInstaller
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.BuildConfig
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,6 +70,8 @@ class Updater @Inject constructor(
             History.Loaded(releases.all())
         } catch (e: ReleaseException) {
             History.Failed(e.message ?: "Couldn't reach GitHub.")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             History.Failed("Couldn't reach GitHub: ${e.message ?: "no connection"}")
         }
@@ -100,14 +106,19 @@ class Updater @Inject constructor(
             else State.UpToDate(currentVersion)
         } catch (e: ReleaseException) {
             State.Failed(e.message ?: "Couldn't reach GitHub.")
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             State.Failed("Couldn't reach GitHub: ${e.message ?: "no connection"}")
         }
     }
 
     suspend fun downloadAndInstall(release: Release) {
+        // A cancelled check is the caller leaving, not a failure to report.
         val apk = try {
             download(release)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _state.value = State.Failed("Download failed: ${e.message ?: "unknown error"}")
             return
@@ -120,6 +131,8 @@ class Updater @Inject constructor(
         _state.value = State.Installing
         try {
             install(apk, allowSilent)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             _state.value = State.Failed("Install failed: ${e.message ?: "unknown error"}")
         }
@@ -196,15 +209,22 @@ class Updater @Inject constructor(
 
     /**
      * Registered for this one session, so it can write back into the state
-     * flow. A manifest receiver in a fresh process could not.
+     * flow. A manifest receiver in a fresh process could not. It is torn down
+     * on every terminal status, and by a timer when the user opens the
+     * installer screen and walks away from it without answering.
      */
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private fun statusReceiver(sessionId: Int, apk: File, allowSilent: Boolean): PendingIntent {
         val action = "${context.packageName}.INSTALL_STATUS.$sessionId"
         val receiver = object : BroadcastReceiver() {
             // Once the installer screen has been shown, a failure is the user's answer, not an
             // OEM refusing silent install: retrying would put the same dialog up twice.
             var userActionShown = false
+            var abandonTimer: Job? = null
+
+            fun finish() {
+                abandonTimer?.cancel()
+                unregister(this)
+            }
 
             override fun onReceive(ctx: Context, intent: Intent) {
                 when (intent.getIntExtra(PackageInstaller.EXTRA_STATUS, -1)) {
@@ -215,8 +235,22 @@ class Updater @Inject constructor(
                         if (confirm != null) {
                             context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                             userActionShown = true
+                            // Backing out of the installer usually reports STATUS_FAILURE_ABORTED,
+                            // but not on every OEM, and swiping the app away reports nothing. Ten
+                            // minutes is longer than anyone reads that dialog; after it the session
+                            // is dropped so a stale receiver and a half-open install don't outlive
+                            // the process's interest in them.
+                            val self = this
+                            abandonTimer = scope.launch {
+                                delay(10.minutes)
+                                unregister(self)
+                                runCatching { context.packageManager.packageInstaller.abandonSession(sessionId) }
+                                if (_state.value is State.Installing) {
+                                    _state.value = State.Failed("The installer was closed without finishing.")
+                                }
+                            }
                         } else {
-                            unregister(this)
+                            finish()
                             _state.value = State.Failed("Android wants confirmation but gave no screen.")
                         }
                     }
@@ -224,10 +258,10 @@ class Updater @Inject constructor(
                     // seeing it means the installer screen ran.
                     PackageInstaller.STATUS_SUCCESS -> {
                         _state.value = State.Idle
-                        unregister(this)
+                        finish()
                     }
                     else -> {
-                        unregister(this)
+                        finish()
                         val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                         if (allowSilent && !userActionShown) {
                             retryWithConfirmation(apk)
@@ -238,12 +272,9 @@ class Updater @Inject constructor(
                 }
             }
         }
-        val filter = IntentFilter(action)
-        if (Build.VERSION.SDK_INT >= 33) {
-            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            context.registerReceiver(receiver, filter)
-        }
+        // Not exported on every API level: the broadcast comes from our own PendingIntent, and
+        // below 33 the flag is enforced by the compat shim rather than the platform.
+        ContextCompat.registerReceiver(context, receiver, IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
         return PendingIntent.getBroadcast(
             context,
             sessionId,

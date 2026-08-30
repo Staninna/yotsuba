@@ -4,6 +4,7 @@ import dev.stan.yotsuba.core.network.CachePolicyInterceptor
 import dev.stan.yotsuba.core.network.FourChanApi
 import dev.stan.yotsuba.core.network.RateLimitInterceptor
 import dev.stan.yotsuba.core.network.StaleIfOfflineInterceptor
+import dev.stan.yotsuba.core.network.UserAgentInterceptor
 import dev.stan.yotsuba.core.util.Urls
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -147,5 +148,24 @@ class NetworkLayerTest {
         }
         val elapsedMs = (System.nanoTime() - start) / 1_000_000
         assertTrue("expected >=400ms spacing, got $elapsedMs", elapsedMs >= 400)
+    }
+
+    @Test fun `API requests carry the app user agent, other hosts keep OkHttp's`() {
+        server.enqueue(MockResponse().setBody("{}"))
+        server.enqueue(MockResponse().setBody("{}"))
+        val host = server.url("/").host
+        val agent = UserAgentInterceptor.forApp("1.2.3", "Staninna/yotsuba")
+        assertEquals("Yotsuba/1.2.3 (+https://github.com/Staninna/yotsuba)", agent)
+        val c = OkHttpClient.Builder().addInterceptor(UserAgentInterceptor(agent, hosts = setOf(host))).build()
+
+        c.newCall(Request.Builder().url(server.url("/boards.json")).build()).execute().use { }
+        assertEquals(agent, server.takeRequest().getHeader("User-Agent"))
+
+        // Same server, but reached under a name outside the set: left alone.
+        val other = server.url("/boards.json").newBuilder().host("localhost").build()
+        val outside = UserAgentInterceptor(agent, hosts = setOf("a.4cdn.org"))
+        OkHttpClient.Builder().addInterceptor(outside).build()
+            .newCall(Request.Builder().url(other).build()).execute().use { }
+        assertTrue(server.takeRequest().getHeader("User-Agent").orEmpty().startsWith("okhttp/"))
     }
 }

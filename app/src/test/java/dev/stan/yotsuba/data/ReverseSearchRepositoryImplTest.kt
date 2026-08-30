@@ -1,6 +1,12 @@
-package dev.stan.yotsuba.feature.media
+package dev.stan.yotsuba.data
 
+import dev.stan.yotsuba.data.repository.ReverseSearchRepositoryImpl
+import dev.stan.yotsuba.data.repository.UploadEndpoints
+import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.repository.DirectUploadEngine
+import dev.stan.yotsuba.domain.repository.TemporaryHost
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -13,19 +19,19 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
-class ReverseSearchUploadTest {
+class ReverseSearchRepositoryImplTest {
 
     @get:Rule val tmp = TemporaryFolder()
 
     private val server = MockWebServer()
-    private lateinit var uploader: ReverseSearchUploader
+    private lateinit var repo: ReverseSearchRepositoryImpl
     private lateinit var image: File
 
     @Before fun setUp() {
         server.start()
         val base = server.url("/").toString().removeSuffix("/")
-        uploader = ReverseSearchUploader(
-            OkHttpClient(),
+        repo = ReverseSearchRepositoryImpl(
+            Dispatchers.Unconfined,
             UploadEndpoints(
                 tineye = "$base/tineye/result_json/",
                 tineyeResults = "$base/tineye/search/",
@@ -34,30 +40,32 @@ class ReverseSearchUploadTest {
                 litterbox = "$base/litterbox",
                 zeroXZero = "$base/0x0",
             ),
+            OkHttpClient(),
         )
         image = tmp.newFile("frame.jpg").apply { writeBytes(byteArrayOf(1, 2, 3)) }
     }
 
     @After fun tearDown() = server.shutdown()
 
+    private fun <T> DataResult<T>.value(): T = (this as DataResult.Success).value
+
     @Test fun `tineye query hash becomes the results page`() = runTest {
         server.enqueue(MockResponse().setBody("""{"page": 1, "query_hash": "abc123", "num_matches": 0}"""))
-        val url = uploader.directSearchUrl(ReverseSearchEngine.TINEYE, image, ".jpg").getOrThrow()
+        val url = repo.directSearchUrl(DirectUploadEngine.TINEYE, image, ".jpg").value()
         assertTrue(url, url.endsWith("/tineye/search/abc123"))
-        val recorded = server.takeRequest()
-        val body = recorded.body.readUtf8()
+        val body = server.takeRequest().body.readUtf8()
         assertTrue(body, body.contains("name=\"image\""))
         assertTrue(body, body.contains("Content-Type: image/jpeg"))
     }
 
     @Test fun `tineye answering a page instead of json is a failure`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody("<html>results</html>"))
-        assertTrue(uploader.directSearchUrl(ReverseSearchEngine.TINEYE, image, ".jpg").isFailure)
+        assertTrue(repo.directSearchUrl(DirectUploadEngine.TINEYE, image, ".jpg") is DataResult.Failure)
     }
 
     @Test fun `yandex gets the raw bytes and its cbir id opens results`() = runTest {
         server.enqueue(MockResponse().setBody("""{"cbir_id":"123/abc","namespace":"images-cbir","sizes":{}}"""))
-        val url = uploader.directSearchUrl(ReverseSearchEngine.YANDEX, image, ".jpg").getOrThrow()
+        val url = repo.directSearchUrl(DirectUploadEngine.YANDEX, image, ".jpg").value()
         assertTrue(url, url.endsWith("/yandex/results?rpt=imageview&cbir_id=123%2Fabc"))
         val recorded = server.takeRequest()
         assertEquals("image/jpeg", recorded.getHeader("Content-Type"))
@@ -66,20 +74,18 @@ class ReverseSearchUploadTest {
 
     @Test fun `garbage from yandex is a failure, not a crash`() = runTest {
         server.enqueue(MockResponse().setBody("""{"status":"ok"}"""))
-        assertTrue(uploader.directSearchUrl(ReverseSearchEngine.YANDEX, image, ".jpg").isFailure)
-    }
-
-    @Test fun `engines without a form refuse the direct route`() = runTest {
-        assertTrue(uploader.directSearchUrl(ReverseSearchEngine.SAUCENAO, image, ".jpg").isFailure)
-        assertTrue(uploader.directSearchUrl(ReverseSearchEngine.IQDB, image, ".jpg").isFailure)
-        assertEquals(0, server.requestCount)
+        assertTrue(repo.directSearchUrl(DirectUploadEngine.YANDEX, image, ".jpg") is DataResult.Failure)
     }
 
     @Test fun `litterbox takes the file for an hour`() = runTest {
         server.enqueue(MockResponse().setBody("https://litter.catbox.moe/abc.jpg"))
-        val url = uploader.hostTemporarily(image, ".jpg").getOrThrow()
-        assertEquals("https://litter.catbox.moe/abc.jpg", url)
-        val body = server.takeRequest().body.readUtf8()
+        val hosted = repo.hostTemporarily(image, ".jpg").value()
+        assertEquals("https://litter.catbox.moe/abc.jpg", hosted.url)
+        assertEquals(TemporaryHost.LITTERBOX, hosted.host)
+        val recorded = server.takeRequest()
+        // No 4chan baggage: the shared client's cookie jar and cache headers stay off this host.
+        assertEquals(null, recorded.getHeader("Cookie"))
+        val body = recorded.body.readUtf8()
         assertTrue(body, body.contains("name=\"reqtype\""))
         assertTrue(body, body.contains("fileupload"))
         assertTrue(body, body.contains("name=\"time\""))
@@ -90,8 +96,9 @@ class ReverseSearchUploadTest {
     @Test fun `a failed litterbox upload falls through to 0x0`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("nope"))
         server.enqueue(MockResponse().setBody("https://0x0.st/abcd.jpg"))
-        val url = uploader.hostTemporarily(image, ".jpg").getOrThrow()
-        assertEquals("https://0x0.st/abcd.jpg", url)
+        val hosted = repo.hostTemporarily(image, ".jpg").value()
+        assertEquals("https://0x0.st/abcd.jpg", hosted.url)
+        assertEquals(TemporaryHost.ZERO_X_ZERO, hosted.host)
         server.takeRequest()
         val fallback = server.takeRequest()
         assertTrue(fallback.getHeader("User-Agent").orEmpty().startsWith("Yotsuba/"))
@@ -102,6 +109,6 @@ class ReverseSearchUploadTest {
     @Test fun `a host answering with something that is not a URL is a failure`() = runTest {
         server.enqueue(MockResponse().setBody("<html>error</html>"))
         server.enqueue(MockResponse().setBody("also not a url"))
-        assertTrue(uploader.hostTemporarily(image, ".jpg").isFailure)
+        assertTrue(repo.hostTemporarily(image, ".jpg") is DataResult.Failure)
     }
 }
