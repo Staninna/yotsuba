@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -47,17 +46,18 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.IconMenuItem
+import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
+import dev.stan.yotsuba.core.designsystem.component.SheetActionRow
 import dev.stan.yotsuba.core.designsystem.component.SwipeToDeleteRow
 import dev.stan.yotsuba.core.designsystem.component.ThreadSummaryRow
 import dev.stan.yotsuba.core.designsystem.component.showUndo
@@ -71,17 +71,25 @@ import kotlinx.coroutines.launch
 
 /**
  * The Watched segment of the Threads tab. The top-bar menu lives in [BookmarksMenu] so the
- * host can put it in whichever app bar it owns; this is only the list.
+ * host can put it in whichever app bar it owns; this is only the list. State and callbacks
+ * are hoisted: the host already collects the ViewModel for its app bar.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookmarksList(
-    viewModel: BookmarksViewModel,
-    snackbar: SnackbarHostState,
+    state: BookmarksUiState,
+    snapshotResult: SnapshotResult?,
+    onSnapshotResultShown: () -> Unit,
+    onScreenVisible: () -> Unit,
+    onRefreshAll: () -> Unit,
+    onRemove: (Bookmark) -> Unit,
+    onUndoRemove: (Bookmark) -> Unit,
+    onTogglePinned: (Bookmark) -> Unit,
+    onSnapshot: (Bookmark) -> Unit,
     onOpenThread: (String, Long) -> Unit,
+    snackbar: SnackbarHostState,
     modifier: Modifier = Modifier,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
@@ -92,37 +100,45 @@ fun BookmarksList(
     val notFound = stringResource(R.string.vault_error_not_found)
     val ioError = stringResource(R.string.vault_error_io)
     var sheetFor by remember { mutableStateOf<Bookmark?>(null) }
-
-    LaunchedEffect(viewModel) {
-        viewModel.snapshotResult.collect { result ->
-            snackbar.showSnackbar(
-                when (result) {
-                    SnapshotResult.Saved -> snapshotSaved
-                    is SnapshotResult.Failed -> when (result.error) {
-                        VaultError.NoAccess -> noAccess
-                        VaultError.NotFound -> notFound
-                        is VaultError.Io -> ioError
-                    }
-                },
-            )
+    val removeWithUndo: (Bookmark) -> Unit = { bookmark ->
+        onRemove(bookmark)
+        scope.launch {
+            snackbar.showUndo(removedMessage, undoLabel) { onUndoRemove(bookmark) }
         }
+    }
+
+    // The result is held in the ViewModel until shown, so a snapshot finishing while this
+    // segment is off screen still gets its snackbar when the user comes back.
+    LaunchedEffect(snapshotResult) {
+        val result = snapshotResult ?: return@LaunchedEffect
+        snackbar.showSnackbar(
+            when (result) {
+                SnapshotResult.Saved -> snapshotSaved
+                is SnapshotResult.Failed -> when (result.error) {
+                    VaultError.NoAccess -> noAccess
+                    VaultError.NotFound -> notFound
+                    is VaultError.Io -> ioError
+                }
+            },
+        )
+        onSnapshotResultShown()
     }
 
     // Auto-refresh whenever the tab comes back on screen (throttled in the ViewModel),
     // so the pills update without a manual pull.
-    OnResumeEffect(viewModel::onScreenVisible)
+    OnResumeEffect(onScreenVisible)
 
-    if (state.loaded && state.bookmarks.isEmpty()) {
-        EmptyState(
+    when {
+        !state.loaded -> LoadingSkeleton(modifier)
+        state.bookmarks.isEmpty() -> EmptyState(
             title = stringResource(R.string.bookmarks_empty_title),
             explanation = stringResource(R.string.bookmarks_empty_explanation),
             icon = Icons.Filled.BookmarkBorder,
             modifier = modifier,
         )
-    } else {
-        PullToRefreshBox(
-            isRefreshing = state.checking != null,
-            onRefresh = { haptics.tick(); viewModel.onRefreshAll() },
+        else -> PullToRefreshBox(
+            isRefreshing = state.isRefreshing,
+            onRefresh = { haptics.tick(); onRefreshAll() },
             modifier = modifier,
         ) {
             LazyColumn(
@@ -135,17 +151,11 @@ fun BookmarksList(
                     key = { state.bookmarks[it].board + "/" + state.bookmarks[it].threadNo },
                 ) { i ->
                     val bookmark = state.bookmarks[i]
-                    SwipeToDeleteRow(modifier = animatedListItem(), onDelete = {
-                        viewModel.onRemove(bookmark)
-                        scope.launch {
-                            snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
-                        }
-                    }) {
+                    SwipeToDeleteRow(modifier = animatedListItem(), onDelete = { removeWithUndo(bookmark) }) {
                         BookmarkCard(
                             bookmark,
                             onClick = { onOpenThread(bookmark.board, bookmark.threadNo) },
-                            snapshotting = BookmarksViewModel.snapshotKey(bookmark.board, bookmark.threadNo) in
-                                state.snapshotting,
+                            snapshotting = state.isSnapshotting(bookmark),
                             onLongClick = { haptics.longPress(); sheetFor = bookmark },
                         )
                     }
@@ -155,21 +165,14 @@ fun BookmarksList(
     }
 
     sheetFor?.let { bookmark ->
-        val snapshotting = BookmarksViewModel.snapshotKey(bookmark.board, bookmark.threadNo) in state.snapshotting
         BookmarkActionSheet(
             bookmark = bookmark,
-            snapshotting = snapshotting,
+            snapshotting = state.isSnapshotting(bookmark),
             onDismiss = { sheetFor = null },
             onOpen = { sheetFor = null; onOpenThread(bookmark.board, bookmark.threadNo) },
-            onTogglePinned = { sheetFor = null; viewModel.onTogglePinned(bookmark) },
-            onSnapshot = { sheetFor = null; viewModel.snapshot(bookmark.board, bookmark.threadNo) },
-            onRemove = {
-                sheetFor = null
-                viewModel.onRemove(bookmark)
-                scope.launch {
-                    snackbar.showUndo(removedMessage, undoLabel) { viewModel.onUndoRemove(bookmark) }
-                }
-            },
+            onTogglePinned = { sheetFor = null; onTogglePinned(bookmark) },
+            onSnapshot = { sheetFor = null; onSnapshot(bookmark) },
+            onRemove = { sheetFor = null; removeWithUndo(bookmark) },
         )
     }
 }
@@ -186,21 +189,23 @@ private fun BookmarkActionSheet(
     onSnapshot: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val spacing = LocalSpacing.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(bottom = 24.dp)) {
+        Column(Modifier.padding(bottom = spacing.xl)) {
+            // Not SheetTitle: a thread subject can run long and this one clamps to two lines.
             Text(
                 bookmark.displayTitle,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = spacing.xl, vertical = spacing.sm),
             )
-            SheetAction(stringResource(R.string.bookmarks_open), Icons.Filled.OpenInNew, onOpen)
-            SheetAction(
+            SheetActionRow(stringResource(R.string.bookmarks_open), Icons.Filled.OpenInNew, onOpen)
+            SheetActionRow(
                 stringResource(if (bookmark.pinned) R.string.bookmarks_unpin else R.string.bookmarks_pin),
                 if (bookmark.pinned) Icons.Outlined.PushPin else Icons.Filled.PushPin,
                 onTogglePinned,
             )
-            SheetAction(
+            SheetActionRow(
                 stringResource(R.string.bookmarks_snapshot),
                 Icons.Filled.Inventory2,
                 onSnapshot,
@@ -211,39 +216,20 @@ private fun BookmarkActionSheet(
                     else -> null
                 },
             )
-            SheetAction(stringResource(R.string.bookmarks_remove), Icons.Filled.Delete, onRemove)
+            SheetActionRow(stringResource(R.string.bookmarks_remove), Icons.Filled.Delete, onRemove)
         }
     }
 }
 
-@Composable
-private fun SheetAction(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    supporting: String? = null,
-) {
-    val tint = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-    ListItem(
-        headlineContent = { Text(label, color = tint) },
-        supportingContent = supporting?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
-        leadingContent = { Icon(icon, contentDescription = null, tint = tint) },
-        modifier = Modifier.combinedClickable(enabled = enabled, onClick = onClick),
-    )
-}
-
 /** "Checking 3/12" under the title while a refresh runs; nothing otherwise. */
 @Composable
-fun BookmarksCheckingSubtitle(checking: Pair<Int, Int>?) {
-    val (current, total) = checking ?: return
-    if (total > 0) {
-        Text(
-            stringResource(R.string.bookmarks_checking, current, total),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+fun BookmarksCheckingSubtitle(checking: RefreshProgress?) {
+    val progress = checking ?: return
+    Text(
+        stringResource(R.string.bookmarks_checking, progress.done, progress.total),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
@@ -269,12 +255,9 @@ fun BookmarksMenu(
                 open = false; onSortOrderChanged(it)
             }
             HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.bookmarks_remove_dead)) },
-                leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
-                enabled = hasDead,
-                onClick = { open = false; onRemoveDead() },
-            )
+            IconMenuItem(R.string.bookmarks_remove_dead, Icons.Filled.DeleteSweep, enabled = hasDead) {
+                open = false; onRemoveDead()
+            }
         }
     }
 }
@@ -323,7 +306,7 @@ private fun BookmarkCard(
             ).joinToString(" · "),
             titleColor = if (live) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
         ) {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
                 if (snapshotting) {
                     val a11y = stringResource(R.string.bookmarks_snapshotting)
                     CircularProgressIndicator(

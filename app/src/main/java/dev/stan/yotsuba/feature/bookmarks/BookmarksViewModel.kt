@@ -9,9 +9,6 @@ import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import javax.inject.Inject
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,23 +18,33 @@ import kotlinx.coroutines.launch
 
 enum class BookmarkSortOrder { UNREAD_FIRST, LAST_ACTIVITY, BOOKMARKED }
 
-/** One-shot outcome of [BookmarksViewModel.snapshot], meant for a snackbar. */
+/** Outcome of [BookmarksViewModel.snapshot], held until the UI has shown it. */
 sealed interface SnapshotResult {
     data object Saved : SnapshotResult
     data class Failed(val error: VaultError) : SnapshotResult
 }
 
+/** How far a refresh pass has got: boards done out of boards total. */
+data class RefreshProgress(val done: Int, val total: Int)
+
 data class BookmarksUiState(
     val bookmarks: List<Bookmark> = emptyList(),
-    /** Non-null while a refresh pass is running: boards done / boards total. */
-    val checking: Pair<Int, Int>? = null,
+    /** True for the whole refresh pass, from the pull until the repository returns. */
+    val isRefreshing: Boolean = false,
+    /** Non-null once the repository has reported a total for the running pass. */
+    val checking: RefreshProgress? = null,
     val sortOrder: BookmarkSortOrder = BookmarkSortOrder.UNREAD_FIRST,
     val loaded: Boolean = false,
-    /** "board/threadNo" keys whose vault snapshot is still being written. */
+    /** Keys (see [snapshotKey]) whose vault snapshot is still being written. */
     val snapshotting: Set<String> = emptySet(),
 ) {
     val hasDead: Boolean get() = bookmarks.any { it.isDead }
+
+    fun isSnapshotting(bookmark: Bookmark): Boolean =
+        snapshotKey(bookmark.board, bookmark.threadNo) in snapshotting
 }
+
+private fun snapshotKey(board: String, threadNo: Long) = "$board/$threadNo"
 
 @HiltViewModel
 class BookmarksViewModel @Inject constructor(
@@ -45,23 +52,27 @@ class BookmarksViewModel @Inject constructor(
     private val vault: MediaVaultRepository,
 ) : ViewModel() {
 
-    private val checking = MutableStateFlow<Pair<Int, Int>?>(null)
+    private val refreshing = MutableStateFlow(false)
+    private val checking = MutableStateFlow<RefreshProgress?>(null)
     private val sortOrder = MutableStateFlow(BookmarkSortOrder.UNREAD_FIRST)
     private val snapshotting = MutableStateFlow<Set<String>>(emptySet())
-    private val snapshotResults = MutableSharedFlow<SnapshotResult>(
-        extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
+    private val pendingSnapshotResult = MutableStateFlow<SnapshotResult?>(null)
 
-    /** Fires once per finished [snapshot]; collect it to show a snackbar. */
-    val snapshotResult: Flow<SnapshotResult> = snapshotResults
+    /**
+     * The last finished [snapshot] nobody has shown yet. It stays put while the list is off
+     * screen, so a snackbar can still be shown when the user comes back; the UI clears it with
+     * [onSnapshotResultShown]. Two snapshots finishing while nobody looks surface as one.
+     */
+    val snapshotResult: StateFlow<SnapshotResult?> = pendingSnapshotResult
     private var refreshJob: Job? = null
     private var lastAutoRefreshAt = 0L
 
     val uiState: StateFlow<BookmarksUiState> = combine(
-        repository.bookmarks, checking, sortOrder, snapshotting,
-    ) { bookmarks, progress, order, snapping ->
+        repository.bookmarks, refreshing, checking, sortOrder, snapshotting,
+    ) { bookmarks, isRefreshing, progress, order, snapping ->
         BookmarksUiState(
             bookmarks = sort(bookmarks, order),
+            isRefreshing = isRefreshing,
             checking = progress,
             sortOrder = order,
             loaded = true,
@@ -84,11 +95,12 @@ class BookmarksViewModel @Inject constructor(
     fun onRefreshAll() {
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
-            checking.value = 0 to 0
+            refreshing.value = true
             try {
-                repository.refreshAll { done, total -> checking.value = done to total }
+                repository.refreshAll { done, total -> checking.value = RefreshProgress(done, total) }
             } finally {
                 checking.value = null
+                refreshing.value = false
             }
         }
     }
@@ -114,11 +126,16 @@ class BookmarksViewModel @Inject constructor(
             snapshotting.value = snapshotting.value + key
             try {
                 val error = vault.snapshotThread(board, threadNo)
-                snapshotResults.tryEmit(if (error == null) SnapshotResult.Saved else SnapshotResult.Failed(error))
+                pendingSnapshotResult.value =
+                    if (error == null) SnapshotResult.Saved else SnapshotResult.Failed(error)
             } finally {
                 snapshotting.value = snapshotting.value - key
             }
         }
+    }
+
+    fun onSnapshotResultShown() {
+        pendingSnapshotResult.value = null
     }
 
     fun onRemove(bookmark: Bookmark) = viewModelScope.launch {
@@ -129,13 +146,7 @@ class BookmarksViewModel @Inject constructor(
         repository.add(bookmark)
     }
 
-    override fun onCleared() {
-        refreshJob?.cancel()
-    }
-
     companion object {
-        fun snapshotKey(board: String, threadNo: Long) = "$board/$threadNo"
-
         /** Pinned rows always lead; within each group the chosen order applies. */
         private fun sort(list: List<Bookmark>, order: BookmarkSortOrder): List<Bookmark> {
             val activity = { b: Bookmark -> b.lastActivityAt ?: b.bookmarkedAt }

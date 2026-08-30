@@ -10,6 +10,7 @@ import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.feature.bookmarks.BookmarkSortOrder
 import dev.stan.yotsuba.feature.bookmarks.BookmarksViewModel
+import dev.stan.yotsuba.feature.bookmarks.RefreshProgress
 import dev.stan.yotsuba.feature.bookmarks.SnapshotResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -92,30 +93,37 @@ class BookmarksViewModelTest {
     @Test fun `snapshot calls the vault and reports success`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault().apply { gate = CompletableDeferred() }
         val vm = vm(FakeRepo(listOf(bookmark(1))), vault)
-        vm.snapshotResult.test {
-            vm.uiState.test {
-                awaitItem()
-                vm.snapshot("g", 1)
-                dispatcher.scheduler.advanceUntilIdle()
-                assertTrue(expectMostRecentItem().snapshotting.contains("g/1"))
-                vault.gate!!.complete(Unit)
-                dispatcher.scheduler.advanceUntilIdle()
-                assertTrue(expectMostRecentItem().snapshotting.isEmpty())
-                cancelAndIgnoreRemainingEvents()
-            }
-            assertEquals(SnapshotResult.Saved, awaitItem())
+        vm.uiState.test {
+            awaitItem()
+            vm.snapshot("g", 1)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue(expectMostRecentItem().isSnapshotting(bookmark(1)))
+            vault.gate!!.complete(Unit)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertTrue(!expectMostRecentItem().isSnapshotting(bookmark(1)))
             cancelAndIgnoreRemainingEvents()
         }
+        assertEquals(SnapshotResult.Saved, vm.snapshotResult.value)
         assertEquals(listOf("g" to 1L), vault.snapshots)
     }
 
     @Test fun `snapshot surfaces the vault error`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault().apply { snapshotError = VaultError.NoAccess }
         val vm = vm(FakeRepo(listOf(bookmark(1))), vault)
+        vm.snapshot("g", 1)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(SnapshotResult.Failed(VaultError.NoAccess), vm.snapshotResult.value)
+    }
+
+    @Test fun `snapshot result waits for a collector and clears once shown`() = runTest(dispatcher.scheduler) {
+        val vm = vm(FakeRepo(listOf(bookmark(1))), FakeVault())
+        // Nobody collects while the write finishes: the outcome must not be dropped.
+        vm.snapshot("g", 1)
+        dispatcher.scheduler.advanceUntilIdle()
         vm.snapshotResult.test {
-            vm.snapshot("g", 1)
-            dispatcher.scheduler.advanceUntilIdle()
-            assertEquals(SnapshotResult.Failed(VaultError.NoAccess), awaitItem())
+            assertEquals(SnapshotResult.Saved, awaitItem())
+            vm.onSnapshotResultShown()
+            assertNull(awaitItem())
             cancelAndIgnoreRemainingEvents()
         }
     }
@@ -128,10 +136,16 @@ class BookmarksViewModelTest {
             awaitItem()
             vm.onRefreshAll()
             dispatcher.scheduler.advanceUntilIdle()
-            assertEquals(0 to 2, expectMostRecentItem().checking)
+            expectMostRecentItem().let {
+                assertTrue(it.isRefreshing)
+                assertEquals(RefreshProgress(0, 2), it.checking)
+            }
             repo.gate!!.complete(Unit)
             dispatcher.scheduler.advanceUntilIdle()
-            assertNull(expectMostRecentItem().checking)
+            expectMostRecentItem().let {
+                assertTrue(!it.isRefreshing)
+                assertNull(it.checking)
+            }
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(1, repo.refreshAllCalls)
