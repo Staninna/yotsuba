@@ -34,9 +34,9 @@ data class SoundPost(
         fun toUrl(raw: String): String? {
             var decoded = raw.trim()
             // Double-encoded tags exist; decode until the string stops changing.
-            repeat(MAX_DECODE_PASSES) {
+            for (pass in 0 until MAX_DECODE_PASSES) {
                 val next = percentDecode(decoded)
-                if (next == decoded) return@repeat
+                if (next == decoded) break
                 decoded = next
             }
             if (decoded.isEmpty() || decoded.any { it.isWhitespace() || it in "\"'<>\\" }) return null
