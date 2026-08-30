@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
@@ -17,7 +18,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 
 /**
@@ -26,6 +29,15 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
  * into a sibling for its rows.
  */
 
+/** M3's disabled content alpha; a disabled row dims its text to match its dead control. */
+private const val DISABLED_ALPHA = 0.38f
+
+private fun Color.disabledIf(enabled: Boolean): Color = if (enabled) this else copy(alpha = DISABLED_ALPHA)
+
+/**
+ * One toggleable node for TalkBack ("title, switch, on"), so the row and its Switch are not
+ * announced as two unrelated controls; the Switch itself is display-only.
+ */
 @Composable
 fun SwitchRow(
     title: String,
@@ -39,16 +51,24 @@ fun SwitchRow(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled) { onToggle(!checked) }
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onToggle)
             .padding(horizontal = spacing.lg, vertical = spacing.sm),
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface.disabledIf(enabled),
+            )
             summary?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.disabledIf(enabled),
+                )
             }
         }
-        Switch(checked = checked, onCheckedChange = onToggle, enabled = enabled)
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
 
@@ -58,7 +78,7 @@ fun TextRow(title: String, summary: String? = null, onClick: () -> Unit) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = spacing.lg, vertical = spacing.md),
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge)
@@ -76,7 +96,7 @@ fun NavigationRow(icon: ImageVector, title: String, summary: String, onClick: ()
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = spacing.lg, vertical = spacing.md),
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -104,7 +124,11 @@ fun <T> ChipRow(
 ) {
     val spacing = LocalSpacing.current
     Column(Modifier.padding(horizontal = spacing.lg, vertical = spacing.xs)) {
-        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface.disabledIf(enabled),
+        )
         FlowRow {
             options.forEach { value ->
                 androidx.compose.material3.FilterChip(
