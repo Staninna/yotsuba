@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import dev.stan.yotsuba.domain.model.VaultPaths
 import dev.stan.yotsuba.domain.model.isVideoExt
+import java.io.Closeable
 import java.io.File
 
 /**
@@ -21,6 +22,54 @@ object VideoStills {
 
     private const val MAX_EDGE = 512
 
+    /**
+     * One open decoder over a video, for pulling frames at chosen times without re-opening
+     * the file each time. Not thread-safe: call it from one thread and [close] it when
+     * done, or the native decoder stays allocated until the finaliser gets round to it.
+     */
+    class FrameSource private constructor(
+        private val retriever: MediaMetadataRetriever,
+        /** Zero when the container does not say. */
+        val durationMs: Long,
+        val hasAudio: Boolean,
+    ) : Closeable {
+        /**
+         * The frame nearest [timeMs], decoded exactly rather than snapped to a keyframe,
+         * so what the picker shows is what gets searched. Null when the decoder fails.
+         */
+        fun frameAt(timeMs: Long): Bitmap? = runCatching {
+            retriever.getFrameAtTime(timeMs.coerceAtLeast(0) * 1000, MediaMetadataRetriever.OPTION_CLOSEST)
+        }.getOrNull()
+
+        /** The first sync frame, which is what the vault still shows. */
+        fun firstFrame(): Bitmap? = runCatching {
+            retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+        }.getOrNull()
+
+        override fun close() {
+            runCatching { retriever.release() }
+        }
+
+        companion object {
+            /** Null when [video] cannot be opened at all. */
+            fun open(video: File): FrameSource? {
+                val retriever = MediaMetadataRetriever()
+                return try {
+                    retriever.setDataSource(video.absolutePath)
+                    FrameSource(
+                        retriever,
+                        durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                            ?.toLongOrNull() ?: 0L,
+                        hasAudio = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes",
+                    )
+                } catch (e: Exception) {
+                    runCatching { retriever.release() }
+                    null
+                }
+            }
+        }
+    }
+
     /** Where [video]'s still lives, whether or not it has been captured. */
     fun stillFor(video: File): File =
         File(File(video.parentFile, VaultPaths.THUMBS_DIR_NAME), video.name + ".jpg")
@@ -34,14 +83,13 @@ object VideoStills {
      * be decoded, which for a corrupt or exotic webm is not worth failing a save over.
      */
     fun capture(video: File): Still? {
-        val retriever = MediaMetadataRetriever()
+        val source = FrameSource.open(video) ?: return null
         return try {
-            retriever.setDataSource(video.absolutePath)
-            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
-            val hasAudio = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes"
+            val duration = source.durationMs.takeIf { it > 0 }
+            val hasAudio = source.hasAudio
             val still = stillFor(video)
             if (!still.isFile) {
-                val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return null
+                val frame = source.firstFrame() ?: return null
                 still.parentFile?.mkdirs()
                 val scaled = shrink(frame)
                 val tmp = File(still.parentFile, still.name + ".tmp")
@@ -58,7 +106,7 @@ object VideoStills {
         } catch (e: Exception) {
             null
         } finally {
-            runCatching { retriever.release() }
+            source.close()
         }
     }
 

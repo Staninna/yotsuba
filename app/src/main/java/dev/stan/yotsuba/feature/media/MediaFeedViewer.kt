@@ -10,10 +10,13 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,6 +34,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val CHROME_HIDE_DELAY_MS = 3_000L
+
+/** The feed behind the chrome, for menu items that need more than the page index (a video's position, say). */
+val LocalMediaFeed = compositionLocalOf<MediaFeedState?> { null }
 
 /** One page of a full-screen vertical media feed: an image to zoom or a video to play. */
 sealed interface ViewerPage {
@@ -123,6 +129,9 @@ class MediaFeedState internal constructor(
 
     /** Set for the length of a gesture that is clearly sideways, so the pager sits it out. */
     var pagerLocked by mutableStateOf(false)
+
+    /** Where the current page's video is, as last read off its player; 0 on an image. */
+    var videoPositionMs by mutableLongStateOf(0L)
 
     val currentPage: Int get() = pager.currentPage
 
@@ -239,6 +248,7 @@ fun MediaFeedViewer(
                     onToggleChrome = { feed.chromeVisible = !feed.chromeVisible },
                     onControlTouched = feed::touchChrome,
                     onScrubbing = { feed.scrubbing = it },
+                    onPositionRead = { if (feed.currentPage == page) feed.videoPositionMs = it },
                     autoAdvance = autoAdvance,
                     onEnded = { feed.animateNextWrapping(pages.size) },
                     behaviour = behaviour,
@@ -274,11 +284,13 @@ fun MediaFeedViewer(
             badge = if (current?.soundUrl != null) stringResource(R.string.media_sound_badge) else null,
             modifier = Modifier.align(Alignment.TopCenter).notifyOnPress(feed::touchChrome),
         ) {
-            topBarActions()
-            ViewerOverflowMenu { close ->
-                AutoAdvanceMenuItem(autoAdvance) { close(); onToggleAutoAdvance() }
-                PipMenuItem { close(); pip.enter(current?.pipInfo, feed.playbackOn) }
-                topBarMenu(close)
+            CompositionLocalProvider(LocalMediaFeed provides feed) {
+                topBarActions()
+                ViewerOverflowMenu { close ->
+                    AutoAdvanceMenuItem(autoAdvance) { close(); onToggleAutoAdvance() }
+                    PipMenuItem { close(); pip.enter(current?.pipInfo, feed.playbackOn) }
+                    topBarMenu(close)
+                }
             }
         }
 

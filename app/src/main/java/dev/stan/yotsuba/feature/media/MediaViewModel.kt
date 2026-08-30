@@ -222,25 +222,14 @@ class MediaViewModel @AssistedInject constructor(
             ?.let(::File)
             ?.takeIf { it.isFile }
             ?: runCatching {
-                val dir = File(appContext.cacheDir, SHARE_CACHE_DIR).apply { mkdirs() }
+                // Video frames cut for a reverse search land in the same directory, so one
+                // trim covers both.
+                val dir = ShareCache.dir(appContext)
                 val file = File(dir, item.displayName)
                 file.outputStream().use { byteSource.copyTo(item.fullUrl, it) }
-                trimShareCache(dir, keep = file)
+                ShareCache.trim(dir, keep = file)
                 file
             }.getOrNull()
-    }
-
-    /** Keeps the share cache to the newest [SHARE_CACHE_LIMIT] files; [keep] always survives. */
-    private fun trimShareCache(dir: File, keep: File) {
-        dir.listFiles { f -> f.isFile }
-            ?.sortedByDescending { if (it == keep) Long.MAX_VALUE else it.lastModified() }
-            ?.drop(SHARE_CACHE_LIMIT)
-            ?.forEach { it.delete() }
-    }
-
-    private companion object {
-        const val SHARE_CACHE_DIR = "shared_media"
-        const val SHARE_CACHE_LIMIT = 20
     }
 
     @AssistedFactory

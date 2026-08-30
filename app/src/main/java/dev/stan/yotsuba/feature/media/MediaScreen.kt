@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -53,6 +54,7 @@ import dev.stan.yotsuba.core.designsystem.component.errorMessage
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.domain.model.MediaItem
 import java.io.File
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
@@ -114,6 +116,12 @@ fun MediaScreen(
 
     var autoAdvance by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
+    var searchTarget by remember { mutableStateOf<ReverseSearchTarget?>(null) }
+    val searchFailedMessage = stringResource(R.string.media_search_open_failed)
+    // The video the frame picker is open over, and the fetch that may be bringing it down.
+    var frameSource by remember { mutableStateOf<Pair<File, Long>?>(null) }
+    var fetching by remember { mutableStateOf<Job?>(null) }
+    val frameFailedMessage = stringResource(R.string.media_frame_failed)
 
     val haptics = rememberHaptics()
     // Queued + running saves. Failed ones are not "in progress"; they wait on the icon.
@@ -154,6 +162,37 @@ fun MediaScreen(
         },
         overlay = {
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+        },
+        topBarMenu = { page, close ->
+            val item = state.items.getOrNull(page)
+            val feed = LocalMediaFeed.current
+            if (item != null && item.isVideo) {
+                ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_frame)) {
+                    close()
+                    val at = feed?.videoPositionMs ?: 0L
+                    val local = localFileOf(item, state)
+                    if (local != null) {
+                        frameSource = local to at
+                    } else {
+                        // A remote video has to be on disk for the retriever; the share
+                        // download is the same fetch, into the same cache.
+                        fetching = scope.launch {
+                            val file = viewModel.prepareShare(item)
+                            fetching = null
+                            if (file != null) frameSource = file to at else snackbar.showSnackbar(shareFailedMessage)
+                        }
+                    }
+                }
+            } else if (item != null) {
+                ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_image)) {
+                    close()
+                    searchTarget = ReverseSearchTarget(
+                        remoteUrl = remoteImageUrl(item.fullUrl),
+                        file = localFileOf(item, state),
+                        ext = item.ext,
+                    )
+                }
+            }
         },
     ) { page, openReplies ->
         val item = state.items.getOrNull(page)
@@ -218,6 +257,39 @@ fun MediaScreen(
             }
         }
     }
+
+    if (fetching != null) {
+        FetchingVideoDialog(onCancel = { fetching?.cancel(); fetching = null })
+    }
+    frameSource?.let { (video, at) ->
+        FramePickerSheet(
+            video = video,
+            startMs = at,
+            onPick = { frame ->
+                frameSource = null
+                searchTarget = ReverseSearchTarget(remoteUrl = null, file = frame, ext = ".jpg")
+            },
+            onDismiss = { frameSource = null },
+            onFailed = { scope.launch { snackbar.showSnackbar(frameFailedMessage) } },
+        )
+    }
+    searchTarget?.let { target ->
+        ReverseSearchSheet(
+            target = target,
+            onDismiss = { searchTarget = null },
+            onFailed = { scope.launch { snackbar.showSnackbar(searchFailedMessage) } },
+        )
+    }
+}
+
+/**
+ * The copy of [item] on disk, if any: its vault file, or the file itself for a thread
+ * imported from local storage, whose "URL" is a `file://` path.
+ */
+private fun localFileOf(item: MediaItem, state: MediaUiState): File? {
+    val path = state.savedPath(item.fullUrl)
+        ?: item.fullUrl.takeIf { it.startsWith("file:") }?.let { Uri.parse(it).path }
+    return path?.let(::File)?.takeIf { it.isFile }
 }
 
 /** The black full-screen ground with a close button, for everything that is not media. */
