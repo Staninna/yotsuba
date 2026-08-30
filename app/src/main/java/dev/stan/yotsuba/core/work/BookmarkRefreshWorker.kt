@@ -74,7 +74,7 @@ class BookmarkRefreshWorker(
         val text = res.getQuantityString(R.plurals.bookmarks_notification_replies, replies, replies) +
             " " + res.getQuantityString(R.plurals.bookmarks_notification_threads, threads, threads)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_monochrome)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(context.getString(R.string.bookmarks_notification_title))
             .setContentText(text)
             .setContentIntent(tap)
