@@ -21,7 +21,7 @@ rather than a `fullUrl = ""` row.
 ## Consequences
 
 - ViewModel tests run on the JVM against hand-written fakes, which is why there
-  are 38 test files rather than 5.
+  are 100 test files (86 JVM unit tests, 14 instrumented) rather than 5.
 - A repository method returning a Room entity is a boundary violation even when
   it compiles, and it will quietly drag Android back into the test path.
 - Some things stay untestable on the JVM regardless, meaning anything needing `Context`

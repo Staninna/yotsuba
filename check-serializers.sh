@@ -13,10 +13,19 @@
 set -euo pipefail
 
 MAPPING=${1:-app/build/outputs/mapping/release/mapping.txt}
-CLASSES=${2:-app/build/intermediates/built_in_kotlinc/release/compileReleaseKotlin/classes}
-
 die() { echo "check-serializers: $*" >&2; exit 1; }
 [ -f "$MAPPING" ] || die "no $MAPPING; build release first"
+
+# The kotlinc output dir moves between AGP versions (built_in_kotlinc today,
+# something else tomorrow), so look for it rather than hardcoding the path.
+# The sentinel check below still fails loudly if this finds the wrong one.
+if [ -n "${2:-}" ]; then
+  CLASSES=$2
+else
+  CLASSES=$(find app/build/intermediates -type d -path '*release*' -name classes 2>/dev/null |
+    grep -i kotlin | head -1 || true)
+  [ -n "$CLASSES" ] || die "no release kotlin classes dir under app/build/intermediates; build release first"
+fi
 [ -d "$CLASSES" ] || die "no $CLASSES; build release first"
 
 # What the compiler generated, before R8.

@@ -839,4 +839,25 @@ class VaultViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test fun `ticking a selection or typing does not resort the vault`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG), entry("a/1.jpg", threadA)))
+        val vm = vm(vault)
+        vm.uiState.test {
+            latest()
+            val sorted = vm.arrangements.get()
+            assertTrue(sorted >= 1)
+            vm.toggleSelected(vault.state.value.first())
+            assertEquals(setOf("g/1.jpg"), latest().selected)
+            vm.inspect(vault.state.value.last())
+            vm.openBoard("g")
+            latest()
+            assertEquals(sorted, vm.arrangements.get())
+            // Changing the sort is the case that must rerun it.
+            vm.toggleReversed()
+            assertTrue(latest().reversed)
+            assertEquals(sorted + 1, vm.arrangements.get())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 }

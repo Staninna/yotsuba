@@ -10,6 +10,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -27,7 +28,7 @@ jobs:
         run: |
           version=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match versionName $version — bump app/build.gradle.kts"
+            echo "::error::tag $GITHUB_REF_NAME does not match versionName $version. Bump app/build.gradle.kts"
             exit 1
           fi
           echo "tag $GITHUB_REF_NAME matches versionName $version"
@@ -35,8 +36,18 @@ jobs:
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
 
+      - name: Lint
+        run: ./gradlew :app:lintDebug
+
+      # Same gates as CI. A tag pushed from a branch that skipped CI must not
+      # ship with less checking than an ordinary push gets.
+      - name: Compile instrumented tests
+        run: ./gradlew :app:compileDebugAndroidTestKotlin
+
       - name: Decode release keystore
-        run: echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/release.p12"
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: echo "$RELEASE_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
 
       - name: Build signed release APK
         env:

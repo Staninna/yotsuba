@@ -2,7 +2,7 @@
 # Cut a release: bump both version fields, verify, commit, tag, push.
 #
 # The two version fields and the tag are one fact written in three places, and the
-# release job fails the build if they disagree — so nothing here lets them drift.
+# release job fails the build if they disagree, so nothing here lets them drift.
 #
 #   ./bump.sh              next patch (1.1.2 -> 1.1.3)
 #   ./bump.sh minor        next minor (1.1.2 -> 1.2.0)
@@ -52,7 +52,7 @@ die() { echo "bump: $*" >&2; exit 1; }
 # shellcheck source=changelog.sh
 . "$(dirname "$SELF")/changelog.sh"
 
-[ -f "$GRADLE" ] || die "no $GRADLE — run this from the repo root"
+[ -f "$GRADLE" ] || die "no $GRADLE; run this from the repo root"
 if [ "$BUMP" = none ] && [ "$PUSH" = no ]; then die "--just-push and --no-push cancel out"; fi
 if [ -n "$(git status --porcelain)" ]; then die "working tree is dirty; commit or stash first"; fi
 [ "$BRANCH" = main ] || die "on '$BRANCH', not main"
@@ -118,6 +118,14 @@ git push origin "$TAG"
 echo "==> pushed $TAG"
 
 if [ "$WATCH" = yes ] && command -v gh >/dev/null; then
-  sleep 5
-  gh run watch "$(gh run list --workflow=release.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+  # Filter on the tag, not "the newest run": right after the push the newest
+  # run is often still the previous release, or main's CI run.
+  RUN=
+  for _ in $(seq 1 12); do
+    RUN=$(gh run list --workflow=release.yml --branch "$TAG" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+    [ -n "$RUN" ] && break
+    sleep 5
+  done
+  [ -n "$RUN" ] || die "no release run for $TAG appeared within a minute"
+  gh run watch "$RUN" --exit-status
 fi

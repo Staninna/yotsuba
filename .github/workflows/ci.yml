@@ -16,6 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -67,6 +68,14 @@ jobs:
 
       - name: Debug APK
         run: ./gradlew :app:assembleDebug
+
+      # Without the signing secrets this falls back to the debug key, which is
+      # fine here: the point is running R8 on every push, so a broken keep rule
+      # shows up now and not after the tag.
+      - name: Release build (debug-signed) and serializer check
+        run: |
+          ./gradlew :app:assembleRelease
+          ./check-serializers.sh
 
       - name: Upload reports
         if: failure()
