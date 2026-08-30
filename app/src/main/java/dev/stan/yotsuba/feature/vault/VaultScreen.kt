@@ -54,7 +54,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -85,7 +84,6 @@ import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.ViewerThread
 import dev.stan.yotsuba.feature.media.ViewerPage
-import dev.stan.yotsuba.core.designsystem.component.LocalAnimatedVisibilityScope
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.feature.media.shareMediaFile
 import java.io.File
@@ -353,7 +351,8 @@ fun VaultScreen(
                 )
             },
             floatingActionButton = {
-                if (state.scopeEntries.isNotEmpty() && state.hasStorageAccess) {
+                // The viewer covers the whole tab; a FAB floating over it would be a stray.
+                if (state.viewer == null && state.scopeEntries.isNotEmpty() && state.hasStorageAccess) {
                     VaultShuffleFab(state.scopeEntries) { viewModel.startShuffle(it) }
                 }
             },
@@ -377,8 +376,8 @@ fun VaultScreen(
             )
         }
 
-        // The viewer is an overlay, not a route, so it brings its own visibility scope for
-        // the tile-to-page shared element; the last viewer state is kept through the fade-out.
+        // The viewer is an overlay, not a route: a short fade in and out, with the last
+        // viewer state kept through the fade-out.
         var shownViewer by remember { mutableStateOf(state.viewer) }
         if (state.viewer != null) shownViewer = state.viewer
         val motion = LocalMotion.current
@@ -388,20 +387,18 @@ fun VaultScreen(
             exit = fadeOut(tween(motion.medium)),
         ) {
             val viewer = shownViewer ?: return@AnimatedVisibility
-            CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
-                VaultViewer(
-                    viewer = viewer,
-                    thread = viewerThread,
-                    behaviour = behaviour,
-                    playback = playback,
-                    autoAdvance = viewModel.autoAdvance,
-                    onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
-                    onPageViewed = { viewModel.onViewerPage(it.url) },
-                    onDismiss = { viewModel.closeViewer() },
-                    onDelete = { viewModel.requestDelete(it, undoable = false) },
-                    onOpenThread = onOpenThread,
-                )
-            }
+            VaultViewer(
+                viewer = viewer,
+                thread = viewerThread,
+                behaviour = behaviour,
+                playback = playback,
+                autoAdvance = viewModel.autoAdvance,
+                onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
+                onPageViewed = { viewModel.onViewerPage(it.url) },
+                onDismiss = { viewModel.closeViewer() },
+                onDelete = { viewModel.requestDelete(it, undoable = false) },
+                onOpenThread = onOpenThread,
+            )
         }
     }
 
@@ -705,7 +702,6 @@ private fun VaultEntry.toViewerPage(): ViewerPage = if (isVideo) {
         title = displayName,
         note = subject,
         contentDescription = displayName,
-        sharedKey = absolutePath,
     )
 } else {
     ViewerPage.Image(
@@ -717,7 +713,6 @@ private fun VaultEntry.toViewerPage(): ViewerPage = if (isVideo) {
         title = displayName,
         note = subject,
         contentDescription = displayName,
-        sharedKey = absolutePath,
     )
 }
 

@@ -17,13 +17,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PermMedia
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.CallMerge
 import androidx.compose.material.icons.filled.CheckCircle
@@ -42,6 +47,9 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +60,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,9 +76,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.core.designsystem.animatedGridItem
-import dev.stan.yotsuba.core.designsystem.animatedListItem
-import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
@@ -103,6 +109,9 @@ internal fun VaultExplorer(
 ) {
     val spacing = LocalSpacing.current
     val context = LocalContext.current
+    // Sort, direction and filter reorder every list; each one scrolls back to the top when
+    // they change instead of chasing whichever key happened to be first on screen.
+    val view = Triple(state.sort, state.reversed, state.filter)
     Box(Modifier.fillMaxSize()) {
         when {
             !state.hasStorageAccess -> Column(
@@ -142,6 +151,7 @@ internal fun VaultExplorer(
                     }
                 } else {
                     MediaGrid(
+                        view = view,
                         entries = state.results,
                         selected = state.selected,
                         onOpen = onOpenEntry,
@@ -163,6 +173,7 @@ internal fun VaultExplorer(
                         Column(Modifier.fillMaxSize()) {
                             VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
                             MediaGrid(
+                                view = view,
                                 entries = state.recent,
                                 selected = state.selected,
                                 onOpen = onOpenEntry,
@@ -171,12 +182,13 @@ internal fun VaultExplorer(
                             )
                         }
                     } else {
-                        BoardList(state.boards, onOpenBoard, onDeleteBoard)
+                        BoardList(view, state.boards, onOpenBoard, onDeleteBoard)
                     }
                 }
             }
 
             state.selection.thread == null -> ThreadList(
+                view = view,
                 threads = state.openBoard?.threads.orEmpty(),
                 selected = state.selected,
                 onOpen = onOpenThread,
@@ -189,6 +201,7 @@ internal fun VaultExplorer(
             else -> Column(Modifier.fillMaxSize()) {
                 VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
                 MediaGrid(
+                    view = view,
                     entries = state.openThread?.entries.orEmpty(),
                     selected = state.selected,
                     onOpen = onOpenEntry,
@@ -202,11 +215,14 @@ internal fun VaultExplorer(
 
 @Composable
 private fun BoardList(
+    view: Any,
     boards: List<VaultBoardSection>,
     onOpen: (String) -> Unit,
     onDelete: (String) -> Unit,
 ) {
-    LazyColumn(Modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(view) { listState.scrollToItem(0) }
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(boards.size, key = { boards[it].board }) { i ->
             val section = boards[i]
             ListItem(
@@ -228,7 +244,7 @@ private fun BoardList(
                         )
                     }
                 },
-                modifier = animatedListItem().clickable { onOpen(section.board) },
+                modifier = Modifier.clickable { onOpen(section.board) },
             )
         }
     }
@@ -237,6 +253,7 @@ private fun BoardList(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ThreadList(
+    view: Any,
     threads: List<VaultThreadSection>,
     selected: Set<String>,
     onOpen: (VaultLocation) -> Unit,
@@ -247,7 +264,9 @@ private fun ThreadList(
 ) {
     val selecting = selected.isNotEmpty()
     val haptics = rememberHaptics()
-    LazyColumn(Modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(view) { listState.scrollToItem(0) }
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(threads.size, key = { threads[it].location.threadNo }) { i ->
             val section = threads[i]
             val urls = section.entries.map { it.url }
@@ -299,7 +318,7 @@ private fun ThreadList(
                         }
                     }
                 },
-                modifier = animatedListItem()
+                modifier = Modifier
                     .background(
                         if (checked) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                     )
@@ -342,7 +361,13 @@ private fun ModeSwitch(mode: VaultMode, onMode: (VaultMode) -> Unit) {
     }
 }
 
-/** Sort and type filter, one row of chips, above every grid. The sort chip cycles through a menu. */
+/**
+ * Sort and type filter above every grid, sized to fit a phone width: one sort chip whose
+ * trailing arrow shows the direction and whose menu holds the sorts plus "Reverse order",
+ * and one icon-only segmented toggle for the media type. The scroll is a safety net for
+ * very large fonts only.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun VaultChipRow(
     sort: VaultSort,
@@ -359,6 +384,7 @@ internal fun VaultChipRow(
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = spacing.md, vertical = spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         var sortMenu by remember { mutableStateOf(false) }
         Box {
@@ -367,29 +393,59 @@ internal fun VaultChipRow(
                 onClick = { sortMenu = true },
                 label = { Text(stringResource(sortLabel(sort))) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
-                trailingIcon = { Icon(Icons.Filled.ArrowDropDown, contentDescription = null) },
+                trailingIcon = {
+                    Icon(
+                        if (reversed) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                        contentDescription = stringResource(
+                            if (reversed) R.string.vault_sort_reversed else R.string.vault_sort_forward,
+                        ),
+                        modifier = Modifier.size(FilterChipDefaults.IconSize),
+                    )
+                },
             )
             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                 VaultSort.entries.forEach { option ->
                     DropdownMenuItem(
                         text = { Text(stringResource(sortLabel(option))) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = if (option == sort) LocalContentColor.current else Color.Transparent,
+                            )
+                        },
                         onClick = { sortMenu = false; onSort(option) },
                     )
                 }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.vault_sort_reverse_order)) },
+                    leadingIcon = { Icon(Icons.Filled.SwapVert, contentDescription = null) },
+                    trailingIcon = { Checkbox(checked = reversed, onCheckedChange = null) },
+                    onClick = { sortMenu = false; onToggleReversed() },
+                )
             }
         }
-        FilterChip(
-            selected = reversed,
-            onClick = onToggleReversed,
-            label = { Text(stringResource(R.string.vault_sort_reversed)) },
-            leadingIcon = { Icon(Icons.Filled.SwapVert, contentDescription = null) },
-        )
-        VaultFilter.entries.forEach { option ->
-            FilterChip(
-                selected = filter == option,
-                onClick = { onFilter(option) },
-                label = { Text(stringResource(filterLabel(option))) },
-            )
+        SingleChoiceSegmentedButtonRow {
+            VaultFilter.entries.forEachIndexed { index, option ->
+                SegmentedButton(
+                    selected = filter == option,
+                    onClick = { onFilter(option) },
+                    shape = SegmentedButtonDefaults.itemShape(index, VaultFilter.entries.size),
+                    icon = {},
+                    label = {
+                        Icon(
+                            when (option) {
+                                VaultFilter.ALL -> Icons.Filled.PermMedia
+                                VaultFilter.IMAGES -> Icons.Filled.Image
+                                VaultFilter.VIDEOS -> Icons.Filled.Movie
+                            },
+                            contentDescription = stringResource(filterLabel(option)),
+                            modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+                        )
+                    },
+                )
+            }
         }
     }
 }
@@ -424,6 +480,7 @@ internal fun OverflowMenu(items: @Composable ColumnScope.(close: () -> Unit) -> 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MediaGrid(
+    view: Any,
     entries: List<VaultEntry>,
     selected: Set<String>,
     onOpen: (VaultEntry) -> Unit,
@@ -432,8 +489,11 @@ private fun MediaGrid(
 ) {
     val selecting = selected.isNotEmpty()
     val haptics = rememberHaptics()
+    val gridState = rememberLazyGridState()
+    LaunchedEffect(view) { gridState.scrollToItem(0) }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(110.dp),
+        state = gridState,
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -441,7 +501,7 @@ private fun MediaGrid(
         items(entries, key = { it.url }) { entry ->
             val checked = entry.url in selected
             Box(
-                animatedGridItem()
+                Modifier
                     .aspectRatio(1f)
                     .combinedClickable(
                         onClick = { if (selecting) onToggleSelected(entry) else onOpen(entry) },
@@ -455,8 +515,7 @@ private fun MediaGrid(
                     entry,
                     Modifier
                         .fillMaxSize()
-                        .then(if (checked) Modifier.padding(6.dp) else Modifier)
-                        .sharedMedia(entry.absolutePath),
+                        .then(if (checked) Modifier.padding(6.dp) else Modifier),
                 )
                 if (entry.isVideo) {
                     Icon(
