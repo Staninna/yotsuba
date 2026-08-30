@@ -32,7 +32,8 @@ import dev.stan.yotsuba.feature.media.MediaUiState
 import dev.stan.yotsuba.feature.media.MediaViewModel
 import dev.stan.yotsuba.feature.media.ViewerPhase
 import dev.stan.yotsuba.fake.latest
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -88,11 +89,10 @@ class MediaViewModelTest {
         )
     }
 
-    /** Saves resolve into [saved]; the first save completes [firstSave] for await-style asserts. */
+    /** Saves resolve into [saved], in order. */
     private class FakeVault : FakeMediaVault() {
         val access = MutableStateFlow(true)
         val saved = mutableListOf<Pair<MediaItem, VaultSaveContext>>()
-        val firstSave = CompletableDeferred<VaultSaveContext>()
         val deleted = mutableListOf<String>()
         val paths = MutableStateFlow(emptyMap<String, String?>())
         override fun hasStorageAccess() = access.value
@@ -100,7 +100,6 @@ class MediaViewModelTest {
         override fun saved(): Flow<Map<String, String?>> = paths
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             saved += item to context
-            firstSave.complete(context)
             return null
         }
         override suspend fun delete(url: String): VaultError? {
@@ -128,6 +127,9 @@ class MediaViewModelTest {
         )
 
     private class Env(
+        /** The save queue's worker runs here, on the test dispatcher; `runCurrent` lands the saves. */
+        scope: CoroutineScope,
+        io: CoroutineDispatcher,
         posts: List<ThreadPost>,
         backlinks: Map<Long, List<Long>> = emptyMap(),
         val boards: FakeBoardRepository = FakeBoardRepository(),
@@ -141,7 +143,7 @@ class MediaViewModelTest {
             ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks),
             fails = threadFails,
         )
-        val queue = MediaDownloadQueue(vault, NoDedup)
+        val queue = MediaDownloadQueue(vault, NoDedup, scope, io)
         val context: Context = ApplicationProvider.getApplicationContext()
 
         fun vm(initialPostNo: Long = 0) = MediaViewModel(
@@ -162,7 +164,7 @@ class MediaViewModelTest {
 
     @Test fun `a dead thread falls back to the conversation saved on disk`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(listOf(post(100)), threadFails = true)
+            val env = Env(backgroundScope, dispatcher, listOf(post(100)), threadFails = true)
             env.vault.snapshot = ThreadDetails(
                 "g", 100,
                 posts = listOf(post(100), post(101)),
@@ -179,7 +181,7 @@ class MediaViewModelTest {
 
     @Test fun `viewer behaviour mirrors the settings that drive the gestures`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(listOf(post(100)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100)))
             env.settings.state.value = Settings(
                 keepScreenOnWhileWatching = false,
                 doubleTapSeekEnabled = true,
@@ -198,7 +200,7 @@ class MediaViewModelTest {
 
     @Test fun `items keep post order, skip media-less posts, and start at the requested post`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(listOf(post(100), post(101, withMedia = false), post(102), post(103)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100), post(101, withMedia = false), post(102), post(103)))
             env.vm(initialPostNo = 102).uiState.test {
                 val state = latest()
                 assertEquals(listOf(100L, 102L, 103L), state.items.map { it.postNo })
@@ -211,7 +213,7 @@ class MediaViewModelTest {
 
     @Test fun `viewer goes Loading then Empty for a thread with no media`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(listOf(post(100, withMedia = false), post(101, withMedia = false)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100, withMedia = false), post(101, withMedia = false)))
             env.vm().uiState.test {
                 assertEquals(ViewerPhase.Loading, awaitItem().phase)
                 val state = latest()
@@ -222,7 +224,7 @@ class MediaViewModelTest {
 
     @Test fun `viewer reports the network error when nothing is saved either`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(listOf(post(100)), threadFails = true)
+            val env = Env(backgroundScope, dispatcher, listOf(post(100)), threadFails = true)
             env.vm().uiState.test {
                 assertEquals(ViewerPhase.Error(NetworkError.NotFound), latest().phase)
                 cancelAndIgnoreRemainingEvents()
@@ -230,7 +232,7 @@ class MediaViewModelTest {
         }
 
     @Test fun `unknown initial post falls back to the first item`() = runTest(dispatcher.scheduler) {
-        val env = Env(listOf(post(100), post(102)))
+        val env = Env(backgroundScope, dispatcher, listOf(post(100), post(102)))
         env.vm(initialPostNo = 999).uiState.test {
             assertEquals(0, latest().initialIndex)
             cancelAndIgnoreRemainingEvents()
@@ -240,7 +242,7 @@ class MediaViewModelTest {
     @Test fun `the post graph walks backlinks transitively in post order`() =
         runTest(dispatcher.scheduler) {
             // 100 <- 102 <- 103, and 100 <- 104 directly.
-            val env = Env(
+            val env = Env(backgroundScope, dispatcher, 
                 posts = listOf(post(100), post(102), post(103), post(104)),
                 backlinks = mapOf(100L to listOf(104L, 102L), 102L to listOf(103L)),
             )
@@ -251,7 +253,7 @@ class MediaViewModelTest {
         }
 
     @Test fun `autoplay follows the settings policy`() = runTest(dispatcher.scheduler) {
-        val env = Env(listOf(post(100)))
+        val env = Env(backgroundScope, dispatcher, listOf(post(100)))
         env.vm().uiState.test {
             env.settings.state.value = Settings(mediaAutoplay = MediaAutoplay.ALWAYS)
             assertTrue(latest().autoplay)
@@ -262,7 +264,7 @@ class MediaViewModelTest {
     }
 
     @Test fun `defaultUnmuted mirrors the board webm_audio flag`() = runTest(dispatcher.scheduler) {
-        val env = Env(listOf(post(100)), boards = FakeBoardRepository(webmAudio = true))
+        val env = Env(backgroundScope, dispatcher, listOf(post(100)), boards = FakeBoardRepository(webmAudio = true))
         env.vm().uiState.test {
             assertTrue(latest().defaultUnmuted)
             cancelAndIgnoreRemainingEvents()
@@ -270,7 +272,7 @@ class MediaViewModelTest {
     }
 
     @Test fun `saved paths are hidden without storage access`() = runTest(dispatcher.scheduler) {
-        val env = Env(listOf(post(100)))
+        val env = Env(backgroundScope, dispatcher, listOf(post(100)))
         env.vault.paths.value = mapOf("https://i/100.jpg" to "/vault/100.jpg")
         val vm = env.vm()
         vm.uiState.test {
@@ -289,7 +291,7 @@ class MediaViewModelTest {
 
     @Test fun `conversation capture follows the setting the viewer already holds`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(
+            val env = Env(backgroundScope, dispatcher, 
                 posts = listOf(post(100), post(102, quotes = listOf(100))),
                 backlinks = mapOf(100L to listOf(102L)),
             )
@@ -298,7 +300,8 @@ class MediaViewModelTest {
             vm.uiState.test {
                 assertTrue(latest().saveReplies)
                 vm.enqueueSave(media(100))
-                val ctx = env.vault.firstSave.await()
+                dispatcher.scheduler.runCurrent()
+                val ctx = env.vault.saved.single().second
                 assertEquals(listOf(100L, 102L), ctx.conversation.map { it.no })
                 cancelAndIgnoreRemainingEvents()
             }
@@ -306,11 +309,12 @@ class MediaViewModelTest {
 
     @Test fun `enqueueSave carries the OP-derived context plus the item's own post`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(listOf(post(100), post(102)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100), post(102)))
             val vm = env.vm()
             dispatcher.scheduler.advanceUntilIdle() // let the thread load in, so the OP is known
             vm.enqueueSave(media(102))
-            val ctx = env.vault.firstSave.await() // real IO worker; runTest's own timeout guards a hang
+            dispatcher.scheduler.runCurrent()
+            val ctx = env.vault.saved.single().second
             assertEquals("g", ctx.board)
             assertEquals(100L, ctx.threadNo)
             assertEquals("OP subject", ctx.threadSubject)
@@ -320,7 +324,7 @@ class MediaViewModelTest {
 
     @Test fun `removeDownload and redownload delete through the vault`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(listOf(post(100), post(102)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100), post(102)))
             val vm = env.vm()
             dispatcher.scheduler.advanceUntilIdle()
             vm.removeDownload("https://i/100.jpg")
@@ -329,12 +333,13 @@ class MediaViewModelTest {
             vm.redownload(media(102))
             dispatcher.scheduler.advanceUntilIdle()
             assertEquals(listOf("https://i/100.jpg", "https://i/102.jpg"), env.vault.deleted)
-            val ctx = env.vault.firstSave.await() // real IO worker; runTest's own timeout guards a hang
+            dispatcher.scheduler.runCurrent()
+            val ctx = env.vault.saved.single().second
             assertEquals(102L, ctx.post?.no)
         }
 
     @Test fun `onMediaViewed records the post in the session store`() = runTest(dispatcher.scheduler) {
-        val env = Env(listOf(post(100)))
+        val env = Env(backgroundScope, dispatcher, listOf(post(100)))
         env.vm().onMediaViewed(103)
         assertEquals(103L, env.sessionStore.consumeLastViewed("g", 100))
         assertNull(env.sessionStore.consumeLastViewed("g", 100))
@@ -343,7 +348,7 @@ class MediaViewModelTest {
     @Test fun `prepareShare copies the media into the share cache`() = runTest(dispatcher.scheduler) {
         val server = MockWebServer().apply { start() }
         try {
-            val env = Env(listOf(post(100)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100)))
             val item = media(100).copy(fullUrl = server.url("/i/100.jpg").toString())
             server.enqueue(MockResponse().setBody("jpeg-bytes"))
             val file = env.vm().prepareShare(item)
@@ -357,7 +362,7 @@ class MediaViewModelTest {
 
     @Test fun `prepareShare hands over the vault file instead of downloading again`() =
         runTest(dispatcher.scheduler) {
-            val env = Env(listOf(post(100)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100)))
             val saved = java.io.File.createTempFile("vault", ".jpg").apply { writeText("on disk") }
             try {
                 env.vault.paths.value = mapOf("https://i/100.jpg" to saved.absolutePath)
@@ -375,7 +380,7 @@ class MediaViewModelTest {
     @Test fun `prepareShare keeps only the newest twenty cached files`() = runTest(dispatcher.scheduler) {
         val server = MockWebServer().apply { start() }
         try {
-            val env = Env(listOf(post(100)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100)))
             val dir = java.io.File(env.context.cacheDir, "shared_media").apply { mkdirs() }
             repeat(25) { i ->
                 java.io.File(dir, "old$i.jpg").apply {
@@ -399,7 +404,7 @@ class MediaViewModelTest {
     @Test fun `prepareShare returns null when the fetch fails`() = runTest(dispatcher.scheduler) {
         val server = MockWebServer().apply { start() }
         try {
-            val env = Env(listOf(post(100)))
+            val env = Env(backgroundScope, dispatcher, listOf(post(100)))
             val item = media(100).copy(fullUrl = server.url("/gone.jpg").toString())
             server.enqueue(MockResponse().setResponseCode(404))
             assertNull(env.vm().prepareShare(item))

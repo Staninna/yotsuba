@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.data.repository
 
+import dev.stan.yotsuba.core.di.ApplicationScope
+import dev.stan.yotsuba.core.di.IoDispatcher
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.VaultSaveContext
@@ -8,9 +10,8 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,13 +25,17 @@ import kotlinx.coroutines.launch
  * against the 1 s API courtesy). A successful save simply drops out of the queue's own
  * map; the vault's saved table takes over and [statuses] reads it as saved. A file whose MD5
  * the vault already holds is not fetched: it reads [MediaSaveStatus.AlreadySaved] instead.
+ *
+ * The worker runs on [scope] (the process-long supervisor scope) over [io], so tests can hand
+ * it a test scheduler instead of a real thread.
  */
 @Singleton
 class MediaDownloadQueue @Inject constructor(
     private val vault: MediaVaultRepository,
     private val dedup: VaultDedupRepository,
+    @ApplicationScope scope: CoroutineScope,
+    @IoDispatcher io: CoroutineDispatcher,
 ) : MediaSaveQueue {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channel = Channel<Pair<MediaItem, VaultSaveContext>>(Channel.UNLIMITED)
 
     /** Queue-side state only: queued, downloading, failed. */
@@ -47,7 +52,7 @@ class MediaDownloadQueue @Inject constructor(
     }
 
     init {
-        scope.launch {
+        scope.launch(io) {
             for ((item, ctx) in channel) {
                 // A cancelled entry was removed from the map — skip its stale channel element.
                 if (queued.value[item.fullUrl] != MediaSaveStatus.Queued) continue
