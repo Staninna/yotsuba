@@ -4,4 +4,7 @@
     <string name="catalog_layout_switch_from_comfortable">Comfortable layout. Switch to compact</string>
     <string name="catalog_layout_switch_from_compact">Compact layout. Switch to list</string>
     <string name="catalog_layout_switch_from_list">List layout. Switch to comfortable</string>
+    <!-- Swiping sideways in a thread at either end of the catalog it was opened from. -->
+    <string name="thread_swipe_no_next">No next thread</string>
+    <string name="thread_swipe_no_previous">No previous thread</string>
 </resources>
