@@ -16,7 +16,7 @@
 # Ask Claude Code for the changelog of one version.
 #   write_changelog VERSION        range: previous tag .. vVERSION if that tag exists, else .. HEAD
 write_changelog() {
-  local version=$1 tag="v$1" out="changelog/v$1.md" prev head range prompt app
+  local version=$1 tag="v$1" out="changelog/v$1.md" prev head prompt app
   command -v claude >/dev/null || { echo "changelog: claude is not installed" >&2; return 1; }
   app=$(sed -n 's/^rootProject.name = "\(.*\)"/\1/p' settings.gradle.kts)
   if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
@@ -26,7 +26,10 @@ write_changelog() {
     head=HEAD
     prev=$(git describe --tags --abbrev=0 2>/dev/null || true)
   fi
-  range=${prev:+$prev..}$head
+  # No previous tag: the log is everything up to the tag, the diff is against the
+  # empty tree (a bare `git diff <tag>` would compare with the working tree).
+  local log_range=${prev:+$prev..}$head
+  local diff_range="${prev:-4b825dc642cb6eb9a060e54bf8d69288fbee4904} $head"
   echo "==> changelog for $version (${prev:-first release}..$head)"
   mkdir -p changelog
   prompt="Write the changelog for $app $version from the commit log and diff below.
@@ -49,13 +52,13 @@ or setting, skip class names, refactors, test-only and CI-only work unless they
 change what the user sees. No introduction, no version line, no sign-off.
 
 ## Commits
-$(git log --no-merges --format='- %s' "$range")
+$(git log --no-merges --format='- %s' "$log_range")
 
 ## Diff stat
-$(git diff --stat "$range" -- . ':!app/src/test' ':!app/src/androidTest')
+$(git diff --stat $diff_range -- . ':!app/src/test' ':!app/src/androidTest')
 
 ## Diff
-$(git diff "$range" -- . ':!app/src/test' ':!app/src/androidTest' ':!*.png' ':!*.webp' | head -c 600000)"
+$(git diff $diff_range -- . ':!app/src/test' ':!app/src/androidTest' ':!*.png' ':!*.webp' | head -c 600000 || true)"
   printf '%s\n' "$prompt" | claude -p --output-format text > "$out.tmp" || { rm -f "$out.tmp"; return 1; }
   # Strip a stray code fence and anything before the first heading.
   sed -i -e '/^```/d' -e '0,/^## /{/^## /!d}' "$out.tmp"
