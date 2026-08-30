@@ -77,6 +77,7 @@ import dev.stan.yotsuba.core.designsystem.motionEnter
 import dev.stan.yotsuba.core.designsystem.motionExit
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.designsystem.theme.postTypography
 import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
@@ -332,7 +333,7 @@ private fun ThreadCard(
                     TitleAndBadges(thread)
                     Text(
                         thread.excerpt.plainText,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = postTypography.bodyMedium,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -364,7 +365,7 @@ private fun ThreadCard(
                     TitleAndBadges(thread)
                     Text(
                         thread.excerpt.plainText,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = postTypography.bodyMedium,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )

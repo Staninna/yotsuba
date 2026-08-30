@@ -29,6 +29,7 @@ import androidx.compose.ui.text.withStyle
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.theme.LocalYotsubaColors
 import dev.stan.yotsuba.core.designsystem.theme.YotsubaColors
+import dev.stan.yotsuba.core.designsystem.theme.postTypography
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.domain.model.PostAnnotation
 import dev.stan.yotsuba.domain.model.PostSegment
@@ -135,7 +136,7 @@ private fun BodyText(
     }
     Text(
         text = built.display,
-        style = MaterialTheme.typography.bodyMedium.copy(color = scheme.onSurface),
+        style = postTypography.bodyMedium.copy(color = scheme.onSurface),
         onTextLayout = { layout = it },
         modifier = longPressModifier,
     )

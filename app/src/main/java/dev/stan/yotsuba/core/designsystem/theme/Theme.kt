@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import dev.stan.yotsuba.core.designsystem.LocalReduceMotion
 import dev.stan.yotsuba.core.designsystem.isReducedMotion
+import dev.stan.yotsuba.domain.model.FontSize
+import dev.stan.yotsuba.domain.model.LineSpacing
 
 // Static fallback schemes generated from seed #789922 (D18): full tonal palettes so the
 // non-dynamic theme still reads as "imageboard" without being garish.
@@ -86,6 +88,8 @@ fun YotsubaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
     reduceMotion: Boolean = false,
+    fontSize: FontSize = FontSize.DEFAULT,
+    lineSpacing: LineSpacing = LineSpacing.DEFAULT,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -99,9 +103,11 @@ fun YotsubaTheme(
     // reads the merged answer through the local. Spacing and Motion resolve through their
     // locals' own defaults.
     val systemReducedMotion = remember(context) { isReducedMotion(context) }
+    val postType = remember(fontSize, lineSpacing) { postTypography(fontSize, lineSpacing) }
     CompositionLocalProvider(
         LocalYotsubaColors provides yotsubaColors(scheme, darkTheme),
         LocalReduceMotion provides (reduceMotion || systemReducedMotion),
+        LocalPostTypography provides postType,
     ) {
         MaterialTheme(
             colorScheme = scheme,

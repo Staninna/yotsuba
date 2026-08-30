@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.theme.LocalYotsubaColors
+import dev.stan.yotsuba.core.designsystem.theme.postTypography
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.util.TimeFormat
@@ -154,7 +155,7 @@ fun PostCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     post.name + (post.tripcode?.let { " $it" } ?: ""),
-                    style = MaterialTheme.typography.labelMedium,
+                    style = postTypography.labelMedium,
                     color = if (post.capcode != null) {
                         MaterialTheme.colorScheme.error
                     } else {
@@ -163,7 +164,7 @@ fun PostCard(
                 )
                 post.capcode?.let {
                     Spacer(Modifier.width(spacing.xs))
-                    Text("## $it", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                    Text("## $it", style = postTypography.labelMedium, color = MaterialTheme.colorScheme.error)
                 }
                 if (board?.userIds == true && post.posterId != null) {
                     Spacer(Modifier.width(spacing.sm))
@@ -172,7 +173,7 @@ fun PostCard(
                         if (ui.posterIdCount > 1) {
                             pluralStringResource(R.plurals.thread_poster_id_count, ui.posterIdCount, post.posterId, ui.posterIdCount)
                         } else post.posterId,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = postTypography.labelSmall,
                         color = posterIdTextColor(darkTheme),
                         modifier = Modifier
                             .background(posterIdColor(post.posterId, darkTheme), CircleShape)
@@ -192,13 +193,13 @@ fun PostCard(
                 Spacer(Modifier.weight(1f))
                 Text(
                     TimeFormat.relative(post.timeSeconds),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = postTypography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.width(spacing.sm))
                 Text(
                     "#${post.no}",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = postTypography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = actions.onCopyPostNo?.let { copy -> Modifier.clickable { copy(post) } } ?: Modifier,
                 )
@@ -212,14 +213,14 @@ fun PostCard(
             }
             post.subject?.let {
                 Spacer(Modifier.height(spacing.xs))
-                Text(it, style = MaterialTheme.typography.titleMedium)
+                Text(it, style = postTypography.titleMedium)
             }
             post.media?.let { attachment ->
                 Spacer(Modifier.height(spacing.sm))
                 when (attachment) {
                     is PostMedia.Deleted -> Text(
                         stringResource(R.string.thread_file_deleted, attachment.displayName),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = postTypography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     is PostMedia.Present -> {
@@ -260,13 +261,13 @@ fun PostCard(
                             Column {
                                 Text(
                                     media.displayName,
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = postTypography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
                                 )
                                 Text(
                                     "${FileSize.format(media.sizeBytes)} · ${media.width}×${media.height}",
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = postTypography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -321,7 +322,7 @@ private fun ThreadBadge(icon: ImageVector, label: String) {
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSecondaryContainer)
         Spacer(Modifier.width(spacing.xs))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
+        Text(label, style = postTypography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer)
     }
 }
 
@@ -337,7 +338,7 @@ private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit, onLongPres
     ) {
         Text(
             stringResource(R.string.thread_quoted_by),
-            style = MaterialTheme.typography.labelSmall,
+            style = postTypography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         backlinks.forEach { no ->
@@ -347,7 +348,7 @@ private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit, onLongPres
             }
             Text(
                 ">>$no",
-                style = MaterialTheme.typography.labelSmall,
+                style = postTypography.labelSmall,
                 color = colors.quotelink,
                 textDecoration = TextDecoration.Underline,
                 modifier = holdAction.combinedClickable(

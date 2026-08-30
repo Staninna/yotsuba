@@ -80,7 +80,13 @@ class MainActivity : FragmentActivity() {
             }
             val lockReady by appLock.ready.collectAsStateWithLifecycle()
             val locked by appLock.locked.collectAsStateWithLifecycle()
-            YotsubaTheme(darkTheme = dark, dynamicColor = settings.dynamicColor, reduceMotion = settings.reduceMotion) {
+            YotsubaTheme(
+                darkTheme = dark,
+                dynamicColor = settings.dynamicColor,
+                reduceMotion = settings.reduceMotion,
+                fontSize = settings.fontSize,
+                lineSpacing = settings.lineSpacing,
+            ) {
                 when {
                     // Settings not read yet: a blank surface, never a glimpse of the content.
                     !lockReady -> Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background))
