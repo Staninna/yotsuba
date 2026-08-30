@@ -298,6 +298,9 @@ fun VaultScreen(
         VaultDedupSheet(
             onDismiss = { dedupOpen = false },
             onNotice = { message -> scope.launch { snackbar.showSnackbar(message) } },
+            // Inside a board or a thread the finder works on what is on screen; at the root it
+            // takes the whole vault.
+            scope = if (state.selection.board != null) state.scopeEntries.mapTo(HashSet()) { it.url } else null,
         )
     }
 

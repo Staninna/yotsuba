@@ -51,6 +51,8 @@ class VaultDedupViewModelTest {
 
     private class DeletingVault : FakeMediaVault() {
         val deleted = mutableListOf<String>()
+        var rescans = 0
+        override suspend fun rescan() { rescans++ }
         var failing = setOf<String>()
         override suspend fun delete(url: String): VaultError? { deleted += url; return if (url in failing) VaultError.Io("x") else null }
     }
@@ -63,6 +65,26 @@ class VaultDedupViewModelTest {
         vm.start(); advanceUntilIdle()
         assertEquals(0, dedup.backfills)
         assertEquals(listOf(group), (vm.state.value.phase as DedupPhase.Ready).groups)
+    }
+
+    @Test fun `start reads the vault from disk first`() = runTest {
+        val dedup = FakeDedup(missing = 0, groups = mapOf(DedupMode.EXACT to listOf(group)))
+        val vault = DeletingVault()
+        val vm = VaultDedupViewModel(dedup, vault)
+        vm.start(); advanceUntilIdle()
+        assertEquals(1, vault.rescans)
+    }
+
+    @Test fun `a scope drops entries outside it and groups left with one`() = runTest {
+        val other = DuplicateGroup(listOf(entry("x", 10, 1), entry("y", 10, 1)), keeperUrl = "x")
+        val dedup = FakeDedup(missing = 0, groups = mapOf(DedupMode.EXACT to listOf(group, other)))
+        val vm = VaultDedupViewModel(dedup, DeletingVault())
+        vm.start(scope = setOf("mid", "small", "x")); advanceUntilIdle()
+        val groups = (vm.state.value.phase as DedupPhase.Ready).groups
+        assertEquals(1, groups.size)
+        assertEquals(listOf("mid", "small"), groups[0].entries.map { it.url })
+        // "big" was the keeper and is out of scope; the first entry left takes over.
+        assertEquals("mid", groups[0].keeperUrl)
     }
 
     @Test fun `start backfills first when rows lack hashes`() = runTest {

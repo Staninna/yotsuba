@@ -5,6 +5,7 @@
     <string name="vault_dedup_explanation">Files saved twice, or images that look alike</string>
     <string name="vault_dedup_title">Duplicates</string>
     <string name="vault_dedup_scanning">Looking for duplicates…</string>
+    <string name="vault_dedup_rescanning">Reading the vault from disk…</string>
     <string name="vault_dedup_hashing">Hashing files (%1$d of %2$d)</string>
     <string name="vault_dedup_deleting">Deleting (%1$d of %2$d)</string>
     <string name="vault_dedup_none">No duplicates found</string>

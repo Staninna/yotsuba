@@ -18,6 +18,8 @@ import kotlinx.coroutines.launch
 /** Where the duplicate finder is in its run. */
 sealed interface DedupPhase {
     data object Idle : DedupPhase
+    /** The vault index is being rebuilt from disk before anything is hashed. */
+    data object Rescanning : DedupPhase
     data class Backfilling(val done: Int, val total: Int) : DedupPhase
     data object Scanning : DedupPhase
     data class Ready(val groups: List<DuplicateGroup>) : DedupPhase
@@ -28,6 +30,8 @@ data class DedupState(
     val phase: DedupPhase = DedupPhase.Idle,
     val mode: DedupMode = DedupMode.EXACT,
     val maxDistance: Int = VaultDedupRepository.DEFAULT_MAX_DISTANCE,
+    /** URLs the finder is limited to (the board or thread on screen); null means the whole vault. */
+    val scope: Set<String>? = null,
     /** Per group (by keeper url), the urls the user wants to keep. Defaults to the suggested keeper. */
     val kept: Map<String, Set<String>> = emptyMap(),
     /** Files removed by the last delete pass; the sheet reports it once. */
@@ -58,10 +62,16 @@ class VaultDedupViewModel @Inject constructor(
     val state: StateFlow<DedupState> = _state
     private var run: Job? = null
 
-    /** Backfills whatever lacks a hash, then scans. Safe to call again: it restarts. */
-    fun start() {
+    /**
+     * Rebuilds the index from disk (a synced folder may have changed under the app), hashes
+     * whatever lacks a hash, then scans, limited to [scope] when one is given. Safe to call
+     * again: it restarts.
+     */
+    fun start(scope: Set<String>? = null) {
         run?.cancel()
         run = viewModelScope.launch {
+            _state.update { it.copy(scope = scope, phase = DedupPhase.Rescanning) }
+            vault.rescan()
             if (dedup.missingHashCount() > 0) {
                 _state.update { it.copy(phase = DedupPhase.Backfilling(0, 0)) }
                 dedup.backfillHashes { done, total ->
@@ -91,8 +101,23 @@ class VaultDedupViewModel @Inject constructor(
     private suspend fun scan() {
         _state.update { it.copy(phase = DedupPhase.Scanning, kept = emptyMap()) }
         val s = _state.value
-        val groups = dedup.findDuplicates(s.mode, s.maxDistance)
+        val groups = dedup.findDuplicates(s.mode, s.maxDistance).inScope(s.scope)
         _state.update { it.copy(phase = DedupPhase.Ready(groups)) }
+    }
+
+    /**
+     * Groups cut down to [scope]. A group that keeps fewer than two entries is no longer a
+     * duplicate the user can act on here; a keeper that fell outside the scope is replaced
+     * by the first entry left, so every group still has something to keep.
+     */
+    private fun List<DuplicateGroup>.inScope(scope: Set<String>?): List<DuplicateGroup> {
+        if (scope == null) return this
+        return mapNotNull { group ->
+            val entries = group.entries.filter { it.url in scope }
+            if (entries.size < 2) return@mapNotNull null
+            val keeper = if (group.keeperUrl in scope) group.keeperUrl else entries.first().url
+            DuplicateGroup(entries, keeper)
+        }
     }
 
     fun toggleKept(group: DuplicateGroup, url: String) {

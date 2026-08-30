@@ -65,6 +65,8 @@ import java.io.File
 internal fun VaultDedupSheet(
     onDismiss: () -> Unit,
     onNotice: (String) -> Unit,
+    /** The entries on screen when the finder was opened; null for the whole vault. */
+    scope: Set<String>?,
     viewModel: VaultDedupViewModel = hiltViewModel(),
 ) {
     val spacing = LocalSpacing.current
@@ -72,7 +74,7 @@ internal fun VaultDedupSheet(
     // Every delete here is permanent, so both the per-group button and "apply all" go
     // through the same confirmation before anything is touched.
     var pending by remember { mutableStateOf<PendingDelete?>(null) }
-    LaunchedEffect(Unit) { viewModel.start() }
+    LaunchedEffect(Unit) { viewModel.start(scope) }
 
     state.lastDeleted?.let { deleted ->
         val message = buildString {
@@ -97,6 +99,9 @@ internal fun VaultDedupSheet(
             when (val phase = state.phase) {
                 DedupPhase.Idle, DedupPhase.Scanning -> item {
                     Progress(stringResource(R.string.vault_dedup_scanning), null)
+                }
+                DedupPhase.Rescanning -> item {
+                    Progress(stringResource(R.string.vault_dedup_rescanning), null)
                 }
                 is DedupPhase.Backfilling -> item {
                     Progress(
