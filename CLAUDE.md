@@ -57,3 +57,9 @@ reinstall without checking which side of that line it falls on.
 ```
 
 Coverage is honestly recorded in `todo.md`. Read it before claiming a number.
+
+## todo.md
+
+Open work sits at the top. Anything finished (`[x]`, or a rejected item) moves
+under `# Done` at the bottom, keeping its section heading, in the same commit
+that finishes it. The open half should never contain a ticked box.
