@@ -32,9 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -44,6 +42,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
+import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.domain.model.MediaItem
 import java.io.File
@@ -107,7 +106,7 @@ fun MediaScreen(
     var autoAdvance by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
 
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberHaptics()
     // Queued + running saves. Failed ones are not "in progress"; they wait on the icon.
     val pending = state.saveStatuses.count { (_, s) -> s.inProgress }
 
@@ -130,7 +129,7 @@ fun MediaScreen(
         onLongPressPage = { page ->
             val item = state.items.getOrNull(page)
             if (state.behaviour.holdToSave && item != null) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                haptics.longPress()
                 saveToVault(
                     context = context,
                     hasAccess = state.hasStorageAccess,

@@ -24,7 +24,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
-import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.util.FileSize
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -176,7 +175,6 @@ fun MediaFeedViewer(
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val chromeShown = feed.chromeVisible && !pip.inPipMode && feedActive
-    val haptics = rememberHaptics()
 
     // Restarts on every control tap and waits out a scrub, so the bar never vanishes
     // under a finger that is still using it.
@@ -240,7 +238,7 @@ fun MediaFeedViewer(
                     autoAdvance = autoAdvance,
                     onEnded = { feed.animateNextWrapping(pages.size) },
                     behaviour = behaviour,
-                    onLongPress = { haptics.longPress(); onLongPressPage(page) },
+                    onLongPress = { onLongPressPage(page) },
                     soundUrl = p.soundUrl,
                     sharedKey = p.sharedKey,
                 )
@@ -255,7 +253,7 @@ fun MediaFeedViewer(
                     playing = feed.playbackOn,
                     muted = feed.muted,
                     onTap = { feed.chromeVisible = !feed.chromeVisible },
-                    onLongPress = { haptics.longPress(); onLongPressPage(page) },
+                    onLongPress = { onLongPressPage(page) },
                     sharedKey = p.sharedKey,
                 )
             }
