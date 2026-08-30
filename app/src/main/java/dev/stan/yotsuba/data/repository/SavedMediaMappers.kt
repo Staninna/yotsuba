@@ -59,6 +59,21 @@ fun savedMediaEntity(meta: VaultThreadMeta, f: VaultFileMeta, file: File): Saved
         durationMs = f.durationMs,
     )
 
+/**
+ * Rebuilt rows with the md5/phash/pixelSize their [previous] rows had. A sidecar carries no
+ * hash, so a rescan would otherwise wipe every one and dedup would start from scratch. Path
+ * first; URL for a file whose directory moved under it (merge, rename), whose path is new.
+ */
+fun List<SavedMediaEntity>.withHashesFrom(previous: List<SavedMediaEntity>): List<SavedMediaEntity> {
+    if (previous.isEmpty()) return this
+    val byPath = previous.filter { it.absolutePath.isNotEmpty() }.associateBy { it.absolutePath }
+    val byUrl = previous.associateBy { it.url }
+    return map { row ->
+        val old = byPath[row.absolutePath] ?: byUrl[row.url] ?: return@map row
+        row.copy(md5 = old.md5, phash = old.phash, pixelSize = old.pixelSize)
+    }
+}
+
 /** A migrated legacy file no thread could be matched for, filed under `_unsorted/`. */
 fun unsortedSavedMediaEntity(target: File, savedAt: Long): SavedMediaEntity = SavedMediaEntity(
     url = "file://${target.absolutePath}",

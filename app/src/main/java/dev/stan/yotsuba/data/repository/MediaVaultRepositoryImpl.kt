@@ -164,6 +164,8 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 val file = File(entity.absolutePath)
                 val dir = file.parentFile
                 file.delete()
+                // Images have no still; a missing one is nothing to report.
+                VideoStills.stillFor(file).delete()
                 if (dir != null) {
                     store.lock.withLock {
                         store.updateMeta(dir) { it.remove(file.name) }
@@ -226,9 +228,12 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     override suspend fun purgeTrash() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess()) return@withContext
-        val dirs = trashed.values.map { it.dir }.toSet()
+        val items = trashed.values.toList()
         trashed.clear()
         File(store.root, VaultPaths.TRASH_DIR_NAME).deleteRecursively()
+        // Stills stay at the file's original spot while an undo is possible; this is where they go.
+        items.forEach { VideoStills.stillFor(File(it.entity.absolutePath)).delete() }
+        val dirs = items.map { it.dir }.toSet()
         store.lock.withLock { dirs.forEach { if (it.isDirectory) store.pruneIfEmpty(it) } }
     }
 
@@ -548,6 +553,9 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     override suspend fun rescan() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext
+        // The sidecars never held the hashes, so the old rows are the only copy. Room call,
+        // kept outside the store lock.
+        val previous = savedMediaDao.allOnce()
         val rebuilt = store.lock.withLock {
             store.threadMetas().flatMap { (dir, meta) ->
                 meta.files.mapNotNull { f ->
@@ -555,7 +563,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     if (file.isFile) savedMediaEntity(meta, f, file) else null
                 }
             }
-        }
+        }.withHashesFrom(previous)
         savedMediaDao.replaceAll(rebuilt)
         // Stills for videos saved before there were any. Decoding is slow, so it happens
         // after the index is usable and each row lands as its still does.
