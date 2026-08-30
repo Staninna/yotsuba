@@ -277,6 +277,31 @@ class MediaVaultWritePathTest {
         assertEquals(File(renamed, "1_a.jpg").absolutePath, db.savedMediaDao().byUrl("file:///a.jpg")!!.absolutePath)
     }
 
+    @Test fun `renameThread re-indexes only the renamed thread`() = runTest {
+        val local = VaultPaths.LOCAL_BOARD_NAME
+        val dir = threadDir(local, "5 - Old name")
+        sidecarFile(dir, 5, "1_a.jpg", "file:///a.jpg", postNo = 1)
+        val cats = threadDir("g", "1 - Cats")
+        sidecarFile(cats, 1, "2_cat.jpg", "https://i.4cdn.org/g/2.jpg", postNo = 2)
+        repo.rescan()
+        // A row the sidecar cannot reproduce: a rescan would rebuild it from disk and lose
+        // the marker, a targeted re-index must not go near it.
+        val marker = db.savedMediaDao().byUrl("https://i.4cdn.org/g/2.jpg")!!
+            .copy(md5 = "marker", phash = 7L, pixelSize = 9L, subject = "not what the sidecar says", savedAt = 123)
+        db.savedMediaDao().insert(marker)
+        val stale = db.savedMediaDao().byUrl("file:///a.jpg")!!.copy(md5 = "kept")
+        db.savedMediaDao().insert(stale)
+
+        assertNull(repo.renameThread(local, 5, "New name"))
+
+        assertEquals(marker, db.savedMediaDao().byUrl("https://i.4cdn.org/g/2.jpg"))
+        val moved = db.savedMediaDao().byUrl("file:///a.jpg")!!
+        assertEquals(File(File(File(tmp.root, local), "5 - New name"), "1_a.jpg").absolutePath, moved.absolutePath)
+        assertEquals("New name", moved.subject)
+        assertEquals("kept", moved.md5)
+        assertEquals(2, db.savedMediaDao().allOnce().size)
+    }
+
     @Test fun `renameThread refuses live threads, blank names and unknown threads`() = runTest {
         val dir = threadDir("g", "1 - Cats")
         sidecarFile(dir, 1, "2_cat.jpg", "https://i.4cdn.org/g/2.jpg")

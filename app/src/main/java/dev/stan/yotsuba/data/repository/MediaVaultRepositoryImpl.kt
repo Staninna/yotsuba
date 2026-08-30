@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.edit
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
+import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.di.IoDispatcher
 import dev.stan.yotsuba.core.media.GalleryExporter
 import dev.stan.yotsuba.core.media.MediaByteSource
@@ -357,8 +358,8 @@ class MediaVaultRepositoryImpl(
                     )
                     val target = File(dir.parentFile, VaultPaths.threadDirName(threadNo, trimmed))
                     if (target != dir && !dir.renameTo(target)) throw java.io.IOException("Couldn't rename ${dir.name}")
-                }
-                rescan()
+                    target
+                }.let { target -> reindex(stale = listOf(VaultLocation(board, threadNo)), dirs = listOf(target)) }
             }
         }
 
@@ -407,7 +408,10 @@ class MediaVaultRepositoryImpl(
                 from.deleteRecursively()
                 from.parentFile?.takeIf { it != store.root && it.listFiles()?.isEmpty() == true }?.delete()
             }
-            rescan()
+            reindex(
+                stale = listOf(VaultLocation(fromBoard, fromThreadNo), VaultLocation(intoBoard, intoThreadNo)),
+                dirs = listOf(into),
+            )
         }
     }
 
@@ -425,9 +429,42 @@ class MediaVaultRepositoryImpl(
             }
         }.withHashesFrom(previous)
         savedMediaDao.replaceAll(rebuilt)
-        // Stills and sound probes for videos saved before there were any. Decoding is slow,
-        // so it happens after the index is usable and each row lands as its still does.
-        for (row in rebuilt) {
+        probeStills(rebuilt)
+    }
+
+    /**
+     * [rescan] for the threads a rename or merge touched, and nothing else: the rows filed
+     * under [stale] go, the rows [dirs]' sidecars describe come in, and every other row is
+     * left as it was. Walking the whole tree and rewriting the table for one directory was
+     * what made those two edits slow on a large vault.
+     */
+    private suspend fun reindex(stale: List<VaultLocation>, dirs: List<File>) {
+        val previous = savedMediaDao.allOnce()
+        val rebuilt = store.withStore {
+            dirs.mapNotNull { dir -> store.readMeta(dir)?.let { VaultStore.StoredThread(dir, it) } }
+                .flatMap { (dir, meta) ->
+                    meta.files.mapNotNull { f ->
+                        val file = File(dir, f.fileName)
+                        if (file.isFile) savedMediaEntity(meta, f, file) else null
+                    }
+                }
+        }.withHashesFrom(previous)
+        val staleRows = previous.filter { row ->
+            stale.any { it.board == row.board && it.threadNo == row.threadNo } ||
+                dirs.any { dir -> File(row.absolutePath).parentFile == dir }
+        }
+        val keptUrls = rebuilt.mapTo(mutableSetOf()) { it.url }
+        for (row in staleRows) if (row.url !in keptUrls) savedMediaDao.delete(row.url)
+        savedMediaDao.insertAll(rebuilt)
+        probeStills(rebuilt)
+    }
+
+    /**
+     * Stills and sound probes for videos saved before there were any. Decoding is slow, so
+     * it happens after the index is usable and each row lands as its still does.
+     */
+    private suspend fun probeStills(rows: List<SavedMediaEntity>) {
+        for (row in rows) {
             if (!isVideoExt(row.ext.orEmpty()) || (row.thumbnailPath != null && row.hasAudio != null)) continue
             val still = VideoStills.captureIfVideo(File(row.absolutePath)) ?: continue
             savedMediaDao.insert(
