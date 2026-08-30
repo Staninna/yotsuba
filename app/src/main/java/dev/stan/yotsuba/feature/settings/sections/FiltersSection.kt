@@ -34,6 +34,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,8 +72,10 @@ fun FiltersSection(
     val scope = rememberCoroutineScope()
     val deletedMessage = stringResource(R.string.filters_deleted)
     val undoLabel = stringResource(R.string.action_undo)
-    /** null = closed; a Filter with a fresh id = adding; an existing id = editing. */
-    var editing by remember { mutableStateOf<Filter?>(null) }
+    // Only the id survives rotation; the Filter itself is looked up (or, for an unsaved draft,
+    // rebuilt empty) so the dialog can stay open across configuration changes.
+    /** null = closed; a fresh id = adding; an existing id = editing. */
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
 
     if (settings.filters.isEmpty()) {
         Text(
@@ -93,14 +96,14 @@ fun FiltersSection(
             }) {
                 FilterRow(
                     filter = filter,
-                    onClick = { editing = filter },
+                    onClick = { editingId = filter.id },
                     onToggle = { on -> update { it.setFilterEnabled(filter.id, on) } },
                 )
             }
         }
     }
     TextButton(
-        onClick = { editing = Filter(id = UUID.randomUUID().toString(), pattern = "") },
+        onClick = { editingId = UUID.randomUUID().toString() },
         modifier = Modifier.padding(horizontal = spacing.md),
     ) {
         Icon(Icons.Filled.Add, contentDescription = null)
@@ -108,14 +111,15 @@ fun FiltersSection(
         Text(stringResource(R.string.filters_add))
     }
 
-    editing?.let { draft ->
+    editingId?.let { id ->
+        val existing = settings.filters.firstOrNull { it.id == id }
         FilterDialog(
-            initial = draft,
-            isNew = settings.filters.none { it.id == draft.id },
-            onDismiss = { editing = null },
+            initial = existing ?: Filter(id = id, pattern = ""),
+            isNew = existing == null,
+            onDismiss = { editingId = null },
             onSave = { saved ->
                 update { it.upsertFilter(saved) }
-                editing = null
+                editingId = null
             },
         )
     }
@@ -176,13 +180,14 @@ private fun FilterDialog(
     onSave: (Filter) -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    var pattern by remember { mutableStateOf(initial.pattern) }
-    var isRegex by remember { mutableStateOf(initial.isRegex) }
-    var field by remember { mutableStateOf(initial.field) }
-    var boards by remember { mutableStateOf(initial.boards.joinToString(", ")) }
-    var action by remember { mutableStateOf(initial.action) }
-    var enabled by remember { mutableStateOf(initial.enabled) }
-    var sample by remember { mutableStateOf("") }
+    // Saveable so a rotation mid-edit keeps what was typed; enums ride along as Serializable.
+    var pattern by rememberSaveable { mutableStateOf(initial.pattern) }
+    var isRegex by rememberSaveable { mutableStateOf(initial.isRegex) }
+    var field by rememberSaveable { mutableStateOf(initial.field) }
+    var boards by rememberSaveable { mutableStateOf(initial.boards.joinToString(", ")) }
+    var action by rememberSaveable { mutableStateOf(initial.action) }
+    var enabled by rememberSaveable { mutableStateOf(initial.enabled) }
+    var sample by rememberSaveable { mutableStateOf("") }
 
     val draft = initial.copy(
         pattern = pattern,
