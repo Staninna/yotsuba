@@ -367,7 +367,7 @@ fun ThreadScreen(
                                     )
                                     is ThreadRow.MoreReplies -> MoreRepliesRow(
                                         count = row.count,
-                                        modifier = Modifier.padding(start = treeIndent * ThreadViewModel.MAX_TREE_DEPTH),
+                                        modifier = Modifier.padding(start = treeIndent * MAX_TREE_DEPTH),
                                         onTap = { viewModel.onExpandTail(row.parentNo) },
                                     )
                                     is ThreadRow.Filtered -> FilteredRow(

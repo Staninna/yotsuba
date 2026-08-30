@@ -7,7 +7,6 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.core.filter.FilterMatcher
-import dev.stan.yotsuba.core.filter.FilterableFields
 import dev.stan.yotsuba.core.network.ArchiveHosts
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
@@ -16,8 +15,6 @@ import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.Board
-import dev.stan.yotsuba.domain.model.Filter
-import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.QuoteTapAction
@@ -39,6 +36,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
@@ -85,8 +83,9 @@ class ThreadViewModel @AssistedInject constructor(
         .distinctUntilChanged()
         .map { FilterMatcher(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, FilterMatcher.Empty)
-    /** Exposed for tests: every change to it is one atomic emission. */
-    val session = MutableStateFlow(Session())
+    private val _session = MutableStateFlow(Session())
+    /** Read by tests: every change to it is one atomic emission. */
+    val session: StateFlow<Session> = _session.asStateFlow()
 
     private val scrollTargetFlow = MutableStateFlow<ScrollTarget?>(null)
     private val mediaToOpenFlow = MutableStateFlow<Long?>(null)
@@ -99,9 +98,9 @@ class ThreadViewModel @AssistedInject constructor(
         // A closed or archived thread will never gain posts; polling it is pure waste.
         isEnabled = {
             val details = (result.value as? DataResult.Success)?.value
-            !session.value.archived && details?.closed != true && details?.archived != true &&
+            !_session.value.archived && details?.closed != true && details?.archived != true &&
                 details?.offlineCopy != true &&
-                autoRefreshOn(session.value, settingsState.value)
+                autoRefreshOn(_session.value, settingsState.value)
         },
         poll = { load(forceRefresh = true, quiet = true) },
     )
@@ -120,7 +119,7 @@ class ThreadViewModel @AssistedInject constructor(
     )
 
     val uiState: StateFlow<UiState<ThreadContent>> = combine(
-        result, settingsRepository.settings, meta, session, matcher,
+        result, settingsRepository.settings, meta, _session, matcher,
     ) { res, settings, (board, bookmarked, saveStatuses, claimed), session, matcher ->
         when (res) {
             null -> UiState.Loading
@@ -140,7 +139,7 @@ class ThreadViewModel @AssistedInject constructor(
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
                         postStates = postStates(details, session, saveStatuses),
-                        rows = rows(details, session, verdicts),
+                        rows = threadRows(details, session, verdicts),
                         filteredCount = verdicts.size,
                         treeView = session.treeView,
                         autoRefreshEnabled = autoRefreshOn(session, settings),
@@ -196,25 +195,25 @@ class ThreadViewModel @AssistedInject constructor(
     /** [quiet] refreshes without the spinner: auto-polls should not flicker the indicator. */
     fun load(forceRefresh: Boolean = false, quiet: Boolean = false) {
         viewModelScope.launch {
-            if (!forceRefresh) result.value = null else if (!quiet) session.update { it.copy(refreshing = true) }
+            if (!forceRefresh) result.value = null else if (!quiet) _session.update { it.copy(refreshing = true) }
             var r = threadRepository.thread(board, threadNo, forceRefresh)
             if (r is DataResult.Failure && result.value !is DataResult.Success) r = fallback(r)
-            session.update { it.copy(refreshing = false) }
+            _session.update { it.copy(refreshing = false) }
             when (r) {
                 is DataResult.Success -> {
-                    session.update { it.copy(refreshError = null) }
+                    _session.update { it.copy(refreshError = null) }
                     onLoaded(r.value)
                     result.value = r
                 }
                 is DataResult.Failure -> {
                     if (r.error == NetworkError.NotFound) {
-                        session.update { it.copy(archived = true) }
+                        _session.update { it.copy(archived = true) }
                         poller.stop()
                     }
                     if (result.value !is DataResult.Success) {
                         result.value = r // nothing to keep on screen
                     } else if (r.error != NetworkError.NotFound) {
-                        session.update { it.copy(refreshError = r.error) } // keep content, report transiently
+                        _session.update { it.copy(refreshError = r.error) } // keep content, report transiently
                     }
                 }
             }
@@ -228,7 +227,7 @@ class ThreadViewModel @AssistedInject constructor(
      */
     private suspend fun fallback(failure: DataResult.Failure): DataResult<ThreadDetails> {
         mediaVault.savedThread(board, threadNo)?.let { saved ->
-            session.update { it.copy(offlineCopyAt = savedAt(saved)) }
+            _session.update { it.copy(offlineCopyAt = savedAt(saved)) }
             return DataResult.Success(saved.copy(offlineCopy = true))
         }
         if (failure.error != NetworkError.NotFound) return failure
@@ -249,7 +248,7 @@ class ThreadViewModel @AssistedInject constructor(
         val newest = details.posts.maxOfOrNull { it.no } ?: 0L
         if (previous != 0L && newest > previous) {
             val newOnes = details.posts.count { it.no > previous }
-            session.update { it.copy(newPostsAfter = previous to newOnes) }
+            _session.update { it.copy(newPostsAfter = previous to newOnes) }
             poller.resetBackoff()
         }
         recordHistory(details)
@@ -257,7 +256,7 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     /** The screen showed the refresh error; drop it so it is not shown again. */
-    fun onRefreshErrorShown() = session.update { it.copy(refreshError = null) }
+    fun onRefreshErrorShown() = _session.update { it.copy(refreshError = null) }
 
     /**
      * Restore priority: explicit target (quote/history tap) > media last viewed in the
@@ -314,8 +313,8 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onToggleAutoRefresh() {
-        val effective = autoRefreshOn(session.value, settingsState.value)
-        session.update { it.copy(autoRefreshOverride = !effective) }
+        val effective = autoRefreshOn(_session.value, settingsState.value)
+        _session.update { it.copy(autoRefreshOverride = !effective) }
         poller.resetBackoff()
     }
 
@@ -347,16 +346,16 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     fun onRevealSpoiler(postNo: Long, spoilerId: Int) =
-        session.update { it.copy(revealedText = it.revealedText + (postNo to spoilerId)) }
+        _session.update { it.copy(revealedText = it.revealedText + (postNo to spoilerId)) }
 
     fun onRevealImageSpoiler(postNo: Long) =
-        session.update { it.copy(revealedImages = it.revealedImages + postNo) }
+        _session.update { it.copy(revealedImages = it.revealedImages + postNo) }
 
     /** A spoilered thumbnail reveals on the first tap and opens on the next. */
     fun onThumbnailTap(post: ThreadPost) {
         val media = post.presentMedia ?: return
         val hidden = media.spoiler && !settingsState.value.revealAllSpoilers &&
-            post.no !in session.value.revealedImages
+            post.no !in _session.value.revealedImages
         if (hidden) onRevealImageSpoiler(post.no) else mediaToOpenFlow.value = post.no
     }
 
@@ -373,7 +372,7 @@ class ThreadViewModel @AssistedInject constructor(
      */
     fun onOpenPreview(postNo: Long) {
         if (loadedPosts()?.none { it.no == postNo } != false) return
-        session.update {
+        _session.update {
             if (it.previewPath.lastOrNull() == postNo) it else it.copy(previewPath = it.previewPath + postNo)
         }
     }
@@ -390,10 +389,10 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     /** The sheet's back arrow and system back: return to the previously focused post. */
-    fun onClosePreview() = session.update { it.copy(previewPath = it.previewPath.dropLast(1)) }
+    fun onClosePreview() = _session.update { it.copy(previewPath = it.previewPath.dropLast(1)) }
 
     /** The sheet was swiped away or its scrim tapped: the whole path goes. */
-    fun onDismissPreview() = session.update { it.copy(previewPath = emptyList()) }
+    fun onDismissPreview() = _session.update { it.copy(previewPath = emptyList()) }
 
     /** "Mark as mine" / "Not mine": flips whether [postNo] reads as the user's own post. */
     fun onToggleClaimed(postNo: Long) = viewModelScope.launch {
@@ -403,7 +402,7 @@ class ThreadViewModel @AssistedInject constructor(
 
     /** Tap on a poster-ID pill: show only that ID; tapping the same ID again clears it. */
     fun onFilterPosterId(posterId: String?) =
-        session.update { it.copy(filterPosterId = if (it.filterPosterId == posterId) null else posterId) }
+        _session.update { it.copy(filterPosterId = if (it.filterPosterId == posterId) null else posterId) }
 
     private var highlightJob: Job? = null
 
@@ -414,23 +413,23 @@ class ThreadViewModel @AssistedInject constructor(
      */
     fun onJumpToPost(postNo: Long) {
         if (loadedPosts()?.none { it.no == postNo } != false) return
-        session.update { it.copy(previewPath = emptyList(), highlightedPostNo = postNo) }
+        _session.update { it.copy(previewPath = emptyList(), highlightedPostNo = postNo) }
         scrollTargetFlow.value = ScrollTarget(postNo, animate = true)
         highlightJob?.cancel()
         highlightJob = viewModelScope.launch {
             delay(HIGHLIGHT_MS)
-            session.update { if (it.highlightedPostNo == postNo) it.copy(highlightedPostNo = null) else it }
+            _session.update { if (it.highlightedPostNo == postNo) it.copy(highlightedPostNo = null) else it }
         }
     }
 
     /** Query and index change together: a stale index must never meet a new query. */
-    fun onSearchChange(query: String?) = session.update { it.copy(searchQuery = query, searchIndex = 0) }
+    fun onSearchChange(query: String?) = _session.update { it.copy(searchQuery = query, searchIndex = 0) }
 
     fun onSearchStep(delta: Int) {
-        val matches = searchMatches(loadedPosts() ?: return, session.value.searchQuery)
+        val matches = searchMatches(loadedPosts() ?: return, _session.value.searchQuery)
         if (matches.isEmpty()) return
-        val next = (session.value.searchIndex + delta).mod(matches.size)
-        session.update { it.copy(searchIndex = next) }
+        val next = (_session.value.searchIndex + delta).mod(matches.size)
+        _session.update { it.copy(searchIndex = next) }
         scrollTargetFlow.value = ScrollTarget(matches[next], animate = true)
     }
 
@@ -451,12 +450,12 @@ class ThreadViewModel @AssistedInject constructor(
         return if (!settings.confirmBeforeOpeningLinks || (domain != null && domain in settings.trustedDomains)) {
             true // open immediately
         } else {
-            session.update { it.copy(pendingExternalUrl = url) }
+            _session.update { it.copy(pendingExternalUrl = url) }
             false
         }
     }
 
-    fun onDismissLinkDialog() = session.update { it.copy(pendingExternalUrl = null) }
+    fun onDismissLinkDialog() = _session.update { it.copy(pendingExternalUrl = null) }
 
     fun hasStorageAccess(): Boolean = mediaVault.hasStorageAccess()
 
@@ -482,20 +481,20 @@ class ThreadViewModel @AssistedInject constructor(
         )
     }
 
-    fun onOpenPostSheet(postNo: Long) = session.update { it.copy(postSheetFor = postNo) }
-    fun onClosePostSheet() = session.update { it.copy(postSheetFor = null) }
+    fun onOpenPostSheet(postNo: Long) = _session.update { it.copy(postSheetFor = postNo) }
+    fun onClosePostSheet() = _session.update { it.copy(postSheetFor = null) }
 
-    fun onToggleTreeView() = session.update { it.copy(treeView = !it.treeView) }
+    fun onToggleTreeView() = _session.update { it.copy(treeView = !it.treeView) }
 
     /** Expands the replies folded under [parentNo]'s "N more" row. */
-    fun onExpandTail(parentNo: Long) = session.update { it.copy(expandedTails = it.expandedTails + parentNo) }
+    fun onExpandTail(parentNo: Long) = _session.update { it.copy(expandedTails = it.expandedTails + parentNo) }
 
     /** Opens a stubbed post in place; it stays open for the rest of the session. */
     fun onExpandFiltered(postNo: Long) =
-        session.update { it.copy(expandedFiltered = it.expandedFiltered + postNo) }
+        _session.update { it.copy(expandedFiltered = it.expandedFiltered + postNo) }
 
-    fun onOpenGallery() = session.update { it.copy(galleryOpen = true) }
-    fun onCloseGallery() = session.update { it.copy(galleryOpen = false) }
+    fun onOpenGallery() = _session.update { it.copy(galleryOpen = true) }
+    fun onCloseGallery() = _session.update { it.copy(galleryOpen = false) }
 
     /** Gallery tap: close the sheet and hand the post to the viewer. */
     fun onOpenMediaFromGallery(post: ThreadPost) {
@@ -511,13 +510,13 @@ class ThreadViewModel @AssistedInject constructor(
     fun onTrustDomain(url: String) = viewModelScope.launch {
         val domain = Urls.domainOf(url) ?: return@launch
         settingsRepository.update { it.copy(trustedDomains = it.trustedDomains + domain) }
-        session.update { it.copy(pendingExternalUrl = null) }
+        _session.update { it.copy(pendingExternalUrl = null) }
     }
 
     /** The screen reports the visible row range; the VM owns what it means. */
     fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
         val details = (result.value as? DataResult.Success)?.value ?: return
-        val rows = rows(details, session.value, filterVerdicts(details.posts, matcher.value))
+        val rows = threadRows(details, _session.value, filterVerdicts(details.posts, matcher.value))
         // Top-of-screen post: the reading position restored when the thread is reopened.
         rows.postAt(firstIndex)?.let { topVisiblePostNo.value = it.no }
         // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
@@ -538,148 +537,13 @@ class ThreadViewModel @AssistedInject constructor(
         bookmarkRepository.markSeen(board, threadNo, postNo, replyCount)
     }
 
-    fun onDismissNewPostsDivider() = session.update { it.copy(newPostsAfter = null) }
+    fun onDismissNewPostsDivider() = _session.update { it.copy(newPostsAfter = null) }
 
-    companion object {
-        private const val HIGHLIGHT_MS = 1_500L
-
-        /** The poster-ID filter applied; the OP always stays so the thread keeps its header. */
-        private fun visiblePosts(posts: List<ThreadPost>, session: Session): List<ThreadPost> {
-            val id = session.filterPosterId ?: return posts
-            return posts.filter { it.isOp || it.posterId == id }
-        }
-
-        /** Tree view indents this deep; anything deeper collapses into a "N more" row. */
-        const val MAX_TREE_DEPTH = 4
-
-        /** The first filter each post trips, by post number. The OP is never filtered: it is the thread. */
-        private fun filterVerdicts(posts: List<ThreadPost>, matcher: FilterMatcher): Map<Long, Filter> {
-            if (matcher.isEmpty) return emptyMap()
-            return buildMap {
-                posts.forEach { post ->
-                    if (post.isOp) return@forEach
-                    matcher.matches(FilterableFields.of(post), post.board)?.let { put(post.no, it) }
-                }
-            }
-        }
-
-        /** The row for a post the filters had a say on: nothing, a stub, or the post once opened. */
-        private fun filteredRow(post: ThreadPost, filter: Filter, session: Session, depth: Int): ThreadRow? = when {
-            filter.action == FilterAction.HIDE -> null
-            post.no in session.expandedFiltered -> ThreadRow.Post(post, depth)
-            else -> ThreadRow.Filtered(post.no, filter.pattern, depth)
-        }
-
-        /** Linear: thread order with the new-posts divider. Tree: nested, capped, filtered. */
-        private fun rows(details: ThreadDetails, session: Session, verdicts: Map<Long, Filter>): List<ThreadRow> =
-            if (session.treeView) treeRows(details, session, verdicts)
-            else linearRows(visiblePosts(details.posts, session), session, verdicts)
-
-        /** Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post. */
-        private fun linearRows(posts: List<ThreadPost>, session: Session, verdicts: Map<Long, Filter>): List<ThreadRow> =
-            buildList {
-                val newPostsAfter = session.newPostsAfter
-                posts.forEach { post ->
-                    val filter = verdicts[post.no]
-                    val row = if (filter == null) ThreadRow.Post(post) else filteredRow(post, filter, session, 0)
-                    if (row != null) add(row)
-                    if (newPostsAfter != null && post.no == newPostsAfter.first) {
-                        add(ThreadRow.NewPostsDivider(newPostsAfter.second))
-                    }
-                }
-            }
-
-        /**
-         * Depth-first tree, indent capped at [MAX_TREE_DEPTH]. A capped post's deeper replies
-         * follow it directly in the walk, so they fold into one "N more" row until expanded,
-         * then show flattened at the cap. The ID filter applies as in the linear view; the
-         * new-posts divider does not exist here since the order is no longer chronological.
-         */
-        private fun treeRows(details: ThreadDetails, session: Session, verdicts: Map<Long, Filter>): List<ThreadRow> {
-            val visible = visiblePosts(details.posts, session).mapTo(HashSet()) { it.no }
-            val nodes = PostGraph.of(details).tree().filter {
-                it.post.no in visible && verdicts[it.post.no]?.action != FilterAction.HIDE
-            }
-            val out = mutableListOf<ThreadRow>()
-            var i = 0
-            while (i < nodes.size) {
-                val node = nodes[i]
-                val depth = node.depth.coerceAtMost(MAX_TREE_DEPTH)
-                val filter = verdicts[node.post.no]
-                out += if (filter == null) ThreadRow.Post(node.post, depth)
-                else filteredRow(node.post, filter, session, depth) ?: error("hidden posts were dropped above")
-                i++
-                if (node.depth != MAX_TREE_DEPTH) continue
-                val tailStart = i
-                while (i < nodes.size && nodes[i].depth > MAX_TREE_DEPTH) i++
-                val tail = nodes.subList(tailStart, i)
-                if (tail.isEmpty()) continue
-                if (node.post.no in session.expandedTails) {
-                    tail.forEach { out += ThreadRow.Post(it.post, MAX_TREE_DEPTH) }
-                } else {
-                    out += ThreadRow.MoreReplies(node.post.no, tail.size)
-                }
-            }
-            return out
-        }
-
-        /** The quotelink gesture the setting does not claim. */
-        fun QuoteTapAction.other(): QuoteTapAction = when (this) {
-            QuoteTapAction.POPOVER -> QuoteTapAction.JUMP
-            QuoteTapAction.JUMP -> QuoteTapAction.POPOVER
-        }
-
-        /** The sheet around the last post in [path]; null when the path is empty or its post is gone. */
-        private fun previewSheet(details: ThreadDetails, byNo: Map<Long, ThreadPost>, path: List<Long>): PreviewSheet? {
-            val focus = path.lastOrNull()?.let { byNo[it] } ?: return null
-            val graph = PostGraph.of(details)
-            return PreviewSheet(
-                focus = focus,
-                parents = graph.parentsOf(focus.no),
-                replies = graph.repliesTo(focus.no),
-                path = path,
-            )
-        }
-
-        /** The OP is labelled first; a claimed OP still reads as yours. */
-        private fun quoteLabels(details: ThreadDetails, claimed: Set<Long>): Map<Long, QuoteLabel> = buildMap {
-            details.posts.firstOrNull { it.isOp }?.let { put(it.no, QuoteLabel.OP) }
-            claimed.forEach { put(it, QuoteLabel.YOU) }
-        }
-
-        private fun postStates(
-            details: ThreadDetails,
-            session: Session,
-            saveStatuses: Map<String, MediaSaveStatus>,
-        ): Map<Long, PostUiState> {
-            val revealedText = session.revealedText.groupBy({ it.first }, { it.second })
-            val idCounts = details.posts.mapNotNull { it.posterId }.groupingBy { it }.eachCount()
-            return details.posts.associate { post ->
-                post.no to PostUiState(
-                    posterIdCount = post.posterId?.let { idCounts[it] } ?: 0,
-                    closed = post.isOp && details.closed,
-                    sticky = post.isOp && details.sticky,
-                    revealedSpoilerIds = revealedText[post.no]?.toSet().orEmpty(),
-                    imageSpoilerRevealed = post.no in session.revealedImages,
-                    backlinks = details.backlinks[post.no].orEmpty(),
-                    saveStatus = post.presentMedia?.fullUrl?.let { saveStatuses[it] },
-                    highlighted = post.no == session.highlightedPostNo,
-                )
-            }
-        }
-
-        /** The post at a row index, or the nearest post above a divider. */
-        private fun List<ThreadRow>.postAt(index: Int): ThreadPost? =
-            (0..index).reversed().firstNotNullOfOrNull { (getOrNull(it) as? ThreadRow.Post)?.post }
+    private companion object {
+        const val HIGHLIGHT_MS = 1_500L
 
         /** The user's in-thread toggle wins over the setting. */
         private fun autoRefreshOn(session: Session, settings: Settings): Boolean =
             session.autoRefreshOverride ?: settings.autoRefreshEnabled
-
-        private fun searchMatches(posts: List<ThreadPost>, query: String?): List<Long> =
-            if (query.isNullOrBlank()) emptyList()
-            else posts.filter {
-                it.body.plainText.contains(query, true) || it.subject?.contains(query, true) == true
-            }.map { it.no }
     }
 }
