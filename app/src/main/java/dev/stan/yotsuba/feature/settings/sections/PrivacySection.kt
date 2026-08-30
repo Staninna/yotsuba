@@ -84,4 +84,10 @@ fun PrivacySection(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = LocalSpacing.current.lg, vertical = LocalSpacing.current.xs),
     )
+    SwitchRow(
+        title = stringResource(R.string.settings_confirm_temp_host),
+        summary = stringResource(R.string.settings_confirm_temp_host_summary),
+        checked = settings.confirmTemporaryHost,
+        onToggle = { on -> update { it.copy(confirmTemporaryHost = on) } },
+    )
 }

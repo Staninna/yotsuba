@@ -40,12 +40,12 @@ class ReverseSearchViewModel @Inject constructor(
     fun search(engine: ReverseSearchEngine, file: File, ext: String, hostConfirmed: Boolean = false) {
         job?.cancel()
         job = viewModelScope.launch {
-            val method = settingsRepository.settings.first().localSearchMethod
+            val settings = settingsRepository.settings.first()
             val direct = !hostConfirmed &&
-                method == LocalSearchMethod.DIRECT_UPLOAD &&
+                settings.localSearchMethod == LocalSearchMethod.DIRECT_UPLOAD &&
                 engine.hasDirectUpload
             // Decide before showing anything, so the spinner never precedes the question.
-            if (!direct && !hostConfirmed) {
+            if (!direct && !hostConfirmed && settings.confirmTemporaryHost) {
                 _state.value = LocalSearchState.ConfirmHost(engine)
                 return@launch
             }
@@ -63,6 +63,11 @@ class ReverseSearchViewModel @Inject constructor(
                 },
             )
         }
+    }
+
+    /** "Don't ask again" on the dialog; the Privacy section can turn it back on. */
+    fun stopConfirmingHost() {
+        viewModelScope.launch { settingsRepository.update { it.copy(confirmTemporaryHost = false) } }
     }
 
     /** The user declined the host; back to a plain sheet. */

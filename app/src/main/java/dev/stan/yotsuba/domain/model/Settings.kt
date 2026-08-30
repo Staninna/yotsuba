@@ -127,4 +127,6 @@ data class Settings(
     val bookmarkSortOrder: BookmarkSortOrder = BookmarkSortOrder.UNREAD_FIRST,
     /** How local-only files reach the reverse search engines that need a URL. */
     val localSearchMethod: LocalSearchMethod = LocalSearchMethod.DIRECT_UPLOAD,
+    /** Ask before a local-only file goes to the temporary host. */
+    val confirmTemporaryHost: Boolean = true,
 )

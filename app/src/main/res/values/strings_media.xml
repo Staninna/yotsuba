@@ -16,6 +16,7 @@
     <string name="media_search_confirm_host_title">Upload to a temporary host?</string>
     <string name="media_search_confirm_host_body">%1$s has no upload form of its own, so this file goes to litterbox first (0x0.st if that fails). Anyone with the link can see it for the next hour, then it is deleted.</string>
     <string name="media_search_confirm_host">Upload</string>
+    <string name="media_search_confirm_host_dont_ask">Don\'t ask again</string>
     <string name="media_search_share_app">Share to another app…</string>
     <string name="media_search_open_failed">Nothing on this phone could open the search</string>
     <string name="media_search_frame">Search a frame</string>

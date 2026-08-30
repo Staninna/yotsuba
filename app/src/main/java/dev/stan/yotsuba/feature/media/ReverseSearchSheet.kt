@@ -1,13 +1,16 @@
 package dev.stan.yotsuba.feature.media
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -18,9 +21,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -135,12 +143,29 @@ fun ReverseSearchSheet(
 
     // The host only ever gets the file from this dialog or the retry row, never a plain tap.
     if (confirm != null && target.file != null) {
+        var dontAsk by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = viewModel::declineHost,
             title = { Text(stringResource(R.string.media_search_confirm_host_title)) },
-            text = { Text(stringResource(R.string.media_search_confirm_host_body, confirm.engine.label)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.media_search_confirm_host_body, confirm.engine.label))
+                    Row(
+                        Modifier.padding(top = spacing.sm).toggleable(dontAsk, role = Role.Checkbox) { dontAsk = it },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = dontAsk, onCheckedChange = null)
+                        Text(
+                            stringResource(R.string.media_search_confirm_host_dont_ask),
+                            modifier = Modifier.padding(start = spacing.sm),
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
+                    // Only a confirmed upload turns the prompt off; Cancel with the box ticked keeps it.
+                    if (dontAsk) viewModel.stopConfirmingHost()
                     target.file?.let { viewModel.search(confirm.engine, it, target.ext, hostConfirmed = true) }
                 }) { Text(stringResource(R.string.media_search_confirm_host)) }
             },
