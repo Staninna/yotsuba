@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -19,10 +20,11 @@ import dev.stan.yotsuba.core.util.TimeFormat
 
 /**
  * The overlay a grid tile wears when it is a video: a centred play icon and, when known,
- * the duration in the bottom-right corner. Call inside the tile's [androidx.compose.foundation.layout.Box].
+ * the duration in the bottom-right corner. Pass [soundLabel] to add a speaker badge bottom-left,
+ * described by that label for screen readers. Call inside the tile's [androidx.compose.foundation.layout.Box].
  */
 @Composable
-fun BoxScope.VideoBadge(durationMs: Long? = null) {
+fun BoxScope.VideoBadge(durationMs: Long? = null, soundLabel: String? = null) {
     val spacing = LocalSpacing.current
     Icon(
         Icons.Filled.PlayCircle,
@@ -30,6 +32,19 @@ fun BoxScope.VideoBadge(durationMs: Long? = null) {
         tint = Color.White.copy(alpha = 0.85f),
         modifier = Modifier.align(Alignment.Center).size(spacing.xxl),
     )
+    if (soundLabel != null) {
+        Icon(
+            Icons.AutoMirrored.Filled.VolumeUp,
+            contentDescription = soundLabel,
+            tint = Color.White,
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(spacing.xs)
+                .background(Color.Black.copy(alpha = 0.6f), MaterialTheme.shapes.extraSmall)
+                .padding(2.dp)
+                .size(SOUND_BADGE),
+        )
+    }
     durationMs?.let { duration ->
         Text(
             TimeFormat.duration(duration),
@@ -43,3 +58,5 @@ fun BoxScope.VideoBadge(durationMs: Long? = null) {
         )
     }
 }
+
+private val SOUND_BADGE = 14.dp

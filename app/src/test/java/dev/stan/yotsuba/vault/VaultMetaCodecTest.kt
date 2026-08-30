@@ -30,6 +30,16 @@ class VaultMetaCodecTest {
         assertEquals(meta, VaultMetaCodec.decode(VaultMetaCodec.encode(meta)))
     }
 
+    @Test fun `sound fields round-trip and old sidecars without them decode as unprobed`() {
+        val probed = VaultFileMeta(fileName = "a.webm", durationMs = 1500, hasAudio = true, soundUrl = "https://x.y/z.mp3")
+        val text = VaultMetaCodec.encode(VaultThreadMeta(board = "g", files = listOf(probed)))
+        assertEquals(probed, VaultMetaCodec.decode(text)!!.files.single())
+
+        val old = VaultMetaCodec.decode("""{"board":"g","files":[{"fileName":"a.webm","durationMs":1500}]}""")!!
+        assertNull(old.files.single().hasAudio)
+        assertNull(old.files.single().soundUrl)
+    }
+
     @Test fun `decode ignores unknown keys`() {
         val text = """{"board":"g","future_field":123,"files":[{"fileName":"a.jpg","new_thing":true}]}"""
         assertEquals(

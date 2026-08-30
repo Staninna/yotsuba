@@ -4,6 +4,7 @@ import androidx.room.testing.MigrationTestHelper
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.stan.yotsuba.core.database.MIGRATION_10_11
+import dev.stan.yotsuba.core.database.MIGRATION_11_12
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -44,6 +45,30 @@ class MigrationTest {
         db.query("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'saved_media'").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals("index_saved_media_md5", c.getString(0))
+        }
+        db.close()
+    }
+
+    @Test
+    fun migrate11To12_keepsSavedMedia_withSoundColumnsUnknown() {
+        helper.createDatabase(dbName, 11).use { db ->
+            db.execSQL(
+                "INSERT INTO saved_media (url, board, threadNo, postNo, subject, displayName, absolutePath, ext, " +
+                    "sizeBytes, width, height, thumbnailUrl, savedAt, thumbnailPath, durationMs, md5, phash, pixelSize) " +
+                    "VALUES ('https://i.4cdn.org/g/1.webm', 'g', 1, 2, 's', '2_a.webm', '/sdcard/Yotsuba/g/1/2_a.webm', " +
+                    "'.webm', 10, 1, 1, NULL, 5, NULL, 1500, NULL, NULL, NULL)",
+            )
+        }
+
+        val db = helper.runMigrationsAndValidate(dbName, 12, true, MIGRATION_11_12)
+
+        db.query("SELECT url, durationMs, hasAudio, soundUrl FROM saved_media").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("https://i.4cdn.org/g/1.webm", c.getString(0))
+            assertEquals(1500L, c.getLong(1))
+            assertTrue(c.isNull(2))
+            assertTrue(c.isNull(3))
+            assertEquals(1, c.count)
         }
         db.close()
     }

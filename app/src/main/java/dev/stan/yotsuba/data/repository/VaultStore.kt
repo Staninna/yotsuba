@@ -90,11 +90,11 @@ class VaultStore(private val rootOverride: File?) {
                 threadNo = threadNo,
                 subject = subject,
                 threadUrl = Urls.threadWebUrl(board, threadNo),
-            ).upsert(fileMetaOf(target.name, item, post, savedAt).copy(durationMs = still?.durationMs))
+            ).upsert(fileMetaOf(target.name, item, post, savedAt).withProbe(still))
         }
         return savedMediaEntity(
             item, board, threadNo, subject, target, savedAt,
-            thumbnailPath = still?.file?.absolutePath, durationMs = still?.durationMs,
+            thumbnailPath = still?.file?.absolutePath, durationMs = still?.durationMs, hasAudio = still?.hasAudio,
         )
     }
 
@@ -242,8 +242,13 @@ class VaultStore(private val rootOverride: File?) {
             postedAtSeconds = post?.timeSeconds,
             postText = post?.body?.plainText?.takeIf { it.isNotBlank() },
             savedAtMillis = savedAt,
+            soundUrl = item.soundUrl,
         )
 }
+
+/** What the retriever learned about a video, onto its sidecar entry; nothing for a null probe. */
+fun VaultFileMeta.withProbe(still: VideoStills.Still?): VaultFileMeta =
+    if (still == null) this else copy(durationMs = still.durationMs, hasAudio = still.hasAudio)
 
 /** Runs [block], mapping any failure to a typed [VaultError]; cancellation passes through. */
 internal inline fun attempt(block: () -> Unit): VaultError? = try {

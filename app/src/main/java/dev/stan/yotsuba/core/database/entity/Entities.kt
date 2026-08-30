@@ -78,6 +78,10 @@ data class SavedMediaEntity(
     val thumbnailPath: String? = null,
     /** Video length, millis. */
     val durationMs: Long? = null,
+    /** Whether the video has an audio track; null until probed. */
+    val hasAudio: Boolean? = null,
+    /** External audio of a sound post, when the file came from one. */
+    val soundUrl: String? = null,
     /** MD5 of the file, base64 of the raw digest (4chan's format). Null until known. */
     val md5: String? = null,
     /** 64-bit difference hash of the decoded image; null for videos and until backfilled. */

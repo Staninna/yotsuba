@@ -20,6 +20,7 @@ fun savedMediaEntity(
     savedAt: Long,
     thumbnailPath: String? = null,
     durationMs: Long? = null,
+    hasAudio: Boolean? = null,
 ): SavedMediaEntity = SavedMediaEntity(
     url = item.fullUrl,
     board = board,
@@ -36,6 +37,8 @@ fun savedMediaEntity(
     savedAt = savedAt,
     thumbnailPath = thumbnailPath,
     durationMs = durationMs,
+    hasAudio = hasAudio,
+    soundUrl = item.soundUrl,
 )
 
 /** A row rebuilt from a meta.json sidecar during rescan. */
@@ -57,6 +60,8 @@ fun savedMediaEntity(meta: VaultThreadMeta, f: VaultFileMeta, file: File): Saved
         savedAt = f.savedAtMillis ?: file.lastModified(),
         thumbnailPath = VideoStills.stillFor(file).takeIf { it.isFile }?.absolutePath,
         durationMs = f.durationMs,
+        hasAudio = f.hasAudio,
+        soundUrl = f.soundUrl,
     )
 
 /**
@@ -123,6 +128,8 @@ fun SavedMediaEntity.toVaultEntry(): VaultEntry = VaultEntry(
     savedAt = savedAt,
     localThumbnailPath = thumbnailPath,
     durationMs = durationMs,
+    hasAudio = hasAudio,
+    soundUrl = soundUrl,
 )
 
 /** Legacy rows keep the unsorted marker in their columns; the domain has one value for it. */

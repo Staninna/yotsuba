@@ -5,7 +5,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +21,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -39,6 +37,10 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.PermMedia
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.outlined.Circle
 import androidx.compose.material3.Button
@@ -111,17 +113,18 @@ internal fun VaultExplorer(
     onSort: (VaultSort) -> Unit,
     onToggleReversed: () -> Unit,
     onFilter: (VaultFilter) -> Unit,
+    onAudio: (VaultAudio) -> Unit,
     onMode: (VaultMode) -> Unit,
 ) {
     val context = LocalContext.current
     // Sort, direction and filter reorder every list; each one scrolls back to the top when
     // they change instead of chasing whichever key happened to be first on screen.
-    val view = remember(state.sort, state.reversed, state.filter) {
-        VaultArrangement(state.sort, state.reversed, state.filter)
+    val view = remember(state.sort, state.reversed, state.filter, state.audio) {
+        VaultArrangement(state.sort, state.reversed, state.filter, state.audio)
     }
     val grid: @Composable (entries: List<VaultEntry>, emptyText: String) -> Unit = { entries, emptyText ->
         Column(Modifier.fillMaxSize()) {
-            VaultChipRow(state.sort, state.reversed, state.filter, onSort, onToggleReversed, onFilter)
+            VaultChipRow(state.sort, state.reversed, state.filter, state.audio, onSort, onToggleReversed, onFilter, onAudio)
             MediaGrid(
                 view = view,
                 entries = entries,
@@ -317,27 +320,31 @@ private fun ModeSwitch(mode: VaultMode, onMode: (VaultMode) -> Unit) {
 /**
  * Sort and type filter above every grid, sized to fit a phone width: one sort chip whose
  * trailing arrow shows the direction and whose menu holds the sorts plus "Reverse order",
- * and one icon-only segmented toggle for the media type. The scroll is a safety net for
- * very large fonts only.
+ * and one icon-only segmented toggle for the media type. While Videos is selected a second
+ * toggle for sound follows; it wraps onto its own line when the width runs out, so the
+ * sort and type row itself never breaks on a 360dp phone. Wrapping is also what catches
+ * very large fonts, where a scroll used to.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun VaultChipRow(
     sort: VaultSort,
     reversed: Boolean,
     filter: VaultFilter,
+    audio: VaultAudio,
     onSort: (VaultSort) -> Unit,
     onToggleReversed: () -> Unit,
     onFilter: (VaultFilter) -> Unit,
+    onAudio: (VaultAudio) -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    Row(
+    FlowRow(
         Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
             .padding(horizontal = spacing.md, vertical = spacing.xs),
         horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(spacing.xs),
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         var sortMenu by remember { mutableStateOf(false) }
         Box {
@@ -387,8 +394,20 @@ internal fun VaultChipRow(
                 modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
             )
         }
+        if (filter == VaultFilter.VIDEOS) {
+            EnumSegmentedRow(options = VaultAudio.entries, selected = audio, onSelect = onAudio) { option ->
+                Text(stringResource(option.labelRes))
+            }
+        }
     }
 }
+
+private val VaultAudio.labelRes: Int
+    get() = when (this) {
+        VaultAudio.ANY -> R.string.vault_audio_any
+        VaultAudio.WITH_SOUND -> R.string.vault_audio_with_sound
+        VaultAudio.SILENT -> R.string.vault_audio_silent
+    }
 
 private val VaultSort.labelRes: Int
     get() = when (this) {
@@ -483,7 +502,12 @@ private fun MediaGrid(
                         .fillMaxSize()
                         .then(if (checked) Modifier.padding(SELECTED_INSET) else Modifier),
                 )
-                if (entry.isVideo) VideoBadge(entry.durationMs)
+                if (entry.isVideo) {
+                    VideoBadge(
+                        durationMs = entry.durationMs,
+                        soundLabel = if (entry.hasSound) stringResource(R.string.vault_audio_with_sound) else null,
+                    )
+                }
                 if (selecting) {
                     Icon(
                         if (checked) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
@@ -551,6 +575,14 @@ internal fun VaultShuffleFab(scopeEntries: List<VaultEntry>, onShuffle: (List<St
             IconMenuItem(R.string.vault_shuffle_videos, Icons.Filled.Movie) {
                 menuOpen = false
                 onShuffle(scopeEntries.filter { it.isVideo }.map { it.url })
+            }
+            IconMenuItem(R.string.vault_shuffle_videos_with_sound, Icons.AutoMirrored.Filled.VolumeUp) {
+                menuOpen = false
+                onShuffle(scopeEntries.filter { it.hasSound }.map { it.url })
+            }
+            IconMenuItem(R.string.vault_shuffle_videos_silent, Icons.AutoMirrored.Filled.VolumeOff) {
+                menuOpen = false
+                onShuffle(scopeEntries.filter { it.isVideo && !it.hasSound }.map { it.url })
             }
             IconMenuItem(R.string.vault_shuffle_images, Icons.Filled.Image) {
                 menuOpen = false

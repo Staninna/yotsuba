@@ -392,24 +392,25 @@ class MediaVaultRepositoryImpl @Inject constructor(
             }
         }.withHashesFrom(previous)
         savedMediaDao.replaceAll(rebuilt)
-        // Stills for videos saved before there were any. Decoding is slow, so it happens
-        // after the index is usable and each row lands as its still does.
+        // Stills and sound probes for videos saved before there were any. Decoding is slow,
+        // so it happens after the index is usable and each row lands as its still does.
         for (row in rebuilt) {
-            if (row.thumbnailPath != null || !isVideoExt(row.ext.orEmpty())) continue
+            if (!isVideoExt(row.ext.orEmpty()) || (row.thumbnailPath != null && row.hasAudio != null)) continue
             val still = VideoStills.captureIfVideo(File(row.absolutePath)) ?: continue
-            savedMediaDao.insert(row.copy(thumbnailPath = still.file.absolutePath, durationMs = still.durationMs))
-            recordDuration(File(row.absolutePath), still.durationMs)
+            savedMediaDao.insert(
+                row.copy(thumbnailPath = still.file.absolutePath, durationMs = still.durationMs, hasAudio = still.hasAudio),
+            )
+            recordProbe(File(row.absolutePath), still)
         }
     }
 
-    /** Writes a duration learned during rescan back into the sidecar, so the next rescan has it. */
-    private suspend fun recordDuration(file: File, durationMs: Long?) {
-        durationMs ?: return
+    /** Writes what a rescan learned about a video back into the sidecar, so the next rescan has it. */
+    private suspend fun recordProbe(file: File, still: VideoStills.Still) {
         val dir = file.parentFile ?: return
         store.lock.withLock {
             store.updateMeta(dir) { meta ->
                 val entry = meta.files.firstOrNull { it.fileName == file.name } ?: return@updateMeta meta
-                meta.upsert(entry.copy(durationMs = durationMs))
+                meta.upsert(entry.withProbe(still))
             }
         }
     }

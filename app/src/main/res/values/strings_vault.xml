@@ -43,6 +43,9 @@
     <string name="vault_filter_all">All</string>
     <string name="vault_filter_images">Images</string>
     <string name="vault_filter_videos">Videos</string>
+    <string name="vault_audio_any">Any</string>
+    <string name="vault_audio_with_sound">With sound</string>
+    <string name="vault_audio_silent">Silent</string>
     <string name="vault_mode_recent">Recent</string>
     <string name="vault_mode_browse">Browse</string>
     <string name="vault_search">Search</string>

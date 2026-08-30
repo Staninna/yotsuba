@@ -45,6 +45,13 @@ data class VaultEntry(
     val localThumbnailPath: String? = null,
     /** Video length, millis; null for images and for videos not yet probed. */
     val durationMs: Long? = null,
+    /** Whether the video file carries an audio track; null for images and unprobed videos. */
+    val hasAudio: Boolean? = null,
+    /** External audio track of a sound post, when the file was saved from one. */
+    val soundUrl: String? = null,
 ) {
     val isVideo: Boolean get() = ext != null && isVideoExt(ext)
+
+    /** A video that plays with sound: its own track, or a sound post's. Unprobed counts as silent. */
+    val hasSound: Boolean get() = isVideo && (soundUrl != null || hasAudio == true)
 }
