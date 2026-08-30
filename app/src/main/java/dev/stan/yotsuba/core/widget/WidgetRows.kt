@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.core.widget
 
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.domain.model.Bookmark
 
 /**
@@ -37,3 +39,14 @@ fun rowLimitFor(size: WidgetSizeBucket): Int? = when (size) {
 }
 
 enum class WidgetSizeBucket { SMALL, MEDIUM, LARGE }
+
+/** The responsive breakpoints the widget declares; [sizeBucket] reads a live size against them. */
+val SMALL_WIDGET = DpSize(110.dp, 110.dp)
+val MEDIUM_WIDGET = DpSize(250.dp, 110.dp)
+val LARGE_WIDGET = DpSize(250.dp, 250.dp)
+
+fun sizeBucket(size: DpSize): WidgetSizeBucket = when {
+    size.height >= LARGE_WIDGET.height -> WidgetSizeBucket.LARGE
+    size.width >= MEDIUM_WIDGET.width -> WidgetSizeBucket.MEDIUM
+    else -> WidgetSizeBucket.SMALL
+}

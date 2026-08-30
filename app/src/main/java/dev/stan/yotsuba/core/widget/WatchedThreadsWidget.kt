@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -67,7 +66,7 @@ class WatchedThreadsWidget : GlanceAppWidget() {
         fun bookmarkRepository(): BookmarkRepository
     }
 
-    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(SMALL, MEDIUM, LARGE))
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(SMALL_WIDGET, MEDIUM_WIDGET, LARGE_WIDGET))
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val repository = EntryPointAccessors.fromApplication(context, Deps::class.java).bookmarkRepository()
@@ -92,12 +91,6 @@ class WatchedThreadsWidget : GlanceAppWidget() {
         val oneOff = manager.getWorkInfosForUniqueWorkFlow(RefreshBookmarksAction.UNIQUE_NAME)
         return combine(periodic, oneOff) { a, b -> (a + b).any { it.state == WorkInfo.State.RUNNING } }
     }
-
-    companion object {
-        val SMALL = DpSize(110.dp, 110.dp)
-        val MEDIUM = DpSize(250.dp, 110.dp)
-        val LARGE = DpSize(250.dp, 250.dp)
-    }
 }
 
 class WatchedThreadsWidgetReceiver : GlanceAppWidgetReceiver() {
@@ -121,12 +114,6 @@ class RefreshBookmarksAction : ActionCallback {
 
 private val boardKey = ActionParameters.Key<String>(WidgetDeepLink.EXTRA_BOARD)
 private val threadKey = ActionParameters.Key<Long>(WidgetDeepLink.EXTRA_THREAD_NO)
-
-private fun sizeBucket(size: DpSize): WidgetSizeBucket = when {
-    size.height >= WatchedThreadsWidget.LARGE.height -> WidgetSizeBucket.LARGE
-    size.width >= WatchedThreadsWidget.MEDIUM.width -> WidgetSizeBucket.MEDIUM
-    else -> WidgetSizeBucket.SMALL
-}
 
 @Composable
 private fun WidgetContent(rows: List<WidgetRow>, refreshing: Boolean) {
@@ -157,8 +144,10 @@ private fun WidgetContent(rows: List<WidgetRow>, refreshing: Boolean) {
 
 @Composable
 private fun Header(context: Context, unreadTotal: Int, refreshing: Boolean) {
+    // The Refresh padding is the tap target (the row is otherwise 12sp text on a home screen),
+    // and it supplies the header's bottom gap, so the row itself has none.
     Row(
-        modifier = GlanceModifier.fillMaxWidth().padding(bottom = 6.dp),
+        modifier = GlanceModifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -166,16 +155,20 @@ private fun Header(context: Context, unreadTotal: Int, refreshing: Boolean) {
             style = TextStyle(color = GlanceTheme.colors.onSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp),
         )
         Spacer(GlanceModifier.width(8.dp))
-        Text(
-            text = context.getString(R.string.widget_unread_total, unreadTotal),
-            style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 12.sp),
-            modifier = GlanceModifier.defaultWeight(),
-        )
+        if (unreadTotal > 0) {
+            Text(
+                text = context.getString(R.string.widget_unread_total, unreadTotal),
+                style = TextStyle(color = GlanceTheme.colors.primary, fontSize = 12.sp),
+                modifier = GlanceModifier.defaultWeight(),
+            )
+        } else {
+            Spacer(GlanceModifier.defaultWeight())
+        }
         Text(
             text = context.getString(if (refreshing) R.string.widget_refreshing else R.string.widget_refresh),
             style = TextStyle(color = GlanceTheme.colors.primary, fontWeight = FontWeight.Medium, fontSize = 12.sp),
             modifier = GlanceModifier
-                .padding(horizontal = 6.dp, vertical = 2.dp)
+                .padding(horizontal = 8.dp, vertical = 12.dp)
                 .clickable(actionRunCallback<RefreshBookmarksAction>()),
         )
     }

@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.core.widget
 
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
 import org.junit.Assert.assertEquals
@@ -67,5 +69,14 @@ class WidgetRowsTest {
         assertEquals(3, rowLimitFor(WidgetSizeBucket.SMALL))
         assertEquals(6, rowLimitFor(WidgetSizeBucket.MEDIUM))
         assertNull(rowLimitFor(WidgetSizeBucket.LARGE))
+    }
+
+    @Test
+    fun `size buckets follow the declared breakpoints`() {
+        assertEquals(WidgetSizeBucket.SMALL, sizeBucket(SMALL_WIDGET))
+        assertEquals(WidgetSizeBucket.MEDIUM, sizeBucket(MEDIUM_WIDGET))
+        assertEquals(WidgetSizeBucket.LARGE, sizeBucket(LARGE_WIDGET))
+        assertEquals(WidgetSizeBucket.SMALL, sizeBucket(DpSize(249.dp, 249.dp)))
+        assertEquals(WidgetSizeBucket.LARGE, sizeBucket(DpSize(110.dp, 250.dp)))
     }
 }
