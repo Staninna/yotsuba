@@ -13,6 +13,7 @@ data class ImageHash(val dhash: Long, val width: Int, val height: Int)
  */
 object DHash {
     private const val TARGET_EDGE = 64
+    // One bit per horizontal neighbour pair: ROWS * (COLS - 1) = 64, the width of the hash.
     private const val COLS = 9
     private const val ROWS = 8
 
@@ -61,7 +62,7 @@ object DHash {
         }
         var hash = 0L
         for (y in 0 until ROWS) {
-            for (x in 0 until ROWS) {
+            for (x in 0 until COLS - 1) {
                 val left = cell[y * COLS + x] * (count[y * COLS + x + 1].coerceAtLeast(1))
                 val right = cell[y * COLS + x + 1] * (count[y * COLS + x].coerceAtLeast(1))
                 hash = (hash shl 1) or (if (left > right) 1L else 0L)
