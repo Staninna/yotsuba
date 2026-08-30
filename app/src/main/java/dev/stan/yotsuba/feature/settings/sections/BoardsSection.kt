@@ -9,6 +9,7 @@ import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.TextRow
 import dev.stan.yotsuba.domain.model.HiddenThread
+import dev.stan.yotsuba.domain.model.threadKey
 import dev.stan.yotsuba.feature.settings.ManagedListDialog
 
 @Composable
@@ -33,7 +34,7 @@ fun BoardsSection(
         ManagedListDialog(
             title = stringResource(R.string.settings_hidden_threads, hiddenThreads.size),
             items = hiddenThreads,
-            key = { it.board + "/" + it.threadNo },
+            key = { threadKey(it.board, it.threadNo) },
             itemLabel = { "/${it.board}/${it.threadNo}" },
             removeLabel = stringResource(R.string.settings_unhide),
             onRemove = onUnhideThread,

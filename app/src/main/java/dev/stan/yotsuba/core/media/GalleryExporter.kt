@@ -23,7 +23,7 @@ class GalleryExporter @Inject constructor(@ApplicationContext private val contex
     /** Throws on failure; a MediaStore row that could not be filled is deleted again. */
     fun export(file: File, mime: String) {
         val video = mime.startsWith("video/")
-        if (Build.VERSION.SDK_INT >= 29) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val collection = if (video) {
                 MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
             } else {

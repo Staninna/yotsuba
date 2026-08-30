@@ -34,13 +34,15 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.domain.model.VaultLocation
+import dev.stan.yotsuba.domain.model.key
 
 /**
  * Lazy item key for a thread. Compose stores item keys in the saved-state Bundle, so a
  * [VaultLocation] itself would throw the moment the row composes; the rest of the app keys
  * threads as `board/threadNo` too.
  */
-internal fun lazyKey(location: VaultLocation): String = location.board + "/" + location.threadNo
+// Kept as a delegate for VaultStatsKeyTest; new code uses VaultLocation.key directly.
+internal fun lazyKey(location: VaultLocation): String = location.key
 
 /**
  * A full-height sheet reading [stats], or a spinner while they are still null. Tapping a
@@ -86,7 +88,7 @@ internal fun VaultStatsSheet(
             item { SectionTitle(stringResource(R.string.vault_stats_per_board)) }
             items(stats.perBoard, key = { it.board }) { BoardBar(it, stats.perBoard.first().sizeBytes) }
             item { SectionTitle(stringResource(R.string.vault_stats_biggest_threads)) }
-            items(stats.biggestThreads, key = { lazyKey(it.location) }) { ThreadRow(it) { onOpenThread(it.location) } }
+            items(stats.biggestThreads, key = { it.location.key }) { ThreadRow(it) { onOpenThread(it.location) } }
             item { SectionTitle(stringResource(R.string.vault_stats_per_week)) }
             item { WeeklyBars(stats.savedPerWeek) }
             item { SectionTitle(stringResource(R.string.vault_stats_dates)) }

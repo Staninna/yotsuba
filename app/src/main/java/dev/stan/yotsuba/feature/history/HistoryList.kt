@@ -46,6 +46,7 @@ import dev.stan.yotsuba.core.designsystem.component.showUndo
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.domain.model.HistoryEntry
+import dev.stan.yotsuba.domain.model.threadKey
 import kotlinx.coroutines.launch
 
 /**
@@ -90,7 +91,7 @@ fun HistoryList(
             }
             state.groups.forEach { (bucket, entries) ->
                 item(key = "header_${bucket.name}") { SectionHeader(stringResource(bucket.labelRes)) }
-                items(entries.size, key = { entries[it].board + "/" + entries[it].threadNo }) { i ->
+                items(entries.size, key = { threadKey(entries[it].board, entries[it].threadNo) }) { i ->
                     val entry = entries[i]
                     SwipeToDeleteRow(modifier = animatedListItem(), onDelete = {
                         viewModel.onRemove(entry)
