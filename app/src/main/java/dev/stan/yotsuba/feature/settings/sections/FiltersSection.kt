@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.settings.sections
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,6 +49,7 @@ import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterField
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.feature.settings.labelRes
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -77,7 +80,7 @@ fun FiltersSection(
     }
     settings.filters.forEachIndexed { index, filter ->
         // Keyed by id so a deleted row's swipe state does not leak onto its successor.
-        androidx.compose.runtime.key(filter.id) {
+        key(filter.id) {
             SwipeToDeleteRow(onDelete = {
                 update { it.copy(filters = it.filters - filter) }
                 scope.launch {
@@ -155,7 +158,7 @@ private fun FilterRow(filter: Filter, onClick: () -> Unit, onToggle: (Boolean) -
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                filter.error?.let {
+                if (filter.error != null) {
                     Text(
                         stringResource(R.string.filters_invalid_regex),
                         style = MaterialTheme.typography.bodySmall,
@@ -233,7 +236,7 @@ private fun FilterDialog(
                 )
                 Row(
                     modifier = Modifier.padding(top = spacing.sm),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     FilterAction.entries.forEach { a ->
                         FilterChip(
@@ -310,20 +313,3 @@ private fun <T> EnumDropdown(
         }
     }
 }
-
-private val FilterField.labelRes: Int
-    get() = when (this) {
-        FilterField.SUBJECT -> R.string.filters_field_subject
-        FilterField.COMMENT -> R.string.filters_field_comment
-        FilterField.NAME -> R.string.filters_field_name
-        FilterField.TRIPCODE -> R.string.filters_field_tripcode
-        FilterField.FLAG -> R.string.filters_field_flag
-        FilterField.POSTER_ID -> R.string.filters_field_poster_id
-        FilterField.FILENAME -> R.string.filters_field_filename
-    }
-
-private val FilterAction.labelRes: Int
-    get() = when (this) {
-        FilterAction.HIDE -> R.string.filters_action_hide
-        FilterAction.STUB -> R.string.filters_action_stub
-    }
