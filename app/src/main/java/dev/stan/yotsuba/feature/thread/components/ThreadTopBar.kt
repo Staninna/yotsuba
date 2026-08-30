@@ -9,6 +9,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -37,7 +39,7 @@ import androidx.compose.ui.text.AnnotatedString
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.Urls
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ThreadTopBar(
     board: String,
@@ -47,6 +49,9 @@ fun ThreadTopBar(
     autoRefreshEnabled: Boolean,
     /** Replies to the user's claimed posts; hidden when zero. */
     repliesToMe: Int,
+    /** Tap and hold on the replies indicator; the screen routes them like a quotelink. */
+    onRepliesToMeTap: (() -> Unit)? = null,
+    onRepliesToMeLongPress: (() -> Unit)? = null,
     /** Posts the content filters hid or stubbed; hidden when zero. */
     filteredCount: Int = 0,
     /** Active poster-ID filter; the chip clears it. */
@@ -83,6 +88,10 @@ fun ThreadTopBar(
                         pluralStringResource(R.plurals.thread_replies_to_you, repliesToMe, repliesToMe),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
+                        modifier = if (onRepliesToMeTap == null) Modifier else Modifier.combinedClickable(
+                            onClick = onRepliesToMeTap,
+                            onLongClick = onRepliesToMeLongPress,
+                        ),
                     )
                 } else if (filteredCount > 0) {
                     Text(

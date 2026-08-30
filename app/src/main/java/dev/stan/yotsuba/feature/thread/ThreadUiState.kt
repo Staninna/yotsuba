@@ -38,6 +38,8 @@ data class ThreadContent(
     val claimedPostNos: Set<Long> = emptySet(),
     /** Posts (not themselves claimed) that quote a claimed post. */
     val repliesToMe: Int = 0,
+    /** The newest of those, the post the "replies to you" indicator stands for. */
+    val latestReplyToMe: Long? = null,
     /** Only posts by this poster ID are in [rows]; null shows everything. */
     val filterPosterId: String? = null,
     /** The thread gallery sheet is up; [mediaPosts] feeds it. */

@@ -357,15 +357,18 @@ class ThreadViewModelTest {
         assertEquals(mapOf(100L to QuoteLabel.OP, 101L to QuoteLabel.YOU), content(vm).quoteLabels)
         assertEquals(setOf(101L), content(vm).claimedPostNos)
         assertEquals(1, content(vm).repliesToMe) // only 102
+        assertEquals(102L, content(vm).latestReplyToMe)
 
         vm.onToggleClaimed(102) // a claimed reply to a claimed post is not a reply "to you"
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, content(vm).repliesToMe) // only 103 now
+        assertEquals(103L, content(vm).latestReplyToMe)
         assertEquals(QuoteLabel.YOU, content(vm).quoteLabels[102L])
 
         vm.onToggleClaimed(101)
         dispatcher.scheduler.advanceUntilIdle()
         assertNull(content(vm).quoteLabels[101L])
+        assertEquals(103L, content(vm).latestReplyToMe) // 102 is still claimed, and 103 quotes it
     }
 
     @Test fun `filtering by poster ID keeps the OP and that ID's posts, and counts the ID`() =

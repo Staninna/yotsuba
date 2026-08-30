@@ -203,6 +203,13 @@ fun ThreadScreen(
                 bookmarked = s?.bookmarked == true,
                 autoRefreshEnabled = s?.autoRefreshEnabled == true,
                 repliesToMe = s?.repliesToMe ?: 0,
+                onRepliesToMeTap = s?.latestReplyToMe?.let { no -> { viewModel.onQuoteTap(no) } },
+                onRepliesToMeLongPress = s?.latestReplyToMe?.let { no ->
+                    {
+                        haptics.longPress()
+                        viewModel.onQuoteLongPress(no)
+                    }
+                },
                 filteredCount = s?.filteredCount ?: 0,
                 filterPosterId = s?.filterPosterId,
                 onClearFilter = { viewModel.onFilterPosterId(null) },
@@ -255,7 +262,11 @@ fun ThreadScreen(
                             )
                         }
                     },
-                    onBacklinkTap = viewModel::onJumpToPost,
+                    onBacklinkTap = viewModel::onQuoteTap,
+                    onBacklinkLongPress = {
+                        haptics.longPress()
+                        viewModel.onQuoteLongPress(it)
+                    },
                     onPosterIdTap = { viewModel.onFilterPosterId(post.posterId) },
                     onLongPress = {
                         haptics.longPress()

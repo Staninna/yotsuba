@@ -130,6 +130,9 @@ class ThreadViewModel @AssistedInject constructor(
                 val matches = searchMatches(details.posts, session.searchQuery)
                 val byNo = details.posts.associateBy { it.no }
                 val verdicts = filterVerdicts(details.posts, matcher)
+                val repliesToMe = details.posts.filter { p ->
+                    p.no !in claimed && p.quotedPostNos.any { it in claimed }
+                }
                 UiState.Success(
                     ThreadContent(
                         details = details,
@@ -159,9 +162,8 @@ class ThreadViewModel @AssistedInject constructor(
                         mediaPosts = details.posts.filter { it.presentMedia != null },
                         quoteLabels = quoteLabels(details, claimed),
                         claimedPostNos = claimed,
-                        repliesToMe = details.posts.count { p ->
-                            p.no !in claimed && p.quotedPostNos.any { it in claimed }
-                        },
+                        repliesToMe = repliesToMe.size,
+                        latestReplyToMe = repliesToMe.lastOrNull()?.no,
                     )
                 )
             }

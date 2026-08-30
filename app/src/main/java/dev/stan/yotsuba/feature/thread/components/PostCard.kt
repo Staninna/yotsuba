@@ -80,6 +80,8 @@ data class PostCardActions(
     val onThumbnailLongPress: (() -> Unit)?,
     /** Tap on one number in the "quoted by" row. When null the row is not shown. */
     val onBacklinkTap: ((Long) -> Unit)?,
+    /** Long-press on one number in the "quoted by" row: the action the tap does not do. */
+    val onBacklinkLongPress: ((Long) -> Unit)? = null,
     /** Legacy count chip, shown only when [onBacklinkTap] is null (the media viewer's panel). */
     val onBacklinksTap: (() -> Unit)? = null,
     val onCopyPostNo: (() -> Unit)?,
@@ -91,7 +93,8 @@ data class PostCardActions(
     /** A card inside the quote preview overlay: read-only apart from following links. */
     fun forPreview(): PostCardActions = copy(
         onBodyLongPress = null, onThumbnailLongPress = null,
-        onBacklinkTap = null, onBacklinksTap = null, onCopyPostNo = null, onPosterIdTap = null,
+        onBacklinkTap = null, onBacklinkLongPress = null, onBacklinksTap = null, onCopyPostNo = null,
+        onPosterIdTap = null,
         onLongPress = null,
     )
 }
@@ -261,7 +264,7 @@ fun PostCard(
             val backlinkCount = ui.backlinks.size
             if (backlinkCount > 0 && onBacklinkTap != null) {
                 Spacer(Modifier.height(spacing.xs))
-                QuotedByRow(ui.backlinks, onBacklinkTap)
+                QuotedByRow(ui.backlinks, onBacklinkTap, actions.onBacklinkLongPress)
             } else if (backlinkCount > 0 && onBacklinksTap != null) {
                 Spacer(Modifier.height(spacing.xs))
                 AssistChip(
@@ -291,10 +294,10 @@ private fun ThreadBadge(icon: ImageVector, label: String) {
     }
 }
 
-/** "Quoted by: >>1 >>2" — each number jumps to that post. */
-@OptIn(ExperimentalLayoutApi::class)
+/** "Quoted by: >>1 >>2" — each number is a quotelink: tap and hold follow the quote-tap setting. */
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
-private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit) {
+private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit, onLongPress: ((Long) -> Unit)?) {
     val spacing = LocalSpacing.current
     val colors = LocalYotsubaColors.current
     FlowRow(
@@ -312,7 +315,10 @@ private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit) {
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.quotelink,
                 textDecoration = TextDecoration.Underline,
-                modifier = Modifier.clickable { onTap(no) },
+                modifier = Modifier.combinedClickable(
+                    onClick = { onTap(no) },
+                    onLongClick = onLongPress?.let { hold -> { hold(no) } },
+                ),
             )
         }
     }
