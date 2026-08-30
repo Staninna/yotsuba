@@ -242,6 +242,7 @@ fun VaultScreen(
                 onSort = viewModel::setSort,
                 onToggleReversed = viewModel::toggleReversed,
                 onFilter = viewModel::setFilter,
+                onAudio = viewModel::setAudio,
                 onMode = viewModel::setMode,
             )
         }

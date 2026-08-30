@@ -41,6 +41,7 @@ import kotlinx.coroutines.withContext
 private const val KEY_SORT = "vault_sort"
 private const val KEY_FILTER = "vault_filter"
 private const val KEY_REVERSED = "vault_reversed"
+private const val KEY_AUDIO = "vault_audio"
 
 /** Grid order. Each is a total order so paging in the viewer matches the grid. */
 enum class VaultSort {
@@ -57,10 +58,22 @@ enum class VaultSort {
 enum class VaultFilter { ALL, IMAGES, VIDEOS }
 
 /**
- * The chip row's three choices as one value. Stable by construction (two enums and a
+ * Narrows [VaultFilter.VIDEOS] by sound; ignored under any other filter. A video nobody
+ * has probed yet counts as silent, so a fresh install's WITH_SOUND list only grows as
+ * the rescan works through the vault.
+ */
+enum class VaultAudio { ANY, WITH_SOUND, SILENT }
+
+/**
+ * The chip row's choices as one value. Stable by construction (three enums and a
  * Boolean), so a list keyed on it only re-runs when the arrangement itself changes.
  */
-data class VaultArrangement(val sort: VaultSort, val reversed: Boolean, val filter: VaultFilter)
+data class VaultArrangement(
+    val sort: VaultSort,
+    val reversed: Boolean,
+    val filter: VaultFilter,
+    val audio: VaultAudio = VaultAudio.ANY,
+)
 
 /** Entries whose file name or thread subject contains [query], case-insensitively. */
 fun searchEntries(entries: List<VaultEntry>, query: String): List<VaultEntry> {
@@ -83,11 +96,16 @@ fun arrangeEntries(
     sort: VaultSort,
     filter: VaultFilter,
     reversed: Boolean = false,
+    audio: VaultAudio = VaultAudio.ANY,
 ): List<VaultEntry> {
     val kept = when (filter) {
         VaultFilter.ALL -> entries
         VaultFilter.IMAGES -> entries.filterNot { it.isVideo }
-        VaultFilter.VIDEOS -> entries.filter { it.isVideo }
+        VaultFilter.VIDEOS -> when (audio) {
+            VaultAudio.ANY -> entries.filter { it.isVideo }
+            VaultAudio.WITH_SOUND -> entries.filter { it.hasSound }
+            VaultAudio.SILENT -> entries.filter { it.isVideo && !it.hasSound }
+        }
     }
     val ordered = when (sort) {
         VaultSort.SAVED -> kept.sortedByDescending { it.savedAt }
@@ -229,6 +247,8 @@ data class VaultUiState(
     /** Flip whatever [sort] produces: oldest first, smallest first, Z to A. */
     val reversed: Boolean = false,
     val filter: VaultFilter = VaultFilter.ALL,
+    /** Sound narrowing, meaningful only while [filter] is [VaultFilter.VIDEOS]. */
+    val audio: VaultAudio = VaultAudio.ANY,
     val mode: VaultMode = VaultMode.RECENT,
     val query: String = "",
     /** The drill-down over [entries] after the sort and filter chips. */
@@ -410,6 +430,7 @@ class VaultViewModel @Inject constructor(
         val sort: VaultSort,
         val reversed: Boolean,
         val filter: VaultFilter,
+        val audio: VaultAudio,
         val mode: VaultMode,
         val query: String,
     )
@@ -418,16 +439,18 @@ class VaultViewModel @Inject constructor(
     private val sort = savedState.getStateFlow(KEY_SORT, VaultSort.SAVED.name)
     private val reversed = savedState.getStateFlow(KEY_REVERSED, false)
     private val filter = savedState.getStateFlow(KEY_FILTER, VaultFilter.ALL.name)
+    private val audio = savedState.getStateFlow(KEY_AUDIO, VaultAudio.ANY.name)
     private val mode = MutableStateFlow(VaultMode.RECENT)
     private val query = MutableStateFlow("")
 
-    private val view = combine(sort, reversed, filter, mode, query) { sort, reversed, filter, mode, query ->
+    private val view = combine<Any, View>(sort, reversed, filter, audio, mode, query) { values ->
         View(
-            VaultSort.entries.firstOrNull { it.name == sort } ?: VaultSort.SAVED,
-            reversed,
-            VaultFilter.entries.firstOrNull { it.name == filter } ?: VaultFilter.ALL,
-            mode,
-            query,
+            VaultSort.entries.firstOrNull { it.name == values[0] } ?: VaultSort.SAVED,
+            values[1] as Boolean,
+            VaultFilter.entries.firstOrNull { it.name == values[2] } ?: VaultFilter.ALL,
+            VaultAudio.entries.firstOrNull { it.name == values[3] } ?: VaultAudio.ANY,
+            values[4] as VaultMode,
+            values[5] as String,
         )
     }
 
@@ -495,13 +518,18 @@ class VaultViewModel @Inject constructor(
         savedState[KEY_FILTER] = filter.name
     }
 
+    /** Only felt under [VaultFilter.VIDEOS]; kept across filter changes so flipping back restores it. */
+    fun setAudio(audio: VaultAudio) {
+        savedState[KEY_AUDIO] = audio.name
+    }
+
     val uiState: StateFlow<VaultUiState> = combine(
         entries, syncState, viewing, activity, editing,
     ) { entries, sync, viewing, activity, editing ->
         val sel = editing.selection
         val view = editing.view
         val urls = entries.mapTo(HashSet(entries.size)) { it.url }
-        val visible = arrangeEntries(entries, view.sort, view.filter, view.reversed)
+        val visible = arrangeEntries(entries, view.sort, view.filter, view.reversed, view.audio)
         val boards = groupByBoard(visible)
         val body = when {
             !activity.access -> VaultBody.NoAccess
@@ -531,6 +559,7 @@ class VaultViewModel @Inject constructor(
             sort = view.sort,
             reversed = view.reversed,
             filter = view.filter,
+            audio = view.audio,
             mode = view.mode,
             query = view.query,
             boards = boards,

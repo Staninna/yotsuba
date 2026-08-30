@@ -23,6 +23,7 @@ import dev.stan.yotsuba.fake.latest
 import dev.stan.yotsuba.fake.now
 import dev.stan.yotsuba.feature.vault.RECENT_LIMIT
 import dev.stan.yotsuba.feature.vault.UNDO_WINDOW_MS
+import dev.stan.yotsuba.feature.vault.VaultAudio
 import dev.stan.yotsuba.feature.vault.VaultBody
 import dev.stan.yotsuba.feature.vault.VaultFilter
 import dev.stan.yotsuba.feature.vault.VaultImport
@@ -64,10 +65,12 @@ class VaultViewModelTest {
         subject: String? = null,
         sizeBytes: Long? = 1,
         postNo: Long? = null,
+        hasAudio: Boolean? = null,
+        soundUrl: String? = null,
     ) = VaultEntry(
         url = url, location = location, subject = subject, postNo = postNo, displayName = url.substringAfterLast('/'),
         absolutePath = "/vault/$url", ext = VaultPaths.extensionOf(url).ifEmpty { ".jpg" }, sizeBytes = sizeBytes,
-        width = 1, height = 1, thumbnailUrl = null, savedAt = savedAt,
+        width = 1, height = 1, thumbnailUrl = null, savedAt = savedAt, hasAudio = hasAudio, soundUrl = soundUrl,
     )
 
     private class FakeVault(initial: List<VaultEntry>) : FakeMediaVault() {
@@ -450,6 +453,41 @@ class VaultViewModelTest {
                 val restored = latest()
                 assertEquals(VaultSort.POST, restored.sort)
                 assertEquals(VaultFilter.VIDEOS, restored.filter)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test fun `the sound filter only bites under Videos and treats unprobed as silent`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(
+                entry("g/pic.jpg", threadG, savedAt = 5, hasAudio = true),
+                entry("g/loud.webm", threadG, savedAt = 4, hasAudio = true),
+                entry("g/quiet.webm", threadG, savedAt = 3, hasAudio = false),
+                entry("g/unknown.webm", threadG, savedAt = 2),
+                entry("g/soundpost.webm", threadG, savedAt = 1, hasAudio = false, soundUrl = "https://a.b/c.mp3"),
+            ))
+            val saved = SavedStateHandle()
+            val vm = vm(vault, saved = saved)
+            vm.uiState.test {
+                vm.setAudio(VaultAudio.WITH_SOUND)
+                // Not filtering to videos: the sound choice is remembered but changes nothing.
+                val all = latest()
+                assertEquals(5, all.scopeEntries.size)
+                assertEquals(VaultAudio.WITH_SOUND, all.audio)
+                vm.setFilter(VaultFilter.VIDEOS)
+                assertEquals(listOf("g/loud.webm", "g/soundpost.webm"), latest().scopeEntries.map { it.url })
+                vm.setAudio(VaultAudio.SILENT)
+                assertEquals(listOf("g/quiet.webm", "g/unknown.webm"), latest().scopeEntries.map { it.url })
+                vm.setAudio(VaultAudio.ANY)
+                assertEquals(4, latest().scopeEntries.size)
+                vm.setAudio(VaultAudio.WITH_SOUND)
+                vm.setFilter(VaultFilter.IMAGES)
+                assertEquals(listOf("g/pic.jpg"), latest().scopeEntries.map { it.url })
+                assertEquals("WITH_SOUND", saved.get<String>("vault_audio"))
+                cancelAndIgnoreRemainingEvents()
+            }
+            vm(vault, saved = saved).uiState.test {
+                assertEquals(VaultAudio.WITH_SOUND, latest().audio)
                 cancelAndIgnoreRemainingEvents()
             }
         }

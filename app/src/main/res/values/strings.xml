@@ -255,6 +255,8 @@
     <string name="vault_shuffle">Shuffle play</string>
     <string name="vault_shuffle_everything">Everything</string>
     <string name="vault_shuffle_videos">Videos only</string>
+    <string name="vault_shuffle_videos_with_sound">Videos with sound</string>
+    <string name="vault_shuffle_videos_silent">Silent videos</string>
     <string name="vault_shuffle_images">Images only</string>
     <string name="vault_auto_advance_on">Auto-advance on — tap to loop</string>
     <string name="vault_auto_advance_off">Looping — tap to auto-advance</string>
