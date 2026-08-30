@@ -26,8 +26,8 @@ import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
-import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
+import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import dev.stan.yotsuba.feature.media.MediaUiState
 import dev.stan.yotsuba.feature.media.MediaViewModel
@@ -89,14 +89,6 @@ class MediaViewModelTest {
         )
     }
 
-    private class FakeSettingsRepository : SettingsRepository {
-        val state = MutableStateFlow(Settings())
-        override val settings: Flow<Settings> = state
-        override suspend fun update(transform: (Settings) -> Settings) {
-            state.value = transform(state.value)
-        }
-    }
-
     /** Saves resolve into [saved]; the first save completes [firstSave] for await-style asserts. */
     private class FakeVault : MediaVaultRepository {
         val access = MutableStateFlow(true)
@@ -145,7 +137,7 @@ class MediaViewModelTest {
         posts: List<ThreadPost>,
         backlinks: Map<Long, List<Long>> = emptyMap(),
         val boards: FakeBoardRepository = FakeBoardRepository(),
-        val settings: FakeSettingsRepository = FakeSettingsRepository(),
+        val settings: FakeSettings = FakeSettings(),
         val vault: FakeVault = FakeVault(),
         val sessionStore: MediaSessionStore = MediaSessionStore(),
         val server: MockWebServer? = null,
