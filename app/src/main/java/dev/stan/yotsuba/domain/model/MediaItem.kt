@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.domain.model
 
+import dev.stan.yotsuba.core.media.isVideoExt
+
 /**
  * An attachment on a post. [Present] carries the real, non-fabricated fields;
  * a file 4chan removed is [Deleted] and has no URLs or dimensions to offer.
@@ -26,7 +28,7 @@ data class MediaItem(
     /** 4chan's MD5 of the file, base64 of the raw digest. Null when the source didn't say. */
     val md5: String? = null,
 ) {
-    val isVideo: Boolean get() = ext == ".webm" || ext == ".mp4"
+    val isVideo: Boolean get() = isVideoExt(ext)
     val isAnimated: Boolean get() = isVideo || ext == ".gif"
     val displayName: String get() = "$filename$ext"
 }

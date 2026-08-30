@@ -567,7 +567,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun isVideo(ext: String?) = ext == ".webm" || ext == ".mp4"
+    private fun isVideo(ext: String?) = ext?.let(::isVideoExt) == true
 
     /** A still and duration for a video; nothing for anything else, or when decoding fails. */
     private fun captureStill(file: File): VideoStills.Still? =

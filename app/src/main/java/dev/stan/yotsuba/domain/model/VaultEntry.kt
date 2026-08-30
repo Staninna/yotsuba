@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.domain.model
 
+import dev.stan.yotsuba.core.media.isVideoExt
 import dev.stan.yotsuba.core.vault.VaultPaths
 
 /**
@@ -45,5 +46,5 @@ data class VaultEntry(
     /** Video length, millis; null for images and for videos not yet probed. */
     val durationMs: Long? = null,
 ) {
-    val isVideo: Boolean get() = ext == ".webm" || ext == ".mp4"
+    val isVideo: Boolean get() = ext != null && isVideoExt(ext)
 }
