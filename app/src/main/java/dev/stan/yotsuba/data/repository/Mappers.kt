@@ -7,7 +7,6 @@ import dev.stan.yotsuba.core.network.dto.FoolFuukaPostDto
 import dev.stan.yotsuba.core.network.dto.FoolFuukaThreadDto
 import dev.stan.yotsuba.core.network.dto.PostDto
 import dev.stan.yotsuba.core.media.SoundPost
-import dev.stan.yotsuba.core.text.PostAnnotation
 import dev.stan.yotsuba.core.text.PostHtmlParser
 import dev.stan.yotsuba.core.text.archiveCommentToHtml
 import dev.stan.yotsuba.core.util.Urls
@@ -69,9 +68,7 @@ fun PostDto.toThreadPost(board: String): ThreadPost {
         subject = sub?.let { PostHtmlParser.parse(it).plainText.ifBlank { null } },
         body = body,
         media = toPostMedia(board),
-        quotedPostNos = body.segments.mapNotNull {
-            (it.annotation as? PostAnnotation.QuotelinkSameThread)?.postNo
-        }.distinct(),
+        quotedPostNos = body.quotedPostNos,
     )
 }
 
@@ -128,9 +125,7 @@ fun FoolFuukaPostDto.toThreadPost(board: String): ThreadPost {
         subject = title?.ifBlank { null },
         body = body,
         media = toPostMedia(),
-        quotedPostNos = body.segments.mapNotNull {
-            (it.annotation as? PostAnnotation.QuotelinkSameThread)?.postNo
-        }.distinct(),
+        quotedPostNos = body.quotedPostNos,
     )
 }
 
