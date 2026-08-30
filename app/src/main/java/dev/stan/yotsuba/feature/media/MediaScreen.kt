@@ -188,10 +188,8 @@ fun MediaScreen(
                         sharing = true
                         val file = viewModel.prepareShare(m)
                         sharing = false
-                        if (file == null) {
+                        if (file == null || !shareMediaFile(context, file, m.ext)) {
                             snackbar.showSnackbar(shareFailedMessage)
-                        } else {
-                            shareMediaFile(context, file, m.ext)
                         }
                     }
                 }

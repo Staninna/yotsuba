@@ -24,13 +24,16 @@ fun requestAllFilesAccess(context: Context) {
     }
 }
 
-/** Fires a share chooser over [file] through the app's FileProvider. */
-fun shareMediaFile(context: Context, file: File, ext: String) {
+/**
+ * Fires a share chooser over [file] through the app's FileProvider. False when the chooser
+ * could not be started, so the caller can say so instead of leaving a dead tap.
+ */
+fun shareMediaFile(context: Context, file: File, ext: String): Boolean {
     val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = mimeOf(ext)
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    runCatching { context.startActivity(Intent.createChooser(intent, null)) }
+    return runCatching { context.startActivity(Intent.createChooser(intent, null)) }.isSuccess
 }
