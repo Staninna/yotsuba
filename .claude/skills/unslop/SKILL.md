@@ -78,13 +78,3 @@ Removing patterns is half the job. Sterile, voiceless writing is just as obvious
 29. **Active voice.** Prefer it. Catch "is/are/was/were + past participle" and name the actor: "queries are validated" becomes "the compiler validates queries", "the file is parsed by the loader" becomes "the loader parses the file". Passive is fine only when the actor is unknown or genuinely doesn't matter.
 30. **Cut adverbs, or use a stronger verb.** "runs quickly" becomes "is fast" or the number. "significantly improves" becomes the measured delta. An adverb propping up a weak verb means the verb is wrong.
 31. **Prefer the plain word.** "utilize" becomes "use", "leverage" becomes "use", "facilitate" becomes "help", "numerous" becomes "many", "in the event that" becomes "if". The fancier synonym is rarely clearer.
-
-## In this repo
-
-Changelogs under `changelog/` are read by the in-app updater and by people
-deciding whether to install. Every bullet is `- **Lead.** One or two sentences.`
-The lead is a short noun phrase ending in a period; nothing else separates it
-from the sentence, and the sentence itself carries no em dash, en dash, or
-colon-as-connector. Say what the user can now do or what stopped going wrong,
-in the words the app uses on screen. A release with nothing user-visible says
-so in one bullet instead of dressing up a version bump.

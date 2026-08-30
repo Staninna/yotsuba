@@ -13,14 +13,16 @@
 # The shape is fixed because the in-app updater parses it (core/update/ReleaseNotes.kt):
 # `## Added / Changed / Fixed / Removed`, one bullet per line, an optional bold lead
 # ending in a period. Every changelog is written under .claude/skills/unslop/SKILL.md,
-# which the prompt carries in full; --check enforces the parts a grep can.
-# Only this script and bump.sh call Claude; CI never does.
+# an exact copy of the unslop skill kept in the repo so the result does not depend on
+# whatever skills the person cutting the release has installed; the prompt carries it in
+# full, and --check enforces the parts a grep can. The model is claude-fable-5 unless
+# CHANGELOG_MODEL says otherwise. Only this script and bump.sh call Claude; CI never does.
 
 # Ask Claude Code for the changelog of one version.
 #   write_changelog VERSION        range: previous tag .. vVERSION if that tag exists, else .. HEAD
 write_changelog() {
   local version=$1 tag="v$1" out="changelog/v$1.md" prev head prompt app attempt
-  local skill=.claude/skills/unslop/SKILL.md
+  local skill=.claude/skills/unslop/SKILL.md model=${CHANGELOG_MODEL:-claude-fable-5}
   command -v claude >/dev/null || { echo "changelog: claude is not installed" >&2; return 1; }
   [ -f "$skill" ] || { echo "changelog: $skill is missing; every changelog is written under it" >&2; return 1; }
   app=$(sed -n 's/^rootProject.name = "\(.*\)"/\1/p' settings.gradle.kts)
@@ -57,7 +59,11 @@ or setting, skip class names, refactors, test-only and CI-only work unless they
 change what the user sees. No introduction, no version line, no sign-off.
 
 Apply the writing rules below to every bullet. In particular: no em dashes or en
-dashes anywhere, no curly quotes, and the bold lead ends with a period.
+dashes anywhere, no curly quotes, and the bold lead ends with a period. The lead
+is a short noun phrase; nothing else separates it from the sentence. Say what the
+user can now do or what stopped going wrong, in the words the app uses on screen.
+A release with nothing user-visible says so in one bullet instead of dressing up
+a version bump.
 
 ## Writing rules
 $(cat "$skill")
@@ -72,7 +78,7 @@ $(git diff --stat $diff_range -- . ':!app/src/test' ':!app/src/androidTest')
 $(git diff $diff_range -- . ':!app/src/test' ':!app/src/androidTest' ':!*.png' ':!*.webp' | head -c 600000 || true)"
   # Three tries: the model sometimes ignores a rule, and the checks below are cheap.
   for attempt in 1 2 3; do
-    printf '%s\n' "$prompt" | claude -p --output-format text > "$out.tmp" || { rm -f "$out.tmp"; return 1; }
+    printf '%s\n' "$prompt" | claude -p --model "$model" --output-format text > "$out.tmp" || { rm -f "$out.tmp"; return 1; }
     # Strip a stray code fence and anything before the first heading.
     sed -i -e '/^```/d' -e '0,/^## /{/^## /!d}' "$out.tmp"
     if changelog_ok "$out.tmp"; then break; fi
