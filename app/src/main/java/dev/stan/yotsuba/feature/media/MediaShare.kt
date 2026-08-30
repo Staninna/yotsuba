@@ -46,14 +46,32 @@ fun shareText(context: Context, text: String) {
  * Fires a share chooser over [file] through the app's FileProvider. False when the chooser
  * could not be started, so the caller can say so instead of leaving a dead tap.
  */
-fun shareMediaFile(context: Context, file: File, ext: String): Boolean {
+fun shareMediaFile(context: Context, file: File, ext: String): Boolean =
+    runCatching { context.startActivity(Intent.createChooser(sendIntent(context, file, ext), null)) }.isSuccess
+
+/** Apps that take a shared image straight into Google Lens, the standalone one first. */
+private val LENS_PACKAGES = listOf("com.google.ar.lens", "com.google.android.googlequicksearchbox")
+
+/**
+ * Hands [file] to Google Lens as a shared image, the one engine that accepts a picture
+ * without a URL. With no Lens-capable app installed it falls back to the share chooser,
+ * so the tap still leads somewhere. False when not even that could start.
+ */
+fun searchFileWithLens(context: Context, file: File, ext: String): Boolean {
+    for (pkg in LENS_PACKAGES) {
+        val intent = sendIntent(context, file, ext).setPackage(pkg)
+        if (runCatching { context.startActivity(intent) }.isSuccess) return true
+    }
+    return shareMediaFile(context, file, ext)
+}
+
+private fun sendIntent(context: Context, file: File, ext: String): Intent {
     val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
-    val intent = Intent(Intent.ACTION_SEND).apply {
+    return Intent(Intent.ACTION_SEND).apply {
         type = mimeOf(ext)
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    return runCatching { context.startActivity(Intent.createChooser(intent, null)) }.isSuccess
 }
 
 /**

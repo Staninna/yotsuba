@@ -9,7 +9,7 @@
     <string name="media_more">More</string>
     <string name="media_search_image">Search image</string>
     <string name="media_search_title">Search with</string>
-    <string name="media_search_needs_url">Needs an online copy; this file only exists on this phone</string>
+    <string name="media_search_needs_url">This file only exists on this phone. Lens takes the file itself; the other engines need an online copy.</string>
     <string name="media_search_share_app">Share to another app…</string>
     <string name="media_search_open_failed">Nothing on this phone could open the search</string>
     <string name="media_search_frame">Search a frame</string>

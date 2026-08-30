@@ -55,4 +55,15 @@ class ReverseSearchTest {
         assertTrue(unsaved.canUseEngines)
         assertFalse(unsaved.canShare)
     }
+
+    @Test fun `a local-only file can still go to Lens, and nowhere else`() {
+        val frame = ReverseSearchTarget(null, File("/frame.jpg"), ".jpg")
+        assertTrue(frame.canUse(ReverseSearchEngine.GOOGLE_LENS))
+        ReverseSearchEngine.entries.filterNot { it.takesSharedImage }.forEach { engine ->
+            assertFalse("$engine", frame.canUse(engine))
+        }
+        val online = ReverseSearchTarget(image, null, ".jpg")
+        ReverseSearchEngine.entries.forEach { engine -> assertTrue("$engine", online.canUse(engine)) }
+        assertFalse(ReverseSearchTarget(null, null, ".jpg").canUse(ReverseSearchEngine.GOOGLE_LENS))
+    }
 }

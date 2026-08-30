@@ -5,11 +5,17 @@ import java.net.URLEncoder
 
 /**
  * The reverse image search engines the viewer can hand a picture to. Each takes the image
- * as a URL query parameter, so they only work for media that is reachable online; a file
- * that exists only on the phone goes out through the share sheet instead.
+ * as a URL query parameter, so they only work for media that is reachable online. Lens is
+ * the one that also takes the file itself, as a shared image, which is what a video frame
+ * or an imported file has to offer; the rest go out through the share sheet instead.
  */
-enum class ReverseSearchEngine(val label: String, private val prefix: String) {
-    GOOGLE_LENS("Google Lens", "https://lens.google.com/uploadbyurl?url="),
+enum class ReverseSearchEngine(
+    val label: String,
+    private val prefix: String,
+    /** Accepts a shared image, so a file with no online copy can still go here. */
+    val takesSharedImage: Boolean = false,
+) {
+    GOOGLE_LENS("Google Lens", "https://lens.google.com/uploadbyurl?url=", takesSharedImage = true),
     SAUCENAO("SauceNAO", "https://saucenao.com/search.php?url="),
     IQDB("IQDB", "https://iqdb.org/?url="),
     TINEYE("TinEye", "https://tineye.com/search?url="),
@@ -34,6 +40,9 @@ data class ReverseSearchTarget(
 ) {
     val canUseEngines: Boolean get() = remoteUrl != null
     val canShare: Boolean get() = file != null
+
+    /** Open by URL when there is one, otherwise only an engine that takes the file. */
+    fun canUse(engine: ReverseSearchEngine): Boolean = canUseEngines || (engine.takesSharedImage && canShare)
 }
 
 /** [url] when an engine could fetch it: `http(s)`, not the `file://` an imported thread carries. */

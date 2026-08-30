@@ -21,6 +21,12 @@
     <!-- Background bookmark refresh posts "N new replies" (Android 13+ asks at runtime). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Reverse image search sends a local file straight to Lens; targeting a package needs it declared. -->
+    <queries>
+        <package android:name="com.google.ar.lens" />
+        <package android:name="com.google.android.googlequicksearchbox" />
+    </queries>
+
     <application
         android:name=".YotsubaApplication"
         android:allowBackup="false"
