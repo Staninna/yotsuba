@@ -101,7 +101,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
         }
         shell.linkConsumed()
     }
-    val openSettings = { navController.navigate(Route.Settings) }
+    val openSettings = { navController.push(Route.Settings) }
 
     Row(Modifier.fillMaxSize()) {
         if (expanded && showChrome) {
@@ -175,7 +175,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         screen<Route.Home> {
                             HomeScreen(
                                 slots = slots,
-                                onOpenThread = { board, threadNo -> navController.navigate(Route.Thread(board, threadNo)) },
+                                onOpenThread = { board, threadNo -> navController.push(Route.Thread(board, threadNo)) },
                                 onOpenBoards = { navigateTopLevel(TopLevelDestination.BOARDS) },
                                 onOpenSettings = openSettings,
                             )
@@ -183,7 +183,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         screen<Route.Boards> {
                             BoardsScreen(
                                 slots = slots,
-                                onOpenBoard = { navController.navigate(Route.Catalog(it)) },
+                                onOpenBoard = { navController.push(Route.Catalog(it)) },
                                 onOpenSettings = openSettings,
                             )
                         }
@@ -193,9 +193,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                                 board = route.board,
                                 initialSearch = route.searchQuery,
                                 onBack = { navController.popBackStack() },
-                                onOpenThread = { threadNo ->
-                                    navController.navigate(Route.Thread(route.board, threadNo))
-                                },
+                                onOpenThread = { threadNo -> navController.push(Route.Thread(route.board, threadNo)) },
                             )
                         }
                         screen<Route.Thread> { entry ->
@@ -205,9 +203,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                                 threadNo = route.threadNo,
                                 scrollToPostNo = route.scrollToPostNo,
                                 onBack = { navController.popBackStack() },
-                                onOpenMedia = { postNo ->
-                                    navController.navigate(Route.Media(route.board, route.threadNo, postNo))
-                                },
+                                onOpenMedia = { postNo -> navController.push(Route.Media(route.board, route.threadNo, postNo)) },
                                 onOpenInternal = { link -> navController.openInternal(link, from = route) },
                             )
                         }
@@ -223,7 +219,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         screen<Route.Threads> {
                             ThreadsScreen(
                                 slots = slots,
-                                onOpenThread = { board, no, post -> navController.navigate(Route.Thread(board, no, post)) },
+                                onOpenThread = { board, no, post -> navController.push(Route.Thread(board, no, post)) },
                                 onOpenSettings = openSettings,
                             )
                         }
@@ -231,15 +227,13 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                             VaultScreen(
                                 slots = slots,
                                 onOpenSettings = openSettings,
-                                onOpenThread = { board, no, post ->
-                                    navController.navigate(Route.Thread(board, no, post))
-                                },
+                                onOpenThread = { board, no, post -> navController.push(Route.Thread(board, no, post)) },
                             )
                         }
                         screen<Route.Settings> {
                             SettingsScreen(
                                 onBack = { navController.popBackStack() },
-                                onOpenSection = { navController.navigate(Route.SettingsSection(it)) },
+                                onOpenSection = { navController.push(Route.SettingsSection(it)) },
                             )
                         }
                         screen<Route.SettingsSection> { entry ->
@@ -268,36 +262,34 @@ private inline fun <reified T : Any> NavGraphBuilder.screen(
 }
 
 /**
+ * Pushes a screen. Single-top, so a double tap before the destination composes lands on
+ * one screen instead of two stacked copies.
+ */
+private fun NavController.push(route: Route) = navigate(route) { launchSingleTop = true }
+
+/**
  * Follows a quote or board link from inside a thread without letting a chain of quotes
  * pile up entries:
  *
  * - a link to the thread already open just scrolls (single-top swaps the post argument);
  * - a link to a thread on a board whose catalog is on the stack pops back to that catalog
- *   first, so catalog -> A -> B -> C stays catalog -> C;
- * - a link to a catalog already on the stack pops back to it instead of pushing a twin;
- * - anything else pushes normally.
+ *   first, so catalog -> A -> B -> C stays catalog -> C (popUpTo a catalog that is not on
+ *   the stack is a no-op, so anything else pushes normally);
+ * - a link to a catalog already on the stack pops back to it instead of pushing a twin.
  */
 private fun NavController.openInternal(link: InternalLink, from: Route.Thread) {
     when (link) {
         is InternalLink.Catalog -> {
-            val onStack = link.searchQuery == null && popBackStack(Route.Catalog(link.board), inclusive = false)
-            if (!onStack) navigate(Route.Catalog(link.board, link.searchQuery))
+            if (link.searchQuery != null) push(Route.Catalog(link.board, link.searchQuery))
+            else if (!popBackStack(Route.Catalog(link.board), inclusive = false)) push(Route.Catalog(link.board))
         }
         is InternalLink.Thread -> {
             val target = Route.Thread(link.board, link.threadNo, link.postNo)
-            val catalog = Route.Catalog(link.board)
-            when {
-                link.board == from.board && link.threadNo == from.threadNo ->
-                    navigate(target) { launchSingleTop = true }
-                hasEntry(catalog) -> navigate(target) { popUpTo(catalog) { inclusive = false } }
-                else -> navigate(target)
-            }
+            if (link.board == from.board && link.threadNo == from.threadNo) push(target)
+            else navigate(target) { popUpTo(Route.Catalog(link.board)) { inclusive = false } }
         }
     }
 }
-
-private fun NavController.hasEntry(route: Route): Boolean =
-    runCatching { getBackStackEntry(route) }.isSuccess
 
 private fun NavDestination.isTopLevel(): Boolean =
     TopLevelDestination.entries.any { hasRoute(it.route::class) }
