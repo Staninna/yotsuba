@@ -125,6 +125,30 @@ data class VaultBoardSection(
 val List<VaultEntry>.totalBytes: Long get() = sumOf { it.sizeBytes ?: 0L }
 
 /**
+ * The explorer's drill-down shape: boards by directory name, which puts the `_`-prefixed
+ * reserved ones first, each holding its threads newest first. The statistics sheet reads
+ * the same sections, so there is one notion of what a thread holds.
+ */
+fun groupByBoard(entries: List<VaultEntry>): List<VaultBoardSection> =
+    entries
+        .groupBy { it.location.board }
+        .toList()
+        .sortedBy { (board, _) -> board }
+        .map { (board, group) ->
+            val threads = group
+                .groupBy { it.location }
+                .map { (location, threadEntries) ->
+                    VaultThreadSection(
+                        location = location,
+                        subject = threadEntries.firstNotNullOfOrNull { it.subject },
+                        entries = threadEntries,
+                    )
+                }
+                .sortedByDescending { it.location.threadNo }
+            VaultBoardSection(board = board, threads = threads, entries = group)
+        }
+
+/**
  * How the viewer starts a video, from the same settings the live viewer reads. Playback is
  * from disk, so "autoplay on unmetered networks only" means autoplay: no network is used.
  * Sound follows the board: a webm from a board without audio starts muted, as it would live.
@@ -173,6 +197,8 @@ data class VaultSyncState(
 )
 
 data class VaultUiState(
+    /** False for the seed value only: nothing has been read yet, so no branch below is true. */
+    val ready: Boolean = false,
     /** Entries with a real file on disk, newest first. */
     val entries: List<VaultEntry> = emptyList(),
     /** [entries] after the sort and filter chips; what every level of the explorer shows. */
@@ -454,6 +480,7 @@ class VaultViewModel @Inject constructor(
         val results = editing.view.query.takeIf { it.isNotBlank() }?.let { searchEntries(visible, it) }
         val feed = results ?: if (sel.board == null && editing.view.mode == VaultMode.RECENT) recent else null
         VaultUiState(
+            ready = true,
             entries = entries,
             visible = visible,
             sort = editing.view.sort,
@@ -482,11 +509,14 @@ class VaultViewModel @Inject constructor(
         .flowOn(compute)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultUiState())
 
-    /** The statistics sheet's numbers, recomputed whenever the vault changes. */
-    val stats: StateFlow<VaultStats> = mediaVault.entries()
-        .map { VaultStats.of(it, System.currentTimeMillis()) }
+    /**
+     * The statistics sheet's numbers, from the same snapshot the grid shows; null until the
+     * vault has been read once, so the sheet can tell "not yet" from "nothing saved".
+     */
+    val stats: StateFlow<VaultStats?> = uiState
+        .map { state -> if (state.ready) VaultStats.of(state.entries, System.currentTimeMillis()) else null }
         .flowOn(compute)
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), VaultStats.of(emptyList(), 0L))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun openBoard(board: String) = selection.update { VaultSelection(board = board) }
 
@@ -729,26 +759,6 @@ class VaultViewModel @Inject constructor(
             notice.value = VaultNotice.Restored
         }
     }
-
-    /** Boards sort by directory name, which puts the `_`-prefixed reserved ones first. */
-    private fun groupByBoard(entries: List<VaultEntry>): List<VaultBoardSection> =
-        entries
-            .groupBy { it.location.board }
-            .toList()
-            .sortedBy { (board, _) -> board }
-            .map { (board, group) ->
-                val threads = group
-                    .groupBy { it.location }
-                    .map { (location, threadEntries) ->
-                        VaultThreadSection(
-                            location = location,
-                            subject = threadEntries.firstNotNullOfOrNull { it.subject },
-                            entries = threadEntries,
-                        )
-                    }
-                    .sortedByDescending { it.location.threadNo }
-                VaultBoardSection(board = board, threads = threads, entries = group)
-            }
 
     /**
      * The viewer's play order and position; null once the viewed entry is gone (deleted).

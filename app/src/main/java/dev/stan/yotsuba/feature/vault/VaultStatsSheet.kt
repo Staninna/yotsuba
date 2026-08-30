@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -41,11 +42,14 @@ import java.util.Date
  */
 internal fun lazyKey(location: VaultLocation): String = location.board + "/" + location.threadNo
 
-/** A full-height sheet reading [stats]. Tapping a thread hands its location to [onOpenThread]. */
+/**
+ * A full-height sheet reading [stats], or a spinner while they are still null. Tapping a
+ * thread hands its location to [onOpenThread].
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun VaultStatsSheet(
-    stats: VaultStats,
+    stats: VaultStats?,
     onDismiss: () -> Unit,
     onOpenThread: (VaultLocation) -> Unit,
 ) {
@@ -57,6 +61,14 @@ internal fun VaultStatsSheet(
             item {
                 Text(stringResource(R.string.vault_stats_title), style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(12.dp))
+            }
+            if (stats == null) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                return@LazyColumn
             }
             if (stats.isEmpty) {
                 item {
@@ -71,7 +83,7 @@ internal fun VaultStatsSheet(
             }
             item { Totals(stats) }
             item { SectionTitle(stringResource(R.string.vault_stats_per_board)) }
-            items(stats.perBoard, key = { it.board }) { BoardBar(it, stats.perBoard.first().bytes) }
+            items(stats.perBoard, key = { it.board }) { BoardBar(it, stats.perBoard.first().sizeBytes) }
             item { SectionTitle(stringResource(R.string.vault_stats_biggest_threads)) }
             items(stats.biggestThreads, key = { lazyKey(it.location) }) { ThreadRow(it) { onOpenThread(it.location) } }
             item { SectionTitle(stringResource(R.string.vault_stats_per_week)) }
@@ -123,20 +135,20 @@ internal fun SectionTitle(text: String) {
     Spacer(Modifier.height(8.dp))
 }
 
-/** Bar length is [stat] bytes against [largest], the biggest board, which fills the row. */
+/** Bar length is [section] bytes against [largest], the biggest board, which fills the row. */
 @Composable
-private fun BoardBar(stat: BoardStat, largest: Long) {
+private fun BoardBar(section: VaultBoardSection, largest: Long) {
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Row(Modifier.fillMaxWidth()) {
-            Text("/${stat.board}/", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text("/${section.board}/", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Text(
-                stringResource(R.string.vault_stats_board_detail, stat.files, FileSize.format(stat.bytes)),
+                stringResource(R.string.vault_stats_board_detail, section.entries.size, FileSize.format(section.sizeBytes)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(Modifier.height(4.dp))
-        WeightedBar(fraction = if (largest > 0) stat.bytes.toFloat() / largest else 0f)
+        WeightedBar(fraction = if (largest > 0) section.sizeBytes.toFloat() / largest else 0f)
     }
 }
 
@@ -157,18 +169,18 @@ private fun WeightedBar(fraction: Float, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ThreadRow(stat: ThreadStat, onClick: () -> Unit) {
+private fun ThreadRow(thread: VaultThreadSection, onClick: () -> Unit) {
     ListItem(
         headlineContent = {
-            Text(stat.subject?.takeIf { it.isNotBlank() } ?: stringResource(R.string.vault_stats_untitled), maxLines = 1)
+            Text(thread.subject?.takeIf { it.isNotBlank() } ?: stringResource(R.string.vault_stats_untitled), maxLines = 1)
         },
         supportingContent = {
             Text(
                 stringResource(
                     R.string.vault_stats_thread_detail,
-                    stat.location.board,
-                    stat.files,
-                    FileSize.format(stat.bytes),
+                    thread.location.board,
+                    thread.entries.size,
+                    FileSize.format(thread.sizeBytes),
                 ),
             )
         },

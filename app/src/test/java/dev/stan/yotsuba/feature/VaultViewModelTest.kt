@@ -726,6 +726,33 @@ class VaultViewModelTest {
         assertEquals(2, summary?.updated)
     }
 
+    @Test fun `the seed state is not ready and the first real one is`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
+        val vm = vm(vault)
+        assertEquals(false, vm.uiState.value.ready)
+        vm.uiState.test {
+            assertTrue(latest().ready)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `stats are null until the vault has been read, then follow the grid's snapshot`() =
+        runTest(dispatcher.scheduler) {
+            val vault = FakeVault(listOf(entry("g/1.jpg", threadG, sizeBytes = 5), entry("a/1.jpg", threadA, sizeBytes = 7)))
+            val vm = vm(vault)
+            assertNull(vm.stats.value)
+            vm.stats.test {
+                dispatcher.scheduler.advanceUntilIdle()
+                val stats = expectMostRecentItem()!!
+                assertEquals(2, stats.files)
+                assertEquals(listOf("a", "g"), stats.perBoard.map { it.board })
+                vault.state.value = vault.state.value.take(1)
+                dispatcher.scheduler.advanceUntilIdle()
+                assertEquals(1, expectMostRecentItem()?.files)
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `storage access is part of the ui state`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())
         vm(vault).uiState.test {
