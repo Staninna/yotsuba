@@ -3,19 +3,13 @@ package dev.stan.yotsuba.dedup
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateGroup
-import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
-import dev.stan.yotsuba.domain.model.ThreadDetails
-import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
-import dev.stan.yotsuba.domain.model.VaultSyncSummary
-import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.fake.FakeVault
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -31,18 +25,9 @@ class DedupQueueTest {
 
     private val ctx = VaultSaveContext(board = "g", threadNo = 100, threadSubject = null, opExcerpt = null, post = null)
 
-    private class RecordingVault : MediaVaultRepository {
+    private class RecordingVault : FakeVault() {
         val saved = mutableListOf<String>()
-        override fun hasStorageAccess() = true
-        override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-        override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? { saved += item.fullUrl; return null }
-        override suspend fun delete(url: String): VaultError? = null
-        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
-        override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
-        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
-        override suspend fun rescan() {}
-        override suspend fun migrateLegacyIfNeeded() {}
     }
 
     private class KnownMd5s(private val known: Map<String, String>) : VaultDedupRepository {
