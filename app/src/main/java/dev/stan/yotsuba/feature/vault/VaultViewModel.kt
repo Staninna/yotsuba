@@ -7,6 +7,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.stan.yotsuba.core.di.ComputeDispatcher
 import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.Settings
@@ -238,7 +239,7 @@ class VaultViewModel @Inject constructor(
     private val boardRepository: BoardRepository,
     private val savedState: SavedStateHandle = SavedStateHandle(),
     /** Where the sort/group pipeline runs; tests pass their scheduler's dispatcher. */
-    private val compute: CoroutineDispatcher = Dispatchers.Default,
+    @ComputeDispatcher private val compute: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     init {

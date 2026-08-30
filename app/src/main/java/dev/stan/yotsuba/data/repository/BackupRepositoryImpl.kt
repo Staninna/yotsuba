@@ -2,11 +2,11 @@ package dev.stan.yotsuba.data.repository
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import dev.stan.yotsuba.core.backup.ApplicationScope
 import dev.stan.yotsuba.core.backup.BackupCodec
 import dev.stan.yotsuba.core.backup.BackupFile
 import dev.stan.yotsuba.core.backup.StorageAccessCheck
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
+import dev.stan.yotsuba.core.di.ApplicationScope
 import dev.stan.yotsuba.domain.repository.BackupInfo
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BackupResult
