@@ -2,7 +2,7 @@
 
 **A 4chan browser for Android, with a media vault that outlives the app.**
 
-Boards, catalogs and threads in Compose, with the things a phone client actually
+Boards, catalogs and threads in Compose, with the things a phone client
 needs: quote previews without losing your place, spoilers that stay hidden until
 you ask, a reading position that survives leaving a thread, and saved media
 filed into a directory structure you can still make sense of from a file
@@ -22,8 +22,8 @@ Saved media does not live in the app's sandbox. It goes to
 with a `meta.json` sidecar describing what's in it.
 
 That has a specific consequence worth knowing: **uninstalling the app does not
-delete your media, and a fresh install can rebuild its whole index from disk** —
-the rescan button in the Vault tab walks the sidecars and repopulates the
+delete your media, and a fresh install can rebuild its whole index from disk**. The
+rescan button in the Vault tab walks the sidecars and repopulates the
 database. Bookmarks, history and settings do not survive an uninstall; the vault
 does.
 
@@ -37,7 +37,7 @@ does.
   board allows it, picture-in-picture, and shuffle across a whole scope
 - **Bookmarks** that track new replies since you last looked
 - **History** with configurable retention
-- **In-app updates** from GitHub releases — see below
+- **In-app updates** from GitHub releases, see below
 
 ## Building
 
@@ -72,7 +72,7 @@ git tag -a v1.2.3 -m "Yotsuba 1.2.3" && git push origin v1.2.3
 CI runs the tests, builds an APK signed with the release keystore, verifies it
 is not debug-signed, and attaches it to a generated GitHub release.
 
-`versionName` **must** match the tag — the release workflow fails the build
+`versionName` **must** match the tag. The release workflow fails the build
 otherwise, because the in-app updater compares the two and a stale `versionName`
 makes the app offer an update it already is.
 
@@ -84,7 +84,7 @@ account, no token, no telemetry: the repo is public and the check is an
 unauthenticated GET.
 
 On Android 12+ the install is silent where the OS permits it. Some vendor
-builds — HyperOS among them — refuse that and show the system installer dialog
+builds, HyperOS among them, refuse that and show the system installer dialog
 instead; the app falls back to it automatically.
 
 ## Architecture

@@ -10,7 +10,7 @@ data class VaultSaveContext(
     val opExcerpt: String?,
     val post: ThreadPost?,
     /**
-     * The conversation to preserve as text beside the file — the saved post's transitive
+     * The conversation to preserve as text beside the file: the saved post's transitive
      * parents and replies. Empty when the user has the setting off.
      */
     val conversation: List<ThreadPost> = emptyList(),

@@ -23,7 +23,7 @@ private const val HORIZONTAL_BIAS = 1.5f
  * A plain `detectHorizontalDragGestures` on the parent loses this race. Compose offers
  * pointer events to children first, so the pager's slop detection or telephoto's pan can
  * consume the very event that would have crossed the threshold, and the swipe silently
- * does nothing — which is exactly the "sometimes it just doesn't open" the old one had.
+ * does nothing, which is exactly the "sometimes it just doesn't open" the old one had.
  * Reading the leftovers instead means a drag something else wanted stays theirs, and one
  * nobody wanted always reaches us, including from on top of a reply panel that covers the
  * feed completely.
@@ -55,7 +55,7 @@ suspend fun PointerInputScope.detectViewerSwipe(
 }
 
 /**
- * Direction lock for the vertical pager, decided on the [PointerEventPass.Initial] pass —
+ * Direction lock for the vertical pager, decided on the [PointerEventPass.Initial] pass,
  * the only pass that runs before the pager's own slop detection.
  *
  * The pager only ever measures the vertical component of a drag, so a sideways swipe with

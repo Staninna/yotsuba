@@ -59,7 +59,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Robolectric only because [NetworkMonitor] and [MediaByteSource] are concrete classes
  * over Context; the repositories are faked at their interfaces. ExoPlayer never appears
- * here — the ViewModel itself is player-free.
+ * here. The ViewModel itself is player-free.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

@@ -29,7 +29,7 @@ import kotlinx.coroutines.withContext
  * In-app update: ask GitHub for the newest release, and when it beats the
  * running build, fetch that APK and install it over ourselves.
  *
- * Driven entirely from Settings — nothing here runs on its own.
+ * Driven entirely from Settings. Nothing here runs on its own.
  */
 @Singleton
 class Updater @Inject constructor(
@@ -103,7 +103,7 @@ class Updater @Inject constructor(
     }
 
     /**
-     * Some OEM builds — HyperOS among them — refuse a silent self-update by
+     * Some OEM builds, HyperOS among them, refuse a silent self-update by
      * killing the session outright ("INSTALL_FAILED_ABORTED: Permission
      * denied") rather than reporting PENDING_USER_ACTION and letting us show
      * the installer. So a silent attempt that fails is retried once the
@@ -173,7 +173,7 @@ class Updater @Inject constructor(
 
     /**
      * Registered for this one session, so it can write back into the state
-     * flow — a manifest receiver in a fresh process could not.
+     * flow. A manifest receiver in a fresh process could not.
      */
     @SuppressLint("UnspecifiedRegisterReceiverFlag")
     private fun statusReceiver(sessionId: Int, apk: File, allowSilent: Boolean): PendingIntent {

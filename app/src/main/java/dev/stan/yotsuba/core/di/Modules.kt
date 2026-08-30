@@ -78,7 +78,7 @@ object NetworkModule {
     fun json(): Json = Json { ignoreUnknownKeys = true }
 
     /**
-     * One client shared with Coil and Media3 — same pool, dispatcher, interceptors — but its
+     * One client shared with Coil and Media3, so the same pool, dispatcher and interceptors, but its
      * Cache is 10 MB and carries API JSON only; Coil gets its own diskCache (D8).
      */
     @Provides

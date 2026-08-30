@@ -16,8 +16,8 @@ data class ViewerBehaviour(
     /**
      * How far one double-tap actually jumps in a video of [durationMs].
      *
-     * A fixed step is useless on a short clip — 10 s on a 2 s webm just lands at the end —
-     * so the jump is capped at [MAX_SHARE] of the running time. Long videos get the
+     * A fixed step is useless on a short clip; 10 s on a 2 s webm just lands at the end.
+     * So the jump is capped at [MAX_SHARE] of the running time. Long videos get the
      * configured step verbatim; short ones scale down, so no clip takes more than
      * `1 / MAX_SHARE` taps to cross. An unknown duration falls back to the configured step.
      */

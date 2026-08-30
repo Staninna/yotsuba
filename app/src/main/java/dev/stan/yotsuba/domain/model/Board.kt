@@ -6,7 +6,7 @@ data class Board(
     val description: String,
     val worksafe: Boolean,
     val category: BoardCategory,
-    // Capability flags (D21) — declared data driving rendering directly.
+    // Capability flags (D21). Declared data that drives rendering directly.
     val userIds: Boolean,
     val countryFlags: Boolean,
     val boardFlags: Boolean,

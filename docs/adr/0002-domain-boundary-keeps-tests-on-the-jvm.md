@@ -1,4 +1,4 @@
-# ADR-0002 — Repository interfaces in `domain`, implementations in `data`
+# ADR-0002: Repository interfaces in `domain`, implementations in `data`
 
 **Status:** accepted
 
@@ -10,8 +10,8 @@ being written.
 
 ## Decision
 
-`domain/repository` holds interfaces expressed purely in domain models —
-`Bookmark`, `HistoryEntry`, `VaultEntry` — with no Room, Retrofit or Android
+`domain/repository` holds interfaces expressed purely in domain models such as
+`Bookmark`, `HistoryEntry` and `VaultEntry`, with no Room, Retrofit or Android
 types in their signatures. `data/repository` implements them.
 
 Sentinels were removed in the same spirit: `VaultLocation` is a sum type rather
@@ -24,6 +24,6 @@ rather than a `fullUrl = ""` row.
   are 38 test files rather than 5.
 - A repository method returning a Room entity is a boundary violation even when
   it compiles, and it will quietly drag Android back into the test path.
-- Some things stay untestable on the JVM regardless — anything needing `Context`
+- Some things stay untestable on the JVM regardless, meaning anything needing `Context`
   or ExoPlayer. `todo.md` records that honestly rather than reporting a coverage
   number that implies otherwise.

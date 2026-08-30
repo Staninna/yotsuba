@@ -46,7 +46,7 @@ import kotlinx.coroutines.launch
 
 /**
  * One subscreen of the settings index. Owns the chrome that every section would otherwise
- * repeat — app bar, snackbar, the "are you sure?" dialog — and dispatches the body.
+ * repeat, meaning the app bar, the snackbar and the "are you sure?" dialog, and dispatches the body.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

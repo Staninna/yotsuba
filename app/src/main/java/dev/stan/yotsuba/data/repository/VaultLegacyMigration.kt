@@ -55,7 +55,7 @@ class VaultLegacyMigration @Inject constructor(
 
         val moved = mutableListOf<String>()
         for (file in legacyFiles) {
-            // MediaStore dedupes as "name (1).jpg" — strip that before matching.
+            // MediaStore dedupes as "name (1).jpg", so strip that before matching.
             val baseName = file.name.replace(Regex(""" \(\d+\)(\.\w+)$"""), "$1")
             val match = byDisplayName[baseName]
             val savedAt = legacyUrls[match?.post?.presentMedia?.fullUrl]?.downloadedAt ?: file.lastModified()

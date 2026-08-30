@@ -13,7 +13,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 
-/** A dialog listing revocable entries — trusted domains, hidden threads — one remove per row. */
+/** A dialog listing revocable entries such as trusted domains or hidden threads, one remove per row. */
 @Composable
 internal fun <T> ManagedListDialog(
     title: String,

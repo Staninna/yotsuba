@@ -1,4 +1,4 @@
-# Context map — Yotsuba
+# Yotsuba context map
 
 The package layout is layered (`core` / `domain` / `data` / `feature`), so the
 contexts below cut across it rather than mapping one-to-one onto directories.
@@ -15,17 +15,17 @@ System-wide decisions: [`docs/adr/`](docs/adr/).
 
 ## Words that mean something specific here
 
-- **Board** — a `/x/` section. **Catalog** — its thread grid. **Thread** — an OP
-  plus replies. **Post** — one message.
-- **Entry** (`VaultEntry`) — a saved file *plus* its provenance: which board,
+- **Board**: a `/x/` section. **Catalog**: its thread grid. **Thread**: an OP
+  plus replies. **Post**: one message.
+- **Entry** (`VaultEntry`): a saved file *plus* its provenance: which board,
   thread and post it came from. Not the same as a file on disk; a file with no
   meta is not an entry.
-- **Sidecar** — the `meta.json` in each thread directory. It is the source of
+- **Sidecar**: the `meta.json` in each thread directory. It is the source of
   truth for the vault, not the database. See ADR-0001.
-- **Unsorted** — `_unsorted/`, where migrated files with no known thread landed.
-- **Rescan** — rebuilding the vault index from sidecars. The only way an index
+- **Unsorted**: `_unsorted/`, where migrated files with no known thread landed.
+- **Rescan**: rebuilding the vault index from sidecars. The only way an index
   comes back after a reinstall.
-- **Read mark** — the highest post number actually shown on screen, as opposed
+- **Read mark**: the highest post number shown on screen, as opposed
   to the scroll position, which is where the user happened to stop.
 
 ## The thing to know before touching storage

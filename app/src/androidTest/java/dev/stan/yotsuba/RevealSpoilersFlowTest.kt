@@ -14,7 +14,7 @@ class RevealSpoilersFlowTest : FlowTest() {
     @Inject
     lateinit var settings: FakeSettingsRepository
 
-    /** With "Reveal all spoilers" on, the first tap opens the viewer — no reveal step. */
+    /** With "Reveal all spoilers" on, the first tap opens the viewer, with no reveal step. */
     @Test
     fun revealAllSpoilersOn_singleTapOpensViewer() {
         settings.state.value = settings.state.value.copy(revealAllSpoilers = true)

@@ -60,7 +60,7 @@ interface SavedMediaDao {
     @Query("UPDATE saved_media SET md5 = :md5, phash = :phash, pixelSize = :pixelSize WHERE url = :url")
     suspend fun updateHashes(url: String, md5: String, phash: Long?, pixelSize: Long?)
 
-    /** Atomic rebuild for rescan — a crash mid-rescan can never leave the index empty. */
+    /** Atomic rebuild for rescan, so a crash mid-rescan can never leave the index empty. */
     @Transaction
     suspend fun replaceAll(entities: List<SavedMediaEntity>) {
         clearAll()

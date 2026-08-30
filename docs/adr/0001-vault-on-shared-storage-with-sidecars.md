@@ -1,4 +1,4 @@
-# ADR-0001 — The vault lives on shared storage, described by sidecars
+# ADR-0001: The vault lives on shared storage, described by sidecars
 
 **Status:** accepted
 
@@ -6,7 +6,7 @@
 
 Saved media is the only thing in this app a user would genuinely mourn. Kept in
 the app sandbox it would be invisible to every other app and destroyed by an
-uninstall — including the uninstall required to move from a debug-signed build
+uninstall, including the uninstall required to move from a debug-signed build
 to a properly signed one.
 
 ## Decision
@@ -25,7 +25,7 @@ else.
   whole index from disk. This has been exercised: 193 files across 23 sidecars
   came back intact through a signature-forced uninstall/reinstall.
 - Rescan is manual, in the Vault tab. A fresh install shows an empty vault until
-  it is pressed — which looks exactly like data loss and is not.
+  it is pressed, which looks exactly like data loss and is not.
 - A file with no sidecar entry is invisible to the app even though it is on
   disk. Anything that writes into the vault must update the sidecar in the same
   breath.

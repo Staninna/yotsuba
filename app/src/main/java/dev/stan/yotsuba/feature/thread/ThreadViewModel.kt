@@ -546,7 +546,7 @@ class ThreadViewModel @AssistedInject constructor(
      * to the bookmarks tab.
      */
     private suspend fun raiseReadMark(postNo: Long) {
-        // Scrolling back up must not inflate the count — the mark only ever rises.
+        // Scrolling back up must not inflate the count. The mark only ever rises.
         val current = historyRepository.readUpTo(board, threadNo)
         if (current != null && postNo < current) return
         historyRepository.updateReadUpTo(board, threadNo, postNo)

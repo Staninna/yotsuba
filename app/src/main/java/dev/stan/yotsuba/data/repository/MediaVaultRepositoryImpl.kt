@@ -194,8 +194,8 @@ class MediaVaultRepositoryImpl @Inject constructor(
         val targets = savedThreads().filterNot { it in skip }
         runPass(targets, onProgress) { location, thread ->
             val dir = store.threadDir(location.board, location.threadNo) ?: return@runPass
-            // The whole comment section, not just the conversation around what was
-            // saved: while the thread is alive this is the only chance to take it.
+            // The whole comment section rather than the conversation around what was
+            // saved, because while the thread is alive this is the only chance to take it.
             store.updatePosts(
                 dir = dir,
                 board = location.board,

@@ -199,7 +199,7 @@ class MediaViewModel @AssistedInject constructor(
         viewModelScope.launch { mediaVault.delete(url) }
     }
 
-    /** Delete first, then queue a fresh save — sequenced so they can't race. */
+    /** Delete first, then queue a fresh save, sequenced so they can't race. */
     fun redownload(item: MediaItem) {
         viewModelScope.launch {
             mediaVault.delete(item.fullUrl)

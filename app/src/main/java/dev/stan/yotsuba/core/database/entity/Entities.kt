@@ -34,7 +34,7 @@ data class HistoryEntity(
     val thumbnailUrl: String?,
     val viewedAt: Long,
     val lastScrollPostNo: Long?,
-    /** Highest post number that has actually been on screen — the true "read up to" mark. */
+    /** Highest post number that has been on screen, the true "read up to" mark. */
     val maxReadPostNo: Long? = null,
 )
 
@@ -45,7 +45,7 @@ data class HiddenThreadEntity(
     val hiddenAt: Long,
 )
 
-/** Media files the user saved to the gallery, keyed by full URL. Legacy — superseded by [SavedMediaEntity]. */
+/** Media files the user saved to the gallery, keyed by full URL. Legacy, superseded by [SavedMediaEntity]. */
 @Entity(tableName = "downloaded_media")
 data class DownloadedMediaEntity(
     @PrimaryKey val url: String,

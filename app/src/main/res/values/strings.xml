@@ -22,12 +22,12 @@
     <string name="search_no_results_explanation">Nothing matches \"%s\".</string>
     <string name="error_offline">You\'re offline</string>
     <string name="error_timeout">The request timed out</string>
-    <string name="error_rate_limited">Slow down — too many requests</string>
+    <string name="error_rate_limited">Slow down, too many requests</string>
     <string name="error_not_found">Not found</string>
     <string name="error_server">Server error (%d)</string>
     <string name="error_unknown">Something went wrong</string>
-    <string name="offline">Offline — showing cached data</string>
-    <string name="offline_showing_cached">Offline — showing cached from %s</string>
+    <string name="offline">Offline, showing cached data</string>
+    <string name="offline_showing_cached">Offline, showing a cached copy from %s</string>
 
     <!-- Boards -->
     <string name="boards_search_hint">Search boards</string>
@@ -191,10 +191,10 @@
     <string name="settings_hidden_threads">Hidden threads (%d)</string>
     <string name="settings_unhide">Unhide</string>
     <string name="settings_updates">Updates</string>
-    <string name="settings_update_dev_build">Dev build %1$s — installed from the laptop, not from a release. Updates are delivered to the release build, which is installed alongside this one.</string>
+    <string name="settings_update_dev_build">Dev build %1$s, installed from the laptop rather than from a release. Updates go to the release build, which sits alongside this one.</string>
     <string name="settings_update_check">Check for updates</string>
     <string name="settings_update_checking">Checking…</string>
-    <string name="settings_update_none">Nothing new — %1$s is the latest.</string>
+    <string name="settings_update_none">Nothing new. %1$s is the latest.</string>
     <string name="settings_update_available">%1$s is available</string>
     <string name="settings_update_notes_open">What\'s new (tap to open)</string>
     <string name="settings_update_notes_close">What\'s new (tap to close)</string>
@@ -258,8 +258,8 @@
     <string name="vault_shuffle_videos_with_sound">Videos with sound</string>
     <string name="vault_shuffle_videos_silent">Silent videos</string>
     <string name="vault_shuffle_images">Images only</string>
-    <string name="vault_auto_advance_on">Auto-advance on — tap to loop</string>
-    <string name="vault_auto_advance_off">Looping — tap to auto-advance</string>
+    <string name="vault_auto_advance_on">Auto-advance on. Tap to loop</string>
+    <string name="vault_auto_advance_off">Looping. Tap to auto-advance</string>
     <plurals name="vault_sync_done">
         <item quantity="one">Refreshed %1$d thread, %2$d already gone.</item>
         <item quantity="other">Refreshed %1$d threads, %2$d already gone.</item>

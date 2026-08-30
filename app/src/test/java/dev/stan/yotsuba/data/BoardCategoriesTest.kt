@@ -16,7 +16,7 @@ class BoardCategoriesTest {
 
     @Test fun `every live board maps to a category`() {
         val dto = json.decodeFromString<BoardsDto>(fixture)
-        // Not asserting no board falls to OTHER — OTHER is a real category — but asserting
+        // Not asserting no board falls to OTHER, since OTHER is a real category, but asserting
         // the well-known ones land where 4chan puts them.
         assertEquals(BoardCategory.INTERESTS, BoardCategories.categoryOf("g"))
         assertEquals(BoardCategory.JAPANESE_CULTURE, BoardCategories.categoryOf("jp"))

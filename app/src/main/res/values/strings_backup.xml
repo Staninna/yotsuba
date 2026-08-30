@@ -12,7 +12,7 @@
     <string name="backup_dismiss">Dismiss</string>
     <string name="backup_exported">Backup written %1$s</string>
     <string name="backup_imported">Restored %1$d bookmarks and %2$d hidden threads</string>
-    <string name="backup_no_access">No storage access: the vault folder is out of reach</string>
+    <string name="backup_no_access">No storage access, so the vault folder is out of reach</string>
     <string name="backup_none_found">No backup in the vault folder</string>
     <string name="backup_failed">Backup failed: %1$s</string>
 </resources>

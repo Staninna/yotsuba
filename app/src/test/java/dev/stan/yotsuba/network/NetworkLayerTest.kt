@@ -94,7 +94,7 @@ class NetworkLayerTest {
         c.newCall(Request.Builder().url(url).build()).execute().use { r ->
             assertEquals("public, max-age=86400", r.header("Cache-Control"))
         }
-        // Second call within the imposed lifetime is served from cache — no second request.
+        // Second call within the imposed lifetime is served from cache, with no second request.
         c.newCall(Request.Builder().url(url).build()).execute().use { }
         assertEquals(1, server.requestCount)
     }

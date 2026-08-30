@@ -1,4 +1,4 @@
-# ADR-0003 — One OkHttp client, shared, except where it must not be
+# ADR-0003: One OkHttp client, shared, except where it must not be
 
 **Status:** accepted
 

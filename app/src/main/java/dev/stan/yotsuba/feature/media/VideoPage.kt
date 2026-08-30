@@ -88,7 +88,7 @@ private const val EDGE_FRACTION = 0.3f
 /**
  * One full-screen looping video page for a vertical media feed. Plays [videoUri]
  * (remote URL or local file/content URI); [thumbnailModel] stands in until the first frame.
- * The surface letterboxes — never crops — whatever the orientation.
+ * The surface letterboxes, never crops, whatever the orientation.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
@@ -353,7 +353,7 @@ private fun rememberVideoPlayback(
         player.repeatMode = mode
         soundPlayer?.repeatMode = mode
     }
-    // Closing the app or the PiP window stops the activity — audio must not keep running.
+    // Closing the app or the PiP window stops the activity. Audio must not keep running.
     PauseWhenStopped(player, shouldPlay = selected && playing)
 
     // The transport bar is the only reader of the position, so the poll runs only while
@@ -495,7 +495,7 @@ private fun VideoTransportBar(
 }
 
 /**
- * Whether the file carries audio at all, playable or not — null while the player has not
+ * Whether the file carries audio at all, playable or not. Null while the player has not
  * read any tracks yet, which is not the same answer as "no audio" and must not disable
  * the button.
  */
@@ -509,7 +509,7 @@ private fun formatMs(ms: Long): String {
 
 /**
  * Double-tapping the outer [EDGE_FRACTION] of a video seeks; the middle keeps telephoto's
- * zoom. Videos only — an image has nothing to seek, so it keeps zoom everywhere.
+ * zoom. Videos only; an image has nothing to seek, so it keeps zoom everywhere.
  */
 private class EdgeSeekDoubleClick(
     private val viewportWidth: Int,
