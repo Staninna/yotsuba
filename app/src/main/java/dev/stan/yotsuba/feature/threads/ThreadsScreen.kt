@@ -21,7 +21,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -71,8 +70,8 @@ fun ThreadsScreen(
     val snackbar = slots.snackbar
     val scope = rememberCoroutineScope()
     val spacing = LocalSpacing.current
-    var searching by remember { mutableStateOf(false) }
-    var confirmClear by remember { mutableStateOf(false) }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
     val clearedMessage = stringResource(R.string.history_cleared)
 
     TabChrome(
