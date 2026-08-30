@@ -138,13 +138,13 @@ fun VideoPage(
         )
     }
 
-    LaunchedEffect(selected, playing) { player.playWhenReady = selected && playing }
-    LaunchedEffect(muted, soundPlayer) {
+    LaunchedEffect(player, selected, playing) { player.playWhenReady = selected && playing }
+    LaunchedEffect(player, muted, soundPlayer) {
         val volume = if (muted) 0f else 1f
         player.volume = volume
         soundPlayer?.volume = volume
     }
-    LaunchedEffect(autoAdvance, soundPlayer) {
+    LaunchedEffect(player, autoAdvance, soundPlayer) {
         val mode = if (autoAdvance) ExoPlayer.REPEAT_MODE_OFF else ExoPlayer.REPEAT_MODE_ONE
         player.repeatMode = mode
         soundPlayer?.repeatMode = mode
