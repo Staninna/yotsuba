@@ -1,6 +1,8 @@
 package dev.stan.yotsuba.navigation
 
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
@@ -48,6 +50,7 @@ import androidx.navigation.toRoute
 import androidx.window.core.layout.WindowWidthSizeClass
 import dev.stan.yotsuba.core.designsystem.component.LocalAnimatedVisibilityScope
 import dev.stan.yotsuba.core.designsystem.component.LocalSharedTransitionScope
+import dev.stan.yotsuba.core.designsystem.rememberReducedMotion
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.util.Urls.InternalLink
@@ -145,6 +148,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
             },
         ) { padding ->
             val motion = LocalMotion.current
+            val reduced = rememberReducedMotion()
             val fade = tween<Float>(motion.medium)
             val slide = tween<IntOffset>(motion.medium)
             // One shared-transition scope over the whole graph, so a thumbnail on one screen
@@ -158,13 +162,20 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                         // A tab switch composes both screens at once, so it gets a short fade
                         // and no slide; the push/pop slide is for screens that stack.
                         enterTransition = {
-                            if (isTabSwitch()) fadeIn(tween(motion.short))
+                            if (reduced) EnterTransition.None
+                            else if (isTabSwitch()) fadeIn(tween(motion.short))
                             else fadeIn(fade) + slideInHorizontally(slide) { it / 8 }
                         },
-                        exitTransition = { fadeOut(tween(motion.short)) },
-                        popEnterTransition = { fadeIn(if (isTabSwitch()) tween(motion.short) else fade) },
+                        exitTransition = {
+                            if (reduced) ExitTransition.None else fadeOut(tween(motion.short))
+                        },
+                        popEnterTransition = {
+                            if (reduced) EnterTransition.None
+                            else fadeIn(if (isTabSwitch()) tween(motion.short) else fade)
+                        },
                         popExitTransition = {
-                            if (isTabSwitch()) fadeOut(tween(motion.short))
+                            if (reduced) ExitTransition.None
+                            else if (isTabSwitch()) fadeOut(tween(motion.short))
                             else fadeOut(fade) + slideOutHorizontally(slide) { it / 8 }
                         },
                     ) {

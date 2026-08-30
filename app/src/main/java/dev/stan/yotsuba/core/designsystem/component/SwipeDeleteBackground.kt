@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
+import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 
 /**
@@ -32,11 +34,17 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 fun SwipeDeleteBackground(state: SwipeToDismissBoxState) {
     val spacing = LocalSpacing.current
     val committing = state.targetValue != SwipeToDismissBoxValue.Settled
+    val motion = LocalMotion.current
     val color by animateColorAsState(
         if (committing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.errorContainer,
+        animationSpec = rememberMotionSpec(motion.short),
         label = "swipeDeleteColor",
     )
-    val iconScale by animateFloatAsState(if (committing) 1.25f else 1f, label = "swipeDeleteScale")
+    val iconScale by animateFloatAsState(
+        if (committing) 1.25f else 1f,
+        animationSpec = rememberMotionSpec(motion.short),
+        label = "swipeDeleteScale",
+    )
     val alignment = when (state.dismissDirection) {
         SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
         else -> Alignment.CenterEnd
