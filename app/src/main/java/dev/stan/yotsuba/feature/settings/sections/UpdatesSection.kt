@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.BuildConfig
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.update.Release
 import dev.stan.yotsuba.core.update.Updater
@@ -53,6 +54,10 @@ fun UpdatesSection(
         }
         return
     }
+
+    // Coming back from the system "install unknown apps" screen with the permission granted
+    // must clear the hint; nothing else re-checks it until the next tap.
+    OnResumeEffect { if (canInstallPackages()) needsPermission = false }
 
     val busy = state is Updater.State.Checking ||
         state is Updater.State.Downloading ||
