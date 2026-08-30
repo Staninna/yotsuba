@@ -49,6 +49,10 @@ import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterField
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.model.insertFilter
+import dev.stan.yotsuba.domain.model.removeFilter
+import dev.stan.yotsuba.domain.model.setFilterEnabled
+import dev.stan.yotsuba.domain.model.upsertFilter
 import dev.stan.yotsuba.feature.settings.labelRes
 import java.util.UUID
 import kotlinx.coroutines.launch
@@ -82,20 +86,15 @@ fun FiltersSection(
         // Keyed by id so a deleted row's swipe state does not leak onto its successor.
         key(filter.id) {
             SwipeToDeleteRow(onDelete = {
-                update { it.copy(filters = it.filters - filter) }
+                update { it.removeFilter(filter.id) }
                 scope.launch {
-                    snackbar.showUndo(deletedMessage, undoLabel) {
-                        update { s ->
-                            val at = index.coerceAtMost(s.filters.size)
-                            s.copy(filters = s.filters.toMutableList().apply { add(at, filter) })
-                        }
-                    }
+                    snackbar.showUndo(deletedMessage, undoLabel) { update { it.insertFilter(index, filter) } }
                 }
             }) {
                 FilterRow(
                     filter = filter,
                     onClick = { editing = filter },
-                    onToggle = { on -> update { s -> s.copy(filters = s.filters.map { if (it.id == filter.id) it.copy(enabled = on) else it }) } },
+                    onToggle = { on -> update { it.setFilterEnabled(filter.id, on) } },
                 )
             }
         }
@@ -115,10 +114,7 @@ fun FiltersSection(
             isNew = settings.filters.none { it.id == draft.id },
             onDismiss = { editing = null },
             onSave = { saved ->
-                update { s ->
-                    if (s.filters.any { it.id == saved.id }) s.copy(filters = s.filters.map { if (it.id == saved.id) saved else it })
-                    else s.copy(filters = s.filters + saved)
-                }
+                update { it.upsertFilter(saved) }
                 editing = null
             },
         )
