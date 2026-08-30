@@ -15,18 +15,20 @@ import dev.stan.yotsuba.domain.repository.CatalogRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 @Singleton
-class BookmarkRepositoryImpl @Inject constructor(
+class BookmarkRepositoryImpl(
     private val dao: BookmarkDao,
     private val api: FourChanApi,
     private val catalogRepository: CatalogRepository,
+    private val clock: () -> Long,
 ) : BookmarkRepository {
 
-    /** Test seam; the injected constructor keeps wall-clock time. */
-    internal var clock: () -> Long = System::currentTimeMillis
+    @Inject constructor(dao: BookmarkDao, api: FourChanApi, catalogRepository: CatalogRepository) :
+        this(dao, api, catalogRepository, System::currentTimeMillis)
 
     override val bookmarks: Flow<List<Bookmark>> =
         dao.all().map { list -> list.map { it.toDomain() } }
@@ -36,7 +38,7 @@ class BookmarkRepositoryImpl @Inject constructor(
     override suspend fun remove(board: String, threadNo: Long) = dao.delete(board, threadNo)
 
     override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> =
-        dao.isBookmarked(board, threadNo)
+        dao.isBookmarked(board, threadNo).distinctUntilChanged()
 
     /**
      * One bookmark, full JSON, no cache. A 404 flips the row to DEAD and the snapshot
@@ -50,11 +52,7 @@ class BookmarkRepositoryImpl @Inject constructor(
                 else -> bookmark
             }
         }
-        dao.updateRefresh(
-            refreshed.board, refreshed.threadNo, refreshed.replyCount, refreshed.imageCount,
-            refreshed.state.name, refreshed.lastCheckedAt, refreshed.lastActivityAt,
-            encodePostNos(refreshed.postNos),
-        )
+        persist(refreshed)
         return refreshed
     }
 
@@ -101,37 +99,35 @@ class BookmarkRepositoryImpl @Inject constructor(
         }
         val activity = entry.lastModified.toEpochMs()
         if (entry.replyCount == mark.replyCount && mark.postNos.isNotEmpty()) {
-            dao.updateCounts(
-                mark.board, mark.threadNo, entry.replyCount, entry.imageCount,
-                BookmarkState.ALIVE.name, now, activity,
-            )
-            return mark.copy(
-                replyCount = entry.replyCount, imageCount = entry.imageCount,
-                state = BookmarkState.ALIVE, lastCheckedAt = now, lastActivityAt = activity,
-            )
+            return persistCounts(mark, entry, now, activity).copy(state = BookmarkState.ALIVE)
         }
         // Reply count moved (or the post list was never captured): learn the new post numbers.
         return when (val r = fetchThread(mark)) {
             is DataResult.Success -> {
                 val fresh = r.value.copy(lastActivityAt = activity)
-                dao.updateRefresh(
-                    fresh.board, fresh.threadNo, fresh.replyCount, fresh.imageCount,
-                    fresh.state.name, fresh.lastCheckedAt, fresh.lastActivityAt, encodePostNos(fresh.postNos),
-                )
+                persist(fresh)
                 fresh
             }
-            is DataResult.Failure -> {
-                // Keep what the catalog said; the post list catches up next pass.
-                dao.updateCounts(
-                    mark.board, mark.threadNo, entry.replyCount, entry.imageCount,
-                    BookmarkState.ALIVE.name, now, activity,
-                )
-                mark.copy(
-                    replyCount = entry.replyCount, imageCount = entry.imageCount,
-                    lastCheckedAt = now, lastActivityAt = activity,
-                )
-            }
+            // Keep what the catalog said; the post list catches up next pass.
+            is DataResult.Failure -> persistCounts(mark, entry, now, activity)
         }
+    }
+
+    private suspend fun persist(b: Bookmark) = dao.updateRefresh(
+        b.board, b.threadNo, b.replyCount, b.imageCount,
+        b.state.name, b.lastCheckedAt, b.lastActivityAt, encodePostNos(b.postNos),
+    )
+
+    /** Writes the catalog's counts as ALIVE; the returned copy keeps [mark]'s own state. */
+    private suspend fun persistCounts(mark: Bookmark, entry: CatalogThread, now: Long, activity: Long): Bookmark {
+        dao.updateCounts(
+            mark.board, mark.threadNo, entry.replyCount, entry.imageCount,
+            BookmarkState.ALIVE.name, now, activity,
+        )
+        return mark.copy(
+            replyCount = entry.replyCount, imageCount = entry.imageCount,
+            lastCheckedAt = now, lastActivityAt = activity,
+        )
     }
 
     private suspend fun fetchThread(mark: Bookmark): DataResult<Bookmark> = apiResult {

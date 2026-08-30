@@ -58,7 +58,7 @@ class VaultStore(private val rootOverride: File?) {
         val current = metaFile.takeIf { it.isFile }?.let { VaultMetaCodec.decode(it.readText()) }
             ?: VaultThreadMeta(board = dir.parentFile?.name ?: "")
         val next = transform(current)
-        writeSidecar(metaFile, VaultMetaCodec.encode(next))
+        writeAtomically(metaFile, VaultMetaCodec.encode(next))
         return next
     }
 
@@ -101,7 +101,7 @@ class VaultStore(private val rootOverride: File?) {
     fun updatePosts(dir: File, board: String, threadNo: Long, incoming: List<VaultPostMeta>) {
         if (incoming.isEmpty()) return
         val current = readPosts(dir) ?: VaultThreadPosts(board = board, threadNo = threadNo)
-        writeSidecar(
+        writeAtomically(
             File(dir, VaultPaths.POSTS_FILE_NAME),
             VaultPostsCodec.encode(current.mergedWith(incoming)),
         )
@@ -159,13 +159,13 @@ class VaultStore(private val rootOverride: File?) {
         }
         val kept = saved.posts.filter { it.no in keep }
         val dropped = saved.posts.size - kept.size
-        writeSidecar(File(dir, VaultPaths.POSTS_FILE_NAME), VaultPostsCodec.encode(saved.copy(posts = kept)))
+        writeAtomically(File(dir, VaultPaths.POSTS_FILE_NAME), VaultPostsCodec.encode(saved.copy(posts = kept)))
         updateMeta(dir) { it.copy(prunedAt = System.currentTimeMillis(), prunedPostCount = dropped) }
         return dropped
     }
 
-    /** Write via a temp file so a crash mid-write cannot leave a half-parsed sidecar. */
-    private fun writeSidecar(file: File, text: String) {
+    /** Write via a temp file so a crash mid-write cannot leave a half-parsed file. */
+    fun writeAtomically(file: File, text: String) {
         val tmp = File(file.parentFile, file.name + ".tmp")
         tmp.writeText(text)
         if (!tmp.renameTo(file)) {

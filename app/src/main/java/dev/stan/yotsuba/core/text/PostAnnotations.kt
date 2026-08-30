@@ -54,6 +54,10 @@ data class PostSegment(
 @Serializable
 data class PostText(val segments: List<PostSegment>) {
     val plainText: String get() = segments.joinToString("") { it.text }
+
+    /** Same-thread quotelinks in order of first appearance. */
+    val quotedPostNos: List<Long>
+        get() = segments.mapNotNull { (it.annotation as? PostAnnotation.QuotelinkSameThread)?.postNo }.distinct()
     companion object {
         val Empty = PostText(emptyList())
     }

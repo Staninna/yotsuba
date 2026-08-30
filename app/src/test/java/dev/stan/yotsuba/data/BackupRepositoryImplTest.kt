@@ -98,11 +98,9 @@ class BackupRepositoryImplTest {
         access: Boolean = true,
     ) {
         val repo = BackupRepositoryImpl(
-            VaultStore(), bookmarks, hidden, settings, prefs, StorageAccessCheck { access }, scope,
-        ).apply {
-            rootOverride = root
-            ioDispatcher = UnconfinedTestDispatcher()
-        }
+            VaultStore(root), bookmarks, hidden, settings, prefs, StorageAccessCheck { access }, scope,
+            ioDispatcher = UnconfinedTestDispatcher(),
+        )
     }
 
     @Test

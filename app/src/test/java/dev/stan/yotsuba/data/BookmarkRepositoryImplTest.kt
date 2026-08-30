@@ -141,7 +141,7 @@ class BookmarkRepositoryImplTest {
         api: FourChanApi,
         dao: FakeBookmarkDao = FakeBookmarkDao(),
         catalog: CatalogRepository = FakeCatalog(emptyMap()),
-    ) = BookmarkRepositoryImpl(dao, api, catalog).also { it.clock = { 42L } }
+    ) = BookmarkRepositoryImpl(dao, api, catalog, clock = { 42L })
 
     // --- unread derivation -------------------------------------------------------------
 
