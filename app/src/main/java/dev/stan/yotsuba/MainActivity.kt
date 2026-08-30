@@ -20,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -80,6 +81,11 @@ class MainActivity : FragmentActivity() {
             }
             val lockReady by appLock.ready.collectAsStateWithLifecycle()
             val locked by appLock.locked.collectAsStateWithLifecycle()
+            // The lock screen replaces the app in composition, and a composable that leaves
+            // takes its rememberSaveable state with it: the navigation back stack included.
+            // Without this holder every lock (a trip to the browser with "lock right away")
+            // came back on the Home tab.
+            val navState = rememberSaveableStateHolder()
             YotsubaTheme(
                 darkTheme = dark,
                 dynamicColor = settings.dynamicColor,
@@ -94,7 +100,7 @@ class MainActivity : FragmentActivity() {
                         LaunchedEffect(Unit) { lockPrompter.prompt() }
                         LockScreen(onUnlock = lockPrompter::prompt)
                     }
-                    else -> {
+                    else -> navState.SaveableStateProvider("app") {
                         NotificationPermissionPrompt()
                         AppNavHost(shell = shell)
                     }
