@@ -4,7 +4,14 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # One PR for the routine bumps; majors still arrive on their own.
+    groups:
+      gradle-minor-patch:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions-minor-patch:
+        update-types: [minor, patch]
