@@ -42,13 +42,23 @@ fun SoundTrack(soundUrl: String?, playWhenReady: Boolean, muted: Boolean) {
     val player = rememberSoundPlayer(soundUrl) ?: return
     LaunchedEffect(player, playWhenReady) { player.playWhenReady = playWhenReady }
     LaunchedEffect(player, muted) { player.volume = if (muted) 0f else 1f }
+    PauseWhenStopped(player, shouldPlay = playWhenReady)
+}
+
+/**
+ * Pauses [player] when the activity stops (the app closed, the PiP window dismissed) and
+ * resumes it on start if [shouldPlay] still holds. The observer is installed once per
+ * player; [shouldPlay] is read live, not captured.
+ */
+@Composable
+fun PauseWhenStopped(player: Player, shouldPlay: Boolean) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    val shouldPlay = rememberUpdatedState(playWhenReady)
+    val shouldPlayNow = rememberUpdatedState(shouldPlay)
     DisposableEffect(lifecycleOwner, player) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_STOP -> player.playWhenReady = false
-                Lifecycle.Event.ON_START -> player.playWhenReady = shouldPlay.value
+                Lifecycle.Event.ON_START -> player.playWhenReady = shouldPlayNow.value
                 else -> {}
             }
         }
