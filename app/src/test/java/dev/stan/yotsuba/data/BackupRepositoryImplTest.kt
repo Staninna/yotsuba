@@ -84,7 +84,7 @@ class BackupRepositoryImplTest {
     private fun bookmark(board: String, no: Long, readUpTo: Long? = null, pinned: Boolean = false) = Bookmark(
         board = board, threadNo = no, subject = "s$no", opExcerpt = "", thumbnailUrl = null,
         replyCount = 3, imageCount = 1, bookmarkedAt = 1_000L, lastCheckedAt = null,
-        lastSeenPostNo = null, state = BookmarkState.ALIVE, readUpTo = readUpTo, pinned = pinned,
+        state = BookmarkState.ALIVE, readUpTo = readUpTo, pinned = pinned,
     )
 
     private class Env(

@@ -37,7 +37,10 @@ interface SavedMediaDao {
     @Query("SELECT * FROM saved_media WHERE md5 = :md5 AND absolutePath != '' LIMIT 1")
     suspend fun byMd5(md5: String): SavedMediaEntity?
 
-    /** Rows the hasher still has to visit: no MD5, or an image with no dHash. */
+    /**
+     * Rows the hasher still has to visit: no MD5, or an image with no dHash. The extension
+     * list mirrors core/media [dev.stan.yotsuba.core.media.isVideoExt]; keep the two in step.
+     */
     @Query(
         "SELECT * FROM saved_media WHERE absolutePath != '' AND " +
             "(md5 IS NULL OR (phash IS NULL AND ext NOT IN ('.webm', '.mp4')))",

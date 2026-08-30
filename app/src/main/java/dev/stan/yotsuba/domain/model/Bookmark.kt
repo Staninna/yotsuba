@@ -21,11 +21,7 @@ data class Bookmark(
     val imageCount: Int,
     val bookmarkedAt: Long,
     val lastCheckedAt: Long?,
-    /** Legacy last-visit marker; superseded by [readUpTo]. */
-    @Deprecated("Use readUpTo") val lastSeenPostNo: Long?,
     val state: BookmarkState,
-    @Deprecated("Derived: see unread") val newReplies: Int = 0,
-    @Deprecated("Derived: see unread") val unreadCount: Int = 0,
     /** The one read mark: the newest post the user has had on screen. Null until first opened. */
     val readUpTo: Long? = null,
     /** Post numbers as of the last refresh (OP excluded). */
@@ -35,7 +31,7 @@ data class Bookmark(
     val lastActivityAt: Long? = null,
 ) {
     val displayTitle: String
-        get() = subject ?: opExcerpt.take(60).ifBlank { "/$board/$threadNo" }
+        get() = threadDisplayTitle(subject, opExcerpt, fallback = "/$board/$threadNo")
 
     /** Posts numbered past the read mark. Zero until the thread has been opened once. */
     val unread: Int

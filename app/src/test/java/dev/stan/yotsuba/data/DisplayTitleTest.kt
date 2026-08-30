@@ -14,7 +14,7 @@ class DisplayTitleTest {
     private fun bookmark(subject: String?, excerpt: String) = Bookmark(
         board = "g", threadNo = 123L, subject = subject, opExcerpt = excerpt,
         thumbnailUrl = null, replyCount = 0, imageCount = 0, bookmarkedAt = 0L,
-        lastCheckedAt = null, lastSeenPostNo = null, state = BookmarkState.ALIVE,
+        lastCheckedAt = null, state = BookmarkState.ALIVE,
     )
 
     private fun history(subject: String?, excerpt: String) = HistoryEntry(

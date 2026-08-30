@@ -15,5 +15,5 @@ data class CatalogThread(
     val closed: Boolean,
 ) {
     val displayTitle: String
-        get() = subject ?: excerpt.plainText.take(60).ifBlank { "#$no" }
+        get() = threadDisplayTitle(subject, excerpt.plainText, fallback = "#$no")
 }

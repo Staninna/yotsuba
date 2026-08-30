@@ -127,7 +127,6 @@ object BackupCodec {
         imageCount = imageCount,
         bookmarkedAt = bookmarkedAt,
         lastCheckedAt = null,
-        lastSeenPostNo = null,
         state = runCatching { BookmarkState.valueOf(state) }.getOrDefault(BookmarkState.UNKNOWN),
         readUpTo = readUpTo,
         pinned = pinned,

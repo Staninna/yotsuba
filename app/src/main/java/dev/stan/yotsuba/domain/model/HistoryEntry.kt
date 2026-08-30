@@ -12,5 +12,5 @@ data class HistoryEntry(
     val maxReadPostNo: Long? = null,
 ) {
     val displayTitle: String
-        get() = subject ?: opExcerpt.take(60).ifBlank { "/$board/$threadNo" }
+        get() = threadDisplayTitle(subject, opExcerpt, fallback = "/$board/$threadNo")
 }

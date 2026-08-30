@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.domain.model
 
+import dev.stan.yotsuba.core.filter.FilterMatcher
 import kotlinx.serialization.Serializable
 
 /** Which part of a post or catalog entry a [Filter] reads. */
@@ -24,7 +25,9 @@ data class Filter(
     val action: FilterAction = FilterAction.HIDE,
     val enabled: Boolean = true,
 ) {
-    /** Why the pattern cannot be used, or null when it is fine. Only regexes can fail. */
-    val error: String?
-        get() = if (isRegex) runCatching { Regex(pattern) }.exceptionOrNull()?.message else null
+    /**
+     * Why the pattern cannot be used, or null when it is fine. Only regexes can fail. A
+     * function because it compiles the pattern: callers in composition should remember it.
+     */
+    fun error(): String? = FilterMatcher.compile(this)?.exceptionOrNull()?.message
 }

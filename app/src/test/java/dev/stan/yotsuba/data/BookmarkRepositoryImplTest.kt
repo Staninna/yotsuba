@@ -123,7 +123,7 @@ class BookmarkRepositoryImplTest {
     ) = Bookmark(
         board = board, threadNo = no, subject = "sub", opExcerpt = "op", thumbnailUrl = null,
         replyCount = replyCount, imageCount = 1, bookmarkedAt = 0L, lastCheckedAt = null,
-        lastSeenPostNo = null, state = state, readUpTo = readUpTo, postNos = postNos,
+        state = state, readUpTo = readUpTo, postNos = postNos,
     )
 
     private fun catalogEntry(no: Long, board: String = "g", replies: Int) = CatalogThread(

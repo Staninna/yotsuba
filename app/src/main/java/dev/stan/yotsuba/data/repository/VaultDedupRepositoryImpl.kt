@@ -3,6 +3,7 @@ package dev.stan.yotsuba.data.repository
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.dedup.DHash
+import dev.stan.yotsuba.core.media.isVideoExt
 import dev.stan.yotsuba.core.dedup.Grouping
 import dev.stan.yotsuba.core.dedup.Keeper
 import dev.stan.yotsuba.core.dedup.Md5

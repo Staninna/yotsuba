@@ -155,7 +155,8 @@ private fun FilterRow(filter: Filter, onClick: () -> Unit, onToggle: (Boolean) -
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                filter.error?.let {
+                val error = remember(filter.pattern, filter.isRegex) { filter.error() }
+                error?.let {
                     Text(
                         stringResource(R.string.filters_invalid_regex),
                         style = MaterialTheme.typography.bodySmall,
@@ -193,7 +194,7 @@ private fun FilterDialog(
         action = action,
         enabled = enabled,
     )
-    val regexError = draft.error
+    val regexError = remember(pattern, isRegex) { draft.error() }
     val canSave = pattern.isNotBlank() && regexError == null
 
     AlertDialog(
