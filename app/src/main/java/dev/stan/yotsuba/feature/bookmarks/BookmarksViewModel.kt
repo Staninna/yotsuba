@@ -30,11 +30,16 @@ data class BookmarksUiState(
     val checking: Pair<Int, Int>? = null,
     val sortOrder: BookmarkSortOrder = BookmarkSortOrder.UNREAD_FIRST,
     val loaded: Boolean = false,
-    /** "board/threadNo" keys whose vault snapshot is still being written. */
+    /** Keys (see [snapshotKey]) whose vault snapshot is still being written. */
     val snapshotting: Set<String> = emptySet(),
 ) {
     val hasDead: Boolean get() = bookmarks.any { it.isDead }
+
+    fun isSnapshotting(bookmark: Bookmark): Boolean =
+        snapshotKey(bookmark.board, bookmark.threadNo) in snapshotting
 }
+
+private fun snapshotKey(board: String, threadNo: Long) = "$board/$threadNo"
 
 @HiltViewModel
 class BookmarksViewModel @Inject constructor(
@@ -138,8 +143,6 @@ class BookmarksViewModel @Inject constructor(
     }
 
     companion object {
-        fun snapshotKey(board: String, threadNo: Long) = "$board/$threadNo"
-
         /** Pinned rows always lead; within each group the chosen order applies. */
         private fun sort(list: List<Bookmark>, order: BookmarkSortOrder): List<Bookmark> {
             val activity = { b: Bookmark -> b.lastActivityAt ?: b.bookmarkedAt }

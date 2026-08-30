@@ -96,10 +96,10 @@ class BookmarksViewModelTest {
             awaitItem()
             vm.snapshot("g", 1)
             dispatcher.scheduler.advanceUntilIdle()
-            assertTrue(expectMostRecentItem().snapshotting.contains("g/1"))
+            assertTrue(expectMostRecentItem().isSnapshotting(bookmark(1)))
             vault.gate!!.complete(Unit)
             dispatcher.scheduler.advanceUntilIdle()
-            assertTrue(expectMostRecentItem().snapshotting.isEmpty())
+            assertTrue(!expectMostRecentItem().isSnapshotting(bookmark(1)))
             cancelAndIgnoreRemainingEvents()
         }
         assertEquals(SnapshotResult.Saved, vm.snapshotResult.value)

@@ -100,6 +100,12 @@ fun BookmarksList(
     val notFound = stringResource(R.string.vault_error_not_found)
     val ioError = stringResource(R.string.vault_error_io)
     var sheetFor by remember { mutableStateOf<Bookmark?>(null) }
+    val removeWithUndo: (Bookmark) -> Unit = { bookmark ->
+        onRemove(bookmark)
+        scope.launch {
+            snackbar.showUndo(removedMessage, undoLabel) { onUndoRemove(bookmark) }
+        }
+    }
 
     // The result is held in the ViewModel until shown, so a snapshot finishing while this
     // segment is off screen still gets its snackbar when the user comes back.
@@ -145,17 +151,11 @@ fun BookmarksList(
                     key = { state.bookmarks[it].board + "/" + state.bookmarks[it].threadNo },
                 ) { i ->
                     val bookmark = state.bookmarks[i]
-                    SwipeToDeleteRow(modifier = animatedListItem(), onDelete = {
-                        onRemove(bookmark)
-                        scope.launch {
-                            snackbar.showUndo(removedMessage, undoLabel) { onUndoRemove(bookmark) }
-                        }
-                    }) {
+                    SwipeToDeleteRow(modifier = animatedListItem(), onDelete = { removeWithUndo(bookmark) }) {
                         BookmarkCard(
                             bookmark,
                             onClick = { onOpenThread(bookmark.board, bookmark.threadNo) },
-                            snapshotting = BookmarksViewModel.snapshotKey(bookmark.board, bookmark.threadNo) in
-                                state.snapshotting,
+                            snapshotting = state.isSnapshotting(bookmark),
                             onLongClick = { haptics.longPress(); sheetFor = bookmark },
                         )
                     }
@@ -165,21 +165,14 @@ fun BookmarksList(
     }
 
     sheetFor?.let { bookmark ->
-        val snapshotting = BookmarksViewModel.snapshotKey(bookmark.board, bookmark.threadNo) in state.snapshotting
         BookmarkActionSheet(
             bookmark = bookmark,
-            snapshotting = snapshotting,
+            snapshotting = state.isSnapshotting(bookmark),
             onDismiss = { sheetFor = null },
             onOpen = { sheetFor = null; onOpenThread(bookmark.board, bookmark.threadNo) },
             onTogglePinned = { sheetFor = null; onTogglePinned(bookmark) },
             onSnapshot = { sheetFor = null; onSnapshot(bookmark) },
-            onRemove = {
-                sheetFor = null
-                onRemove(bookmark)
-                scope.launch {
-                    snackbar.showUndo(removedMessage, undoLabel) { onUndoRemove(bookmark) }
-                }
-            },
+            onRemove = { sheetFor = null; removeWithUndo(bookmark) },
         )
     }
 }
