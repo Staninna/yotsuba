@@ -93,7 +93,7 @@ Known gaps from that pass:
 - [x] Tree/reply-chain view. Menu toggle, `PostGraph.tree()`, depth capped at 4 with an expandable "N more replies" row
 - [x] "(You)" without posting. `claimed_posts` table (DB 9), long-press "Mark as mine", quotelinks read (You), "N replies to you" under the title
 - [x] Shared-element thumbnail → viewer transitions, haptics, and a motion pass shipped 2026-08-30 (`core/designsystem/SharedMedia.kt`, `Haptics.kt`, `MotionSpecs.kt`, all collapsing under animator scale 0)
-- [ ] Cross-thread ghost quotes. Resolve `>>>/board/no` and dead backlinks against history/archive cache (the archive client now exists in `core/network/ArchiveHosts.kt`; wiring is the remaining half)
+- [x] Cross-thread ghost quotes. `>>>/board/no` quotes and numbered deadlinks open in the preview sheet through `GhostResolver` (held copy → vault sidecar → live → archive), with a "From /b/123 · Saved copy" line and an Open thread button; long-press still navigates. Ghost posts carry no (OP) tag or ID counts
 - [~] Thread watcher. Background refresh (WorkManager, per-board catalog fetch, one `readUpTo` mark) and new-reply notifications shipped 2026-08-30; the "collapse everything above the read mark" view is still open
 
 ### Media
@@ -132,3 +132,11 @@ Known gaps from that pass:
 - [ ] Persist the Threads tab sort order; put the trash on disk so process death does not empty it
 - [ ] Playback speed, loop toggle and frame stepping for webm
 - [ ] Per-bookmark auto-save of all media in a watched thread
+
+## 7. Shipped 2026-08-30, second pass
+
+- [x] Text size and line spacing (Settings > Reading), applied to post bodies and catalog excerpts through `LocalPostTypography`; chrome follows the system
+- [x] Inline image expansion behind Settings > Media (default off): still images expand in the card, videos/gifs/sound posts keep the viewer, data saver shows the Load pill
+- [x] Reverse image search from both viewers: Lens/SauceNAO/IQDB/TinEye/Yandex by URL, "Share to another app" for local-only files, and a frame picker for videos (remote ones fetched to the share cache first)
+- [x] Swipe left/right in a thread to the next/previous thread in the catalog order it was opened from (`ThreadSiblingsStore`). Not recorded from the Threads tab or History yet
+- [x] `bump.sh` writes `changelog/vX.Y.Z.md` through `claude -p` and the release workflow uses it as the body; the updater parses it (`core/update/ReleaseNotes.kt`). CI never calls Claude
