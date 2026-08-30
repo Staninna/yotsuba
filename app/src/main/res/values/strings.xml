@@ -151,7 +151,6 @@
     <string name="settings_storage">Storage &amp; data</string>
     <string name="settings_on">on</string>
     <string name="settings_off">off</string>
-    <string name="settings_summary_reading">Auto-refresh %1$s \u00b7 history %2$s</string>
     <string name="settings_summary_links">%1$d trusted domains</string>
     <string name="settings_summary_about">Version and attribution</string>
     <string name="settings_video">Video</string>
