@@ -35,7 +35,7 @@ class RoomTest {
     private fun bookmark(no: Long, state: String = "ALIVE") = BookmarkEntity(
         board = "g", threadNo = no, subject = "s", opExcerpt = "e", thumbnailUrl = null,
         replyCount = 1, imageCount = 0, bookmarkedAt = no, lastCheckedAt = null,
-        lastSeenPostNo = null, state = state,
+        state = state,
     )
 
     @Test fun `bookmark add, dead-marking, remove`() = runTest {

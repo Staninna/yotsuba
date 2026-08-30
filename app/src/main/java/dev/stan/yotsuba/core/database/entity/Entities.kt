@@ -14,7 +14,8 @@ data class BookmarkEntity(
     val imageCount: Int,
     val bookmarkedAt: Long,
     val lastCheckedAt: Long?,
-    val lastSeenPostNo: Long?,
+    /** Superseded by readUpTo (copied into readUpTo by MIGRATION_6_7); no longer written, dropped in a later migration. */
+    val lastSeenPostNo: Long? = null,
     val state: String, // ALIVE | ARCHIVED | DEAD | UNKNOWN (D9)
     /** Superseded by readUpTo/postNos; no longer written, dropped in a later migration. */
     val newReplies: Int = 0,

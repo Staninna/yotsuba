@@ -337,7 +337,6 @@ class ThreadViewModel @AssistedInject constructor(
         poller.resetBackoff()
     }
 
-    @Suppress("DEPRECATION") // lastSeenPostNo has no default; readUpTo is the live mark
     fun onToggleBookmark() = viewModelScope.launch {
         val posts = loadedPosts() ?: return@launch
         if (bookmarked.first()) {
@@ -355,7 +354,6 @@ class ThreadViewModel @AssistedInject constructor(
                     imageCount = posts.count { it.media != null },
                     bookmarkedAt = System.currentTimeMillis(),
                     lastCheckedAt = System.currentTimeMillis(),
-                    lastSeenPostNo = null,
                     state = BookmarkState.ALIVE,
                     // Seed the read mark from history so the new bookmark does not start all-unread.
                     readUpTo = historyRepository.readUpTo(board, threadNo),

@@ -50,7 +50,7 @@ class BookmarksViewModelTest {
     ) = Bookmark(
         board = "g", threadNo = no, subject = null, opExcerpt = "e", thumbnailUrl = null,
         replyCount = 0, imageCount = 0, bookmarkedAt = no, lastCheckedAt = null,
-        lastSeenPostNo = null, state = state,
+        state = state,
         readUpTo = 0, postNos = List(unread) { it + 1L }, pinned = pinned, lastActivityAt = activity,
     )
 

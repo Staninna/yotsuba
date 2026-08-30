@@ -28,7 +28,6 @@ class WidgetRowsTest {
         imageCount = 0,
         bookmarkedAt = no,
         lastCheckedAt = null,
-        lastSeenPostNo = null,
         state = state,
         readUpTo = 0L,
         postNos = (1..unread).map { it.toLong() },

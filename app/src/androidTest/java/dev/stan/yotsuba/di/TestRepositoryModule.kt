@@ -201,20 +201,12 @@ class FakeBookmarkRepository @Inject constructor() : BookmarkRepository {
     override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {
         state.update { list ->
             list.map {
-                if (it.board == board && it.threadNo == threadNo) {
-                    it.copy(lastSeenPostNo = lastSeenPostNo, newReplies = 0, unreadCount = 0)
-                } else it
+                if (it.board == board && it.threadNo == threadNo) it.copy(readUpTo = lastSeenPostNo) else it
             }
         }
     }
 
-    override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {
-        state.update { list ->
-            list.map {
-                if (it.board == board && it.threadNo == threadNo) it.copy(unreadCount = unread) else it
-            }
-        }
-    }
+    override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) = Unit
 
     override suspend fun clearAll() {
         state.value = emptyList()
