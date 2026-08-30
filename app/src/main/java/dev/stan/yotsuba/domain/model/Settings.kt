@@ -44,6 +44,11 @@ data class Settings(
     val catalogLayout: CatalogLayout = CatalogLayout.COMFORTABLE,
     val revealAllSpoilers: Boolean = false,
     val autoRefreshEnabled: Boolean = false,
+    /**
+     * In a watched thread with unread posts, fold everything between the OP and the read
+     * mark into one "N earlier posts" row, so the thread opens at what is new.
+     */
+    val collapseReadPosts: Boolean = true,
     val confirmBeforeOpeningLinks: Boolean = true,
     val trustedDomains: Set<String> = emptySet(),
     val mediaAutoplay: MediaAutoplay = MediaAutoplay.UNMETERED_ONLY,

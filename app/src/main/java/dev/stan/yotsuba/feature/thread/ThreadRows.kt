@@ -49,18 +49,38 @@ internal fun threadRows(details: ThreadDetails, session: Session, verdicts: Map<
     if (session.treeView) treeRows(details, session, verdicts)
     else linearRows(visiblePosts(details.posts, session), session, verdicts)
 
-/** Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post. */
+/**
+ * Posts in thread order, with the new-posts divider just after [newPostsAfter]'s post.
+ * With [Session.collapsedUpTo] set, the posts up to it (the first one aside, it is the
+ * thread's header) fold into one row; a divider that would have sat among them follows
+ * that row instead, so it still marks where the new posts start.
+ */
 private fun linearRows(posts: List<ThreadPost>, session: Session, verdicts: Map<Long, Filter>): List<ThreadRow> =
     buildList {
         val newPostsAfter = session.newPostsAfter
-        posts.forEach { post ->
+        val collapsedUpTo = session.collapsedUpTo
+        var folded = 0
+        var dividerFolded = false
+        fun flushFolded() {
+            if (folded > 0) add(ThreadRow.EarlierPosts(folded))
+            if (dividerFolded && newPostsAfter != null) add(ThreadRow.NewPostsDivider(newPostsAfter.second))
+            folded = 0
+            dividerFolded = false
+        }
+        posts.forEachIndexed { index, post ->
             val filter = verdicts[post.no]
             val row = if (filter == null) ThreadRow.Post(post) else filteredRow(post, filter, session, 0)
-            if (row != null) add(row)
-            if (newPostsAfter != null && post.no == newPostsAfter.first) {
-                add(ThreadRow.NewPostsDivider(newPostsAfter.second))
+            val dividerHere = newPostsAfter != null && post.no == newPostsAfter.first
+            if (collapsedUpTo != null && index > 0 && post.no <= collapsedUpTo) {
+                if (row != null) folded++
+                if (dividerHere) dividerFolded = true
+                return@forEachIndexed
             }
+            flushFolded()
+            if (row != null) add(row)
+            if (dividerHere) add(ThreadRow.NewPostsDivider(newPostsAfter.second))
         }
+        flushFolded()
     }
 
 /**

@@ -396,6 +396,7 @@ fun ThreadScreen(
                                     when (val row = s.rows[i]) {
                                         is ThreadRow.Post -> row.post.no
                                         is ThreadRow.NewPostsDivider -> "new-posts"
+                                        is ThreadRow.EarlierPosts -> "earlier-posts"
                                         is ThreadRow.MoreReplies -> "more-${row.parentNo}"
                                         is ThreadRow.Filtered -> "filtered-${row.postNo}"
                                     }
@@ -405,6 +406,7 @@ fun ThreadScreen(
                                     when (s.rows[i]) {
                                         is ThreadRow.Post -> "post"
                                         is ThreadRow.NewPostsDivider -> "divider"
+                                        is ThreadRow.EarlierPosts -> "divider"
                                         is ThreadRow.MoreReplies -> "more"
                                         is ThreadRow.Filtered -> "filtered"
                                     }
@@ -418,6 +420,10 @@ fun ThreadScreen(
                                     is ThreadRow.NewPostsDivider -> NewPostsDivider(
                                         count = row.count,
                                         onTap = viewModel::onDismissNewPostsDivider,
+                                    )
+                                    is ThreadRow.EarlierPosts -> EarlierPostsRow(
+                                        count = row.count,
+                                        onTap = viewModel::onExpandEarlier,
                                     )
                                     is ThreadRow.MoreReplies -> MoreRepliesRow(
                                         count = row.count,
@@ -634,6 +640,26 @@ private fun FilteredRow(pattern: String, modifier: Modifier, onTap: () -> Unit) 
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(spacing.sm),
         )
+    }
+}
+
+/** The folded run of already-read posts under the OP; one tap brings them all back. */
+@Composable
+private fun EarlierPostsRow(count: Int, onTap: () -> Unit) {
+    val spacing = LocalSpacing.current
+    val color = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onTap).padding(vertical = spacing.xs),
+    ) {
+        HorizontalDivider(Modifier.weight(1f), color = color)
+        Text(
+            pluralStringResource(R.plurals.thread_earlier_posts, count, count),
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+            modifier = Modifier.padding(horizontal = spacing.md),
+        )
+        HorizontalDivider(Modifier.weight(1f), color = color)
     }
 }
 

@@ -275,9 +275,31 @@ class ThreadViewModel @AssistedInject constructor(
             _session.update { it.copy(newPostsAfter = previous to newOnes) }
             poller.resetBackoff()
         }
+        if (previous == 0L) collapseReadPosts(details)
         recordHistory(details)
         resolveScrollTarget(details)
     }
+
+    /**
+     * First load of a watched thread: fold what was read last time so it opens at the new
+     * replies. Only when there are some; a fully read thread was opened to be re-read.
+     */
+    private suspend fun collapseReadPosts(details: ThreadDetails) {
+        if (!settingsRepository.settings.first().collapseReadPosts) return
+        if (!bookmarked.first()) return
+        val mark = historyRepository.readUpTo(board, threadNo) ?: return
+        val body = details.posts.drop(1)
+        if (body.none { it.no <= mark } || body.none { it.no > mark }) return
+        _session.update { it.copy(collapsedUpTo = mark) }
+    }
+
+    /** A jump or search hit inside the folded run unfolds it; the target has to be on screen. */
+    private fun unfoldFor(postNo: Long) {
+        val mark = _session.value.collapsedUpTo ?: return
+        if (postNo <= mark) _session.update { it.copy(collapsedUpTo = null) }
+    }
+
+    fun onExpandEarlier() = _session.update { it.copy(collapsedUpTo = null) }
 
     /** The screen showed the refresh error; drop it so it is not shown again. */
     fun onRefreshErrorShown() = _session.update { it.copy(refreshError = null) }
@@ -298,6 +320,7 @@ class ThreadViewModel @AssistedInject constructor(
         }
         restoredScroll = true
         if (target != null && details.posts.any { it.no == target }) {
+            unfoldFor(target)
             scrollTargetFlow.value = ScrollTarget(target, animate = false)
         }
     }
@@ -506,6 +529,7 @@ class ThreadViewModel @AssistedInject constructor(
     fun onJumpToPost(postNo: Long) {
         if (loadedPosts()?.none { it.no == postNo } != false) return
         _session.update { it.copy(previewPath = emptyList(), highlightedPostNo = postNo) }
+        unfoldFor(postNo)
         scrollTargetFlow.value = ScrollTarget(postNo, animate = true)
         highlightJob?.cancel()
         highlightJob = viewModelScope.launch {
@@ -522,6 +546,7 @@ class ThreadViewModel @AssistedInject constructor(
         if (matches.isEmpty()) return
         val next = (_session.value.searchIndex + delta).mod(matches.size)
         _session.update { it.copy(searchIndex = next) }
+        unfoldFor(matches[next])
         scrollTargetFlow.value = ScrollTarget(matches[next], animate = true)
     }
 

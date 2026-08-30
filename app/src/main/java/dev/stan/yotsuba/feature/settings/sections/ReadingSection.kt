@@ -46,6 +46,12 @@ fun ReadingSection(settings: Settings, update: ((Settings) -> Settings) -> Unit)
         checked = settings.autoRefreshEnabled,
         onToggle = { v -> update { it.copy(autoRefreshEnabled = v) } },
     )
+    SwitchRow(
+        title = stringResource(R.string.settings_collapse_read),
+        summary = stringResource(R.string.settings_collapse_read_summary),
+        checked = settings.collapseReadPosts,
+        onToggle = { v -> update { it.copy(collapseReadPosts = v) } },
+    )
     ChipRow(
         label = stringResource(R.string.settings_quote_tap),
         options = QuoteTapAction.entries,

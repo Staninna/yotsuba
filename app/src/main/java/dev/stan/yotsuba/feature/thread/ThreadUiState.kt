@@ -162,6 +162,9 @@ sealed interface ThreadRow {
     /** Sits before the first post that arrived in a refresh; tapping it dismisses it. */
     data class NewPostsDivider(val count: Int) : ThreadRow
 
+    /** Linear view: [count] already-read posts folded away under the OP; tap expands them. */
+    data class EarlierPosts(val count: Int) : ThreadRow
+
     /** Tree view: [count] replies nested deeper than the cap under [parentNo]; tap expands them. */
     data class MoreReplies(val parentNo: Long, val count: Int) : ThreadRow
 
@@ -201,6 +204,11 @@ data class Session(
     val pendingExternalUrl: String? = null,
     /** (last post before the divider, count of posts after it); null = no divider. */
     val newPostsAfter: Pair<Long, Int>? = null,
+    /**
+     * Posts up to this number (the OP aside) fold into one "N earlier posts" row. Set on the
+     * first load of a watched thread from its read mark; null once expanded or never set.
+     */
+    val collapsedUpTo: Long? = null,
     /** The thread 404ed during a refresh. */
     val archived: Boolean = false,
     val autoRefreshOverride: Boolean? = null,

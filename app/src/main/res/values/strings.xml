@@ -75,6 +75,10 @@
         <item quantity="one">%d new post</item>
         <item quantity="other">%d new posts</item>
     </plurals>
+    <plurals name="thread_earlier_posts">
+        <item quantity="one">%d earlier post</item>
+        <item quantity="other">%d earlier posts</item>
+    </plurals>
     <plurals name="thread_replies_chip">
         <item quantity="one">%d reply</item>
         <item quantity="other">%d replies</item>
@@ -169,6 +173,8 @@
     <string name="settings_save_replies_summary">Keep the text of every parent and reply post beside a saved image, so the context survives the thread being pruned</string>
     <string name="settings_auto_refresh">Auto-refresh threads</string>
     <string name="settings_auto_refresh_summary">Poll open threads with backoff while on screen</string>
+    <string name="settings_collapse_read">Collapse read posts</string>
+    <string name="settings_collapse_read_summary">In watched threads with new replies, fold everything up to your read mark into one row</string>
     <string name="settings_confirm_links">Confirm before opening links</string>
     <string name="settings_confirm_links_summary">Show the full URL before leaving the app</string>
     <string name="settings_trusted_domains">Trusted domains (%d)</string>
