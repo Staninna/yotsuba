@@ -35,6 +35,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -67,6 +70,8 @@ fun MediaScreen(
     val snackbar = remember { SnackbarHostState() }
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val shareFailedMessage = stringResource(R.string.media_share_failed)
+    val shareLabel = stringResource(R.string.thread_share)
+    val sharePreparingLabel = stringResource(R.string.media_share_preparing)
 
     when (val phase = state.phase) {
         ViewerPhase.Loading -> {
@@ -169,8 +174,14 @@ fun MediaScreen(
             onRetry = { item?.let { viewModel.retryFailed(it.fullUrl) } },
             onDismissFailed = { item?.let { viewModel.dismissFailed(it.fullUrl) } },
         )
+        // The button keeps its name while it is busy, so a screen reader does not lose
+        // the control it just pressed; the spinner only adds a state.
         IconButton(
             enabled = !sharing,
+            modifier = Modifier.semantics {
+                contentDescription = shareLabel
+                if (sharing) stateDescription = sharePreparingLabel
+            },
             onClick = {
                 item?.let { m ->
                     scope.launch {
@@ -189,7 +200,7 @@ fun MediaScreen(
             if (sharing) {
                 CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = Color.White)
             } else {
-                Icon(Icons.Filled.Share, stringResource(R.string.thread_share), tint = Color.White)
+                Icon(Icons.Filled.Share, contentDescription = null, tint = Color.White)
             }
         }
     }
