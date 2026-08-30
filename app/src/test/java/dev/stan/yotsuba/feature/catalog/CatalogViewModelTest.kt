@@ -21,18 +21,14 @@ import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import kotlinx.coroutines.Dispatchers
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -46,10 +42,8 @@ import org.robolectric.RobolectricTestRunner
 @org.robolectric.annotation.Config(sdk = [34])
 class CatalogViewModelTest {
 
-    private val dispatcher = StandardTestDispatcher()
-
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val main = MainDispatcherRule()
+    private val dispatcher get() = main.dispatcher
 
     private class FakeCatalogRepository(var result: DataResult<List<CatalogThread>>) : CatalogRepository {
         var calls = 0
@@ -92,7 +86,7 @@ class CatalogViewModelTest {
         }
     }
 
-    private class Env(
+    private inner class Env(
         threads: List<CatalogThread> = listOf(thread(1, subject = "Alpha"), thread(2), thread(3)),
         val settings: FakeSettingsRepository = FakeSettingsRepository(),
         val hidden: FakeHiddenThreadsRepository = FakeHiddenThreadsRepository(),
@@ -107,16 +101,17 @@ class CatalogViewModelTest {
             settingsRepository = settings,
             hiddenThreadsRepository = hidden,
             networkMonitor = NetworkMonitor(ApplicationProvider.getApplicationContext()),
+            compute = dispatcher,
         )
+    }
 
-        companion object {
-            fun thread(no: Long, subject: String? = null) = CatalogThread(
-                board = "g", no = no, subject = subject,
-                excerpt = PostText(listOf(PostSegment("excerpt $no"))),
-                thumbnailUrl = null, replyCount = 0, imageCount = 0, lastModified = no,
-                sticky = false, closed = false,
-            )
-        }
+    private companion object {
+        fun thread(no: Long, subject: String? = null) = CatalogThread(
+            board = "g", no = no, subject = subject,
+            excerpt = PostText(listOf(PostSegment("excerpt $no"))),
+            thumbnailUrl = null, replyCount = 0, imageCount = 0, lastModified = no,
+            sticky = false, closed = false,
+        )
     }
 
     private suspend fun app.cash.turbine.TurbineTestContext<UiState<CatalogContent>>.latest(): UiState<CatalogContent> {
@@ -150,7 +145,7 @@ class CatalogViewModelTest {
         val vm = env.vm()
         vm.uiState.test {
             latest()
-            env.catalog.result = DataResult.Success(listOf(Env.thread(9)))
+            env.catalog.result = DataResult.Success(listOf(thread(9)))
             vm.load(forceRefresh = true)
             val content = (latest() as UiState.Success).data
             assertEquals(listOf(9L), content.threads.map { it.no })
@@ -165,7 +160,7 @@ class CatalogViewModelTest {
         val vm = env.vm()
         vm.uiState.test {
             latest()
-            env.catalog.result = DataResult.Success(listOf(Env.thread(9)))
+            env.catalog.result = DataResult.Success(listOf(thread(9)))
             vm.retry()
             val content = (latest() as UiState.Success).data
             assertEquals(listOf(9L), content.threads.map { it.no })

@@ -42,6 +42,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,6 +51,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -156,13 +159,18 @@ fun CatalogPane(
                     OfflineBanner(cachedAtLabel = null, onRetry = { viewModel.load(forceRefresh = true) })
                 }
                 if (s.searchQuery != null) {
+                    // The field only exists while search is open, so entering composition is
+                    // the reveal: put the caret in it so the keyboard comes up on the first tap.
+                    val focus = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { focus.requestFocus() }
                     SearchField(
                         value = s.searchQuery,
                         onValueChange = viewModel::onSearchChange,
                         hintRes = R.string.catalog_search_hint,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = spacing.lg, vertical = spacing.sm),
+                            .padding(horizontal = spacing.lg, vertical = spacing.sm)
+                            .focusRequester(focus),
                     )
                 }
                 PullToRefreshBox(
@@ -183,12 +191,22 @@ fun CatalogPane(
                             verticalArrangement = Arrangement.spacedBy(spacing.md),
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            items(s.threads.size, key = { s.threads[it].no }) { i ->
+                            // A collapsed stub and a card are different shapes; keying the
+                            // slot type keeps the grid from reusing one for the other.
+                            fun stubbed(thread: CatalogThread) =
+                                thread.no in s.stubs && thread.no !in expandedStubs
+                            items(
+                                count = s.threads.size,
+                                key = { s.threads[it].no },
+                                contentType = { if (stubbed(s.threads[it])) "stub" else "thread" },
+                            ) { i ->
                                 val thread = s.threads[i]
-                                val stub = s.stubs[thread.no]
                                 Box(animatedGridItem()) {
-                                    if (stub != null && thread.no !in expandedStubs) {
-                                        FilteredStub(stub, onClick = { expandedStubs = expandedStubs + thread.no })
+                                    if (stubbed(thread)) {
+                                        FilteredStub(
+                                            s.stubs.getValue(thread.no),
+                                            onClick = { expandedStubs = expandedStubs + thread.no },
+                                        )
                                     } else {
                                         ThreadCard(
                                             thread = thread,

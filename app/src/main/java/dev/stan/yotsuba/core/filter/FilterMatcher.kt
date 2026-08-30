@@ -74,6 +74,14 @@ class FilterMatcher(filters: List<Filter>) {
             fields[c.filter.field]?.let(c::matches) == true
     }?.filter
 
+    /** The first filter each catalog thread trips, by thread number; empty when no filter is on. */
+    fun verdicts(threads: List<CatalogThread>, board: String): Map<Long, Filter> {
+        if (isEmpty) return emptyMap()
+        return buildMap {
+            threads.forEach { t -> matches(FilterableFields.of(t), board)?.let { put(t.no, it) } }
+        }
+    }
+
     companion object {
         val Empty = FilterMatcher(emptyList())
 

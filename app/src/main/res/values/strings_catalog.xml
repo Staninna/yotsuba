@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Layout cycler: names the current layout and the one a tap moves to. -->
+    <string name="catalog_layout_switch_from_comfortable">Comfortable layout. Switch to compact</string>
+    <string name="catalog_layout_switch_from_compact">Compact layout. Switch to list</string>
+    <string name="catalog_layout_switch_from_list">List layout. Switch to comfortable</string>
+</resources>
