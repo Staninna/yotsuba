@@ -22,7 +22,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.stan.yotsuba.core.designsystem.theme.YotsubaTheme
-import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.navigation.AppNavHost
 import dev.stan.yotsuba.navigation.ShellViewModel
@@ -40,16 +39,13 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        WidgetDeepLink.consume(intent)
         shell.onIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        // Widget tap: park the (board, threadNo) extras for navigation to pick up.
-        WidgetDeepLink.consume(intent)
-        // Browser link or shared URL: parked until the nav graph is up.
+        // Browser link, shared URL or widget tap: parked until the nav graph is up.
         if (savedInstanceState == null) shell.onIntent(intent)
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()

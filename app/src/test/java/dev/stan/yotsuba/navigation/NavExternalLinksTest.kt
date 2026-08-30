@@ -1,10 +1,17 @@
 package dev.stan.yotsuba.navigation
 
+import android.content.Intent
 import dev.stan.yotsuba.core.util.Urls.InternalLink
+import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class NavExternalLinksTest {
     @Test
     fun `view data resolves a thread link with post anchor`() {
@@ -30,5 +37,26 @@ class NavExternalLinksTest {
         assertNull(ExternalLinks.fromSharedText("just words https://example.com"))
         assertNull(ExternalLinks.fromSharedText(null))
         assertNull(ExternalLinks.fromViewData(null))
+    }
+
+    @Test
+    fun `widget extras resolve a thread link without an action`() {
+        val intent = Intent()
+            .putExtra(WidgetDeepLink.EXTRA_BOARD, "g")
+            .putExtra(WidgetDeepLink.EXTRA_THREAD_NO, 42L)
+        assertEquals(InternalLink.Thread("g", 42L), ExternalLinks.fromIntent(intent))
+    }
+
+    @Test
+    fun `plain launch and bad widget extras yield nothing`() {
+        assertNull(ExternalLinks.fromIntent(null))
+        assertNull(ExternalLinks.fromIntent(Intent()))
+        assertNull(ExternalLinks.fromIntent(Intent().putExtra(WidgetDeepLink.EXTRA_BOARD, "g")))
+    }
+
+    @Test
+    fun `view intent resolves its data`() {
+        val intent = Intent(Intent.ACTION_VIEW).setData(android.net.Uri.parse("https://boards.4chan.org/a/catalog"))
+        assertEquals(InternalLink.Catalog("a"), ExternalLinks.fromIntent(intent))
     }
 }

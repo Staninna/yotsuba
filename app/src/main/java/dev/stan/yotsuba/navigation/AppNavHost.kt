@@ -54,7 +54,6 @@ import dev.stan.yotsuba.core.designsystem.rememberReducedMotion
 import dev.stan.yotsuba.core.designsystem.component.TabScaffoldSlots
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.util.Urls.InternalLink
-import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.feature.boards.BoardsScreen
 import dev.stan.yotsuba.feature.home.HomeScreen
 import dev.stan.yotsuba.feature.catalog.CatalogScreen
@@ -101,12 +100,6 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
             is InternalLink.Thread -> navController.navigate(Route.Thread(link.board, link.threadNo, link.postNo))
         }
         shell.linkConsumed()
-    }
-    val widgetTarget by WidgetDeepLink.pending.collectAsStateWithLifecycle()
-    LaunchedEffect(widgetTarget) {
-        val target = widgetTarget ?: return@LaunchedEffect
-        navController.navigate(Route.Thread(target.board, target.threadNo))
-        WidgetDeepLink.clear()
     }
     val openSettings = { navController.navigate(Route.Settings) }
 
