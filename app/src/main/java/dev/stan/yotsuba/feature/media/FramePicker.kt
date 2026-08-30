@@ -5,6 +5,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -137,15 +139,18 @@ fun FramePickerSheet(
                     .padding(horizontal = spacing.xl)
                     .semantics { contentDescription = sliderLabel },
             )
-            Row(
+            // A FlowRow, not a Row: at the larger font sizes the button label was clipped at
+            // the sides. Here it keeps its full width and drops under the time when it must.
+            FlowRow(
                 Modifier.fillMaxWidth().padding(horizontal = spacing.xl),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     "${TimeFormat.duration(positionMs)} / ${TimeFormat.duration(durationMs)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.padding(end = spacing.md),
                 )
                 Button(
                     enabled = frame != null && !decoding && !saving,
