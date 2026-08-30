@@ -19,10 +19,7 @@ class BookmarksFlowTest : FlowTest() {
         composeRule.waitForContentDescription("Remove bookmark")
 
         // Back to catalog, then jump to the Threads tab; Watched is the default segment.
-        composeRule.onNodeWithContentDescription("Back").performClick()
-        composeRule.waitForText("Threads")
-        composeRule.clickText("Threads")
-        composeRule.waitForText("Watched")
+        composeRule.openThreadsTab("Watched", select = false)
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
 
         // Re-open the thread from the bookmark card and toggle the bookmark off.

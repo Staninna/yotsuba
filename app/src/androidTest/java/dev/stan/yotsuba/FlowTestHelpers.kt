@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.rules.ActivityScenarioRule
@@ -40,20 +41,30 @@ fun ComposeTestRule.waitForText(text: String, substring: Boolean = true) {
     }
 }
 
-fun ComposeTestRule.waitForContentDescription(description: String) {
+fun ComposeTestRule.waitForContentDescription(description: String, substring: Boolean = true) {
     waitUntil(UI_TIMEOUT_MS) {
-        onAllNodesWithContentDescription(description, substring = true, ignoreCase = true)
+        onAllNodesWithContentDescription(description, substring = substring, ignoreCase = true)
             .fetchSemanticsNodes().isNotEmpty()
     }
 }
 
-fun ComposeTestRule.clickText(text: String) {
-    onNodeWithText(text, substring = true, ignoreCase = true).performClick()
+fun ComposeTestRule.clickText(text: String, substring: Boolean = true) {
+    onNodeWithText(text, substring = substring, ignoreCase = true).performClick()
 }
 
 /** Home is the start destination; the board list is one tab over. Exact match: "Pick boards" also contains it. */
-fun ComposeTestRule.openBoardsTab() {
-    onNodeWithText("Boards", substring = false).performClick()
+fun ComposeTestRule.openBoardsTab() = clickText("Boards", substring = false)
+
+/**
+ * Backs out of an open thread to the Threads tab and waits for [segment] to show. Selects it
+ * unless [select] is false, for the default segment that is already showing.
+ */
+fun ComposeTestRule.openThreadsTab(segment: String, select: Boolean = true) {
+    onNodeWithContentDescription("Back").performClick()
+    waitForText("Threads")
+    clickText("Threads")
+    waitForText(segment)
+    if (select) clickText(segment)
 }
 
 /** Home → boards → catalog → thread, entirely through the real nav graph. */

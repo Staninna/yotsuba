@@ -22,7 +22,7 @@ class MediaSaveFlowTest : FlowTest() {
 
         // Tap the download action ("Save" while unsaved); the fake vault records it,
         // so the icon flips to the saved state ("Saved").
-        composeRule.waitForContentDescription("Save")
+        composeRule.waitForContentDescription("Save", substring = false)
         composeRule.onNodeWithContentDescription("Save", substring = false).performClick()
         composeRule.waitForContentDescription("Saved")
 
