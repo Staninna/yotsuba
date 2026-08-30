@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.PauseCircle
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -39,6 +38,7 @@ import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
+import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
 import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import dev.stan.yotsuba.core.designsystem.component.SwipeToDeleteRow
 import dev.stan.yotsuba.core.designsystem.component.ThreadSummaryRow
@@ -67,12 +67,7 @@ fun HistoryList(
 
     when {
         !state.loaded -> LoadingSkeleton(modifier)
-        state.groups.isEmpty() && state.query.isNotBlank() -> EmptyState(
-            title = stringResource(R.string.history_search_no_matches),
-            explanation = stringResource(R.string.history_search_no_matches_explanation, state.query),
-            icon = Icons.Filled.Search,
-            modifier = modifier,
-        )
+        state.groups.isEmpty() && state.query.isNotBlank() -> NoSearchResults(state.query, modifier)
         state.groups.isEmpty() && state.recordingEnabled -> EmptyState(
             title = stringResource(R.string.history_empty_title),
             explanation = stringResource(R.string.history_empty_explanation),
@@ -137,6 +132,10 @@ private val HistoryBucket.labelRes: Int
         HistoryBucket.OLDER -> R.string.history_older
     }
 
+/**
+ * Sits in the Threads app bar's title slot, so unlike the shared [dev.stan.yotsuba.core.designsystem.component.SearchField] it is a
+ * borderless, transparent field that autofocuses when search opens.
+ */
 @Composable
 fun HistorySearchField(query: String, onQueryChange: (String) -> Unit) {
     val focus = remember { FocusRequester() }
