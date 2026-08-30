@@ -1,33 +1,19 @@
 package dev.stan.yotsuba
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
-import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.di.TestSeed
-import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 
 @HiltAndroidTest
-class HiddenThreadFlowTest {
-
-    @get:Rule(order = 0)
-    val hiltRule = HiltAndroidRule(this)
-
-    @get:Rule(order = 1)
-    val composeRule = createAndroidComposeRule<MainActivity>()
-
-    @Before
-    fun setUp() {
-        hiltRule.inject()
-    }
+class HiddenThreadFlowTest : FlowTest() {
 
     @Test
     fun longPressHidesThread_undoBringsItBack() {
+        composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
         composeRule.clickText(TestSeed.BOARD_TITLE)
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)

@@ -1,39 +1,18 @@
 package dev.stan.yotsuba
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.performClick
-import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.di.TestSeed
-import org.junit.Before
-import org.junit.Rule
 import org.junit.Test
 
 @HiltAndroidTest
-class HistoryFlowTest {
-
-    @get:Rule(order = 0)
-    val hiltRule = HiltAndroidRule(this)
-
-    @get:Rule(order = 1)
-    val composeRule = createAndroidComposeRule<MainActivity>()
-
-    @Before
-    fun setUp() {
-        hiltRule.inject()
-    }
+class HistoryFlowTest : FlowTest() {
 
     @Test
     fun visitingThread_recordsHistoryEntry() {
         composeRule.openSeededThread()
 
         // Leave the thread, then open the Recent segment of the Threads tab.
-        composeRule.onNodeWithContentDescription("Back").performClick()
-        composeRule.waitForText("Threads")
-        composeRule.clickText("Threads")
-        composeRule.waitForText("Recent")
-        composeRule.clickText("Recent")
+        composeRule.openThreadsTab("Recent")
 
         // The visited thread shows up as a history entry.
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
