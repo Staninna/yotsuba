@@ -3,11 +3,12 @@ package dev.stan.yotsuba.feature.media
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.LocalSearchMethod
+import dev.stan.yotsuba.domain.repository.ReverseSearchRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import java.io.File
 import javax.inject.Inject
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +22,7 @@ import kotlinx.coroutines.launch
  */
 @HiltViewModel
 class ReverseSearchViewModel @Inject constructor(
-    private val uploader: ReverseSearchUploader,
+    private val uploads: ReverseSearchRepository,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
@@ -41,27 +42,27 @@ class ReverseSearchViewModel @Inject constructor(
         job?.cancel()
         job = viewModelScope.launch {
             val settings = settingsRepository.settings.first()
-            val direct = !hostConfirmed &&
-                settings.localSearchMethod == LocalSearchMethod.DIRECT_UPLOAD &&
-                engine.hasDirectUpload
+            val direct = engine.directUpload?.takeIf {
+                !hostConfirmed && settings.localSearchMethod == LocalSearchMethod.DIRECT_UPLOAD
+            }
             // Decide before showing anything, so the spinner never precedes the question.
-            if (!direct && !hostConfirmed && settings.confirmTemporaryHost) {
+            if (direct == null && !hostConfirmed && settings.confirmTemporaryHost) {
                 _state.value = LocalSearchState.ConfirmHost(engine)
                 return@launch
             }
             _state.value = LocalSearchState.Uploading(engine)
-            val result = if (direct) {
-                uploader.directSearchUrl(engine, file, ext)
+            val result = if (direct != null) {
+                uploads.directSearchUrl(direct, file, ext)
             } else {
-                uploader.hostTemporarily(file, ext).map { engine.searchUrl(it) }
+                when (val hosted = uploads.hostTemporarily(file, ext)) {
+                    is DataResult.Success -> DataResult.Success(engine.searchUrl(hosted.value.url))
+                    is DataResult.Failure -> hosted
+                }
             }
-            _state.value = result.fold(
-                onSuccess = { LocalSearchState.Opened(engine, it) },
-                onFailure = {
-                    if (it is CancellationException) throw it
-                    LocalSearchState.Failed(engine, canFallback = direct)
-                },
-            )
+            _state.value = when (result) {
+                is DataResult.Success -> LocalSearchState.Opened(engine, result.value)
+                is DataResult.Failure -> LocalSearchState.Failed(engine, canFallback = direct != null)
+            }
         }
     }
 

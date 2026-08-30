@@ -44,6 +44,7 @@ import dev.stan.yotsuba.data.repository.HistoryRepositoryImpl
 import dev.stan.yotsuba.data.repository.MaintenanceRepositoryImpl
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.data.repository.MediaVaultRepositoryImpl
+import dev.stan.yotsuba.data.repository.ReverseSearchRepositoryImpl
 import dev.stan.yotsuba.data.repository.ThreadRepositoryImpl
 import dev.stan.yotsuba.data.repository.VaultDedupRepositoryImpl
 import dev.stan.yotsuba.domain.repository.BackupRepository
@@ -56,6 +57,7 @@ import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.MediaSaveQueue
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.domain.repository.ReverseSearchRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
@@ -161,6 +163,7 @@ abstract class RepositoryModule {
     @Binds abstract fun backupRepository(impl: BackupRepositoryImpl): BackupRepository
     @Binds abstract fun claimedPostRepository(impl: ClaimedPostRepositoryImpl): ClaimedPostRepository
     @Binds abstract fun mediaSaveQueue(impl: MediaDownloadQueue): MediaSaveQueue
+    @Binds abstract fun reverseSearchRepository(impl: ReverseSearchRepositoryImpl): ReverseSearchRepository
 }
 
 /** Its own module so the instrumented tests' replacement of [RepositoryModule] leaves it bound. */
