@@ -31,7 +31,7 @@ data class Bookmark(
     val lastActivityAt: Long? = null,
 ) {
     val displayTitle: String
-        get() = subject ?: opExcerpt.take(60).ifBlank { "/$board/$threadNo" }
+        get() = threadDisplayTitle(subject, opExcerpt, fallback = "/$board/$threadNo")
 
     /** Posts numbered past the read mark. Zero until the thread has been opened once. */
     val unread: Int
