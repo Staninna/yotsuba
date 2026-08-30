@@ -507,9 +507,12 @@ class ThreadViewModel @AssistedInject constructor(
         if (post.presentMedia != null) mediaToOpenFlow.value = post.no
     }
 
-    /** Queues every attachment in the thread; already saved or queued items are skipped by the queue. */
-    fun onSaveAllMedia() {
-        loadedPosts()?.filter { it.presentMedia != null }?.forEach(::onSaveMedia)
+    /**
+     * Queues the attachments of [posts] (by default every one in the thread); already saved
+     * or queued items are skipped by the queue.
+     */
+    fun onSaveAllMedia(posts: List<ThreadPost>? = loadedPosts()) {
+        posts?.filter { it.presentMedia != null }?.forEach(::onSaveMedia)
     }
 
     fun onTrustDomain(url: String) = viewModelScope.launch {
