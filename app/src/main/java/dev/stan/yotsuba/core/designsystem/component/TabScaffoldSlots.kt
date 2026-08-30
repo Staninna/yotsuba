@@ -3,7 +3,6 @@ package dev.stan.yotsuba.core.designsystem.component
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,14 +46,13 @@ fun TabChrome(
     val currentFab by rememberUpdatedState(floatingActionButton)
     val stableTopBar = remember<@Composable () -> Unit> { { currentTopBar() } }
     val stableFab = remember<@Composable () -> Unit> { { currentFab() } }
-    SideEffect {
-        if (slots.owner !== token) {
-            slots.owner = token
-            slots.topBar = stableTopBar
-            slots.floatingActionButton = stableFab
-        }
-    }
+    // Claim and release in the same effect: the claim runs once per mount, in composition
+    // apply order, so the later-mounting tab really is the newest owner. A SideEffect here
+    // would re-claim on every recomposition of the leaving tab and steal the slots back.
     DisposableEffect(slots, token) {
+        slots.owner = token
+        slots.topBar = stableTopBar
+        slots.floatingActionButton = stableFab
         onDispose {
             if (slots.owner === token) {
                 slots.owner = null
