@@ -23,6 +23,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.PictureInPictureModeChangedInfo
+import androidx.core.util.Consumer
+import dev.stan.yotsuba.feature.media.findComponentActivity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -81,7 +88,10 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
     fun isSelected(dest: TopLevelDestination) =
         currentDestination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true
 
-    val showChrome = TopLevelDestination.entries.any(::isSelected)
+    // A tab's own viewer (the vault's) can shrink the whole activity into picture-in-picture;
+    // the bottom bar and top bar have no place in that window.
+    val inPip = rememberInPictureInPictureMode()
+    val showChrome = !inPip && TopLevelDestination.entries.any(::isSelected)
 
     // Targets that arrive from outside the graph: a browser link, shared text, a widget tap.
     val pendingLink by shell.pendingLink.collectAsStateWithLifecycle()
@@ -295,6 +305,19 @@ private fun NavController.openInternal(link: InternalLink, from: Route.Thread) {
 private fun NavController.openSibling(target: Route.Thread) = navigate(target) {
     popUpTo<Route.Thread> { inclusive = true }
     launchSingleTop = true
+}
+
+/** Whether the hosting activity is currently in picture-in-picture, as Compose state. */
+@Composable
+private fun rememberInPictureInPictureMode(): Boolean {
+    val activity = LocalContext.current.findComponentActivity() ?: return false
+    var inPip by remember { mutableStateOf(activity.isInPictureInPictureMode) }
+    DisposableEffect(activity) {
+        val listener = Consumer<PictureInPictureModeChangedInfo> { inPip = it.isInPictureInPictureMode }
+        activity.addOnPictureInPictureModeChangedListener(listener)
+        onDispose { activity.removeOnPictureInPictureModeChangedListener(listener) }
+    }
+    return inPip
 }
 
 private fun NavDestination.isTopLevel(): Boolean =
