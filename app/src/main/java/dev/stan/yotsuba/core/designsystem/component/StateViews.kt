@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.core.designsystem.component
 
+import androidx.annotation.StringRes
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -49,17 +50,20 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 
-/** The shared screen shell: skeleton while loading, error with retry, otherwise [content]. */
+/**
+ * The shared screen shell: skeleton while loading, error with retry, otherwise [content].
+ * Takes no modifier on purpose: the success branch hands the slot straight to [content],
+ * so a modifier could only ever apply to two of the three states.
+ */
 @Composable
 fun <T> UiStateContent(
     state: UiState<T>,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
     content: @Composable (T) -> Unit,
 ) {
     when (state) {
-        UiState.Loading -> LoadingSkeleton(modifier)
-        is UiState.Error -> ErrorState(state.error, onRetry, modifier)
+        UiState.Loading -> LoadingSkeleton()
+        is UiState.Error -> ErrorState(state.error, onRetry)
         is UiState.Success -> content(state.data)
     }
 }
@@ -110,7 +114,7 @@ fun NoSearchResults(query: String, modifier: Modifier = Modifier) {
 fun SearchField(
     value: String,
     onValueChange: (String) -> Unit,
-    hintRes: Int,
+    @StringRes hintRes: Int,
     modifier: Modifier = Modifier,
 ) {
     OutlinedTextField(
@@ -184,11 +188,11 @@ fun OfflineBanner(cachedAtLabel: String?, onRetry: () -> Unit, modifier: Modifie
 }
 
 @Composable
-fun LoadingSkeleton(modifier: Modifier = Modifier, rows: Int = 8) {
+fun LoadingSkeleton(modifier: Modifier = Modifier) {
     val spacing = LocalSpacing.current
     val brush = shimmerBrush()
     Column(modifier = modifier.fillMaxSize().padding(spacing.lg), verticalArrangement = Arrangement.spacedBy(spacing.md)) {
-        repeat(rows) {
+        repeat(SKELETON_ROWS) {
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -226,5 +230,6 @@ private fun shimmerBrush(): Brush {
     )
 }
 
+private const val SKELETON_ROWS = 8
 private const val SHIMMER_WIDTH = 600f
 private const val SHIMMER_TRAVEL = 1800f

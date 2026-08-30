@@ -40,12 +40,13 @@ fun Modifier.sharedMedia(key: String, shape: Shape = RectangleShape): Modifier {
 }
 
 /**
- * The scope-explicit form of [sharedMedia]; identity when either scope is null. Split out
- * so the no-op contract can be checked on the JVM without composing anything.
+ * The scope-explicit form of [sharedMedia]; identity when either scope is null. Kept so the
+ * identity contract can be asserted with explicit null scopes rather than by arranging for
+ * the composition locals to be absent; production goes through the two-arg form.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun Modifier.sharedMedia(
+internal fun Modifier.sharedMedia(
     key: String,
     shared: SharedTransitionScope?,
     visibility: AnimatedVisibilityScope?,

@@ -34,7 +34,7 @@ fun ThreadSummaryRow(
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     val spacing = LocalSpacing.current
-    Row(Modifier.padding(spacing.md).then(modifier), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.padding(spacing.md), verticalAlignment = Alignment.CenterVertically) {
         MediaThumbnail(
             url = thumbnailUrl,
             contentDescription = null,
