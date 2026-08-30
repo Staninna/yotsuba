@@ -15,14 +15,15 @@
 # ending in a period. Every changelog is written under .claude/skills/unslop/SKILL.md,
 # an exact copy of the unslop skill kept in the repo so the result does not depend on
 # whatever skills the person cutting the release has installed; the prompt carries it in
-# full, and --check enforces the parts a grep can. The model is claude-fable-5 unless
-# CHANGELOG_MODEL says otherwise. Only this script and bump.sh call Claude; CI never does.
+# full, and --check enforces the parts a grep can. The model is claude-opus-5 at low
+# effort unless CHANGELOG_MODEL / CHANGELOG_EFFORT say otherwise. Only this script and
+# bump.sh call Claude; CI never does.
 
 # Ask Claude Code for the changelog of one version.
 #   write_changelog VERSION        range: previous tag .. vVERSION if that tag exists, else .. HEAD
 write_changelog() {
   local version=$1 tag="v$1" out="changelog/v$1.md" prev head prompt app attempt
-  local skill=.claude/skills/unslop/SKILL.md model=${CHANGELOG_MODEL:-claude-fable-5}
+  local skill=.claude/skills/unslop/SKILL.md model=${CHANGELOG_MODEL:-claude-opus-5} effort=${CHANGELOG_EFFORT:-low}
   command -v claude >/dev/null || { echo "changelog: claude is not installed" >&2; return 1; }
   [ -f "$skill" ] || { echo "changelog: $skill is missing; every changelog is written under it" >&2; return 1; }
   app=$(sed -n 's/^rootProject.name = "\(.*\)"/\1/p' settings.gradle.kts)
@@ -78,7 +79,7 @@ $(git diff --stat $diff_range -- . ':!app/src/test' ':!app/src/androidTest')
 $(git diff $diff_range -- . ':!app/src/test' ':!app/src/androidTest' ':!*.png' ':!*.webp' | head -c 600000 || true)"
   # Three tries: the model sometimes ignores a rule, and the checks below are cheap.
   for attempt in 1 2 3; do
-    printf '%s\n' "$prompt" | claude -p --model "$model" --output-format text > "$out.tmp" || { rm -f "$out.tmp"; return 1; }
+    printf '%s\n' "$prompt" | claude -p --model "$model" --effort "$effort" --output-format text > "$out.tmp" || { rm -f "$out.tmp"; return 1; }
     # Strip a stray code fence and anything before the first heading.
     sed -i -e '/^```/d' -e '0,/^## /{/^## /!d}' "$out.tmp"
     if changelog_ok "$out.tmp"; then break; fi
