@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.core.vault
+package dev.stan.yotsuba.domain.model
 
 /**
  * Pure-Kotlin naming rules for the on-disk media vault:

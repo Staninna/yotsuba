@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.core.util
 
+import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.NetworkError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow

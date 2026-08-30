@@ -30,10 +30,10 @@ import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.theme.LocalYotsubaColors
 import dev.stan.yotsuba.core.designsystem.theme.YotsubaColors
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
-import dev.stan.yotsuba.core.text.PostAnnotation
-import dev.stan.yotsuba.core.text.PostSegment
-import dev.stan.yotsuba.core.text.PostStyle
-import dev.stan.yotsuba.core.text.PostText
+import dev.stan.yotsuba.domain.model.PostAnnotation
+import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostStyle
+import dev.stan.yotsuba.domain.model.PostText
 
 sealed interface BodyTap {
     data class SameThreadQuote(val postNo: Long) : BodyTap

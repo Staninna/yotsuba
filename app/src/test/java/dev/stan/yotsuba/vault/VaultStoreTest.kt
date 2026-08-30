@@ -1,13 +1,13 @@
 package dev.stan.yotsuba.vault
 
-import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultMetaCodec
-import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.data.repository.VaultStore
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostMedia
+import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.domain.model.VaultPaths
 import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

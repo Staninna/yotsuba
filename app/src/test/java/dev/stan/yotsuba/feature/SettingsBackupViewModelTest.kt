@@ -3,9 +3,9 @@ package dev.stan.yotsuba.feature
 import androidx.test.core.app.ApplicationProvider
 import dev.stan.yotsuba.core.update.GithubReleases
 import dev.stan.yotsuba.core.update.Updater
-import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.repository.BackupInfo

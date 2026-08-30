@@ -1,6 +1,5 @@
 package dev.stan.yotsuba.domain.model
 
-import dev.stan.yotsuba.core.media.isVideoExt
 
 /**
  * An attachment on a post. [Present] carries the real, non-fabricated fields;
@@ -32,3 +31,8 @@ data class MediaItem(
     val isAnimated: Boolean get() = isVideo || ext == ".gif"
     val displayName: String get() = "$filename$ext"
 }
+
+/** The extensions 4chan serves as video; the DAO binds this set so its SQL never repeats it. */
+val VIDEO_EXTS: Set<String> = setOf(".webm", ".mp4")
+
+fun isVideoExt(ext: String): Boolean = ext.lowercase() in VIDEO_EXTS

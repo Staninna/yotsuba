@@ -3,9 +3,9 @@ package dev.stan.yotsuba.data.repository
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.vault.VaultFileMeta
-import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.VaultPaths
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap

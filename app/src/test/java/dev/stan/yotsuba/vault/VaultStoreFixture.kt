@@ -1,10 +1,10 @@
 package dev.stan.yotsuba.vault
 
-import dev.stan.yotsuba.core.text.PostSegment
-import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.vault.VaultMetaCodec
-import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.VaultPostMeta
+import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostText
+import dev.stan.yotsuba.domain.model.VaultPaths
 import java.io.File
 
 /** One post of the fixture thread, with a stable body and timestamp derived from its number. */

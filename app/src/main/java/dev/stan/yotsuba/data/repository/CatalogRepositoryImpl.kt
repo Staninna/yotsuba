@@ -1,9 +1,9 @@
 package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.core.network.FourChanApi
-import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.apiResult
 import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import javax.inject.Inject
 import javax.inject.Singleton

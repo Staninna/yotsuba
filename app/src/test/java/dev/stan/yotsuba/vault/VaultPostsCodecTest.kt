@@ -1,16 +1,16 @@
 package dev.stan.yotsuba.vault
 
-import dev.stan.yotsuba.core.text.PostAnnotation
-import dev.stan.yotsuba.core.text.PostSegment
-import dev.stan.yotsuba.core.text.PostStyle
-import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultPostsCodec
 import dev.stan.yotsuba.core.vault.VaultThreadPosts
-import dev.stan.yotsuba.core.vault.toThreadPost
-import dev.stan.yotsuba.core.vault.toVaultMeta
+import dev.stan.yotsuba.data.repository.toThreadPost
+import dev.stan.yotsuba.data.repository.toVaultMeta
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.PostAnnotation
 import dev.stan.yotsuba.domain.model.PostMedia
+import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostStyle
+import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.domain.model.ThreadPost
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

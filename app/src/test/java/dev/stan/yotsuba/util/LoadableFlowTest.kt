@@ -1,7 +1,7 @@
 package dev.stan.yotsuba.util
 
-import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.LoadableFlow
+import dev.stan.yotsuba.domain.model.DataResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

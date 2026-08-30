@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.core.text
 
+import dev.stan.yotsuba.domain.model.PostText
+
 private val ARCHIVE_QUOTELINK = Regex(""">>(\d+)""")
 private val ESCAPED_QUOTELINK = Regex("""&gt;&gt;(\d+)""")
 

@@ -1,8 +1,8 @@
 package dev.stan.yotsuba.text
 
-import dev.stan.yotsuba.core.text.PostAnnotation
 import dev.stan.yotsuba.core.text.PostHtmlParser
-import dev.stan.yotsuba.core.text.PostStyle
+import dev.stan.yotsuba.domain.model.PostAnnotation
+import dev.stan.yotsuba.domain.model.PostStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

@@ -2,12 +2,12 @@ package dev.stan.yotsuba.data.repository
 
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.vault.VaultFileMeta
-import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.VaultThreadMeta
 import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
+import dev.stan.yotsuba.domain.model.VaultPaths
 import java.io.File
 
 /** A fresh save (or migration match) filed under its thread. */

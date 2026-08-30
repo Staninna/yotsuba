@@ -1,12 +1,12 @@
 package dev.stan.yotsuba.data
 
 import dev.stan.yotsuba.core.network.dto.parseFoolFuukaThread
-import dev.stan.yotsuba.core.text.PostAnnotation
-import dev.stan.yotsuba.core.text.PostStyle
 import dev.stan.yotsuba.core.text.archiveCommentToHtml
 import dev.stan.yotsuba.data.repository.toThreadDetails
 import dev.stan.yotsuba.domain.model.ArchiveSource
+import dev.stan.yotsuba.domain.model.PostAnnotation
 import dev.stan.yotsuba.domain.model.PostMedia
+import dev.stan.yotsuba.domain.model.PostStyle
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.assertEquals

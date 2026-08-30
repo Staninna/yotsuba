@@ -7,11 +7,11 @@ import dev.stan.yotsuba.core.network.dto.BoardsDto
 import dev.stan.yotsuba.core.network.dto.CatalogPageDto
 import dev.stan.yotsuba.core.network.dto.PostDto
 import dev.stan.yotsuba.core.network.dto.ThreadDto
-import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.data.repository.BoardRepositoryImpl
 import dev.stan.yotsuba.data.repository.CatalogRepositoryImpl
 import dev.stan.yotsuba.data.repository.ThreadRepositoryImpl
+import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.NetworkError
 import java.net.UnknownHostException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

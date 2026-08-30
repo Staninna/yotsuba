@@ -8,10 +8,10 @@ import dev.stan.yotsuba.core.database.dao.BookmarkDao
 import dev.stan.yotsuba.core.database.dao.DownloadedMediaDao
 import dev.stan.yotsuba.core.database.dao.HistoryDao
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
-import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.vault.VaultFileMeta
-import dev.stan.yotsuba.core.vault.VaultPaths
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.domain.model.VaultPaths
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import java.io.File
 import javax.inject.Inject

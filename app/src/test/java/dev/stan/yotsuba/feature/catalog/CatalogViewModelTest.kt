@@ -1,22 +1,22 @@
 package dev.stan.yotsuba.feature.catalog
 
 import androidx.test.core.app.ApplicationProvider
-import app.cash.turbine.test
 import app.cash.turbine.TurbineTestContext
+import app.cash.turbine.test
 import dev.stan.yotsuba.core.network.NetworkMonitor
-import dev.stan.yotsuba.core.text.PostSegment
-import dev.stan.yotsuba.core.text.PostText
-import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterField
 import dev.stan.yotsuba.domain.model.HiddenThread
+import dev.stan.yotsuba.domain.model.NetworkError
+import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository

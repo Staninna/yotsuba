@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.core.text
+package dev.stan.yotsuba.domain.model
 
 import kotlinx.serialization.Serializable
 
