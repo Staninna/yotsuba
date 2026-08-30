@@ -69,4 +69,8 @@
     <string name="settings_quote_tap">Tapping a quote</string>
     <string name="settings_quote_tap_popover">Show preview</string>
     <string name="settings_quote_tap_jump">Jump to post</string>
+    <!-- Screen-reader stand-ins for the card's long-presses. %1$d is a post number. -->
+    <string name="thread_post_actions">Post actions</string>
+    <string name="thread_save_to_vault">Save to vault</string>
+    <string name="thread_backlink_hold">Hold >>%1$d</string>
 </resources>

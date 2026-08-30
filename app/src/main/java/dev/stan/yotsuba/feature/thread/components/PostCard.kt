@@ -40,7 +40,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
@@ -61,6 +63,12 @@ fun posterIdColor(id: String, dark: Boolean): Color {
     val hue = (id.hashCode().toUInt() % 360u).toFloat()
     return Color.hsv(hue, if (dark) 0.45f else 0.35f, if (dark) 0.45f else 0.85f)
 }
+
+/**
+ * Text colour that reads on [posterIdColor]: the light pill sits at 85% value, where white
+ * lands near 1.3:1, so it takes black; the dark pill at 45% keeps white.
+ */
+fun posterIdTextColor(dark: Boolean): Color = if (dark) Color.White else Color.Black
 
 /** ISO country code -> Unicode regional-indicator flag (D21). */
 fun countryFlagEmoji(iso: String): String =
@@ -128,9 +136,11 @@ fun PostCard(
 ) {
     val spacing = LocalSpacing.current
     val onLongPress = actions.onLongPress
-    val longPress = if (onLongPress == null) Modifier else Modifier.pointerInput(onLongPress, post) {
-        detectTapGestures(onLongPress = { onLongPress(post) })
-    }
+    // Long-presses are out of reach for a screen reader, so each one is also a custom action.
+    val postActionsLabel = stringResource(R.string.thread_post_actions)
+    val longPress = if (onLongPress == null) Modifier else Modifier
+        .pointerInput(onLongPress, post) { detectTapGestures(onLongPress = { onLongPress(post) }) }
+        .semantics { customActions = listOf(CustomAccessibilityAction(postActionsLabel) { onLongPress(post); true }) }
     Card(
         modifier = modifier.fillMaxWidth().then(longPress),
         colors = when {
@@ -163,7 +173,7 @@ fun PostCard(
                             pluralStringResource(R.plurals.thread_poster_id_count, ui.posterIdCount, post.posterId, ui.posterIdCount)
                         } else post.posterId,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
+                        color = posterIdTextColor(darkTheme),
                         modifier = Modifier
                             .background(posterIdColor(post.posterId, darkTheme), CircleShape)
                             .then(if (onPosterIdTap != null) Modifier.clickable { onPosterIdTap(post) } else Modifier)
@@ -220,6 +230,11 @@ fun PostCard(
                         val sharedWithCatalog = if (sharesMediaWithViewer && post.isOp) {
                             Modifier.sharedMedia(media.thumbnailUrl)
                         } else Modifier
+                        val onThumbnailLongPress = actions.onThumbnailLongPress
+                        val saveLabel = stringResource(R.string.thread_save_to_vault)
+                        val saveAction = if (onThumbnailLongPress == null) Modifier else Modifier.semantics {
+                            customActions = listOf(CustomAccessibilityAction(saveLabel) { onThumbnailLongPress(post); true })
+                        }
                         Row {
                             Box {
                                 MediaThumbnail(
@@ -233,9 +248,10 @@ fun PostCard(
                                         .size(if (post.isOp) 140.dp else 100.dp)
                                         .then(sharedWithViewer)
                                         .then(sharedWithCatalog)
+                                        .then(saveAction)
                                         .combinedClickable(
                                             onClick = { actions.onThumbnailTap(post) },
-                                            onLongClick = actions.onThumbnailLongPress?.let { hold -> { hold(post) } },
+                                            onLongClick = onThumbnailLongPress?.let { hold -> { hold(post) } },
                                         ),
                                 )
                                 ui.saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
@@ -325,12 +341,16 @@ private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit, onLongPres
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         backlinks.forEach { no ->
+            val holdLabel = stringResource(R.string.thread_backlink_hold, no)
+            val holdAction = if (onLongPress == null) Modifier else Modifier.semantics {
+                customActions = listOf(CustomAccessibilityAction(holdLabel) { onLongPress(no); true })
+            }
             Text(
                 ">>$no",
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.quotelink,
                 textDecoration = TextDecoration.Underline,
-                modifier = Modifier.combinedClickable(
+                modifier = holdAction.combinedClickable(
                     onClick = { onTap(no) },
                     onLongClick = onLongPress?.let { hold -> { hold(no) } },
                 ),
