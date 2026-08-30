@@ -69,6 +69,7 @@ import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.media.saveToVault
+import dev.stan.yotsuba.feature.thread.components.BacklinksUi
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
 import dev.stan.yotsuba.feature.thread.components.PostActionSheet
@@ -128,6 +129,66 @@ fun ThreadScreen(
             LinkAction.Confirm -> {} // the dialog shows from state
         }
     }
+
+    // Inside the sheet a quotelink refocuses the sheet and a hold jumps; in the list both
+    // follow the quote-tap setting. One instance per context, remembered, so every card gets
+    // an equal `actions` and can skip recomposition.
+    fun actionsFor(inPreview: Boolean) = PostCardActions(
+        onBodyTap = { post, tap ->
+            when (tap) {
+                is BodyTap.Spoiler -> {
+                    haptics.tick()
+                    viewModel.onRevealSpoiler(post.no, tap.id)
+                }
+                is BodyTap.SameThreadQuote ->
+                    if (inPreview) viewModel.onOpenPreview(tap.postNo) else viewModel.onQuoteTap(tap.postNo)
+                is BodyTap.CrossThreadQuote -> onOpenInternal(
+                    Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
+                )
+                is BodyTap.Link -> handleLink(tap.url)
+            }
+        },
+        onBodyLongPress = { _, tap ->
+            if (tap is BodyTap.SameThreadQuote) {
+                haptics.longPress()
+                if (inPreview) viewModel.onJumpToPost(tap.postNo) else viewModel.onQuoteLongPress(tap.postNo)
+            }
+        },
+        onThumbnailTap = viewModel::onThumbnailTap,
+        onThumbnailLongPress = { post ->
+            if (viewModel.onThumbnailLongPress(post)) {
+                haptics.longPress()
+                saveToVault(
+                    context = context,
+                    hasAccess = viewModel.hasStorageAccess(),
+                    onAccessNeeded = {
+                        scope.launch { snackbar.showSnackbar(grantAccessMessage) }
+                    },
+                    save = { viewModel.onSaveMedia(post) },
+                )
+            }
+        },
+        backlinks = BacklinksUi.Quotes(
+            onTap = viewModel::onQuoteTap,
+            onLongPress = {
+                haptics.longPress()
+                viewModel.onQuoteLongPress(it)
+            },
+        ),
+        onPosterIdTap = { viewModel.onFilterPosterId(it.posterId) },
+        onLongPress = { post ->
+            haptics.longPress()
+            viewModel.onOpenPostSheet(post.no)
+        },
+        onCopyPostNo = { post ->
+            clipboard.setText(AnnotatedString(post.no.toString()))
+            scope.launch { snackbar.showSnackbar(copiedMessage) }
+        },
+    )
+    val listActions = remember(viewModel, onOpenInternal, haptics, context, scope, clipboard, snackbar, grantAccessMessage, copiedMessage) {
+        actionsFor(inPreview = false)
+    }
+    val previewActions = remember(listActions) { actionsFor(inPreview = true).forPreview() }
 
     // Polling follows the lifecycle: backgrounding the app or leaving the screen stops it.
     LifecycleResumeEffect(Unit) {
@@ -228,59 +289,6 @@ fun ThreadScreen(
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             UiStateContent(state, onRetry = { viewModel.load() }) { s ->
-                // Inside the sheet a quotelink refocuses the sheet and a hold jumps; in the
-                // list both follow the quote-tap setting.
-                fun actionsFor(post: ThreadPost, inPreview: Boolean) = PostCardActions(
-                    onBodyTap = { tap ->
-                        when (tap) {
-                            is BodyTap.Spoiler -> {
-                                haptics.tick()
-                                viewModel.onRevealSpoiler(post.no, tap.id)
-                            }
-                            is BodyTap.SameThreadQuote ->
-                                if (inPreview) viewModel.onOpenPreview(tap.postNo) else viewModel.onQuoteTap(tap.postNo)
-                            is BodyTap.CrossThreadQuote -> onOpenInternal(
-                                Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
-                            )
-                            is BodyTap.Link -> handleLink(tap.url)
-                        }
-                    },
-                    onBodyLongPress = { tap ->
-                        if (tap is BodyTap.SameThreadQuote) {
-                            haptics.longPress()
-                            if (inPreview) viewModel.onJumpToPost(tap.postNo) else viewModel.onQuoteLongPress(tap.postNo)
-                        }
-                    },
-                    onThumbnailTap = { viewModel.onThumbnailTap(post) },
-                    onThumbnailLongPress = {
-                        if (viewModel.onThumbnailLongPress(post)) {
-                            haptics.longPress()
-                            saveToVault(
-                                context = context,
-                                hasAccess = viewModel.hasStorageAccess(),
-                                onAccessNeeded = {
-                                    scope.launch { snackbar.showSnackbar(grantAccessMessage) }
-                                },
-                                save = { viewModel.onSaveMedia(post) },
-                            )
-                        }
-                    },
-                    onBacklinkTap = viewModel::onQuoteTap,
-                    onBacklinkLongPress = {
-                        haptics.longPress()
-                        viewModel.onQuoteLongPress(it)
-                    },
-                    onPosterIdTap = { viewModel.onFilterPosterId(post.posterId) },
-                    onLongPress = {
-                        haptics.longPress()
-                        viewModel.onOpenPostSheet(post.no)
-                    },
-                    onCopyPostNo = {
-                        clipboard.setText(AnnotatedString(post.no.toString()))
-                        scope.launch { snackbar.showSnackbar(copiedMessage) }
-                    },
-                )
-
                 val opLabel = stringResource(R.string.thread_quote_label_op)
                 val youLabel = stringResource(R.string.thread_quote_label_you)
                 val quoteLabels = remember(s.quoteLabels, opLabel, youLabel) {
@@ -292,14 +300,14 @@ fun ThreadScreen(
                     }
                 }
                 val postCard: @Composable (ThreadPost, Boolean) -> Unit = { post, inPreview ->
-                    val actions = actionsFor(post, inPreview)
                     PostCard(
                         post = post,
                         board = s.board,
                         ui = s.postStates[post.no] ?: PostUiState.Default,
                         revealAll = s.revealAllSpoilers,
                         darkTheme = dark,
-                        actions = if (inPreview) actions.forPreview() else actions,
+                        actions = if (inPreview) previewActions else listActions,
+                        sharesMediaWithViewer = !inPreview,
                         highlight = if (inPreview) null else s.searchQuery,
                         quoteLabels = quoteLabels,
                     )

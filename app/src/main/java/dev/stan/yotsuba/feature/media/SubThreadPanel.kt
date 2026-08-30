@@ -36,6 +36,7 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.thread.PostUiState
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.PostCard
+import dev.stan.yotsuba.feature.thread.components.BacklinksUi
 import dev.stan.yotsuba.feature.thread.components.PostCardActions
 
 /**
@@ -147,7 +148,7 @@ private fun SubThreadPost(
         revealAll = false,
         darkTheme = darkTheme,
         actions = PostCardActions(
-            onBodyTap = { tap ->
+            onBodyTap = { _, tap ->
                 when (tap) {
                     is BodyTap.Spoiler -> onRevealSpoiler(tap.id)
                     is BodyTap.SameThreadQuote -> onOpenSubThread(tap.postNo)
@@ -157,8 +158,7 @@ private fun SubThreadPost(
             onThumbnailTap = { post.media?.let { onJumpToMedia(post.no) } },
             onThumbnailLongPress = null,
             // The count chip, not the per-number row: the panel drills into the sub-thread instead.
-            onBacklinkTap = null,
-            onBacklinksTap = { onOpenSubThread(post.no) },
+            backlinks = BacklinksUi.Chip { onOpenSubThread(it.no) },
             onCopyPostNo = { if (clickableBody) onOpenSubThread(post.no) },
         ),
         modifier = if (clickableBody) {
