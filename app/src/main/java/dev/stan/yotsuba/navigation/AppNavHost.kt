@@ -181,6 +181,7 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                     ) {
                         screen<Route.Home> {
                             HomeScreen(
+                                slots = slots,
                                 onOpenThread = { board, threadNo -> navController.navigate(Route.Thread(board, threadNo)) },
                                 onOpenBoards = { navigateTopLevel(TopLevelDestination.BOARDS) },
                                 onOpenSettings = openSettings,
