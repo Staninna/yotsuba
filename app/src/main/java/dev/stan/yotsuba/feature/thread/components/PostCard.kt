@@ -100,6 +100,8 @@ data class PostCardActions(
     val onBodyLongPress: ((ThreadPost, BodyTap) -> Unit)? = null,
     val onThumbnailTap: (ThreadPost) -> Unit,
     val onThumbnailLongPress: ((ThreadPost) -> Unit)?,
+    /** Tap on an image expanded in place: the viewer opens on it. Falls back to [onThumbnailTap]. */
+    val onExpandedImageTap: ((ThreadPost) -> Unit)? = null,
     val backlinks: BacklinksUi = BacklinksUi.None,
     val onCopyPostNo: ((ThreadPost) -> Unit)?,
     /** Tap on the poster-ID pill filters the thread to that ID. */
@@ -236,14 +238,45 @@ fun PostCard(
                         val saveAction = if (onThumbnailLongPress == null) Modifier else Modifier.semantics {
                             customActions = listOf(CustomAccessibilityAction(saveLabel) { onThumbnailLongPress(post); true })
                         }
-                        Row {
+                        val description = stringResource(
+                            R.string.media_image_description,
+                            media.displayName, media.width, media.height,
+                        )
+                        val inline = ui.inlineImage
+                        if (inline != null) {
+                            Box {
+                                InlineImage(
+                                    media = media,
+                                    source = inline,
+                                    contentDescription = description,
+                                    onTap = { (actions.onExpandedImageTap ?: actions.onThumbnailTap)(post) },
+                                    onLongPress = onThumbnailLongPress?.let { hold -> { hold(post) } },
+                                    modifier = Modifier
+                                        .then(sharedWithViewer)
+                                        .then(sharedWithCatalog)
+                                        .then(saveAction),
+                                )
+                                ui.saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
+                            }
+                            Spacer(Modifier.height(spacing.xs))
+                            // The file line doubles as the way back to the thumbnail.
+                            Text(
+                                stringResource(
+                                    R.string.thread_inline_file_line,
+                                    media.displayName, FileSize.format(media.sizeBytes), media.width, media.height,
+                                ),
+                                style = postTypography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                modifier = Modifier
+                                    .clickable { actions.onThumbnailTap(post) }
+                                    .padding(vertical = spacing.xs),
+                            )
+                        } else Row {
                             Box {
                                 MediaThumbnail(
                                     url = media.thumbnailUrl,
-                                    contentDescription = stringResource(
-                                        R.string.media_image_description,
-                                        media.displayName, media.width, media.height,
-                                    ),
+                                    contentDescription = description,
                                     spoilered = media.spoiler && !revealAll && !ui.imageSpoilerRevealed,
                                     modifier = Modifier
                                         .size(if (post.isOp) 140.dp else 100.dp)

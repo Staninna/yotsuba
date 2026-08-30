@@ -185,6 +185,7 @@ fun ThreadScreen(
             }
         },
         onThumbnailTap = viewModel::onThumbnailTap,
+        onExpandedImageTap = viewModel::onExpandedImageTap,
         onThumbnailLongPress = { post ->
             if (viewModel.onThumbnailLongPress(post)) {
                 haptics.longPress()

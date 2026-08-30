@@ -26,6 +26,12 @@ fun MediaSection(settings: Settings, update: ((Settings) -> Settings) -> Unit) {
         checked = settings.dataSaver,
         onToggle = { v -> update { it.copy(dataSaver = v) } },
     )
+    SwitchRow(
+        title = stringResource(R.string.settings_inline_images),
+        summary = stringResource(R.string.settings_inline_images_summary),
+        checked = settings.inlineImageExpansion,
+        onToggle = { v -> update { it.copy(inlineImageExpansion = v) } },
+    )
 
     SectionHeader(stringResource(R.string.settings_video))
     ChipRow(

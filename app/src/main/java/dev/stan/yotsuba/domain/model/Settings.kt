@@ -98,6 +98,11 @@ data class Settings(
     /** Post text only; chrome and the settings screens follow the system size. */
     val fontSize: FontSize = FontSize.DEFAULT,
     val lineSpacing: LineSpacing = LineSpacing.DEFAULT,
+    /**
+     * Tapping a thumbnail in a thread shows the full image in place of it. Still images only;
+     * videos, gifs and sound posts keep opening the viewer.
+     */
+    val inlineImageExpansion: Boolean = false,
     /** Ask for the phone's own unlock (biometrics or PIN) before showing the app. */
     val appLock: Boolean = false,
     /**

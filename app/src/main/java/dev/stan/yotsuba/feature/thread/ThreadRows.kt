@@ -4,10 +4,12 @@ import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterMatcher
 import dev.stan.yotsuba.domain.model.FilterableFields
+import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.QuoteTapAction
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 
@@ -159,6 +161,8 @@ internal fun postStates(
     details: ThreadDetails,
     session: Session,
     saveStatuses: Map<String, MediaSaveStatus>,
+    savedPaths: Map<String, String?> = emptyMap(),
+    dataSaver: Boolean = false,
 ): Map<Long, PostUiState> {
     val revealedText = session.revealedText.groupBy({ it.first }, { it.second })
     val idCounts = details.posts.mapNotNull { it.posterId }.groupingBy { it }.eachCount()
@@ -172,8 +176,32 @@ internal fun postStates(
             backlinks = details.backlinks[post.no].orEmpty(),
             saveStatus = post.presentMedia?.fullUrl?.let { saveStatuses[it] },
             highlighted = post.no == session.highlightedPostNo,
+            inlineImage = post.presentMedia?.takeIf { post.no in session.expandedImages }?.let { media ->
+                InlineImage(localPath = savedPaths[media.fullUrl], dataSaver = dataSaver)
+            },
         )
     }
+}
+
+/** What a tap on a post's thumbnail does. */
+enum class ThumbnailTap { REVEAL_SPOILER, COLLAPSE, EXPAND, OPEN_VIEWER }
+
+/**
+ * A spoilered thumbnail reveals first. An expanded image always collapses, even if the
+ * setting went off meanwhile. Otherwise the setting decides between expanding in place and
+ * the viewer, and only a still image ever expands: videos, gifs and sound posts need the
+ * viewer's player.
+ */
+internal fun thumbnailTap(
+    media: MediaItem,
+    postNo: Long,
+    session: Session,
+    settings: Settings,
+): ThumbnailTap = when {
+    media.spoiler && !settings.revealAllSpoilers && postNo !in session.revealedImages -> ThumbnailTap.REVEAL_SPOILER
+    postNo in session.expandedImages -> ThumbnailTap.COLLAPSE
+    settings.inlineImageExpansion && !media.isAnimated && media.soundUrl == null -> ThumbnailTap.EXPAND
+    else -> ThumbnailTap.OPEN_VIEWER
 }
 
 /** The post at a row index, or the nearest post above a divider. */
