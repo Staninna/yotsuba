@@ -58,7 +58,7 @@ class VaultSyncWorker(
             // failed gets the sync pass below instead of waiting for the next run.
             snapshotted = summary.touched
         }
-        val summary = vault.syncSavedThreads({ _, _ -> }, skip = snapshotted)
+        val summary = vault.syncSavedThreads(skip = snapshotted)
         return if (summary.rateLimited) Result.retry() else Result.success()
     }
 

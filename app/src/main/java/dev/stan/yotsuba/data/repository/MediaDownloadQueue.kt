@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 @Singleton
 class MediaDownloadQueue @Inject constructor(
     private val vault: MediaVaultRepository,
-    private val dedup: VaultDedupRepository = VaultDedupRepository.None,
+    private val dedup: VaultDedupRepository,
 ) : MediaSaveQueue {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val channel = Channel<Pair<MediaItem, VaultSaveContext>>(Channel.UNLIMITED)

@@ -3,14 +3,9 @@ package dev.stan.yotsuba.feature
 import app.cash.turbine.test
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
-import dev.stan.yotsuba.domain.model.ImportSource
-import dev.stan.yotsuba.domain.model.MediaItem
-import dev.stan.yotsuba.domain.model.ThreadDetails
-import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
-import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
-import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.feature.bookmarks.BookmarkSortOrder
@@ -65,7 +60,6 @@ class BookmarksViewModelTest {
             state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
         }
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(true)
-        override suspend fun refreshOne(bookmark: Bookmark): Bookmark = bookmark
         override suspend fun refreshAll(onProgress: (Int, Int) -> Unit): BookmarkRefreshSummary {
             refreshAllCalls++
             onProgress(0, 2)
@@ -73,9 +67,7 @@ class BookmarksViewModelTest {
             onProgress(2, 2)
             return BookmarkRefreshSummary()
         }
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-        @Deprecated("Unread is derived from readUpTo; use markSeen")
-        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {}
+        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
         override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {
             state.value = state.value.map { if (it.threadNo == threadNo) it.copy(pinned = pinned) else it }
         }
@@ -83,25 +75,15 @@ class BookmarksViewModelTest {
         override suspend fun clearAll() { state.value = emptyList() }
     }
 
-    private class FakeVault : MediaVaultRepository {
+    private class FakeVault : FakeMediaVault() {
         val snapshots = mutableListOf<Pair<String, Long>>()
         var snapshotError: VaultError? = null
         var gate: CompletableDeferred<Unit>? = null
-        override fun hasStorageAccess() = true
-        override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-        override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
-        override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
-        override suspend fun delete(url: String): VaultError? = null
-        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
-        override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
-        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
         override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? {
             snapshots += board to threadNo
             gate?.await()
             return snapshotError
         }
-        override suspend fun rescan() {}
-        override suspend fun migrateLegacyIfNeeded() {}
     }
 
     private fun vm(repo: BookmarkRepository, vault: MediaVaultRepository = FakeVault()) =

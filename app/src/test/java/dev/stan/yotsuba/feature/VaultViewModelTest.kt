@@ -10,15 +10,13 @@ import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
-import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.core.vault.VaultPaths
-import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
-import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.feature.vault.VaultBody
 import dev.stan.yotsuba.feature.vault.VaultNotice
 import dev.stan.yotsuba.feature.vault.VaultPlayback
@@ -36,7 +34,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -70,7 +67,7 @@ class VaultViewModelTest {
         width = 1, height = 1, thumbnailUrl = null, savedAt = savedAt,
     )
 
-    private class FakeVault(initial: List<VaultEntry>) : MediaVaultRepository {
+    private class FakeVault(initial: List<VaultEntry>) : FakeMediaVault() {
         val state = MutableStateFlow(initial)
         val deleted = mutableListOf<String>()
         var rescans = 0
@@ -81,7 +78,6 @@ class VaultViewModelTest {
         override fun entries(): Flow<List<VaultEntry>> = state
         override fun saved(): Flow<Map<String, String?>> =
             state.map { list -> list.associate { it.url to it.absolutePath } }
-        override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
         var deleteError: VaultError? = null
         override suspend fun delete(url: String): VaultError? {
             deleteError?.let { return it }
@@ -112,7 +108,7 @@ class VaultViewModelTest {
         var syncSummary = VaultSyncSummary()
         var syncSteps = 0
         var syncGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
-        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit): VaultSyncSummary {
+        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit, skip: Set<VaultLocation>): VaultSyncSummary {
             syncs++
             repeat(syncSteps) { onProgress(it + 1, syncSteps) }
             syncGate?.await()

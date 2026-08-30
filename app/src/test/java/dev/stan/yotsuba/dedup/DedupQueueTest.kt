@@ -7,7 +7,7 @@ import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
-import dev.stan.yotsuba.fake.FakeVault
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -25,7 +25,7 @@ class DedupQueueTest {
 
     private val ctx = VaultSaveContext(board = "g", threadNo = 100, threadSubject = null, opExcerpt = null, post = null)
 
-    private class RecordingVault : FakeVault() {
+    private class RecordingVault : FakeMediaVault() {
         val saved = mutableListOf<String>()
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? { saved += item.fullUrl; return null }
     }

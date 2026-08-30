@@ -10,8 +10,6 @@ import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.util.DataResult
 import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.data.repository.MediaDownloadQueue
-import dev.stan.yotsuba.domain.model.VaultSyncSummary
-import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.MediaAutoplay
@@ -21,13 +19,13 @@ import dev.stan.yotsuba.domain.model.SeekStep
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
-import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
-import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import dev.stan.yotsuba.feature.media.MediaUiState
 import dev.stan.yotsuba.feature.media.MediaViewModel
@@ -37,7 +35,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -90,7 +87,7 @@ class MediaViewModelTest {
     }
 
     /** Saves resolve into [saved]; the first save completes [firstSave] for await-style asserts. */
-    private class FakeVault : MediaVaultRepository {
+    private class FakeVault : FakeMediaVault() {
         val access = MutableStateFlow(true)
         val saved = mutableListOf<Pair<MediaItem, VaultSaveContext>>()
         val firstSave = CompletableDeferred<VaultSaveContext>()
@@ -98,7 +95,6 @@ class MediaViewModelTest {
         val paths = MutableStateFlow(emptyMap<String, String?>())
         override fun hasStorageAccess() = access.value
         override val storageAccess: Flow<Boolean> = access
-        override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
         override fun saved(): Flow<Map<String, String?>> = paths
         override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
             saved += item to context
@@ -110,11 +106,7 @@ class MediaViewModelTest {
             return null
         }
         var snapshot: ThreadDetails? = null
-        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
-        override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
         override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
-        override suspend fun rescan() {}
-        override suspend fun migrateLegacyIfNeeded() {}
     }
 
     private fun media(postNo: Long) = MediaItem(
@@ -147,7 +139,7 @@ class MediaViewModelTest {
             ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks),
             fails = threadFails,
         )
-        val queue = MediaDownloadQueue(vault)
+        val queue = MediaDownloadQueue(vault, NoDedup)
         val context: Context = ApplicationProvider.getApplicationContext()
 
         fun vm(initialPostNo: Long = 0) = MediaViewModel(

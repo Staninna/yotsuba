@@ -4,7 +4,7 @@ import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
 import dev.stan.yotsuba.domain.model.VaultError
-import dev.stan.yotsuba.fake.FakeVault
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
 import dev.stan.yotsuba.feature.vault.DedupPhase
 import dev.stan.yotsuba.feature.vault.VaultDedupViewModel
@@ -49,7 +49,7 @@ class VaultDedupViewModelTest {
         }
     }
 
-    private class DeletingVault : FakeVault() {
+    private class DeletingVault : FakeMediaVault() {
         val deleted = mutableListOf<String>()
         var failing = setOf<String>()
         override suspend fun delete(url: String): VaultError? { deleted += url; return if (url in failing) VaultError.Io("x") else null }

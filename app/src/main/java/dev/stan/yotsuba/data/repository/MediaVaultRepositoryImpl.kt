@@ -374,10 +374,6 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     override suspend fun syncSavedThreads(
         onProgress: (done: Int, total: Int) -> Unit,
-    ): VaultSyncSummary = syncSavedThreads(onProgress, emptySet())
-
-    override suspend fun syncSavedThreads(
-        onProgress: (done: Int, total: Int) -> Unit,
         skip: Set<VaultLocation>,
     ): VaultSyncSummary = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext VaultSyncSummary()

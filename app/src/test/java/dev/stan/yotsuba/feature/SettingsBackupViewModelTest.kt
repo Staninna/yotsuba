@@ -12,6 +12,7 @@ import dev.stan.yotsuba.domain.repository.BackupInfo
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BackupResult
 import dev.stan.yotsuba.domain.repository.BoardRepository
+import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
@@ -65,6 +66,7 @@ class SettingsBackupViewModelTest {
         override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) {}
         override suspend fun readUpTo(board: String, threadNo: Long): Long? = null
         override suspend fun remove(board: String, threadNo: Long) {}
+        override suspend fun restore(entry: HistoryEntry) = record(entry)
         override suspend fun clearAll() {}
         override suspend fun trim(retainAfterMs: Long) {}
     }
@@ -74,10 +76,10 @@ class SettingsBackupViewModelTest {
         override suspend fun add(bookmark: Bookmark) {}
         override suspend fun remove(board: String, threadNo: Long) {}
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
-        override suspend fun refreshOne(bookmark: Bookmark) = bookmark
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-        @Deprecated("Unread is derived from readUpTo; use markSeen")
-        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {}
+        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
+        override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
+        override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
+        override suspend fun removeDead() {}
         override suspend fun clearAll() {}
     }
 

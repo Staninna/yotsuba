@@ -9,23 +9,21 @@ import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.HistoryEntry
-import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
-import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
-import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
-import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
@@ -71,15 +69,12 @@ class FakeBookmarkRepository : BookmarkRepository {
         bookmarkedFlow.value = false
     }
     override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> = bookmarkedFlow
-    override suspend fun refreshOne(bookmark: Bookmark) = bookmark
     override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
     /** Every markSeen call, in order; the repository itself never lowers the mark. */
     val seen = mutableListOf<Long>()
-    override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {
+    override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {
         seen += lastSeenPostNo
     }
-    @Deprecated("Unread is derived from readUpTo; use markSeen")
-    override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) = Unit
     override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
     override suspend fun removeDead() {}
     override suspend fun clearAll() {}
@@ -96,33 +91,27 @@ class FakeHistoryRepository(var savedScrollPostNo: Long? = null) : HistoryReposi
     override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) { readMark = postNo }
     override suspend fun readUpTo(board: String, threadNo: Long) = readMark
     override suspend fun remove(board: String, threadNo: Long) {}
+    override suspend fun restore(entry: HistoryEntry) = record(entry)
     override suspend fun clearAll() {}
     override suspend fun trim(retainAfterMs: Long) {}
 }
 
 /** Records the first save so a test can await it; `statuses` is too transient to assert on. */
-class FakeVault : MediaVaultRepository {
+class FakeVault : FakeMediaVault() {
     val firstSave = CompletableDeferred<Pair<MediaItem, VaultSaveContext>>()
     /** Completes once [expectedSaves] items have arrived; the queue runs on a real IO thread. */
     val allSaved = CompletableDeferred<List<String>>()
     var expectedSaves = 1
     private val savedUrls = CopyOnWriteArrayList<String>()
     override fun hasStorageAccess() = false
-    override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-    override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
     override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
         firstSave.complete(item to context)
         savedUrls += item.fullUrl
         if (savedUrls.size >= expectedSaves) allSaved.complete(savedUrls.sorted())
         return null
     }
-    override suspend fun delete(url: String): VaultError? = null
-    override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
-    override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
     var snapshot: ThreadDetails? = null
     override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
-    override suspend fun rescan() {}
-    override suspend fun migrateLegacyIfNeeded() {}
 }
 
 class FakeClaimedPosts : ClaimedPostRepository {
@@ -152,7 +141,7 @@ class ThreadEnv(
         ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = emptyMap())
 
     val vault = FakeVault()
-    val queue = MediaDownloadQueue(vault)
+    val queue = MediaDownloadQueue(vault, NoDedup)
 
     fun vm(initialPostNo: Long? = null) = ThreadViewModel(
         board = "g", threadNo = 100, initialPostNo = initialPostNo,
