@@ -128,11 +128,11 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 - F038 `BookmarksList.kt:115` [high] Fixed
 - F257 `BookmarksList.kt:190` [low] Fixed
 
-### Catalog / Home — layout cycler
+### Catalog / Home: layout cycler
 
 - F135 `CatalogScreen.kt:92` [medium] Fixed
 
-### Catalog / Home — search
+### Catalog / Home: search
 
 - F134 `CatalogPane.kt:158` [medium] Fixed
 
@@ -140,7 +140,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 
 - F144 `HomeScreen.kt:116` [medium] Fixed
 
-### Home — tab row
+### Home: tab row
 
 - F149 `ReorderableTabRow.kt:238` [medium] Fixed
 
@@ -190,34 +190,34 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 
 ### Thread
 
-- F177 `ThreadTopBar.kt:96` [medium] Deferred (rejected in verification: Duplicate of F176 — same lines, same defect, same remedy; the only extra content is commit archaeology. Keep F176, which additionally catches the sub-48dp untyped tap target.)
+- F177 `ThreadTopBar.kt:96` [medium] Deferred (rejected in verification: Duplicate of F176, same lines, same defect, same remedy; the only extra content is commit archaeology. Keep F176, which additionally catches the sub-48dp untyped tap target.)
 - F179 `ThreadScreen.kt:191` [medium] Fixed
 
 ### Thread (tree view + poster-ID filter)
 
 - F271 `ThreadViewModel.kt:599` [low] Fixed
 
-### Thread view — PostCard
+### Thread view: PostCard
 
 - F052 `PostCard.kt:117` [high] Fixed
 
-### Thread view — PostCard poster-ID pill
+### Thread view: PostCard poster-ID pill
 
 - F053 `PostCard.kt:152` [high] Fixed
 
-### Thread view — external link dialog
+### Thread view: external link dialog
 
 - F169 `ExternalLinkDialog.kt:27` [medium] Fixed
 
-### Thread view — gallery sheet
+### Thread view: gallery sheet
 
 - F265 `ThreadGallerySheet.kt:62` [low] Fixed
 
-### Thread view — in-thread search
+### Thread view: in-thread search
 
 - F178 `ThreadScreen.kt:106` [medium] Fixed
 
-### Thread view — top bar
+### Thread view: top bar
 
 - F176 `ThreadTopBar.kt:79` [medium] Fixed
 
@@ -273,7 +273,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F010 | ThreadScreen.kt:418 | bug | Fixed (84335cd) |
 | F011 | ThreadViewModel.kt:520 | 6 canonical layer | Fixed (308b61e) |
 | F012 | VaultStatsSheet.kt:69 | bug | Fixed (0e6d101) |
-| F013 | RoomTest.kt:28 | bug | Deferred (rejected in verification: Not a defect at line 28 — that line just builds an in-memory DB for DAO tests, which is exactly what it should do; the claim is a test-coverage gap, and the thermo-nuclear rules cover structure/abstraction/spaghetti, not missing tests. The proposed fix is also wrong as written: app/schemas/dev.stan.yotsuba.core.database.YotsubaDatabase contains only 6.json–10.json, so MigrationTestHelper.createDatabase(TEST_DB, n) for n in 1..5 (and the end-to-end 1→10) cannot work — no exported schema exists for those versions.) |
+| F013 | RoomTest.kt:28 | bug | Deferred (rejected in verification: Not a defect at line 28, that line just builds an in-memory DB for DAO tests, which is exactly what it should do; the claim is a test-coverage gap, and the thermo-nuclear rules cover structure/abstraction/spaghetti, not missing tests. The proposed fix is also wrong as written: app/schemas/dev.stan.yotsuba.core.database.YotsubaDatabase contains only 6.json to 10.json, so MigrationTestHelper.createDatabase(TEST_DB, n) for n in 1..5 (and the end-to-end 1→10) cannot work, no exported schema exists for those versions.) |
 | F014 | BoardsFavouriteFlowTest.kt:39 | 5 type/boundary | Fixed (3ee073d) |
 | F015 | FlowTestHelpers.kt:10 | 2 spaghetti growth | Fixed (1fc9129) |
 | F016 | SettingsDataStore.kt:57 | bug | Fixed (5cdc689) |
@@ -311,10 +311,10 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F048 | FiltersSection.kt:78 | 6 canonical layer | Fixed (f97f2a4) |
 | F049 | FiltersSection.kt:180 | ui/ux | Fixed (635f67e) |
 | F050 | PostBody.kt:62 | 0 structural simplification | Fixed (bffa699) |
-| F051 | PostBody.kt:90 | 6 canonical layer | Deferred (rejected in verification: Misreads the code: the build at PostBody.kt:90 is inside remember keyed on body/revealedSpoilerIds/revealAll/highlight/quoteLabels/colors/scheme, so it does not rerun on recomposition with unchanged inputs — the claim that it 'repeats on every recomposition triggered by a new ThreadContent instance' is wrong. What remains is one AnnotatedString build per item realization, which is ordinary Compose; the proposed LruCache or VM-side span pipeline adds a cache-key surface and pushes styling into the ViewModel for an unmeasured gain.) |
+| F051 | PostBody.kt:90 | 6 canonical layer | Deferred (rejected in verification: Misreads the code: the build at PostBody.kt:90 is inside remember keyed on body/revealedSpoilerIds/revealAll/highlight/quoteLabels/colors/scheme, so it does not rerun on recomposition with unchanged inputs, the claim that it 'repeats on every recomposition triggered by a new ThreadContent instance' is wrong. What remains is one AnnotatedString build per item realization, which is ordinary Compose; the proposed LruCache or VM-side span pipeline adds a cache-key surface and pushes styling into the ViewModel for an unmeasured gain.) |
 | F052 | PostCard.kt:117 | ui/ux | Fixed (c658605) |
 | F053 | PostCard.kt:152 | ui/ux | Fixed (c658605) |
-| F054 | PostCard.kt:207 | 4 magic/wrappers | Deferred (rejected in verification: Same underlying defect as F172 (shared-element ownership inferred from actions.onThumbnailLongPress at PostCard.kt:207), reported twice. F054's remedy is the worse of the two: it bolts a PostCardSurface enum onto PostCardActions — a new field on a data class that is otherwise pure handlers — and demands rebuilding the action sets in ThreadScreen, touching SubThreadPanel.kt:139 too, for a distinction only one line inside PostCard actually needs. That is adding a mode flag, not deleting one. The claim that forPreview()'s KDoc 'decides which' surface is also a misread: that KDoc is about which handlers are inert, not about transitions. Keeping F172 as the canonical finding.) |
+| F054 | PostCard.kt:207 | 4 magic/wrappers | Deferred (rejected in verification: Same underlying defect as F172 (shared-element ownership inferred from actions.onThumbnailLongPress at PostCard.kt:207), reported twice. F054's remedy is the worse of the two: it bolts a PostCardSurface enum onto PostCardActions, a new field on a data class that is otherwise pure handlers, and demands rebuilding the action sets in ThreadScreen, touching SubThreadPanel.kt:139 too, for a distinction only one line inside PostCard actually needs. That is adding a mode flag, not deleting one. The claim that forPreview()'s KDoc 'decides which' surface is also a misread: that KDoc is about which handlers are inert, not about transitions. Keeping F172 as the canonical finding.) |
 | F055 | ThreadScreen.kt:139 | bug | Fixed (bbcc8a1) |
 | F056 | ThreadScreen.kt:164 | bug | Fixed (bbcc8a1) |
 | F057 | ThreadScreen.kt:233 | 3 design cleanliness | Fixed (55289ed) |
@@ -341,7 +341,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F078 | 6.json:1 | 5 type/boundary | Deferred (rejected in verification: Facts check out (schemas 6-10 only, migrations 1_2..9_10, no MigrationTestHelper anywhere), but this is a test-coverage/process gap, not something the thermo-nuclear rules flag: no structural regression, no spaghetti, no type/boundary problem in code. Rule 5 is about types and contracts in source, not about exported Room schema JSON. The cited artefact is a generated file and 'line 1' of it anchors nothing. The alternative fix (dropping exportSchema/schemaLocation) would delete the only artefacts a future migration test could use and would change the build's outputs, making the situation worse, not cleaner.) |
 | F079 | BoardsFavouriteFlowTest.kt:63 | bug | Fixed (028969c) |
 | F080 | TestRepositoryModule.kt:1 | 0 structural simplification | Deferred (rejected in verification: The file is 401 lines, nowhere near the 1k-line threshold the rules flag, and its three parts (seed data, fakes, bindings) are one cohesive concern: the instrumented-test double graph. The proposed fix deletes no complexity, it just spreads the same code across three files, which rule 3 explicitly deprecates. The import-order remark is a cosmetic nit.) |
-| F081 | TestRepositoryModule.kt:324 | 6 canonical layer | Deferred (rejected in verification: Line 324 is indeed FakeSettingsRepository, and it does overlap with app/src/test/.../fake/FakeSettings.kt — but the duplicate is 7 trivial lines (a MutableStateFlow plus an update lambda), and the two live in source sets that cannot see each other by design. The proposed remedy is to add a whole new sharedTest source set to app/build.gradle.kts and rewire the Hilt @Binds at line 388 into a @Provides, i.e. build-system churn out of proportion to the payoff, and the classes aren't even identical (FakeSettings takes an `initial` param and has no @Inject/@Singleton, which Hilt needs here). The 'eighth copy' framing also overstates it: the KDoc's remark about ViewModel tests concerns the unit-test source set, not this file. Low-value nit under the rules' own 'don't flood the review with nits' bar.) |
+| F081 | TestRepositoryModule.kt:324 | 6 canonical layer | Deferred (rejected in verification: Line 324 is indeed FakeSettingsRepository, and it does overlap with app/src/test/.../fake/FakeSettings.kt, but the duplicate is 7 trivial lines (a MutableStateFlow plus an update lambda), and the two live in source sets that cannot see each other by design. The proposed remedy is to add a whole new sharedTest source set to app/build.gradle.kts and rewire the Hilt @Binds at line 388 into a @Provides, i.e. build-system churn out of proportion to the payoff, and the classes aren't even identical (FakeSettings takes an `initial` param and has no @Inject/@Singleton, which Hilt needs here). The 'eighth copy' framing also overstates it: the KDoc's remark about ViewModel tests concerns the unit-test source set, not this file. Low-value nit under the rules' own 'don't flood the review with nits' bar.) |
 | F082 | TestRepositoryModule.kt:370 | 4 magic/wrappers | Fixed (148f7fa) |
 | F083 | FlowTestHelpers.kt:26 | 4 magic/wrappers | Fixed (87b5096) |
 | F084 | HistoryClearFlowTest.kt:30 | 2 spaghetti growth | Fixed (87b5096) |
@@ -351,7 +351,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F088 | SavedMediaDao.kt:47 | 6 canonical layer | Fixed (93392e3) |
 | F089 | SavedMediaDao.kt:49 | 0 structural simplification | Fixed (5f8c89a) |
 | F090 | Entities.kt:20 | 0 structural simplification | Fixed (82f1597) |
-| F091 | Migrations.kt:6 | 3 design cleanliness | Deferred (rejected in verification: The facts check out (no MigrationTestHelper anywhere, only 6..10.json exported, no destructive fallback at Modules.kt:126-128), but this is a missing-test-coverage gap, not one of the structural/abstraction problems this review's rules flag, and part of the fix is impossible: 1.json..5.json are not recoverable — `git log --all` for those paths returns nothing, so they were never committed.) |
+| F091 | Migrations.kt:6 | 3 design cleanliness | Deferred (rejected in verification: The facts check out (no MigrationTestHelper anywhere, only 6..10.json exported, no destructive fallback at Modules.kt:126-128), but this is a missing-test-coverage gap, not one of the structural/abstraction problems this review's rules flag, and part of the fix is impossible: 1.json..5.json are not recoverable, `git log --all` for those paths returns nothing, so they were never committed.) |
 | F092 | SettingsDataStore.kt:35 | 6 canonical layer | Fixed (90ea126) |
 | F093 | SettingsRows.kt:42 | ui/ux | Deferred (rejected in verification: Same defect, same lines, same fix as F017 (which additionally covers TextRow/NavigationRow roles). Duplicate, not an independent finding.) |
 | F094 | SettingsRows.kt:107 | ui/ux | Fixed (f566119) |
@@ -433,15 +433,15 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F170 | PostCard.kt:75 | 5 type/boundary | Fixed (55289ed) |
 | F171 | PostCard.kt:86 | 2 spaghetti growth | Fixed (55289ed) |
 | F172 | PostCard.kt:207 | 4 magic/wrappers | Fixed (55289ed) |
-| F173 | PostCard.kt:208 | 4 magic/wrappers | Deferred (rejected in verification: The stacking is real (208-211 applied at 223-224), but the finding is speculation dressed as a defect: it asserts Compose 'is specified for one shared-content state per node' without evidence, and names no concrete misbehaviour — the two keys can never match at once, since the catalog is not composed during a thread->viewer transition and the viewer never publishes the thumbnail key. The proposed fix also fails the behaviour bar: `cameFromCatalog` does not exist anywhere in the tree, and having the catalog publish media.fullUrl means widening the catalog's data path (CatalogPane.kt:303 has only thumbnailUrl), which changes what animates on both screens.) |
-| F174 | PostCard.kt:329 | 6 canonical layer | Deferred (rejected in verification: Misreads the code: the two mappings are not the same. PostCard tints Queued Color.White while DownloadAction uses White.copy(alpha = 0.7f); PostCard's Failed icon is ErrorOutline, DownloadAction's is Download; DownloadAction also has a null branch PostCard's non-null parameter lacks. A shared composable with the proposed signature would change the badge's Queued tint and Failed glyph, and parameterising those differences away leaves only two shared colour constants — not enough to earn the extra component.) |
+| F173 | PostCard.kt:208 | 4 magic/wrappers | Deferred (rejected in verification: The stacking is real (208-211 applied at 223-224), but the finding is speculation dressed as a defect: it asserts Compose 'is specified for one shared-content state per node' without evidence, and names no concrete misbehaviour, the two keys can never match at once, since the catalog is not composed during a thread->viewer transition and the viewer never publishes the thumbnail key. The proposed fix also fails the behaviour bar: `cameFromCatalog` does not exist anywhere in the tree, and having the catalog publish media.fullUrl means widening the catalog's data path (CatalogPane.kt:303 has only thumbnailUrl), which changes what animates on both screens.) |
+| F174 | PostCard.kt:329 | 6 canonical layer | Deferred (rejected in verification: Misreads the code: the two mappings are not the same. PostCard tints Queued Color.White while DownloadAction uses White.copy(alpha = 0.7f); PostCard's Failed icon is ErrorOutline, DownloadAction's is Download; DownloadAction also has a null branch PostCard's non-null parameter lacks. A shared composable with the proposed signature would change the badge's Queued tint and Failed glyph, and parameterising those differences away leaves only two shared colour constants, not enough to earn the extra component.) |
 | F175 | QuotePreviewSheet.kt:71 | 2 spaghetti growth | Fixed (d91e0d4) |
 | F176 | ThreadTopBar.kt:79 | ui/ux | Fixed (f91a422) |
-| F177 | ThreadTopBar.kt:96 | ui/ux | Deferred (rejected in verification: Duplicate of F176 — same lines, same defect, same remedy; the only extra content is commit archaeology. Keep F176, which additionally catches the sub-48dp untyped tap target.) |
+| F177 | ThreadTopBar.kt:96 | ui/ux | Deferred (rejected in verification: Duplicate of F176, same lines, same defect, same remedy; the only extra content is commit archaeology. Keep F176, which additionally catches the sub-48dp untyped tap target.) |
 | F178 | ThreadScreen.kt:106 | ui/ux | Fixed (bbcc8a1) |
 | F179 | ThreadScreen.kt:191 | ui/ux | Fixed (b20afd7) |
 | F180 | ThreadScreen.kt:348 | 3 design cleanliness | Fixed (b20afd7) |
-| F181 | ThreadViewModel.kt:187 | 7 orchestration/atomicity | Deferred (rejected in verification: The code is at line 187 as cited, but the proposed fix breaks an existing test: ThreadViewModelTest.kt:516-523 drives onVisiblePostsChanged and asserts env.history.readMark/env.bookmarks.seen after only dispatcher.scheduler.runCurrent(), which never advances virtual time, so a delay(500) inside collectLatest would leave the mark unwritten. Beyond that it is a micro-optimization of write volume with identical final state — rule 7 explicitly says not to over-index on those — and it introduces a real behavioural edge (leaving the thread within 500ms of the last scroll now drops the read mark), so it is not the behaviour-preserving cleanup it claims.) |
+| F181 | ThreadViewModel.kt:187 | 7 orchestration/atomicity | Deferred (rejected in verification: The code is at line 187 as cited, but the proposed fix breaks an existing test: ThreadViewModelTest.kt:516-523 drives onVisiblePostsChanged and asserts env.history.readMark/env.bookmarks.seen after only dispatcher.scheduler.runCurrent(), which never advances virtual time, so a delay(500) inside collectLatest would leave the mark unwritten. Beyond that it is a micro-optimization of write volume with identical final state, rule 7 explicitly says not to over-index on those, and it introduces a real behavioural edge (leaving the thread within 500ms of the last scroll now drops the read mark), so it is not the behaviour-preserving cleanup it claims.) |
 | F182 | ThreadViewModel.kt:543 | 6 canonical layer | Fixed (e3b9a73) |
 | F183 | ThreadsScreen.kt:73 | ui/ux | Fixed (1997938) |
 | F184 | ThreadsScreen.kt:99 | 6 canonical layer | Fixed (a464b88) |
@@ -454,7 +454,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F191 | VaultExplorer.kt:483 | 5 type/boundary | Deferred (rejected in verification: Duplicate of F187 (same `view: Any` parameters, same fix, cited at MediaGrid rather than the origin).) |
 | F192 | VaultExplorer.kt:503 | ui/ux | Fixed (9ebe79d) |
 | F193 | VaultExplorer.kt:604 | 6 canonical layer | Fixed (34ddfaa) |
-| F194 | VaultScreen.kt:113 | 6 canonical layer | Deferred (rejected in verification: The claimed symptom does not hold. The activity declares android:configChanges="orientation\|screenSize\|screenLayout\|…" (AndroidManifest.xml:32), so rotation does not recreate it, and the nav bar↔rail switch is an `if` block that is a *sibling* of the Scaffold inside one Row (AppNavHost.kt:112-127) — the NavHost/VaultScreen subtree keeps its composition identity, so the `remember`ed flags survive. With the stated user-visible bug gone, what remains is a preference for hoisting two transient sheet booleans into the ViewModel, which adds a sealed VaultSheet type, a state flow and a UiState field for no behaviour gain.) |
+| F194 | VaultScreen.kt:113 | 6 canonical layer | Deferred (rejected in verification: The claimed symptom does not hold. The activity declares android:configChanges="orientation\|screenSize\|screenLayout\|…" (AndroidManifest.xml:32), so rotation does not recreate it, and the nav bar↔rail switch is an `if` block that is a *sibling* of the Scaffold inside one Row (AppNavHost.kt:112-127), the NavHost/VaultScreen subtree keeps its composition identity, so the `remember`ed flags survive. With the stated user-visible bug gone, what remains is a preference for hoisting two transient sheet booleans into the ViewModel, which adds a sealed VaultSheet type, a state flow and a UiState field for no behaviour gain.) |
 | F195 | VaultScreen.kt:193 | 2 spaghetti growth | Fixed (9f4849e) |
 | F196 | VaultScreen.kt:242 | 1 file size | Deferred (rejected in verification: Duplicate of F066: same file, same VaultScreen 95-461 span, same topBar/actions block, same proposed extraction into VaultTopBar with ImportMenu/SyncMenu. It cites line 242 (`actions = {`) instead of 204 (`topBar = {`), but that is a nested part of the very block F066 already covers; reporting it twice adds nothing actionable.) |
 | F197 | VaultScreen.kt:297 | ui/ux | Fixed (9f4849e) |
@@ -484,7 +484,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F221 | SettingsFlowTest.kt:39 | 3 design cleanliness | Fixed (028969c) |
 | F222 | BackupModule.kt:14 | 6 canonical layer | Fixed (58fc08d) |
 | F223 | DownloadedMediaDao.kt:3 | 4 magic/wrappers | Fixed (5f8c89a) |
-| F224 | DownloadedMediaDao.kt:17 | 3 design cleanliness | Deferred (rejected in verification: The cited line (DownloadedMediaDao.kt:17) is the one place the entity IS used; the only actionable part — unused `DownloadedMediaEntity` imports — lives at line 9 of four other files, and those files also carry three other unused entity imports each (a shared copy-pasted import block), so the finding both mislocates and under-describes it. Unused imports are a lint-level style nit, and the rest of the finding is 'schedule for deletion later', not a present defect.) |
+| F224 | DownloadedMediaDao.kt:17 | 3 design cleanliness | Deferred (rejected in verification: The cited line (DownloadedMediaDao.kt:17) is the one place the entity IS used; the only actionable part, unused `DownloadedMediaEntity` imports, lives at line 9 of four other files, and those files also carry three other unused entity imports each (a shared copy-pasted import block), so the finding both mislocates and under-describes it. Unused imports are a lint-level style nit, and the rest of the finding is 'schedule for deletion later', not a present defect.) |
 | F225 | DHash.kt:64 | 4 magic/wrappers | Fixed (14b4114) |
 | F226 | MediaThumbnail.kt:5 | 3 design cleanliness | Fixed (9e952d2) |
 | F227 | StateViews.kt:57 | 5 type/boundary | Fixed (9e952d2) |
@@ -497,7 +497,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F234 | ArchiveHosts.kt:49 | 2 spaghetti growth | Deferred (rejected in verification: ArchiveHosts.kt is 51 lines long, so line 232 does not exist and the nearby real code (the WAROSU arm at line 49) does not support the claim. The file is a single small lookup table with one two-arm `when`, explicitly documented as the extension hook for a Fuuka scraper; that is not ad-hoc spaghetti growth the rules would flag. WAROSU is also live in `threadUrl` (ThreadViewModel.kt:148 builds the browser link from it), and the proposed split into a `webOnly` map would rewrite ArchiveHostsTest assertions and change `sourceFor`'s contract for 13 boards for no maintainability gain. Taste nit at a wrong line.) |
 | F235 | NetworkMonitor.kt:49 | 4 magic/wrappers | Fixed (7f67d73) |
 | F236 | GithubReleases.kt:70 | 5 type/boundary | Fixed (45606b6) |
-| F237 | Urls.kt:23 | 6 canonical layer | Deferred (rejected in verification: Duplicate of F102 — same duplication, same four sites, same proposed fix, just cited at Urls.kt:23 instead of :43 and with a weaker write-up. Reporting the same extraction twice is exactly the nit-flooding the rules warn against; F102 carries the finding.) |
+| F237 | Urls.kt:23 | 6 canonical layer | Deferred (rejected in verification: Duplicate of F102, same duplication, same four sites, same proposed fix, just cited at Urls.kt:23 instead of :43 and with a weaker write-up. Reporting the same extraction twice is exactly the nit-flooding the rules warn against; F102 carries the finding.) |
 | F238 | VaultMeta.kt:32 | 3 design cleanliness | Fixed (4edf093) |
 | F239 | VaultPosts.kt:124 | 3 design cleanliness | Fixed (4edf093) |
 | F240 | VideoStills.kt:35 | bug | Fixed (4edf093) |
@@ -509,7 +509,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F246 | Mappers.kt:71 | 4 magic/wrappers | Fixed (90dad30) |
 | F247 | Mappers.kt:168 | 4 magic/wrappers | Fixed (4251c5b) |
 | F248 | Mappers.kt:240 | 5 type/boundary | Fixed (6ea85ee) |
-| F249 | MediaVaultRepositoryImpl.kt:375 | 4 magic/wrappers | Deferred (rejected in verification: The observation is right — MediaVaultRepository.kt:88-91 gives the 2-arg form a default body that silently drops `skip` — but the proposed fix does not compile as claimed. Roughly ten fakes override only the 1-arg form (VaultViewModelTest.kt:113, MediaViewModelTest.kt:121, ThreadViewModelTest.kt:155, BookmarksViewModelTest.kt:97, ThreadQuoteTapTest.kt:71, ThreadRefreshFailureTest.kt:69, DedupQueueTest.kt:41, VaultDedupViewModelTest.kt:68, MediaDownloadQueueTest.kt:61, androidTest TestRepositoryModule.kt:313); collapsing to a single 2-param method makes every one of those a non-override and breaks the test and androidTest source sets. The evidence's own claim that existing call sites compile unchanged is false.) |
+| F249 | MediaVaultRepositoryImpl.kt:375 | 4 magic/wrappers | Deferred (rejected in verification: The observation is right, MediaVaultRepository.kt:88-91 gives the 2-arg form a default body that silently drops `skip`, but the proposed fix does not compile as claimed. Roughly ten fakes override only the 1-arg form (VaultViewModelTest.kt:113, MediaViewModelTest.kt:121, ThreadViewModelTest.kt:155, BookmarksViewModelTest.kt:97, ThreadQuoteTapTest.kt:71, ThreadRefreshFailureTest.kt:69, DedupQueueTest.kt:41, VaultDedupViewModelTest.kt:68, MediaDownloadQueueTest.kt:61, androidTest TestRepositoryModule.kt:313); collapsing to a single 2-param method makes every one of those a non-override and breaks the test and androidTest source sets. The evidence's own claim that existing call sites compile unchanged is false.) |
 | F250 | SavedMediaMappers.kt:99 | 5 type/boundary | Deferred (rejected in verification: Duplicate of F118 at the same expression (SavedMediaMappers.kt:98-99) with the same fix; on its own, dropping two !! is a taste-level nit that the rules would not flag separately.) |
 | F251 | MediaItem.kt:29 | 3 design cleanliness | Fixed (f5f2056) |
 | F252 | PostGraph.kt:15 | 4 magic/wrappers | Fixed (f5f2056) |
@@ -520,7 +520,7 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F257 | BookmarksList.kt:190 | ui/ux | Fixed (d95fc39) |
 | F258 | BookmarksViewModel.kt:33 | 5 type/boundary | Fixed (843881d) |
 | F259 | MediaScreen.kt:184 | ui/ux | Fixed (45b1030) |
-| F260 | VideoPage.kt:112 | 6 canonical layer | Deferred (rejected in verification: The lifecycle-observer half is the same defect as F161 (already confirmed); what is left is a six-line ExoPlayer.Builder block, and the proposed rememberLoopingPlayer(uri: String?) returns a nullable player that VideoPage — which needs a non-null player for PlayerSurface, repeatMode mutation and prepare() on retry — would have to force-unwrap, making the type boundary worse rather than better.) |
+| F260 | VideoPage.kt:112 | 6 canonical layer | Deferred (rejected in verification: The lifecycle-observer half is the same defect as F161 (already confirmed); what is left is a six-line ExoPlayer.Builder block, and the proposed rememberLoopingPlayer(uri: String?) returns a nullable player that VideoPage, which needs a non-null player for PlayerSurface, repeatMode mutation and prepare() on retry, would have to force-unwrap, making the type boundary worse rather than better.) |
 | F261 | FiltersSection.kt:80 | 3 design cleanliness | Fixed (9e83bdb) |
 | F262 | FiltersSection.kt:158 | 3 design cleanliness | Fixed (9e83bdb) |
 | F263 | UpdatesSection.kt:30 | 3 design cleanliness | Fixed (db2474a) |
@@ -535,15 +535,15 @@ Plus 41 findings rejected in verification (listed in the ledger with the verifie
 | F272 | VaultExplorer.kt:203 | ui/ux | Fixed (9389352) |
 | F273 | VaultExplorer.kt:233 | 6 canonical layer | Fixed (9ebe79d) |
 | F274 | VaultExplorer.kt:247 | 2 spaghetti growth | Fixed (9ebe79d) |
-| F275 | VaultExplorer.kt:612 | 6 canonical layer | Deferred (rejected in verification: Misreads the code. The five call sites are not "the same job": DateFormat.SHORT (VaultDedupSheet:311), the default style (ThreadScreen:311) and getDateTimeInstance(MEDIUM, SHORT) (StorageSection:146) render deliberately different strings, so folding them into one savedDate/dateTime pair changes visible text — the finding claims behaviourChange:false. Likewise formatMs (VideoPage:413) intentionally never rolls over to hours ("75:03"), while formatDuration emits "1:15:03"; swapping them changes the scrubber label on long videos. The cited line 612 is itself the canonical helper (internal savedDate, already reused by VaultEntrySheet:90), not a defect; the only real duplicate is the private dateFormat in a different file, VaultStatsSheet.kt:217.) |
+| F275 | VaultExplorer.kt:612 | 6 canonical layer | Deferred (rejected in verification: Misreads the code. The five call sites are not "the same job": DateFormat.SHORT (VaultDedupSheet:311), the default style (ThreadScreen:311) and getDateTimeInstance(MEDIUM, SHORT) (StorageSection:146) render deliberately different strings, so folding them into one savedDate/dateTime pair changes visible text, the finding claims behaviourChange:false. Likewise formatMs (VideoPage:413) intentionally never rolls over to hours ("75:03"), while formatDuration emits "1:15:03"; swapping them changes the scrubber label on long videos. The cited line 612 is itself the canonical helper (internal savedDate, already reused by VaultEntrySheet:90), not a defect; the only real duplicate is the private dateFormat in a different file, VaultStatsSheet.kt:217.) |
 | F276 | VaultScreen.kt:412 | 7 orchestration/atomicity | Fixed (c6420be) |
 | F277 | VaultScreen.kt:735 | ui/ux | Fixed (245d6ae) |
 | F278 | VaultStatsSheet.kt:67 | 3 design cleanliness | Deferred (rejected in verification: Taste nit resting on a misread. perBoard is sorted bytes-descending (VaultStats.kt:47), so first().bytes is the max and the call is a trivial O(1) list head read per row, not a meaningful recomputation. The `largest > 0` guard is not dead code by construction: the finding itself names the case that reaches it (every row's sizeBytes null so every board totals 0 bytes), so removing it without a new invariant risks a divide-by-zero NaN fraction. Rules 3/4 do not flag hoisting a one-token expression out of a lambda.) |
 | F279 | VaultViewModel.kt:475 | 4 magic/wrappers | Fixed (22bde01) |
-| F280 | AppNavHost.kt:116 | 3 design cleanliness | Deferred (rejected in verification: The duplication is real at L114-124 and L136-146, but it is ~7 lines of declarative Compose slot wiring across two Material3 composables (NavigationRailItem/NavigationBarItem) that share no supertype or common API. The proposed fix is a higher-order composable taking a `(selected, onClick, icon, label) -> Unit` item factory — exactly the thin, indirection-adding wrapper rule 4 tells reviewers to be sceptical of, and it would not delete a concept, only relocate it. This is a low-value nit the review is told not to flood the output with.) |
+| F280 | AppNavHost.kt:116 | 3 design cleanliness | Deferred (rejected in verification: The duplication is real at L114-124 and L136-146, but it is ~7 lines of declarative Compose slot wiring across two Material3 composables (NavigationRailItem/NavigationBarItem) that share no supertype or common API. The proposed fix is a higher-order composable taking a `(selected, onClick, icon, label) -> Unit` item factory, exactly the thin, indirection-adding wrapper rule 4 tells reviewers to be sceptical of, and it would not delete a concept, only relocate it. This is a low-value nit the review is told not to flood the output with.) |
 | F281 | ExternalLinks.kt:21 | 6 canonical layer | Fixed (38f6e23) |
 | F282 | ic_launcher_monochrome.xml:1 | 4 magic/wrappers | Fixed (2409b5c) |
 | F283 | NetworkLayerTest.kt:7 | 3 design cleanliness | Deferred (rejected in verification: The unused import at line 7 is real (grep finds `Urls` only on that line), but it is a cosmetic lint nit, not something this review's rules flag: no structural regression, no branching or abstraction problem, no file-size or layering issue. The skill explicitly says not to flood the review with low-value nits and not to settle for cosmetic notes.) |
 | F284 | VaultSnapshotTest.kt:23 | 6 canonical layer | Fixed (cde4ab0) |
 | F285 | libs.versions.toml:27 | 4 magic/wrappers | Fixed (7266fb2) |
-| F286 | libs.versions.toml:60 | 4 magic/wrappers | Deferred (rejected in verification: Duplicate of F285 — same okhttp-logging, kotlin-android and inline-test-version observations with no additional content; keeping both would double-report one issue.) |
+| F286 | libs.versions.toml:60 | 4 magic/wrappers | Deferred (rejected in verification: Duplicate of F285, same okhttp-logging, kotlin-android and inline-test-version observations with no additional content; keeping both would double-report one issue.) |

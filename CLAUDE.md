@@ -6,7 +6,7 @@ A 4chan browser for Android. Single module, Compose, Hilt, Room.
 
 This repo follows the shared Android app pattern. **Load the
 `android-app-repo` skill** before touching signing, CI, releases, or the
-in-app updater — it holds the invariants, the templates, and the gotchas
+in-app updater. It holds the invariants, the templates, and the gotchas
 that already cost a day of debugging.
 
 The parts that bite hardest if you don't know them:
@@ -30,7 +30,7 @@ The parts that bite hardest if you don't know them:
 
 ```
 core/     database, network, media, text, vault, design system
-domain/   models and repository interfaces — pure Kotlin; imports nothing from core
+domain/   models and repository interfaces. Pure Kotlin; imports nothing from core
 data/     repository implementations
 feature/  one package per screen: ViewModel + composables
 ```
@@ -41,7 +41,7 @@ the JVM against fakes rather than needing a device.
 ## The vault
 
 Saved media lives at `/sdcard/Yotsuba/<board>/<threadNo> - <subject>/` with a
-`meta.json` sidecar per thread, on shared storage — outside the sandbox.
+`meta.json` sidecar per thread, on shared storage, outside the sandbox.
 
 It survives uninstalling the app, and `MediaVaultRepository.rescan()` rebuilds
 the entire index from those sidecars. Bookmarks, history and settings do **not**
@@ -56,4 +56,4 @@ reinstall without checking which side of that line it falls on.
 ./gradlew connectedDebugAndroidTest  # needs a device
 ```
 
-Coverage is honestly recorded in `todo.md` — read it before claiming a number.
+Coverage is honestly recorded in `todo.md`. Read it before claiming a number.
