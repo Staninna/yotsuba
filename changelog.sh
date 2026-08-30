@@ -7,17 +7,22 @@
 #   ./changelog.sh 2.2.0            write changelog/v2.2.0.md (tag..previous tag, or HEAD)
 #   ./changelog.sh --backfill       write every changelog/<tag>.md that is missing
 #   ./changelog.sh --publish        put each changelog/<tag>.md into its GitHub release body
+#   ./changelog.sh --check          lint every changelog/<tag>.md against the shape and the unslop rules
 #   ./changelog.sh --help           this
 #
 # The shape is fixed because the in-app updater parses it (core/update/ReleaseNotes.kt):
-# `## Added / Changed / Fixed / Removed`, one bullet per line, an optional bold lead.
+# `## Added / Changed / Fixed / Removed`, one bullet per line, an optional bold lead
+# ending in a period. Every changelog is written under .claude/skills/unslop/SKILL.md,
+# which the prompt carries in full; --check enforces the parts a grep can.
 # Only this script and bump.sh call Claude; CI never does.
 
 # Ask Claude Code for the changelog of one version.
 #   write_changelog VERSION        range: previous tag .. vVERSION if that tag exists, else .. HEAD
 write_changelog() {
-  local version=$1 tag="v$1" out="changelog/v$1.md" prev head prompt app
+  local version=$1 tag="v$1" out="changelog/v$1.md" prev head prompt app attempt
+  local skill=.claude/skills/unslop/SKILL.md
   command -v claude >/dev/null || { echo "changelog: claude is not installed" >&2; return 1; }
+  [ -f "$skill" ] || { echo "changelog: $skill is missing; every changelog is written under it" >&2; return 1; }
   app=$(sed -n 's/^rootProject.name = "\(.*\)"/\1/p' settings.gradle.kts)
   if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     head=$tag
@@ -37,7 +42,7 @@ write_changelog() {
 Output only Markdown in exactly this shape, nothing before or after it:
 
 ## Added
-- **Short lead** — one sentence on what the user can now do
+- **Short lead.** One sentence on what the user can now do.
 ## Changed
 - ...
 ## Fixed
@@ -51,6 +56,12 @@ section. Write for the person using the app, not the developer: name the screen
 or setting, skip class names, refactors, test-only and CI-only work unless they
 change what the user sees. No introduction, no version line, no sign-off.
 
+Apply the writing rules below to every bullet. In particular: no em dashes or en
+dashes anywhere, no curly quotes, and the bold lead ends with a period.
+
+## Writing rules
+$(cat "$skill")
+
 ## Commits
 $(git log --no-merges --format='- %s' "$log_range")
 
@@ -59,16 +70,35 @@ $(git diff --stat $diff_range -- . ':!app/src/test' ':!app/src/androidTest')
 
 ## Diff
 $(git diff $diff_range -- . ':!app/src/test' ':!app/src/androidTest' ':!*.png' ':!*.webp' | head -c 600000 || true)"
-  printf '%s\n' "$prompt" | claude -p --output-format text > "$out.tmp" || { rm -f "$out.tmp"; return 1; }
-  # Strip a stray code fence and anything before the first heading.
-  sed -i -e '/^```/d' -e '0,/^## /{/^## /!d}' "$out.tmp"
-  grep -q '^## ' "$out.tmp" || { rm -f "$out.tmp"; echo "changelog: came back without headings" >&2; return 1; }
-  if grep -E '^## ' "$out.tmp" | grep -vqE '^## (Added|Changed|Fixed|Removed)$'; then
-    rm -f "$out.tmp"; echo "changelog: used a heading outside Added/Changed/Fixed/Removed" >&2; return 1
-  fi
+  # Three tries: the model sometimes ignores a rule, and the checks below are cheap.
+  for attempt in 1 2 3; do
+    printf '%s\n' "$prompt" | claude -p --output-format text > "$out.tmp" || { rm -f "$out.tmp"; return 1; }
+    # Strip a stray code fence and anything before the first heading.
+    sed -i -e '/^```/d' -e '0,/^## /{/^## /!d}' "$out.tmp"
+    if changelog_ok "$out.tmp"; then break; fi
+    [ "$attempt" = 3 ] && { rm -f "$out.tmp"; return 1; }
+    echo "==> attempt $attempt rejected, asking again"
+  done
   mv "$out.tmp" "$out"
   echo "==> wrote $out"
   sed 's/^/    /' "$out"
+}
+
+# The shape the updater parses, plus the unslop rules a grep can enforce.
+#   changelog_ok FILE
+changelog_ok() {
+  local f=$1
+  grep -q '^## ' "$f" || { echo "changelog: came back without headings" >&2; return 1; }
+  if grep -E '^## ' "$f" | grep -vqE '^## (Added|Changed|Fixed|Removed)$'; then
+    echo "changelog: used a heading outside Added/Changed/Fixed/Removed" >&2; return 1
+  fi
+  if grep -nP '[\x{2014}\x{2013}\x{201C}\x{201D}\x{2018}\x{2019}]' "$f"; then
+    echo "changelog: em dash, en dash or curly quote (see .claude/skills/unslop/SKILL.md)" >&2; return 1
+  fi
+  if grep -nE '^- \*\*[^*]*[^.*]\*\*' "$f"; then
+    echo "changelog: a bold lead must end with a period" >&2; return 1
+  fi
+  return 0
 }
 
 # Every changelog/<tag>.md that is missing, oldest tag first.
@@ -101,6 +131,7 @@ case "${1:-}" in
   -h|--help|"") sed -n '2,/^[^#]/ s/^# \?//p' "$0" ;;
   --backfill) backfill_changelogs ;;
   --publish) publish_changelogs ;;
+  --check) rc=0; for f in changelog/v*.md; do changelog_ok "$f" || { echo "    in $f" >&2; rc=1; }; done; exit $rc ;;
   [0-9]*.[0-9]*.[0-9]*) write_changelog "$1" ;;
   *) echo "unknown argument: $1" >&2; exit 2 ;;
 esac
