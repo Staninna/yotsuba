@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.media
 
+import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -110,8 +111,13 @@ fun MediaScreen(
     // Queued + running saves. Failed ones are not "in progress"; they wait on the icon.
     val pending = state.saveStatuses.count { (_, s) -> s.inProgress }
 
+    // Rebuilt only when something a page reads changes, not on every save-status tick.
+    val pages = remember(state.items, state.saved, state.deferHeavyMedia, context) {
+        state.items.map { it.toViewerPage(context, state) }
+    }
+
     ThreadMediaViewer(
-        pages = state.items.map { it.toViewerPage(context, state) },
+        pages = pages,
         thread = state.thread,
         behaviour = state.behaviour,
         initialIndex = state.initialIndex,
@@ -217,11 +223,10 @@ private fun errorMessage(error: NetworkError): String = when (error) {
     is NetworkError.Unknown -> stringResource(R.string.error_unknown)
 }
 
-@Composable
-private fun MediaItem.toViewerPage(context: android.content.Context, state: MediaUiState): ViewerPage {
+private fun MediaItem.toViewerPage(context: Context, state: MediaUiState): ViewerPage {
     // Already-saved media plays straight from the vault file — no buffering.
     val localPath = state.savedPath(fullUrl)
-    val description = stringResource(R.string.media_image_description, displayName, width, height)
+    val description = context.getString(R.string.media_image_description, displayName, width, height)
     return if (isVideo) {
         ViewerPage.Video(
             uri = localPath?.let { Uri.fromFile(File(it)).toString() } ?: fullUrl,
