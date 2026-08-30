@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.media
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -10,19 +11,20 @@ import androidx.core.content.FileProvider
 import dev.stan.yotsuba.core.media.mimeOf
 import java.io.File
 
-/** Opens the system "All files access" toggle for this app so the vault becomes writable. */
-fun requestAllFilesAccess(context: Context) {
-    if (Build.VERSION.SDK_INT < 30) return
-    val intent = Intent(
+/**
+ * Opens the system "All files access" toggle for this app so the vault becomes writable:
+ * the per-app page first, the global list when a skin lacks it. False when neither exists,
+ * or below API 30 where there is nothing to grant.
+ */
+fun requestAllFilesAccess(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < 30) return false
+    val perApp = Intent(
         AndroidSettings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
         Uri.parse("package:${context.packageName}"),
     ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    runCatching { context.startActivity(intent) }.onFailure {
-        context.startActivity(
-            Intent(AndroidSettings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-        )
-    }
+    val global = Intent(AndroidSettings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    return context.startExternal(perApp) || context.startExternal(global)
 }
 
 /**
@@ -31,15 +33,15 @@ fun requestAllFilesAccess(context: Context) {
  * nothing on the device could take it.
  */
 fun openInBrowser(context: Context, url: String): Boolean =
-    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isSuccess
+    context.startExternal(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 
-/** Fires a share chooser over plain [text]; a device with nothing to share to is not a crash. */
-fun shareText(context: Context, text: String) {
+/** Fires a share chooser over plain [text]. False when no app on the device could take it. */
+fun shareText(context: Context, text: String): Boolean {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, text)
     }
-    runCatching { context.startActivity(Intent.createChooser(intent, null)) }
+    return context.startExternal(Intent.createChooser(intent, null))
 }
 
 /**
@@ -47,7 +49,19 @@ fun shareText(context: Context, text: String) {
  * could not be started, so the caller can say so instead of leaving a dead tap.
  */
 fun shareMediaFile(context: Context, file: File, ext: String): Boolean =
-    runCatching { context.startActivity(Intent.createChooser(sendIntent(context, file, ext), null)) }.isSuccess
+    context.startExternal(Intent.createChooser(sendIntent(context, file, ext), null))
+
+/**
+ * Starts [intent] in another app. Only "nothing handles this" is an expected answer and
+ * becomes false; any other failure is a bug and is left to surface as one.
+ */
+private fun Context.startExternal(intent: Intent): Boolean =
+    try {
+        startActivity(intent)
+        true
+    } catch (e: ActivityNotFoundException) {
+        false
+    }
 
 /** Apps that take a shared image straight into Google Lens, the standalone one first. */
 private val LENS_PACKAGES = listOf("com.google.ar.lens", "com.google.android.googlequicksearchbox")
@@ -60,7 +74,7 @@ private val LENS_PACKAGES = listOf("com.google.ar.lens", "com.google.android.goo
 fun searchFileWithLens(context: Context, file: File, ext: String): Boolean {
     for (pkg in LENS_PACKAGES) {
         val intent = sendIntent(context, file, ext).setPackage(pkg)
-        if (runCatching { context.startActivity(intent) }.isSuccess) return true
+        if (context.startExternal(intent)) return true
     }
     return shareMediaFile(context, file, ext)
 }

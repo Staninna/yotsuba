@@ -1,3 +1,8 @@
 <resources>
-    <style name="Theme.Yotsuba" parent="android:Theme.Material.NoActionBar" />
+    <!--
+        The window theme paints the first frame, before Compose has read the settings. It
+        follows the system: light here, dark from values-night, so a light-theme user no
+        longer sees a dark frame flash at launch. Compose owns the theme after that.
+    -->
+    <style name="Theme.Yotsuba" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

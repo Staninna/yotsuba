@@ -5,6 +5,7 @@
     <string name="media_load">Load</string>
     <string name="media_sound_badge">sound</string>
     <string name="media_video_failed">This video could not be played</string>
+    <string name="media_no_app_for_link">No app can open this link</string>
     <string name="media_share_preparing">Preparing to share</string>
     <string name="media_more">More</string>
     <string name="media_search_image">Search image</string>
