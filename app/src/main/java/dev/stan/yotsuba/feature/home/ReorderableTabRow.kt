@@ -38,6 +38,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -260,7 +262,8 @@ private fun BoardTab(
         modifier = modifier
             .height(48.dp)
             .then(if (lifted) Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh) else Modifier)
-            .clickable(onClick = onClick)
+            .clickable(onClick = onClick, role = Role.Tab)
+            .semantics { this.selected = selected }
             .padding(horizontal = 16.dp),
     ) {
         Text(
