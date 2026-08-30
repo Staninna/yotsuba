@@ -33,6 +33,15 @@ fun mimeOf(ext: String): String = when (ext.lowercase()) {
     else -> "application/octet-stream"
 }
 
+/** Fires a share chooser over plain [text]; a device with nothing to share to is not a crash. */
+fun shareText(context: Context, text: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    runCatching { context.startActivity(Intent.createChooser(intent, null)) }
+}
+
 /** Fires a share chooser over [file] through the app's FileProvider. */
 fun shareMediaFile(context: Context, file: File, ext: String) {
     val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)

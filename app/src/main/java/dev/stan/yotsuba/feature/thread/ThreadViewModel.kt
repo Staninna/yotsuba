@@ -232,6 +232,12 @@ class ThreadViewModel @AssistedInject constructor(
         }
     }
 
+    /** Error-state retry: bypass the cache like pull-to-refresh, but show the loading shell. */
+    fun retry() {
+        result.value = null
+        load(forceRefresh = true, quiet = true)
+    }
+
     /**
      * What to show when 4chan did not answer: the vault's own copy first (it works offline
      * and is what the user chose to keep), then, once 4chan says the thread is gone, an

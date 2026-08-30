@@ -1,6 +1,5 @@
 package dev.stan.yotsuba.feature.thread.components
 
-import android.content.Intent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bookmark
@@ -38,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.AnnotatedString
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.Urls
+import dev.stan.yotsuba.feature.media.shareText
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -128,11 +128,7 @@ fun ThreadTopBar(
                     text = { Text(stringResource(R.string.thread_share)) },
                     onClick = {
                         menuOpen = false
-                        val send = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, webUrl)
-                        }
-                        context.startActivity(Intent.createChooser(send, null))
+                        shareText(context, webUrl)
                     },
                 )
                 DropdownMenuItem(

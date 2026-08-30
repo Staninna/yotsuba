@@ -72,6 +72,7 @@ import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.media.saveToVault
+import dev.stan.yotsuba.feature.media.shareText
 import dev.stan.yotsuba.feature.thread.components.BacklinksUi
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
@@ -297,7 +298,7 @@ fun ThreadScreen(
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            UiStateContent(state, onRetry = { viewModel.load() }) { s ->
+            UiStateContent(state, onRetry = viewModel::retry) { s ->
                 val opLabel = stringResource(R.string.thread_quote_label_op)
                 val youLabel = stringResource(R.string.thread_quote_label_you)
                 val quoteLabels = remember(s.quoteLabels, opLabel, youLabel) {
@@ -323,32 +324,17 @@ fun ThreadScreen(
                 }
 
                 Column {
-                    if (s.details.offlineCopy) {
+                    val notice = if (s.details.offlineCopy) {
                         val date = remember(s.offlineCopyAt) {
                             s.offlineCopyAt?.let { DateFormat.getDateInstance().format(Date(it)) }
                         }
-                        Text(
-                            if (date != null) stringResource(R.string.thread_offline_copy_from, date)
-                            else stringResource(R.string.thread_offline_copy),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(spacing.sm),
-                        )
+                        if (date != null) stringResource(R.string.thread_offline_copy_from, date)
+                        else stringResource(R.string.thread_offline_copy)
                     } else if (s.archivedNotice) {
-                        Text(
-                            s.details.archive?.let { stringResource(R.string.thread_archived_from, it.label) }
-                                ?: stringResource(R.string.thread_archived),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(spacing.sm),
-                        )
-                    }
+                        s.details.archive?.let { stringResource(R.string.thread_archived_from, it.label) }
+                            ?: stringResource(R.string.thread_archived)
+                    } else null
+                    notice?.let { ThreadNotice(it) }
                     if (searchOpen) {
                         SearchBar(s, viewModel, onClose = ::closeSearch)
                     }
@@ -439,11 +425,7 @@ fun ThreadScreen(
                         },
                         onShareLink = {
                             viewModel.onClosePostSheet()
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, "${Urls.threadWebUrl(board, threadNo)}#p${post.no}")
-                            }
-                            runCatching { context.startActivity(Intent.createChooser(send, null)) }
+                            shareText(context, "${Urls.threadWebUrl(board, threadNo)}#p${post.no}")
                         },
                         onCopyImageUrl = {
                             viewModel.onClosePostSheet()
@@ -552,6 +534,21 @@ private fun refreshErrorMessage(error: NetworkError): String = stringResource(
         is NetworkError.Unknown -> stringResource(R.string.error_unknown)
     },
 )
+
+/** The strip above the list saying this copy is offline or archived. */
+@Composable
+private fun ThreadNotice(text: String) {
+    val spacing = LocalSpacing.current
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(spacing.sm),
+    )
+}
 
 /** Jump to top / first new post / bottom. */
 @Composable
