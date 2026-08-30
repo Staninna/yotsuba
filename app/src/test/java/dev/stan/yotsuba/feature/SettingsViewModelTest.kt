@@ -9,7 +9,9 @@ import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.FontSize
 import dev.stan.yotsuba.domain.model.HiddenThread
+import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
@@ -29,6 +31,7 @@ import dev.stan.yotsuba.feature.settings.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -161,6 +164,20 @@ class SettingsViewModelTest {
                 assertEquals(listOf(HiddenThread("g", 1)), state.hiddenThreads)
                 cancelAndIgnoreRemainingEvents()
             }
+        }
+
+    @Test fun `text size and line spacing updates land in the repository and the ui state`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env()
+            env.vm.uiState.test {
+                assertEquals(FontSize.DEFAULT, latest().settings.fontSize)
+                env.vm.update { it.copy(fontSize = FontSize.LARGE, lineSpacing = LineSpacing.COMPACT) }
+                val state = latest()
+                assertEquals(FontSize.LARGE, state.settings.fontSize)
+                assertEquals(LineSpacing.COMPACT, state.settings.lineSpacing)
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(FontSize.LARGE, env.settings.settings.first().fontSize)
         }
 
     @Test fun `opening the storage section reads the gallery marker from disk`() =

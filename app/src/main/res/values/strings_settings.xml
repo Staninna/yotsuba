@@ -15,6 +15,21 @@
     <string name="settings_reduce_motion_summary">Turns off transitions and list animations</string>
     <string name="settings_clear_failed">Couldn\'t clear: %1$s</string>
 
+    <!-- Post text -->
+    <string name="settings_font_size">Text size</string>
+    <string name="settings_font_size_small">Small</string>
+    <string name="settings_font_size_default">Default</string>
+    <string name="settings_font_size_large">Large</string>
+    <string name="settings_font_size_extra_large">Extra large</string>
+    <string name="settings_line_spacing">Line spacing</string>
+    <string name="settings_line_spacing_compact">Compact</string>
+    <string name="settings_line_spacing_default">Default</string>
+    <string name="settings_line_spacing_relaxed">Relaxed</string>
+    <string name="settings_text_preview_greentext">&gt;be me, reading a thread on my phone</string>
+    <string name="settings_text_preview_line">This is how posts will look with these settings.</string>
+    <!-- Reading index summary: %1$s text size, %2$s line spacing, %3$s history retention -->
+    <string name="settings_summary_reading_text">Text %1$s \u00b7 spacing %2$s \u00b7 history %3$s</string>
+
     <!-- App lock -->
     <string name="settings_privacy">Privacy</string>
     <string name="settings_summary_privacy_on">App lock on</string>

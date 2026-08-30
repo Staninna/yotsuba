@@ -75,8 +75,9 @@ private fun SettingsSectionId.summary(state: SettingsUiState): String {
         SettingsSectionId.APPEARANCE ->
             stringResource(s.themeMode.labelRes) + separator + stringResource(s.catalogLayout.labelRes)
         SettingsSectionId.READING -> stringResource(
-            R.string.settings_summary_reading,
-            stringResource(if (s.autoRefreshEnabled) R.string.settings_on else R.string.settings_off),
+            R.string.settings_summary_reading_text,
+            stringResource(s.fontSize.labelRes),
+            stringResource(s.lineSpacing.labelRes),
             stringResource(s.historyRetention.labelRes),
         )
         SettingsSectionId.MEDIA ->

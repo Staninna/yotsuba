@@ -18,7 +18,9 @@ import dev.stan.yotsuba.R
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterField
+import dev.stan.yotsuba.domain.model.FontSize
 import dev.stan.yotsuba.domain.model.HistoryRetention
+import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.ThemeMode
@@ -80,6 +82,21 @@ internal val HistoryRetention.labelRes: Int
         HistoryRetention.FOREVER -> R.string.settings_retention_forever
         HistoryRetention.DAYS_30 -> R.string.settings_retention_30d
         HistoryRetention.DAYS_7 -> R.string.settings_retention_7d
+    }
+
+internal val FontSize.labelRes: Int
+    get() = when (this) {
+        FontSize.SMALL -> R.string.settings_font_size_small
+        FontSize.DEFAULT -> R.string.settings_font_size_default
+        FontSize.LARGE -> R.string.settings_font_size_large
+        FontSize.EXTRA_LARGE -> R.string.settings_font_size_extra_large
+    }
+
+internal val LineSpacing.labelRes: Int
+    get() = when (this) {
+        LineSpacing.COMPACT -> R.string.settings_line_spacing_compact
+        LineSpacing.DEFAULT -> R.string.settings_line_spacing_default
+        LineSpacing.RELAXED -> R.string.settings_line_spacing_relaxed
     }
 
 internal val QuoteTapAction.labelRes: Int
