@@ -73,17 +73,21 @@ fun SwitchRow(
 }
 
 @Composable
-fun TextRow(title: String, summary: String? = null, onClick: () -> Unit) {
+fun TextRow(title: String, summary: String? = null, enabled: Boolean = true, onClick: () -> Unit) {
     val spacing = LocalSpacing.current
     Column(
         Modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = spacing.lg, vertical = spacing.md),
     ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge)
+        Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.disabledIf(enabled))
         summary?.let {
-            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.disabledIf(enabled),
+            )
         }
     }
 }

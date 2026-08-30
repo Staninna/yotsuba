@@ -19,6 +19,7 @@ import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.feature.settings.ClearResult
 import dev.stan.yotsuba.feature.settings.SettingsUiState
 import dev.stan.yotsuba.feature.settings.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
@@ -103,9 +104,12 @@ class SettingsViewModelTest {
         override suspend fun board(code: String) = list.firstOrNull { it.code == code }
     }
 
-    private class FakeMaintenanceRepository : MaintenanceRepository {
+    private class FakeMaintenanceRepository(private val failure: Exception? = null) : MaintenanceRepository {
         var clearCalls = 0
-        override suspend fun clearCaches() { clearCalls++ }
+        override suspend fun clearCaches() {
+            clearCalls++
+            failure?.let { throw it }
+        }
     }
 
     private fun board(code: String, worksafe: Boolean) = Board(
@@ -119,10 +123,10 @@ class SettingsViewModelTest {
         val settings: FakeSettingsRepository = FakeSettingsRepository(),
         val hidden: FakeHiddenThreadsRepository = FakeHiddenThreadsRepository(),
         boards: List<Board> = emptyList(),
+        val maintenance: FakeMaintenanceRepository = FakeMaintenanceRepository(),
     ) {
         val history = FakeHistoryRepository()
         val bookmarks = FakeBookmarkRepository()
-        val maintenance = FakeMaintenanceRepository()
         val vm = SettingsViewModel(
             settingsRepository = settings,
             historyRepository = history,
@@ -167,6 +171,33 @@ class SettingsViewModelTest {
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(1, env.maintenance.clearCalls)
     }
+
+    @Test fun `clear reports done only once the work has finished`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.vm.onClearCache()
+        assertEquals(null, env.vm.clearResult.value)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(ClearResult.Done, env.vm.clearResult.value)
+        env.vm.onClearResultShown()
+        assertEquals(null, env.vm.clearResult.value)
+    }
+
+    @Test fun `a clear that throws reports the failure instead of success`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(maintenance = FakeMaintenanceRepository(IllegalStateException("disk gone")))
+            env.vm.onClearCache()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(ClearResult.Failed("disk gone"), env.vm.clearResult.value)
+        }
+
+    @Test fun `clear trusted domains empties the set through the settings repository`() =
+        runTest(dispatcher.scheduler) {
+            val env = Env(settings = FakeSettingsRepository(Settings(trustedDomains = setOf("a.example"))))
+            env.vm.onClearTrustedDomains()
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(emptySet<String>(), env.settings.state.value.trustedDomains)
+            assertEquals(ClearResult.Done, env.vm.clearResult.value)
+        }
 
     @Test fun `clear history and clear bookmarks hit their repositories`() =
         runTest(dispatcher.scheduler) {
