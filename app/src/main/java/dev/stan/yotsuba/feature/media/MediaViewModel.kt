@@ -71,17 +71,8 @@ data class MediaUiState(
     /** Unmuted by default only where the board declares webm_audio (D12). */
     val defaultUnmuted: Boolean = false,
 ) {
-    val loaded: Boolean get() = phase == ViewerPhase.Ready
-    fun isSaved(url: String): Boolean = url in saved
     /** The vault file for [url], when it is saved and its file is known. */
     fun savedPath(url: String): String? = saved[url]
-
-    val posts: Map<Long, ThreadPost> get() = thread.byNo
-    val backlinks: Map<Long, List<Long>> get() = thread.backlinks
-    val board: Board? get() = thread.board
-
-    /** The thread's quote graph, for walking replies and the posts they answer. */
-    val graph: PostGraph get() = thread.graph
 }
 
 @HiltViewModel(assistedFactory = MediaViewModel.Factory::class)

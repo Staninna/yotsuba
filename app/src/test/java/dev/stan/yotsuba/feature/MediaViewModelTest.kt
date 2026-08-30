@@ -188,8 +188,8 @@ class MediaViewModelTest {
             )
             env.vm().uiState.test {
                 val state = latest()
-                assertEquals(setOf(100L, 101L), state.posts.keys)
-                assertEquals(listOf(101L), state.graph.descendantsOf(100L).map { it.no })
+                assertEquals(setOf(100L, 101L), state.thread.byNo.keys)
+                assertEquals(listOf(101L), state.thread.graph.descendantsOf(100L).map { it.no })
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -220,8 +220,8 @@ class MediaViewModelTest {
                 val state = latest()
                 assertEquals(listOf(100L, 102L, 103L), state.items.map { it.postNo })
                 assertEquals(1, state.initialIndex)
-                assertTrue(state.loaded)
-                assertEquals(setOf(100L, 101L, 102L, 103L), state.posts.keys)
+                assertEquals(ViewerPhase.Ready, state.phase)
+                assertEquals(setOf(100L, 101L, 102L, 103L), state.thread.byNo.keys)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -233,7 +233,6 @@ class MediaViewModelTest {
                 assertEquals(ViewerPhase.Loading, awaitItem().phase)
                 val state = latest()
                 assertEquals(ViewerPhase.Empty, state.phase)
-                assertFalse(state.loaded)
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -263,7 +262,7 @@ class MediaViewModelTest {
                 backlinks = mapOf(100L to listOf(104L, 102L), 102L to listOf(103L)),
             )
             env.vm().uiState.test {
-                assertEquals(listOf(102L, 103L, 104L), latest().graph.descendantsOf(100L).map { it.no })
+                assertEquals(listOf(102L, 103L, 104L), latest().thread.graph.descendantsOf(100L).map { it.no })
                 cancelAndIgnoreRemainingEvents()
             }
         }
@@ -293,14 +292,14 @@ class MediaViewModelTest {
         val vm = env.vm()
         vm.uiState.test {
             val withAccess = latest()
-            assertTrue(withAccess.isSaved("https://i/100.jpg"))
+            assertTrue("https://i/100.jpg" in withAccess.saved)
             assertEquals("/vault/100.jpg", withAccess.savedPath("https://i/100.jpg"))
             assertTrue(withAccess.hasStorageAccess)
             env.vault.access.value = false
             val withoutAccess = latest()
             assertFalse(withoutAccess.hasStorageAccess)
             assertTrue(withoutAccess.saved.isEmpty())
-            assertFalse(withoutAccess.isSaved("https://i/100.jpg"))
+            assertFalse("https://i/100.jpg" in withoutAccess.saved)
             cancelAndIgnoreRemainingEvents()
         }
     }
