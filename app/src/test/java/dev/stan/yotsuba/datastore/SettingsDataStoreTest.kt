@@ -61,6 +61,7 @@ class SettingsDataStoreTest {
         assertEquals(true, defaults.doubleTapSeekEnabled)
         assertEquals(true, defaults.holdToSave)
         assertEquals(true, defaults.saveRepliesWithMedia)
+        assertEquals(false, defaults.inlineImageExpansion)
 
         store.settings.test {
             assertEquals(defaults, awaitItem())
@@ -77,6 +78,7 @@ class SettingsDataStoreTest {
                     bookmarkRefreshMinutes = 180,
                     bookmarkNotifications = false,
                     dataSaver = true,
+                    inlineImageExpansion = true,
                 )
             }
             val next = awaitItem()
@@ -84,6 +86,7 @@ class SettingsDataStoreTest {
             assertEquals(180, next.bookmarkRefreshMinutes)
             assertEquals(false, next.bookmarkNotifications)
             assertEquals(true, next.dataSaver)
+            assertEquals(true, next.inlineImageExpansion)
             assertEquals(false, next.keepScreenOnWhileWatching)
             assertEquals(false, next.doubleTapSeekEnabled)
             assertEquals(SeekStep.THIRTY, next.seekStep)
