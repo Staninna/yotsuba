@@ -24,6 +24,14 @@ fun requestAllFilesAccess(context: Context) {
     }
 }
 
+/**
+ * Opens [url] in whatever handles it, usually the browser. The user picked this from an
+ * explicit menu naming the site, so there is no "leave the app?" confirmation. False when
+ * nothing on the device could take it.
+ */
+fun openInBrowser(context: Context, url: String): Boolean =
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.isSuccess
+
 /** Fires a share chooser over plain [text]; a device with nothing to share to is not a crash. */
 fun shareText(context: Context, text: String) {
     val intent = Intent(Intent.ACTION_SEND).apply {

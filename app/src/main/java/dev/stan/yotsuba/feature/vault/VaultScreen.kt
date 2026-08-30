@@ -17,10 +17,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.TextField
 import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.clickable
@@ -59,7 +63,10 @@ import androidx.compose.material3.ListItem
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
+import dev.stan.yotsuba.feature.media.ReverseSearchSheet
+import dev.stan.yotsuba.feature.media.ReverseSearchTarget
 import dev.stan.yotsuba.feature.media.ViewerMenuItem
+import dev.stan.yotsuba.feature.media.remoteImageUrl
 import dev.stan.yotsuba.feature.media.ViewerThread
 import dev.stan.yotsuba.feature.media.ViewerPage
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
@@ -438,6 +445,10 @@ private fun VaultViewer(
 ) {
     val context = LocalContext.current
     val entries = viewer.entries
+    var searchTarget by remember { mutableStateOf<ReverseSearchTarget?>(null) }
+    val scope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    val searchFailedMessage = stringResource(R.string.media_search_open_failed)
 
     ThreadMediaViewer(
         pages = entries.map { it.toViewerPage() },
@@ -465,6 +476,19 @@ private fun VaultViewer(
                     onOpenThread(current.location.board, current.location.threadNo, current.postNo)
                 }
             }
+            if (current != null && !current.isVideo) {
+                ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_image)) {
+                    close()
+                    searchTarget = ReverseSearchTarget(
+                        remoteUrl = remoteImageUrl(current.url),
+                        file = File(current.absolutePath),
+                        ext = current.ext.orEmpty(),
+                    )
+                }
+            }
+        },
+        overlay = {
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
         },
     ) { page, openReplies ->
         val postNo = entries.getOrNull(page)?.postNo
@@ -487,6 +511,14 @@ private fun VaultViewer(
         }) {
             Icon(Icons.Filled.Share, stringResource(R.string.thread_share), tint = Color.White)
         }
+    }
+
+    searchTarget?.let { target ->
+        ReverseSearchSheet(
+            target = target,
+            onDismiss = { searchTarget = null },
+            onFailed = { scope.launch { snackbar.showSnackbar(searchFailedMessage) } },
+        )
     }
 }
 
