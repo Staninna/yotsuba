@@ -9,9 +9,6 @@ import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import javax.inject.Inject
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +18,7 @@ import kotlinx.coroutines.launch
 
 enum class BookmarkSortOrder { UNREAD_FIRST, LAST_ACTIVITY, BOOKMARKED }
 
-/** One-shot outcome of [BookmarksViewModel.snapshot], meant for a snackbar. */
+/** Outcome of [BookmarksViewModel.snapshot], held until the UI has shown it. */
 sealed interface SnapshotResult {
     data object Saved : SnapshotResult
     data class Failed(val error: VaultError) : SnapshotResult
@@ -48,12 +45,14 @@ class BookmarksViewModel @Inject constructor(
     private val checking = MutableStateFlow<Pair<Int, Int>?>(null)
     private val sortOrder = MutableStateFlow(BookmarkSortOrder.UNREAD_FIRST)
     private val snapshotting = MutableStateFlow<Set<String>>(emptySet())
-    private val snapshotResults = MutableSharedFlow<SnapshotResult>(
-        extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
+    private val pendingSnapshotResult = MutableStateFlow<SnapshotResult?>(null)
 
-    /** Fires once per finished [snapshot]; collect it to show a snackbar. */
-    val snapshotResult: Flow<SnapshotResult> = snapshotResults
+    /**
+     * The last finished [snapshot] nobody has shown yet. It stays put while the list is off
+     * screen, so a snackbar can still be shown when the user comes back; the UI clears it with
+     * [onSnapshotResultShown]. Two snapshots finishing while nobody looks surface as one.
+     */
+    val snapshotResult: StateFlow<SnapshotResult?> = pendingSnapshotResult
     private var refreshJob: Job? = null
     private var lastAutoRefreshAt = 0L
 
@@ -114,11 +113,16 @@ class BookmarksViewModel @Inject constructor(
             snapshotting.value = snapshotting.value + key
             try {
                 val error = vault.snapshotThread(board, threadNo)
-                snapshotResults.tryEmit(if (error == null) SnapshotResult.Saved else SnapshotResult.Failed(error))
+                pendingSnapshotResult.value =
+                    if (error == null) SnapshotResult.Saved else SnapshotResult.Failed(error)
             } finally {
                 snapshotting.value = snapshotting.value - key
             }
         }
+    }
+
+    fun onSnapshotResultShown() {
+        pendingSnapshotResult.value = null
     }
 
     fun onRemove(bookmark: Bookmark) = viewModelScope.launch {

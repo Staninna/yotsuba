@@ -82,6 +82,7 @@ fun BookmarksList(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val snapshotResult by viewModel.snapshotResult.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
@@ -93,19 +94,21 @@ fun BookmarksList(
     val ioError = stringResource(R.string.vault_error_io)
     var sheetFor by remember { mutableStateOf<Bookmark?>(null) }
 
-    LaunchedEffect(viewModel) {
-        viewModel.snapshotResult.collect { result ->
-            snackbar.showSnackbar(
-                when (result) {
-                    SnapshotResult.Saved -> snapshotSaved
-                    is SnapshotResult.Failed -> when (result.error) {
-                        VaultError.NoAccess -> noAccess
-                        VaultError.NotFound -> notFound
-                        is VaultError.Io -> ioError
-                    }
-                },
-            )
-        }
+    // The result is held in the ViewModel until shown, so a snapshot finishing while this
+    // segment is off screen still gets its snackbar when the user comes back.
+    LaunchedEffect(snapshotResult) {
+        val result = snapshotResult ?: return@LaunchedEffect
+        snackbar.showSnackbar(
+            when (result) {
+                SnapshotResult.Saved -> snapshotSaved
+                is SnapshotResult.Failed -> when (result.error) {
+                    VaultError.NoAccess -> noAccess
+                    VaultError.NotFound -> notFound
+                    is VaultError.Io -> ioError
+                }
+            },
+        )
+        viewModel.onSnapshotResultShown()
     }
 
     // Auto-refresh whenever the tab comes back on screen (throttled in the ViewModel),
