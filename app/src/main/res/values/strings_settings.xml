@@ -11,4 +11,6 @@
     <string name="settings_summary_boards_and_threads">%1$d boards hidden · %2$d threads hidden</string>
     <string name="settings_summary_storage_data">Cache, history, bookmarks</string>
     <string name="settings_data_saver_summary">Load thumbnails only; full images and videos wait until opened</string>
+    <string name="settings_reduce_motion">Reduce motion</string>
+    <string name="settings_reduce_motion_summary">Turns off transitions and list animations</string>
 </resources>
