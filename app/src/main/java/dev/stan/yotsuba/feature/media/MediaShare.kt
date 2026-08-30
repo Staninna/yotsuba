@@ -24,6 +24,15 @@ fun requestAllFilesAccess(context: Context) {
     }
 }
 
+/** Fires a share chooser over plain [text]; a device with nothing to share to is not a crash. */
+fun shareText(context: Context, text: String) {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, text)
+    }
+    runCatching { context.startActivity(Intent.createChooser(intent, null)) }
+}
+
 /**
  * Fires a share chooser over [file] through the app's FileProvider. False when the chooser
  * could not be started, so the caller can say so instead of leaving a dead tap.

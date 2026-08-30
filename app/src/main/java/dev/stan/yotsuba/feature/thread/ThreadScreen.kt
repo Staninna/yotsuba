@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -42,6 +43,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -70,6 +73,8 @@ import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.media.saveToVault
+import dev.stan.yotsuba.feature.media.shareText
+import dev.stan.yotsuba.feature.thread.components.BacklinksUi
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.ExternalLinkDialog
 import dev.stan.yotsuba.feature.thread.components.PostActionSheet
@@ -80,7 +85,9 @@ import dev.stan.yotsuba.feature.thread.components.ThreadGallerySheet
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
 import java.text.DateFormat
 import java.util.Date
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @Composable
 fun ThreadScreen(
@@ -104,7 +111,7 @@ fun ThreadScreen(
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
-    var searchOpen by remember { mutableStateOf(false) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     val copiedMessage = stringResource(R.string.thread_post_number_copied)
     val grantAccessMessage = stringResource(R.string.media_grant_storage)
     val saveAllMessage = stringResource(R.string.thread_gallery_save_all_queued)
@@ -130,6 +137,66 @@ fun ThreadScreen(
         }
     }
 
+    // Inside the sheet a quotelink refocuses the sheet and a hold jumps; in the list both
+    // follow the quote-tap setting. One instance per context, remembered, so every card gets
+    // an equal `actions` and can skip recomposition.
+    fun actionsFor(inPreview: Boolean) = PostCardActions(
+        onBodyTap = { post, tap ->
+            when (tap) {
+                is BodyTap.Spoiler -> {
+                    haptics.tick()
+                    viewModel.onRevealSpoiler(post.no, tap.id)
+                }
+                is BodyTap.SameThreadQuote ->
+                    if (inPreview) viewModel.onOpenPreview(tap.postNo) else viewModel.onQuoteTap(tap.postNo)
+                is BodyTap.CrossThreadQuote -> onOpenInternal(
+                    Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
+                )
+                is BodyTap.Link -> handleLink(tap.url)
+            }
+        },
+        onBodyLongPress = { _, tap ->
+            if (tap is BodyTap.SameThreadQuote) {
+                haptics.longPress()
+                if (inPreview) viewModel.onJumpToPost(tap.postNo) else viewModel.onQuoteLongPress(tap.postNo)
+            }
+        },
+        onThumbnailTap = viewModel::onThumbnailTap,
+        onThumbnailLongPress = { post ->
+            if (viewModel.onThumbnailLongPress(post)) {
+                haptics.longPress()
+                saveToVault(
+                    context = context,
+                    hasAccess = viewModel.hasStorageAccess(),
+                    onAccessNeeded = {
+                        scope.launch { snackbar.showSnackbar(grantAccessMessage) }
+                    },
+                    save = { viewModel.onSaveMedia(post) },
+                )
+            }
+        },
+        backlinks = BacklinksUi.Quotes(
+            onTap = viewModel::onQuoteTap,
+            onLongPress = {
+                haptics.longPress()
+                viewModel.onQuoteLongPress(it)
+            },
+        ),
+        onPosterIdTap = { viewModel.onFilterPosterId(it.posterId) },
+        onLongPress = { post ->
+            haptics.longPress()
+            viewModel.onOpenPostSheet(post.no)
+        },
+        onCopyPostNo = { post ->
+            clipboard.setText(AnnotatedString(post.no.toString()))
+            scope.launch { snackbar.showSnackbar(copiedMessage) }
+        },
+    )
+    val listActions = remember(viewModel, onOpenInternal, haptics, context, scope, clipboard, snackbar, grantAccessMessage, copiedMessage) {
+        actionsFor(inPreview = false)
+    }
+    val previewActions = remember(listActions) { actionsFor(inPreview = true).forPreview() }
+
     // Polling follows the lifecycle: backgrounding the app or leaving the screen stops it.
     LifecycleResumeEffect(Unit) {
         viewModel.onScreenVisibilityChanged(true)
@@ -137,9 +204,12 @@ fun ThreadScreen(
     }
 
     // The VM resolves where to scroll (restore priority, search steps); the screen obeys.
-    LaunchedEffect(scrollTarget, state) {
+    // Keyed on the target alone: a poll, a keystroke or the highlight clearing must not
+    // cancel a scroll in flight. The rows are read live, so the first load is waited for.
+    val currentRows by rememberUpdatedState((state as? UiState.Success)?.data?.rows)
+    LaunchedEffect(scrollTarget) {
         val target = scrollTarget ?: return@LaunchedEffect
-        val rows = (state as? UiState.Success)?.data?.rows ?: return@LaunchedEffect
+        val rows = snapshotFlow { currentRows }.first { it != null }!!
         val index = rows.indexOfFirst { (it as? ThreadRow.Post)?.post?.no == target.postNo }
         if (index >= 0) {
             if (target.animate) {
@@ -165,7 +235,8 @@ fun ThreadScreen(
     LaunchedEffect(refreshError) {
         if (refreshError == null || refreshErrorMessage == null) return@LaunchedEffect
         viewModel.onRefreshErrorShown()
-        snackbar.showSnackbar(refreshErrorMessage)
+        // Clearing the error re-keys this effect; the snackbar outlives it on the screen's scope.
+        scope.launch { snackbar.showSnackbar(refreshErrorMessage) }
     }
 
     // Report the visible index range; the VM owns read position and unread counts.
@@ -189,9 +260,9 @@ fun ThreadScreen(
                 exit = motionExit(),
             ) {
                 JumpButtons(
-                    onTop = { scope.launch { listState.animateScrollToItem(0) } },
-                    onFirstNew = firstNewIndex?.let { index -> { scope.launch { listState.animateScrollToItem(index) } } },
-                    onBottom = { scope.launch { listState.animateScrollToItem(rows.lastIndex.coerceAtLeast(0)) } },
+                    onTop = { scope.launch { listState.jumpTo(0) } },
+                    onFirstNew = firstNewIndex?.let { index -> { scope.launch { listState.jumpTo(index) } } },
+                    onBottom = { scope.launch { listState.jumpTo(rows.lastIndex.coerceAtLeast(0)) } },
                 )
             }
         },
@@ -228,60 +299,7 @@ fun ThreadScreen(
         },
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            UiStateContent(state, onRetry = { viewModel.load() }) { s ->
-                // Inside the sheet a quotelink refocuses the sheet and a hold jumps; in the
-                // list both follow the quote-tap setting.
-                fun actionsFor(post: ThreadPost, inPreview: Boolean) = PostCardActions(
-                    onBodyTap = { tap ->
-                        when (tap) {
-                            is BodyTap.Spoiler -> {
-                                haptics.tick()
-                                viewModel.onRevealSpoiler(post.no, tap.id)
-                            }
-                            is BodyTap.SameThreadQuote ->
-                                if (inPreview) viewModel.onOpenPreview(tap.postNo) else viewModel.onQuoteTap(tap.postNo)
-                            is BodyTap.CrossThreadQuote -> onOpenInternal(
-                                Urls.InternalLink.Thread(tap.board, tap.threadNo, tap.postNo)
-                            )
-                            is BodyTap.Link -> handleLink(tap.url)
-                        }
-                    },
-                    onBodyLongPress = { tap ->
-                        if (tap is BodyTap.SameThreadQuote) {
-                            haptics.longPress()
-                            if (inPreview) viewModel.onJumpToPost(tap.postNo) else viewModel.onQuoteLongPress(tap.postNo)
-                        }
-                    },
-                    onThumbnailTap = { viewModel.onThumbnailTap(post) },
-                    onThumbnailLongPress = {
-                        if (viewModel.onThumbnailLongPress(post)) {
-                            haptics.longPress()
-                            saveToVault(
-                                context = context,
-                                hasAccess = viewModel.hasStorageAccess(),
-                                onAccessNeeded = {
-                                    scope.launch { snackbar.showSnackbar(grantAccessMessage) }
-                                },
-                                save = { viewModel.onSaveMedia(post) },
-                            )
-                        }
-                    },
-                    onBacklinkTap = viewModel::onQuoteTap,
-                    onBacklinkLongPress = {
-                        haptics.longPress()
-                        viewModel.onQuoteLongPress(it)
-                    },
-                    onPosterIdTap = { viewModel.onFilterPosterId(post.posterId) },
-                    onLongPress = {
-                        haptics.longPress()
-                        viewModel.onOpenPostSheet(post.no)
-                    },
-                    onCopyPostNo = {
-                        clipboard.setText(AnnotatedString(post.no.toString()))
-                        scope.launch { snackbar.showSnackbar(copiedMessage) }
-                    },
-                )
-
+            UiStateContent(state, onRetry = viewModel::retry) { s ->
                 val opLabel = stringResource(R.string.thread_quote_label_op)
                 val youLabel = stringResource(R.string.thread_quote_label_you)
                 val quoteLabels = remember(s.quoteLabels, opLabel, youLabel) {
@@ -293,46 +311,31 @@ fun ThreadScreen(
                     }
                 }
                 val postCard: @Composable (ThreadPost, Boolean) -> Unit = { post, inPreview ->
-                    val actions = actionsFor(post, inPreview)
                     PostCard(
                         post = post,
                         board = s.board,
                         ui = s.postStates[post.no] ?: PostUiState.Default,
                         revealAll = s.revealAllSpoilers,
                         darkTheme = dark,
-                        actions = if (inPreview) actions.forPreview() else actions,
+                        actions = if (inPreview) previewActions else listActions,
+                        sharesMediaWithViewer = !inPreview,
                         highlight = if (inPreview) null else s.searchQuery,
                         quoteLabels = quoteLabels,
                     )
                 }
 
                 Column {
-                    if (s.details.offlineCopy) {
+                    val notice = if (s.details.offlineCopy) {
                         val date = remember(s.offlineCopyAt) {
                             s.offlineCopyAt?.let { DateFormat.getDateInstance().format(Date(it)) }
                         }
-                        Text(
-                            if (date != null) stringResource(R.string.thread_offline_copy_from, date)
-                            else stringResource(R.string.thread_offline_copy),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(spacing.sm),
-                        )
+                        if (date != null) stringResource(R.string.thread_offline_copy_from, date)
+                        else stringResource(R.string.thread_offline_copy)
                     } else if (s.archivedNotice) {
-                        Text(
-                            s.details.archive?.let { stringResource(R.string.thread_archived_from, it.label) }
-                                ?: stringResource(R.string.thread_archived),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(spacing.sm),
-                        )
-                    }
+                        s.details.archive?.let { stringResource(R.string.thread_archived_from, it.label) }
+                            ?: stringResource(R.string.thread_archived)
+                    } else null
+                    notice?.let { ThreadNotice(it) }
                     if (searchOpen) {
                         SearchBar(s, viewModel, onClose = ::closeSearch)
                     }
@@ -352,8 +355,17 @@ fun ThreadScreen(
                                     when (val row = s.rows[i]) {
                                         is ThreadRow.Post -> row.post.no
                                         is ThreadRow.NewPostsDivider -> "new-posts"
-                                        is ThreadRow.MoreReplies -> "more-${'$'}{row.parentNo}"
-                                        is ThreadRow.Filtered -> "filtered-${'$'}{row.postNo}"
+                                        is ThreadRow.MoreReplies -> "more-${row.parentNo}"
+                                        is ThreadRow.Filtered -> "filtered-${row.postNo}"
+                                    }
+                                },
+                                // Four different subtrees; only a slot of the same kind is worth reusing.
+                                contentType = { i ->
+                                    when (s.rows[i]) {
+                                        is ThreadRow.Post -> "post"
+                                        is ThreadRow.NewPostsDivider -> "divider"
+                                        is ThreadRow.MoreReplies -> "more"
+                                        is ThreadRow.Filtered -> "filtered"
                                     }
                                 },
                             ) { i ->
@@ -368,7 +380,7 @@ fun ThreadScreen(
                                     )
                                     is ThreadRow.MoreReplies -> MoreRepliesRow(
                                         count = row.count,
-                                        modifier = Modifier.padding(start = treeIndent * ThreadViewModel.MAX_TREE_DEPTH),
+                                        modifier = Modifier.padding(start = treeIndent * MAX_TREE_DEPTH),
                                         onTap = { viewModel.onExpandTail(row.parentNo) },
                                     )
                                     is ThreadRow.Filtered -> FilteredRow(
@@ -414,11 +426,7 @@ fun ThreadScreen(
                         },
                         onShareLink = {
                             viewModel.onClosePostSheet()
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, "${'$'}{Urls.threadWebUrl(board, threadNo)}#p${'$'}{post.no}")
-                            }
-                            runCatching { context.startActivity(Intent.createChooser(send, null)) }
+                            shareText(context, "${Urls.threadWebUrl(board, threadNo)}#p${post.no}")
                         },
                         onCopyImageUrl = {
                             viewModel.onClosePostSheet()
@@ -476,6 +484,15 @@ fun ThreadScreen(
     }
 }
 
+/**
+ * A long jump teleports to just short of [target] and animates the last stretch: the user
+ * sees the same settle, and the hundreds of cards in between are never composed.
+ */
+private suspend fun LazyListState.jumpTo(target: Int) {
+    if (abs(target - firstVisibleItemIndex) > 25) scrollToItem((target - 5).coerceAtLeast(0))
+    animateScrollToItem(target)
+}
+
 @Composable
 private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel, onClose: () -> Unit) {
     val spacing = LocalSpacing.current
@@ -509,6 +526,21 @@ private fun SearchBar(s: ThreadContent, viewModel: ThreadViewModel, onClose: () 
 @Composable
 private fun refreshErrorMessage(error: NetworkError): String =
     stringResource(R.string.thread_refresh_failed, errorMessage(error))
+
+/** The strip above the list saying this copy is offline or archived. */
+@Composable
+private fun ThreadNotice(text: String) {
+    val spacing = LocalSpacing.current
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(spacing.sm),
+    )
+}
 
 /** Jump to top / first new post / bottom. */
 @Composable

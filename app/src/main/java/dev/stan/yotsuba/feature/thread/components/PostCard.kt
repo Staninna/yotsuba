@@ -40,7 +40,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
@@ -62,38 +64,53 @@ fun posterIdColor(id: String, dark: Boolean): Color {
     return Color.hsv(hue, if (dark) 0.45f else 0.35f, if (dark) 0.45f else 0.85f)
 }
 
+/**
+ * Text colour that reads on [posterIdColor]: the light pill sits at 85% value, where white
+ * lands near 1.3:1, so it takes black; the dark pill at 45% keeps white.
+ */
+fun posterIdTextColor(dark: Boolean): Color = if (dark) Color.White else Color.Black
+
 /** ISO country code -> Unicode regional-indicator flag (D21). */
 fun countryFlagEmoji(iso: String): String =
     iso.uppercase().filter { it in 'A'..'Z' }.map { 0x1F1E6 + (it - 'A') }
         .joinToString("") { String(Character.toChars(it)) }
         .ifEmpty { "🏳" }
 
+/** How a card presents the posts quoting it. */
+sealed interface BacklinksUi {
+    data object None : BacklinksUi
+
+    /** One count chip; the media viewer's panel drills into the sub-thread from it. */
+    data class Chip(val onTap: (ThreadPost) -> Unit) : BacklinksUi
+
+    /** "Quoted by: >>1 >>2": each number is a quotelink, tap and hold following the quote-tap setting. */
+    data class Quotes(val onTap: (Long) -> Unit, val onLongPress: ((Long) -> Unit)? = null) : BacklinksUi
+}
+
 /**
- * Everything a post card can do. Nullable handlers are unsupported in that context and
- * the card renders them inert; [forPreview] is the one place that decides which.
+ * Everything a post card can do. Every handler takes the card's own post, so one instance
+ * serves every card on a screen and the card can skip recomposition. A null handler is
+ * unsupported in that context and the card renders it inert; [forPreview] is the one
+ * place that decides which.
  */
 data class PostCardActions(
-    val onBodyTap: (BodyTap) -> Unit,
+    val onBodyTap: (ThreadPost, BodyTap) -> Unit,
     /** A held quotelink; the tap on it jumps, the hold previews. */
-    val onBodyLongPress: ((BodyTap) -> Unit)? = null,
-    val onThumbnailTap: () -> Unit,
-    val onThumbnailLongPress: (() -> Unit)?,
-    /** Tap on one number in the "quoted by" row. When null the row is not shown. */
-    val onBacklinkTap: ((Long) -> Unit)?,
-    /** Long-press on one number in the "quoted by" row: the action the tap does not do. */
-    val onBacklinkLongPress: ((Long) -> Unit)? = null,
-    /** Legacy count chip, shown only when [onBacklinkTap] is null (the media viewer's panel). */
-    val onBacklinksTap: (() -> Unit)? = null,
-    val onCopyPostNo: (() -> Unit)?,
+    val onBodyLongPress: ((ThreadPost, BodyTap) -> Unit)? = null,
+    val onThumbnailTap: (ThreadPost) -> Unit,
+    val onThumbnailLongPress: ((ThreadPost) -> Unit)?,
+    val backlinks: BacklinksUi = BacklinksUi.None,
+    val onCopyPostNo: ((ThreadPost) -> Unit)?,
     /** Tap on the poster-ID pill filters the thread to that ID. */
-    val onPosterIdTap: (() -> Unit)? = null,
+    val onPosterIdTap: ((ThreadPost) -> Unit)? = null,
     /** Long-press anywhere on the card that is not itself a control: the post action sheet. */
-    val onLongPress: (() -> Unit)? = null,
+    val onLongPress: ((ThreadPost) -> Unit)? = null,
 ) {
     /** A card inside the preview sheet: it follows quotelinks and opens media, nothing else. */
     fun forPreview(): PostCardActions = copy(
         onThumbnailLongPress = null,
-        onBacklinkTap = null, onBacklinkLongPress = null, onBacklinksTap = null, onCopyPostNo = null,
+        backlinks = BacklinksUi.None,
+        onCopyPostNo = null,
         onPosterIdTap = null,
         onLongPress = null,
     )
@@ -109,14 +126,21 @@ fun PostCard(
     darkTheme: Boolean,
     actions: PostCardActions,
     modifier: Modifier = Modifier,
+    /**
+     * Only the list's own card shares its media with the viewer: a preview or the viewer's
+     * reply panel would claim the same shared-element key twice on one screen.
+     */
+    sharesMediaWithViewer: Boolean = false,
     highlight: String? = null,
     quoteLabels: Map<Long, String> = emptyMap(),
 ) {
     val spacing = LocalSpacing.current
     val onLongPress = actions.onLongPress
-    val longPress = if (onLongPress == null) Modifier else Modifier.pointerInput(onLongPress) {
-        detectTapGestures(onLongPress = { onLongPress() })
-    }
+    // Long-presses are out of reach for a screen reader, so each one is also a custom action.
+    val postActionsLabel = stringResource(R.string.thread_post_actions)
+    val longPress = if (onLongPress == null) Modifier else Modifier
+        .pointerInput(onLongPress, post) { detectTapGestures(onLongPress = { onLongPress(post) }) }
+        .semantics { customActions = listOf(CustomAccessibilityAction(postActionsLabel) { onLongPress(post); true }) }
     Card(
         modifier = modifier.fillMaxWidth().then(longPress),
         colors = when {
@@ -149,10 +173,10 @@ fun PostCard(
                             pluralStringResource(R.plurals.thread_poster_id_count, ui.posterIdCount, post.posterId, ui.posterIdCount)
                         } else post.posterId,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.White,
+                        color = posterIdTextColor(darkTheme),
                         modifier = Modifier
                             .background(posterIdColor(post.posterId, darkTheme), CircleShape)
-                            .then(if (onPosterIdTap != null) Modifier.clickable(onClick = onPosterIdTap) else Modifier)
+                            .then(if (onPosterIdTap != null) Modifier.clickable { onPosterIdTap(post) } else Modifier)
                             .padding(horizontal = spacing.sm, vertical = 1.dp),
                     )
                 }
@@ -176,7 +200,7 @@ fun PostCard(
                     "#${post.no}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = actions.onCopyPostNo?.let { Modifier.clickable(onClick = it) } ?: Modifier,
+                    modifier = actions.onCopyPostNo?.let { copy -> Modifier.clickable { copy(post) } } ?: Modifier,
                 )
             }
             if (ui.sticky || ui.closed) {
@@ -200,15 +224,17 @@ fun PostCard(
                     )
                     is PostMedia.Present -> {
                         val media = attachment.item
-                        // Only the list's own card shares with the viewer: a preview or the
-                        // viewer's reply panel would claim the same key twice on one screen.
                         // The OP also answers to its thumbnail URL, the key the catalog card
                         // uses (the catalog never learns the full URL).
-                        val shared = actions.onThumbnailLongPress != null
-                        val sharedWithViewer = if (shared) Modifier.sharedMedia(media.fullUrl) else Modifier
-                        val sharedWithCatalog = if (shared && post.isOp) {
+                        val sharedWithViewer = if (sharesMediaWithViewer) Modifier.sharedMedia(media.fullUrl) else Modifier
+                        val sharedWithCatalog = if (sharesMediaWithViewer && post.isOp) {
                             Modifier.sharedMedia(media.thumbnailUrl)
                         } else Modifier
+                        val onThumbnailLongPress = actions.onThumbnailLongPress
+                        val saveLabel = stringResource(R.string.thread_save_to_vault)
+                        val saveAction = if (onThumbnailLongPress == null) Modifier else Modifier.semantics {
+                            customActions = listOf(CustomAccessibilityAction(saveLabel) { onThumbnailLongPress(post); true })
+                        }
                         Row {
                             Box {
                                 MediaThumbnail(
@@ -222,9 +248,10 @@ fun PostCard(
                                         .size(if (post.isOp) 140.dp else 100.dp)
                                         .then(sharedWithViewer)
                                         .then(sharedWithCatalog)
+                                        .then(saveAction)
                                         .combinedClickable(
-                                            onClick = actions.onThumbnailTap,
-                                            onLongClick = actions.onThumbnailLongPress,
+                                            onClick = { actions.onThumbnailTap(post) },
+                                            onLongClick = onThumbnailLongPress?.let { hold -> { hold(post) } },
                                         ),
                                 )
                                 ui.saveStatus?.let { SaveStatusBadge(it, Modifier.align(Alignment.BottomEnd)) }
@@ -253,26 +280,30 @@ fun PostCard(
                     body = post.body,
                     revealedSpoilerIds = ui.revealedSpoilerIds,
                     revealAll = revealAll,
-                    onTap = actions.onBodyTap,
+                    onTap = { actions.onBodyTap(post, it) },
                     highlight = highlight,
-                    onLongPress = actions.onBodyLongPress,
+                    onLongPress = actions.onBodyLongPress?.let { hold -> { tap -> hold(post, tap) } },
                     quoteLabels = quoteLabels,
                 )
             }
-            val onBacklinkTap = actions.onBacklinkTap
-            val onBacklinksTap = actions.onBacklinksTap
             val backlinkCount = ui.backlinks.size
-            if (backlinkCount > 0 && onBacklinkTap != null) {
-                Spacer(Modifier.height(spacing.xs))
-                QuotedByRow(ui.backlinks, onBacklinkTap, actions.onBacklinkLongPress)
-            } else if (backlinkCount > 0 && onBacklinksTap != null) {
-                Spacer(Modifier.height(spacing.xs))
-                AssistChip(
-                    onClick = onBacklinksTap,
-                    label = {
-                        Text(pluralStringResource(R.plurals.thread_replies_chip, backlinkCount, backlinkCount))
-                    },
-                )
+            if (backlinkCount > 0) {
+                when (val backlinks = actions.backlinks) {
+                    BacklinksUi.None -> {}
+                    is BacklinksUi.Quotes -> {
+                        Spacer(Modifier.height(spacing.xs))
+                        QuotedByRow(ui.backlinks, backlinks.onTap, backlinks.onLongPress)
+                    }
+                    is BacklinksUi.Chip -> {
+                        Spacer(Modifier.height(spacing.xs))
+                        AssistChip(
+                            onClick = { backlinks.onTap(post) },
+                            label = {
+                                Text(pluralStringResource(R.plurals.thread_replies_chip, backlinkCount, backlinkCount))
+                            },
+                        )
+                    }
+                }
             }
         }
     }
@@ -310,12 +341,16 @@ private fun QuotedByRow(backlinks: List<Long>, onTap: (Long) -> Unit, onLongPres
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         backlinks.forEach { no ->
+            val holdLabel = stringResource(R.string.thread_backlink_hold, no)
+            val holdAction = if (onLongPress == null) Modifier else Modifier.semantics {
+                customActions = listOf(CustomAccessibilityAction(holdLabel) { onLongPress(no); true })
+            }
             Text(
                 ">>$no",
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.quotelink,
                 textDecoration = TextDecoration.Underline,
-                modifier = Modifier.combinedClickable(
+                modifier = holdAction.combinedClickable(
                     onClick = { onTap(no) },
                     onLongClick = onLongPress?.let { hold -> { hold(no) } },
                 ),

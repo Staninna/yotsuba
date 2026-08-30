@@ -28,6 +28,8 @@
         <item quantity="other">%d files</item>
     </plurals>
     <string name="thread_gallery_save_all">Save all</string>
+    <string name="thread_gallery_empty">No files in this thread</string>
+    <string name="thread_gallery_empty_explanation">Attachments posted here will show up in the gallery.</string>
     <string name="thread_gallery_save_all_queued">Saving every file in this thread</string>
     <string name="thread_jump_top">Jump to top</string>
     <string name="thread_jump_first_new">Jump to first new post</string>
@@ -69,4 +71,8 @@
     <string name="settings_quote_tap">Tapping a quote</string>
     <string name="settings_quote_tap_popover">Show preview</string>
     <string name="settings_quote_tap_jump">Jump to post</string>
+    <!-- Screen-reader stand-ins for the card's long-presses. %1$d is a post number. -->
+    <string name="thread_post_actions">Post actions</string>
+    <string name="thread_save_to_vault">Save to vault</string>
+    <string name="thread_backlink_hold">Hold >>%1$d</string>
 </resources>

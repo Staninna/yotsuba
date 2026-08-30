@@ -14,4 +14,34 @@ data class VaultSaveContext(
      * parents and replies. Empty when the user has the setting off.
      */
     val conversation: List<ThreadPost> = emptyList(),
-)
+) {
+    companion object {
+        /**
+         * How a save is filed: the OP names the thread directory, its plain text stands in
+         * for a missing subject, and [includeConversation] keeps the posts around [post].
+         * [details] may be null when the thread never loaded; the file is then filed by
+         * board and number alone.
+         */
+        fun of(
+            board: String,
+            threadNo: Long,
+            details: ThreadDetails?,
+            post: ThreadPost?,
+            includeConversation: Boolean,
+        ): VaultSaveContext {
+            val op = details?.posts?.firstOrNull { it.isOp }
+            return VaultSaveContext(
+                board = board,
+                threadNo = threadNo,
+                threadSubject = op?.subject,
+                opExcerpt = op?.body?.plainText?.takeIf { it.isNotBlank() },
+                post = post,
+                conversation = if (details != null && post != null && includeConversation) {
+                    PostGraph.of(details).conversationAround(post.no)
+                } else {
+                    emptyList()
+                },
+            )
+        }
+    }
+}

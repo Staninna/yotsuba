@@ -17,7 +17,6 @@ import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
-import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -188,30 +187,12 @@ class MediaViewModel @AssistedInject constructor(
     /** Queues a vault save with full thread/post context; returns immediately. */
     fun enqueueSave(item: MediaItem) {
         val loaded = loadedDetails
-        val op = loaded?.posts?.firstOrNull { it.isOp }
+        val post = loaded?.posts?.firstOrNull { it.no == item.postNo }
         downloadQueue.enqueue(
             item,
-            VaultSaveContext(
-                board = board,
-                threadNo = threadNo,
-                threadSubject = op?.subject,
-                opExcerpt = op?.body?.plainText?.takeIf { it.isNotBlank() },
-                post = loaded?.posts?.firstOrNull { it.no == item.postNo },
-                conversation = conversationFor(item.postNo, loaded),
-            ),
+            VaultSaveContext.of(board, threadNo, loaded, post, settingsState.value.saveRepliesWithMedia),
         )
     }
-
-    /**
-     * The posts worth keeping beside [postNo]: everything it quotes and everything that
-     * quotes it, transitively. Empty when the user has reply capture off.
-     */
-    private fun conversationFor(postNo: Long, loaded: ThreadDetails?): List<ThreadPost> =
-        if (loaded == null || !settingsState.value.saveRepliesWithMedia) {
-            emptyList()
-        } else {
-            PostGraph.of(loaded).conversationAround(postNo)
-        }
 
     /** Deletes the saved file, its meta entry, and DB row. */
     fun removeDownload(url: String) {

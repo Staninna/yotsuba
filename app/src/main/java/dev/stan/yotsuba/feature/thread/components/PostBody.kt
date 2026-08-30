@@ -59,6 +59,13 @@ fun PostBody(
 ) {
     // Revealing a spoiler crossfades the old string into the new one rather than snapping.
     // Both strings share every glyph except the scrim, so only the spoiler appears to change.
+    // A body with no spoiler can never change under SpoilerState, so it skips the transition
+    // (and the graphics layer it costs) entirely.
+    val hasSpoilers = remember(body) { body.segments.any { it.spoilerId != null } }
+    if (!hasSpoilers) {
+        BodyText(body, revealedSpoilerIds, revealAll, onTap, highlight, onLongPress, quoteLabels, modifier)
+        return
+    }
     Crossfade(
         targetState = SpoilerState(revealedSpoilerIds, revealAll),
         animationSpec = rememberMotionSpec(LocalMotion.current.short),
@@ -81,6 +88,7 @@ private fun BodyText(
     highlight: String?,
     onLongPress: ((BodyTap) -> Unit)?,
     quoteLabels: Map<Long, String>,
+    modifier: Modifier = Modifier,
 ) {
     val colors = LocalYotsubaColors.current
     val scheme = MaterialTheme.colorScheme
@@ -118,7 +126,7 @@ private fun BodyText(
         BuiltBody(display, taps)
     }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val longPressModifier = if (onLongPress == null) Modifier else Modifier.pointerInput(built) {
+    val longPressModifier = if (onLongPress == null) modifier else modifier.pointerInput(built) {
         detectTapGestures(onLongPress = { position ->
             val offset = layout?.getOffsetForPosition(position) ?: return@detectTapGestures
             val tap = built.taps.firstOrNull { offset in it.first }?.second ?: return@detectTapGestures
