@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -21,7 +18,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -38,11 +34,9 @@ import dev.stan.yotsuba.feature.bookmarks.BookmarksCheckingSubtitle
 import dev.stan.yotsuba.feature.bookmarks.BookmarksList
 import dev.stan.yotsuba.feature.bookmarks.BookmarksMenu
 import dev.stan.yotsuba.feature.bookmarks.BookmarksViewModel
-import dev.stan.yotsuba.feature.history.HistoryClearDialog
 import dev.stan.yotsuba.feature.history.HistoryList
-import dev.stan.yotsuba.feature.history.HistorySearchField
 import dev.stan.yotsuba.feature.history.HistoryViewModel
-import kotlinx.coroutines.launch
+import dev.stan.yotsuba.feature.history.rememberHistoryTopBar
 
 /** The two halves of the Threads tab: bookmarks you watch, threads you recently read. */
 enum class ThreadsSegment(val labelRes: Int) {
@@ -68,24 +62,23 @@ fun ThreadsScreen(
     val snapshotResult by bookmarksViewModel.snapshotResult.collectAsStateWithLifecycle()
     val history by historyViewModel.uiState.collectAsStateWithLifecycle()
     val snackbar = slots.snackbar
-    val scope = rememberCoroutineScope()
     val spacing = LocalSpacing.current
-    var searching by rememberSaveable { mutableStateOf(false) }
-    var confirmClear by rememberSaveable { mutableStateOf(false) }
-    val clearedMessage = stringResource(R.string.history_cleared)
+    val historyTopBar = rememberHistoryTopBar(historyViewModel, snackbar)
 
     TabChrome(
         slots = slots,
         topBar = {
             TopAppBar(
                 title = {
-                    if (segment == ThreadsSegment.RECENT && searching) {
-                        HistorySearchField(query = history.query, onQueryChange = historyViewModel::onQueryChange)
-                    } else {
+                    val fallback: @Composable () -> Unit = {
                         Column {
                             Text(stringResource(R.string.tab_threads))
                             if (segment == ThreadsSegment.WATCHED) BookmarksCheckingSubtitle(bookmarks.checking)
                         }
+                    }
+                    when (segment) {
+                        ThreadsSegment.WATCHED -> fallback()
+                        ThreadsSegment.RECENT -> historyTopBar.Title(history, fallback)
                     }
                 },
                 actions = {
@@ -96,25 +89,7 @@ fun ThreadsScreen(
                             onSortOrderChanged = bookmarksViewModel::onSortOrderChanged,
                             onRemoveDead = bookmarksViewModel::onRemoveDead,
                         )
-                        ThreadsSegment.RECENT -> {
-                            IconButton(
-                                onClick = {
-                                    if (searching) historyViewModel.onQueryChange("")
-                                    searching = !searching
-                                },
-                                enabled = searching || history.totalCount > 0,
-                            ) {
-                                Icon(
-                                    if (searching) Icons.Filled.Close else Icons.Filled.Search,
-                                    stringResource(
-                                        if (searching) R.string.history_search_close else R.string.history_search,
-                                    ),
-                                )
-                            }
-                            IconButton(onClick = { confirmClear = true }, enabled = history.totalCount > 0) {
-                                Icon(Icons.Filled.DeleteSweep, stringResource(R.string.action_clear_all))
-                            }
-                        }
+                        ThreadsSegment.RECENT -> historyTopBar.Actions(history)
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Outlined.Settings, stringResource(R.string.action_open_settings))
@@ -166,14 +141,5 @@ fun ThreadsScreen(
             }
     }
 
-    if (confirmClear) {
-        HistoryClearDialog(
-            onConfirm = {
-                confirmClear = false
-                historyViewModel.onClearAll()
-                scope.launch { snackbar.showSnackbar(clearedMessage) }
-            },
-            onDismiss = { confirmClear = false },
-        )
-    }
+    historyTopBar.Dialogs()
 }

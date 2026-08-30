@@ -49,8 +49,8 @@ import dev.stan.yotsuba.domain.model.HistoryEntry
 import kotlinx.coroutines.launch
 
 /**
- * The Recent segment of the Threads tab. Search and clear live in the host's app bar
- * ([HistorySearchField], [HistoryClearDialog]); this is only the grouped list.
+ * The Recent segment of the Threads tab: only the grouped list. Search and clear-all sit
+ * in the host's app bar via [HistoryTopBar].
  */
 @Composable
 fun HistoryList(
