@@ -4,8 +4,6 @@ import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadPost
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 /**
  * `posts.json`: the conversation around the saved media, as text.
@@ -122,15 +120,7 @@ fun VaultPostMeta.toThreadPost(board: String): ThreadPost = ThreadPost(
 )
 
 object VaultPostsCodec {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        prettyPrint = true
-        encodeDefaults = false
-    }
+    fun encode(posts: VaultThreadPosts): String = SidecarJson.encode(posts)
 
-    fun encode(posts: VaultThreadPosts): String = json.encodeToString(posts)
-
-    fun decode(text: String): VaultThreadPosts? = runCatching {
-        json.decodeFromString<VaultThreadPosts>(text)
-    }.getOrNull()
+    fun decode(text: String): VaultThreadPosts? = SidecarJson.decode(text)
 }

@@ -1,8 +1,6 @@
 package dev.stan.yotsuba.core.vault
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 /**
  * Sidecar `meta.json` written into every thread directory (and `_unsorted/`), so the vault
@@ -29,7 +27,7 @@ data class VaultThreadMeta(
     /** A pruned thread is final: sync never widens it again. */
     val isPruned: Boolean get() = prunedAt != null
 
-    /** Replaces any entry with the same [VaultFileMeta.fileName], keeps order stable. */
+    /** Replaces any entry with the same [VaultFileMeta.fileName]; the updated entry moves to the end. */
     fun upsert(entry: VaultFileMeta): VaultThreadMeta {
         val kept = files.filterNot { it.fileName == entry.fileName }
         return copy(files = kept + entry)
@@ -65,15 +63,7 @@ data class VaultFileMeta(
 )
 
 object VaultMetaCodec {
-    private val json = Json {
-        ignoreUnknownKeys = true
-        prettyPrint = true
-        encodeDefaults = false
-    }
+    fun encode(meta: VaultThreadMeta): String = SidecarJson.encode(meta)
 
-    fun encode(meta: VaultThreadMeta): String = json.encodeToString(meta)
-
-    fun decode(text: String): VaultThreadMeta? = runCatching {
-        json.decodeFromString<VaultThreadMeta>(text)
-    }.getOrNull()
+    fun decode(text: String): VaultThreadMeta? = SidecarJson.decode(text)
 }

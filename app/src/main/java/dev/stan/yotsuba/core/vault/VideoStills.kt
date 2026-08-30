@@ -29,12 +29,14 @@ object VideoStills {
             val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
             val still = stillFor(video)
             if (!still.isFile) {
-                val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    ?: return Still(still.takeIf { it.isFile } ?: return null, duration)
+                val frame = retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) ?: return null
                 still.parentFile?.mkdirs()
                 val scaled = shrink(frame)
                 val tmp = File(still.parentFile, still.name + ".tmp")
                 tmp.outputStream().use { scaled.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+                // Full-resolution frames, one per video in a rescan loop: hand the memory back now.
+                if (scaled !== frame) scaled.recycle()
+                frame.recycle()
                 if (!tmp.renameTo(still)) {
                     tmp.delete()
                     return null

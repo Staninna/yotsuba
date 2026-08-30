@@ -44,7 +44,7 @@ class VaultMetaCodecTest {
         assertNull(VaultMetaCodec.decode("""{"files":[]}""")) // missing required board
     }
 
-    @Test fun `upsert replaces by fileName keeping order stable`() {
+    @Test fun `upsert replaces by fileName and moves the entry to the end`() {
         val updated = meta.upsert(VaultFileMeta(fileName = "cat.jpg", postNo = 999))
         assertEquals(listOf("minimal.png", "cat.jpg"), updated.files.map { it.fileName })
         assertEquals(999L, updated.files.last().postNo)
