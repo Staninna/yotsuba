@@ -288,8 +288,10 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
     override fun saved(): Flow<Map<String, String?>> =
         state.map { list -> list.associate { it.url to it.absolutePath } }
 
+    override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = saveNow(item, context)
+
     /** Mirrors production: a successful save lands in the entries flow, so badges flip to SAVED. */
-    override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
+    fun saveNow(item: MediaItem, context: VaultSaveContext): VaultError? {
         val entry = VaultEntry(
             url = item.fullUrl,
             location = VaultLocation(context.board, context.threadNo),
@@ -378,7 +380,7 @@ class FakeMediaSaveQueue @Inject constructor(
     }
 
     override fun enqueue(item: MediaItem, context: VaultSaveContext) {
-        val error = kotlinx.coroutines.runBlocking { vault.save(item, context) }
+        val error = vault.saveNow(item, context)
         failed.update { if (error == null) it - item.fullUrl else it + (item.fullUrl to MediaSaveStatus.Failed(error)) }
     }
 
