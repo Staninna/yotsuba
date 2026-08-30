@@ -29,6 +29,7 @@ import dev.stan.yotsuba.feature.media.MediaSessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -74,7 +75,7 @@ class ThreadQuoteTapTest {
         override suspend fun migrateLegacyIfNeeded() {}
     }
 
-    private fun vm() = ThreadViewModel(
+    private fun vm(settingsFlow: Flow<Settings> = settingsState) = ThreadViewModel(
         board = "g", threadNo = 100, initialPostNo = null,
         threadRepository = threads,
         boardRepository = object : BoardRepository {
@@ -106,7 +107,7 @@ class ThreadQuoteTapTest {
             override suspend fun trim(retainAfterMs: Long) {}
         },
         settingsRepository = object : SettingsRepository {
-            override val settings: Flow<Settings> = settingsState
+            override val settings: Flow<Settings> = settingsFlow
             override suspend fun update(transform: (Settings) -> Settings) { settingsState.value = transform(settingsState.value) }
         },
         mediaSessionStore = MediaSessionStore(),
@@ -153,6 +154,19 @@ class ThreadQuoteTapTest {
         vm.onQuoteLongPress(103)
         dispatcher.scheduler.advanceUntilIdle()
         assertEquals(listOf(listOf(103L)), previewNos(vm))
+    }
+
+    /** The default is POPOVER, so a tap before the settings store has answered still previews. */
+    @Test fun `a tap before settings arrive previews under the default`() = runTest(dispatcher.scheduler) {
+        val late = MutableSharedFlow<Settings>()
+        val vm = vm(settingsFlow = late)
+        backgroundScope.launch { vm.uiState.collect {} }
+        dispatcher.scheduler.advanceUntilIdle()
+
+        vm.onQuoteTap(102)
+        late.emit(Settings())
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf(listOf(102L)), previewNos(vm))
     }
 
     private companion object {
