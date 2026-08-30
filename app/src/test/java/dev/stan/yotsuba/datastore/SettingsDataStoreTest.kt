@@ -16,7 +16,9 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import dev.stan.yotsuba.domain.model.FontSize
 import dev.stan.yotsuba.domain.model.HistoryRetention
+import dev.stan.yotsuba.domain.model.LineSpacing
 import org.junit.Assert.assertNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -90,6 +92,26 @@ class SettingsDataStoreTest {
             assertEquals(MediaAutoplay.NEVER, next.mediaAutoplay)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test fun `typography settings round trip and a blob without them reads as default`() = runTest {
+        val scope = TestScope(UnconfinedTestDispatcher(testScheduler))
+        val file = File.createTempFile("prefs", ".preferences_pb").also { it.delete() }
+        val dataStore = PreferenceDataStoreFactory.create(scope = scope) { file }
+        dataStore.edit { it[stringPreferencesKey("settings")] = """{"themeMode":"DARK"}""" }
+        val store = SettingsDataStore(dataStore)
+
+        store.settings.test {
+            val old = awaitItem()
+            assertEquals(FontSize.DEFAULT, old.fontSize)
+            assertEquals(LineSpacing.DEFAULT, old.lineSpacing)
+            store.update { it.copy(fontSize = FontSize.EXTRA_LARGE, lineSpacing = LineSpacing.COMPACT) }
+            val next = awaitItem()
+            assertEquals(FontSize.EXTRA_LARGE, next.fontSize)
+            assertEquals(LineSpacing.COMPACT, next.lineSpacing)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(FontSize.EXTRA_LARGE, SettingsDataStore(dataStore).settings.first().fontSize)
     }
 
     @Test fun `an unknown persisted enum name falls back to the default`() = runTest {

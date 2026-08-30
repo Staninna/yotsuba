@@ -18,6 +18,21 @@ enum class SeekStep(val seconds: Int) {
     THIRTY(30),
 }
 
+/** Post text size, as a multiplier on the theme's base sizes. */
+enum class FontSize(val scale: Float) {
+    SMALL(0.875f),
+    DEFAULT(1f),
+    LARGE(1.15f),
+    EXTRA_LARGE(1.3f),
+}
+
+/** Post text line height, in em so it tracks whichever [FontSize] is set. */
+enum class LineSpacing(val em: Float) {
+    COMPACT(1.25f),
+    DEFAULT(1.45f),
+    RELAXED(1.7f),
+}
+
 /**
  * Persisted as one JSON blob. Every field needs a default: the serializer coerces missing
  * keys and unknown enum names to it, which is how old installs survive new fields.
@@ -80,6 +95,9 @@ data class Settings(
     val filters: List<Filter> = emptyList(),
     /** Tap on a quotelink opens the preview stack or jumps to the post in place. */
     val quoteTap: QuoteTapAction = QuoteTapAction.POPOVER,
+    /** Post text only; chrome and the settings screens follow the system size. */
+    val fontSize: FontSize = FontSize.DEFAULT,
+    val lineSpacing: LineSpacing = LineSpacing.DEFAULT,
     /** Ask for the phone's own unlock (biometrics or PIN) before showing the app. */
     val appLock: Boolean = false,
     /**

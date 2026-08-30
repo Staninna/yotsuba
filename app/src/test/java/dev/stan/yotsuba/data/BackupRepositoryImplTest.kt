@@ -11,7 +11,9 @@ import dev.stan.yotsuba.data.repository.BackupRepositoryImpl
 import dev.stan.yotsuba.data.repository.VaultStore
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.BookmarkState
+import dev.stan.yotsuba.domain.model.FontSize
 import dev.stan.yotsuba.domain.model.HiddenThread
+import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.domain.repository.BackupResult
@@ -109,7 +111,14 @@ class BackupRepositoryImplTest {
             root,
             bookmarks = FakeBookmarks(listOf(bookmark("g", 1, readUpTo = 10, pinned = true), bookmark("a", 2))),
             hidden = FakeHidden(listOf(HiddenThread("g", 5))),
-            settings = FakeSettings(Settings(themeMode = ThemeMode.DARK, favouriteBoards = setOf("g"))),
+            settings = FakeSettings(
+                Settings(
+                    themeMode = ThemeMode.DARK,
+                    favouriteBoards = setOf("g"),
+                    fontSize = FontSize.LARGE,
+                    lineSpacing = LineSpacing.RELAXED,
+                ),
+            ),
             scope = backgroundScope,
         )
         assertTrue(source.repo.export() is BackupResult.Exported)
@@ -122,6 +131,8 @@ class BackupRepositoryImplTest {
         assertEquals(listOf(HiddenThread("g", 5)), target.hidden.state.value)
         assertEquals(ThemeMode.DARK, target.settings.state.value.themeMode)
         assertEquals(setOf("g"), target.settings.state.value.favouriteBoards)
+        assertEquals(FontSize.LARGE, target.settings.state.value.fontSize)
+        assertEquals(LineSpacing.RELAXED, target.settings.state.value.lineSpacing)
     }
 
     @Test
