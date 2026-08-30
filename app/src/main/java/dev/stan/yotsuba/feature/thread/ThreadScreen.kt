@@ -351,8 +351,8 @@ fun ThreadScreen(
                                     when (val row = s.rows[i]) {
                                         is ThreadRow.Post -> row.post.no
                                         is ThreadRow.NewPostsDivider -> "new-posts"
-                                        is ThreadRow.MoreReplies -> "more-${'$'}{row.parentNo}"
-                                        is ThreadRow.Filtered -> "filtered-${'$'}{row.postNo}"
+                                        is ThreadRow.MoreReplies -> "more-${row.parentNo}"
+                                        is ThreadRow.Filtered -> "filtered-${row.postNo}"
                                     }
                                 },
                             ) { i ->
@@ -415,7 +415,7 @@ fun ThreadScreen(
                             viewModel.onClosePostSheet()
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, "${'$'}{Urls.threadWebUrl(board, threadNo)}#p${'$'}{post.no}")
+                                putExtra(Intent.EXTRA_TEXT, "${Urls.threadWebUrl(board, threadNo)}#p${post.no}")
                             }
                             runCatching { context.startActivity(Intent.createChooser(send, null)) }
                         },
