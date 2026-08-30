@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.data.repository
 
 import android.os.Environment
+import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultMetaCodec
 import dev.stan.yotsuba.core.vault.VaultPaths
@@ -8,14 +9,17 @@ import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultPostsCodec
 import dev.stan.yotsuba.core.vault.VaultThreadPosts
 import dev.stan.yotsuba.core.vault.VaultThreadMeta
+import dev.stan.yotsuba.core.vault.VideoStills
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.core.vault.toThreadPost
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.ThreadPost
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.sync.Mutex
 
 /** File-system plumbing shared by the vault repository and the legacy migration. */
@@ -52,26 +56,65 @@ class VaultStore(private val rootOverride: File?) {
         true
     }.getOrDefault(false)
 
+    /** The thread's decoded meta.json, or null when there is none (or it will not parse). */
+    fun readMeta(dir: File): VaultThreadMeta? =
+        File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
+            ?.let { VaultMetaCodec.decode(it.readText()) }
+
     /** Read-modify-writes the thread's meta.json; returns what was written. */
     fun updateMeta(dir: File, transform: (VaultThreadMeta) -> VaultThreadMeta): VaultThreadMeta {
-        val metaFile = File(dir, VaultPaths.META_FILE_NAME)
-        val current = metaFile.takeIf { it.isFile }?.let { VaultMetaCodec.decode(it.readText()) }
-            ?: VaultThreadMeta(board = dir.parentFile?.name ?: "")
+        val current = readMeta(dir) ?: VaultThreadMeta(board = dir.parentFile?.name ?: "")
         val next = transform(current)
-        writeAtomically(metaFile, VaultMetaCodec.encode(next))
+        writeAtomically(File(dir, VaultPaths.META_FILE_NAME), VaultMetaCodec.encode(next))
         return next
     }
+
+    /**
+     * Files [target] under its thread in meta.json and returns the index row for it. The
+     * row is the caller's to insert; Room stays outside [lock], which this must be held under.
+     */
+    fun recordSavedFile(
+        dir: File,
+        board: String,
+        threadNo: Long,
+        subject: String?,
+        target: File,
+        item: MediaItem,
+        post: ThreadPost?,
+        savedAt: Long,
+        still: VideoStills.Still? = null,
+    ): SavedMediaEntity {
+        updateMeta(dir) { meta ->
+            meta.copy(
+                board = board,
+                threadNo = threadNo,
+                subject = subject,
+                threadUrl = Urls.threadWebUrl(board, threadNo),
+            ).upsert(fileMetaOf(target.name, item, post, savedAt).copy(durationMs = still?.durationMs))
+        }
+        return savedMediaEntity(
+            item, board, threadNo, subject, target, savedAt,
+            thumbnailPath = still?.file?.absolutePath, durationMs = still?.durationMs,
+        )
+    }
+
+    private fun boardDir(board: String): File = File(root, VaultPaths.sanitizeSegment(board))
+
+    /**
+     * Where a thread's directory goes when it is first written: the name is built from the
+     * subject, so [threadDir] is the lookup for one that may already exist under another slug.
+     */
+    fun threadDirFor(board: String, threadNo: Long, subject: String?, opExcerpt: String? = null): File =
+        File(boardDir(board), VaultPaths.threadDirName(threadNo, subject, opExcerpt))
 
     /**
      * The directory holding [threadNo] on [board]. Thread dirs are named `"<no>"` or
      * `"<no> - <slug>"`, and the slug changes with the subject, so the number is matched
      * rather than the whole name.
      */
-    fun threadDir(board: String, threadNo: Long): File? {
-        val boardDir = File(root, VaultPaths.sanitizeSegment(board))
-        return boardDir.listFiles()
+    fun threadDir(board: String, threadNo: Long): File? =
+        boardDir(board).listFiles()
             ?.firstOrNull { it.isDirectory && it.name.substringBefore(" -").trim() == threadNo.toString() }
-    }
 
     /** A thread directory and its decoded meta.json. */
     data class StoredThread(val dir: File, val meta: VaultThreadMeta)
@@ -113,13 +156,8 @@ class VaultStore(private val rootOverride: File?) {
      * replaced, never duplicated. Refuses a pruned thread, which is final.
      */
     fun snapshot(board: String, threadNo: Long, subject: String?, opExcerpt: String?, posts: List<VaultPostMeta>): File? {
-        val dir = threadDir(board, threadNo) ?: File(
-            File(root, VaultPaths.sanitizeSegment(board)),
-            VaultPaths.threadDirName(threadNo, subject, opExcerpt),
-        )
-        val current = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
-            ?.let { VaultMetaCodec.decode(it.readText()) }
-        if (current?.isPruned == true) return null
+        val dir = threadDir(board, threadNo) ?: threadDirFor(board, threadNo, subject, opExcerpt)
+        if (readMeta(dir)?.isPruned == true) return null
         dir.mkdirs()
         updatePosts(dir, board, threadNo, posts)
         updateMeta(dir) {
@@ -142,8 +180,7 @@ class VaultStore(private val rootOverride: File?) {
      * left whole.
      */
     fun pruneDeadThread(dir: File): Int? {
-        val meta = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
-            ?.let { VaultMetaCodec.decode(it.readText()) } ?: return null
+        val meta = readMeta(dir) ?: return null
         if (meta.isPruned) return null
         val savedPostNos = meta.files
             .filter { File(dir, it.fileName).isFile }
@@ -179,10 +216,8 @@ class VaultStore(private val rootOverride: File?) {
         val remaining = dir.listFiles() ?: return
         val sidecars = setOf(VaultPaths.META_FILE_NAME, VaultPaths.POSTS_FILE_NAME, VaultPaths.THUMBS_DIR_NAME)
         val onlyMeta = remaining.all { it.name in sidecars }
-        val meta = File(dir, VaultPaths.META_FILE_NAME).takeIf { it.isFile }
-            ?.let { VaultMetaCodec.decode(it.readText()) }
         // A snapshot without files is not an emptied directory; the sidecar is the point.
-        val metaEmpty = meta?.let { it.files.isEmpty() && it.snapshotAt == null } ?: true
+        val metaEmpty = readMeta(dir)?.let { it.files.isEmpty() && it.snapshotAt == null } ?: true
         if (onlyMeta && metaEmpty) {
             dir.deleteRecursively()
             dir.parentFile?.takeIf { it != root && it.listFiles()?.isEmpty() == true }?.delete()
@@ -208,4 +243,14 @@ class VaultStore(private val rootOverride: File?) {
             postText = post?.body?.plainText?.takeIf { it.isNotBlank() },
             savedAtMillis = savedAt,
         )
+}
+
+/** Runs [block], mapping any failure to a typed [VaultError]; cancellation passes through. */
+internal inline fun attempt(block: () -> Unit): VaultError? = try {
+    block()
+    null
+} catch (e: CancellationException) {
+    throw e
+} catch (e: Exception) {
+    VaultError.Io(e.message)
 }
