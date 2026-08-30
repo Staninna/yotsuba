@@ -61,6 +61,11 @@ jobs:
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk "yotsuba-${GITHUB_REF_NAME}.apk"
 
+      # The vault sidecars are decoded by kotlinx.serialization, whose serializers R8 can
+      # strip without a compile error. Compare what the compiler generated with what R8 kept.
+      - name: Every serializer survived R8
+        run: ./check-serializers.sh
+
       # 1.1.1 shipped a build that crashed before its first frame: R8 renamed a class the
       # navigation graph looks up by name. Debug is not minified, so no dev-build testing
       # can see that. Launch the very APK that is about to be published on an emulator

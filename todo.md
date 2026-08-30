@@ -6,12 +6,6 @@ Open work first; everything finished lives under `# Done` at the bottom.
 - [ ] 100% unit test coverage. Not met; last measured 2026-08-29 at 22.8% line / 20.1% instruction / 21.8% branch (JaCoCo via `./gradlew :app:createDebugUnitTestCoverageReport`). 391 JVM tests pass as of 2026-08-30 (up from 269); the percentage has not been re-measured since the overhaul and is due. One unit-test run failed once and passed on three reruns without a code change, so there is a flaky test somewhere in the suite; not yet identified. Near-100% where JVM-testable: domain/model 99.4%, core/text 98.5%, core/vault 97.6%, core/util 97.1%, network DTOs 96.1%. `feature/thread` 55.9%, `data/repository` 43.9%. The remainder is mostly Compose UI (designsystem, screens, navigation) which needs instrumented coverage, plus Robolectric-hosted tests (Catalog/Settings VMs, MediaByteSource, SettingsDataStore) whose sandbox classloader bypasses JaCoCo, so they record 0% despite passing. `core/datastore` reads 0% for that reason alone. `feature/media` is 4.7%: the viewer VMs depend on Context/ExoPlayer, though `ViewerBehaviour` and `PostGraph` are now pure and fully covered
 - [ ] 100% e2e test coverage. 8 instrumented Compose tests in `app/src/androidTest/` cover every screen's primary flow (boards → catalog → thread → media viewer, bookmark add/remove, history, vault, settings toggle) with Hilt `@TestInstallIn` fake repositories, no network. They compile (`:app:compileDebugAndroidTestKotlin`) but need a device: `./gradlew :app:connectedDebugAndroidTest`. Attempted on hardware 2026-08-29 and did not run: the test APK failed to link against the installed app APK (`NoSuchMethodError: kotlinx.coroutines.BuildersKt.runBlockingK`), a stale-artifact mismatch rather than a test failure. Unresolved. Secondary flows (search, spoilers, PiP, downloads, hold-to-save, edge-seek) are uncovered, and the gesture work in particular cannot be trusted without a device
 
-## 1. Release safety
-
-- [ ] The @Serializable sealed PostAnnotation hierarchy in the vault sidecar has the same
-  shape of risk and has not been exercised from a minified build: serialNames are baked at
-  compile time so the JSON is stable, but decoding a saved posts.json under R8 is untested
-
 ## 5. Known gaps from the 2026-08-30 overhaul
 
 - Imported-thread merge collides on synthetic post numbers (both sides number 1..n), so the fake
@@ -66,6 +60,12 @@ Finished work, kept for the record. Sections mirror the ones above.
   release workflow runs it on an API 34 emulator against the exact APK it is about to
   publish, and a failure stops the release. Verified 2026-08-30 on a local AVD, including
   the negative case (`am crash` mid-window fails the script)
+- [x] posts.json decoding under R8. Not exercised at runtime: instrumented tests cannot run
+  against the minified build without keeping the whole kotlin stdlib (the test APK borrows
+  it from the app), and moving `testBuildType` to release would kill the Hilt flow suite.
+  Instead `check-serializers.sh` compares every `$$serializer` class the compiler generated
+  with what R8 kept, per `mapping.txt`, and the release workflow runs it after the build.
+  All 30 survive today; a broken keep rule fails the release rather than a user's vault
 
 ### 1. Code quality, blockers
 
