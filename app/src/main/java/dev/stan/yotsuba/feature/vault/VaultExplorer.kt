@@ -56,9 +56,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,19 +80,20 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.EnumSegmentedRow
+import dev.stan.yotsuba.core.designsystem.component.IconMenuItem
 import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
+import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.feature.media.requestAllFilesAccess
 import java.io.File
-import java.text.DateFormat
-import java.util.Date
 
 /** The drill-down body of the vault: boards → threads → media grid, plus the empty states. */
 @Composable
@@ -245,7 +244,7 @@ private fun ThreadList(
             ListItem(
                 headlineContent = { Text(threadTitle(section.location, section.subject), maxLines = 1) },
                 supportingContent = {
-                    Text(itemsSummary(section.entries.size, section.sizeBytes) + " · " + savedDate(section.savedAt))
+                    Text(itemsSummary(section.entries.size, section.sizeBytes) + " · " + TimeFormat.date(section.savedAt))
                 },
                 leadingContent = {
                     if (selecting) {
@@ -307,26 +306,12 @@ private fun ThreadList(
 @Composable
 private fun ModeSwitch(mode: VaultMode, onMode: (VaultMode) -> Unit) {
     val spacing = LocalSpacing.current
-    SingleChoiceSegmentedButtonRow(
-        Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.xs),
-    ) {
-        VaultMode.entries.forEachIndexed { index, option ->
-            SegmentedButton(
-                selected = mode == option,
-                onClick = { onMode(option) },
-                shape = SegmentedButtonDefaults.itemShape(index, VaultMode.entries.size),
-            ) {
-                Text(
-                    stringResource(
-                        when (option) {
-                            VaultMode.RECENT -> R.string.vault_mode_recent
-                            VaultMode.BROWSE -> R.string.vault_mode_browse
-                        },
-                    ),
-                )
-            }
-        }
-    }
+    EnumSegmentedRow(
+        options = VaultMode.entries,
+        selected = mode,
+        onSelect = onMode,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.xs),
+    ) { Text(stringResource(it.labelRes)) }
 }
 
 /**
@@ -359,7 +344,7 @@ internal fun VaultChipRow(
             FilterChip(
                 selected = true,
                 onClick = { sortMenu = true },
-                label = { Text(stringResource(sortLabel(sort))) },
+                label = { Text(stringResource(sort.labelRes)) },
                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
                 trailingIcon = {
                     Icon(
@@ -374,7 +359,7 @@ internal fun VaultChipRow(
             DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
                 VaultSort.entries.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(stringResource(sortLabel(option))) },
+                        text = { Text(stringResource(option.labelRes)) },
                         leadingIcon = {
                             Icon(
                                 Icons.Filled.Check,
@@ -394,42 +379,44 @@ internal fun VaultChipRow(
                 )
             }
         }
-        SingleChoiceSegmentedButtonRow {
-            VaultFilter.entries.forEachIndexed { index, option ->
-                SegmentedButton(
-                    selected = filter == option,
-                    onClick = { onFilter(option) },
-                    shape = SegmentedButtonDefaults.itemShape(index, VaultFilter.entries.size),
-                    icon = {},
-                    label = {
-                        Icon(
-                            when (option) {
-                                VaultFilter.ALL -> Icons.Filled.PermMedia
-                                VaultFilter.IMAGES -> Icons.Filled.Image
-                                VaultFilter.VIDEOS -> Icons.Filled.Movie
-                            },
-                            contentDescription = stringResource(filterLabel(option)),
-                            modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
-                        )
-                    },
-                )
-            }
+        // The icon is the label, so the selected tick is switched off.
+        EnumSegmentedRow(options = VaultFilter.entries, selected = filter, onSelect = onFilter, icon = {}) { option ->
+            Icon(
+                option.icon,
+                contentDescription = stringResource(option.labelRes),
+                modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
+            )
         }
     }
 }
 
-private fun sortLabel(sort: VaultSort): Int = when (sort) {
-    VaultSort.SAVED -> R.string.vault_sort_saved
-    VaultSort.SIZE -> R.string.vault_sort_size
-    VaultSort.NAME -> R.string.vault_sort_name
-    VaultSort.POST -> R.string.vault_sort_post
-}
+private val VaultSort.labelRes: Int
+    get() = when (this) {
+        VaultSort.SAVED -> R.string.vault_sort_saved
+        VaultSort.SIZE -> R.string.vault_sort_size
+        VaultSort.NAME -> R.string.vault_sort_name
+        VaultSort.POST -> R.string.vault_sort_post
+    }
 
-private fun filterLabel(filter: VaultFilter): Int = when (filter) {
-    VaultFilter.ALL -> R.string.vault_filter_all
-    VaultFilter.IMAGES -> R.string.vault_filter_images
-    VaultFilter.VIDEOS -> R.string.vault_filter_videos
-}
+private val VaultFilter.labelRes: Int
+    get() = when (this) {
+        VaultFilter.ALL -> R.string.vault_filter_all
+        VaultFilter.IMAGES -> R.string.vault_filter_images
+        VaultFilter.VIDEOS -> R.string.vault_filter_videos
+    }
+
+private val VaultFilter.icon: ImageVector
+    get() = when (this) {
+        VaultFilter.ALL -> Icons.Filled.PermMedia
+        VaultFilter.IMAGES -> Icons.Filled.Image
+        VaultFilter.VIDEOS -> Icons.Filled.Movie
+    }
+
+private val VaultMode.labelRes: Int
+    get() = when (this) {
+        VaultMode.RECENT -> R.string.vault_mode_recent
+        VaultMode.BROWSE -> R.string.vault_mode_browse
+    }
 
 /** A three-dot button and its menu; items call the passed closer before acting. */
 @Composable
@@ -505,7 +492,7 @@ private fun MediaGrid(
                     )
                     entry.durationMs?.let { duration ->
                         Text(
-                            formatDuration(duration),
+                            TimeFormat.duration(duration),
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                             modifier = Modifier
@@ -576,43 +563,21 @@ internal fun VaultShuffleFab(scopeEntries: List<VaultEntry>, onShuffle: (List<St
             Icon(Icons.Filled.Shuffle, stringResource(R.string.vault_shuffle))
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            ShuffleMenuItem(R.string.vault_shuffle_everything, Icons.Filled.Shuffle) {
+            IconMenuItem(R.string.vault_shuffle_everything, Icons.Filled.Shuffle) {
                 menuOpen = false
                 onShuffle(scopeEntries.map { it.url })
             }
-            ShuffleMenuItem(R.string.vault_shuffle_videos, Icons.Filled.Movie) {
+            IconMenuItem(R.string.vault_shuffle_videos, Icons.Filled.Movie) {
                 menuOpen = false
                 onShuffle(scopeEntries.filter { it.isVideo }.map { it.url })
             }
-            ShuffleMenuItem(R.string.vault_shuffle_images, Icons.Filled.Image) {
+            IconMenuItem(R.string.vault_shuffle_images, Icons.Filled.Image) {
                 menuOpen = false
                 onShuffle(scopeEntries.filterNot { it.isVideo }.map { it.url })
             }
         }
     }
 }
-
-@Composable
-private fun ShuffleMenuItem(labelRes: Int, icon: ImageVector, onClick: () -> Unit) {
-    DropdownMenuItem(
-        text = { Text(stringResource(labelRes)) },
-        leadingIcon = { Icon(icon, contentDescription = null) },
-        onClick = onClick,
-    )
-}
-
-/** `m:ss`, or `h:mm:ss` past the hour. */
-internal fun formatDuration(ms: Long): String {
-    val total = ms / 1000
-    val h = total / 3600
-    val m = (total % 3600) / 60
-    val s = total % 60
-    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
-}
-
-private val dateFormat: DateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM)
-
-internal fun savedDate(millis: Long): String = dateFormat.format(Date(millis))
 
 @Composable
 internal fun boardTitle(board: String): String = when (board) {

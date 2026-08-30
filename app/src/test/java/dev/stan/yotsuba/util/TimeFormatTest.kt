@@ -36,4 +36,11 @@ class TimeFormatTest {
     @Test fun `future timestamps clamp to just now`() {
         assertEquals("just now", TimeFormat.relative(nowSec + 500, nowMs))
     }
+
+    @Test fun `duration is m-ss below the hour and h-mm-ss past it`() {
+        assertEquals("0:00", TimeFormat.duration(0))
+        assertEquals("0:05", TimeFormat.duration(5_999))
+        assertEquals("59:59", TimeFormat.duration(59 * 60_000L + 59_999L))
+        assertEquals("1:23:20", TimeFormat.duration(83 * 60_000L + 20_000L))
+    }
 }

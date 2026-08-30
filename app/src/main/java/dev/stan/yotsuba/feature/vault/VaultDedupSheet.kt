@@ -25,9 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,14 +46,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import dev.stan.yotsuba.R
+import dev.stan.yotsuba.core.designsystem.component.EnumSegmentedRow
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
+import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
 import java.io.File
-import java.text.DateFormat
-import java.util.Date
 
 /**
  * Duplicate review: hashes whatever still needs it, then lists groups of identical or
@@ -218,23 +215,8 @@ private fun ModeControls(
 ) {
     val spacing = LocalSpacing.current
     Column(Modifier.fillMaxWidth()) {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            DedupMode.entries.forEachIndexed { i, m ->
-                SegmentedButton(
-                    selected = mode == m,
-                    onClick = { onMode(m) },
-                    shape = SegmentedButtonDefaults.itemShape(i, DedupMode.entries.size),
-                ) {
-                    Text(
-                        stringResource(
-                            when (m) {
-                                DedupMode.EXACT -> R.string.vault_dedup_mode_exact
-                                DedupMode.SIMILAR -> R.string.vault_dedup_mode_similar
-                            },
-                        ),
-                    )
-                }
-            }
+        EnumSegmentedRow(DedupMode.entries, selected = mode, onSelect = onMode, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(it.labelRes))
         }
         if (mode == DedupMode.SIMILAR) {
             Spacer(Modifier.height(spacing.sm))
@@ -327,7 +309,7 @@ private fun Thumb(entry: DuplicateEntry, selected: Boolean, onClick: () -> Unit)
         val dims = if (entry.width != null && entry.height != null) "${entry.width}×${entry.height}" else "?"
         Text("$dims · ${FileSize.format(entry.sizeBytes)}", style = MaterialTheme.typography.labelSmall, maxLines = 1)
         Text(
-            shortDate.format(Date(entry.savedAt)),
+            TimeFormat.dateShort(entry.savedAt),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -338,5 +320,8 @@ private fun Thumb(entry: DuplicateEntry, selected: Boolean, onClick: () -> Unit)
 private val THUMB_SIZE = 112.dp
 private val THUMB_CORNER = 8.dp
 
-/** One formatter for every thumbnail; the sheet is main-thread only. */
-private val shortDate: DateFormat = DateFormat.getDateInstance(DateFormat.SHORT)
+private val DedupMode.labelRes: Int
+    get() = when (this) {
+        DedupMode.EXACT -> R.string.vault_dedup_mode_exact
+        DedupMode.SIMILAR -> R.string.vault_dedup_mode_similar
+    }

@@ -32,9 +32,8 @@ import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
+import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.domain.model.VaultLocation
-import java.text.DateFormat
-import java.util.Date
 
 /**
  * Lazy item key for a thread. Compose stores item keys in the saved-state Bundle, so a
@@ -242,8 +241,6 @@ private fun WeeklyBars(counts: List<Int>) {
 private val BAR_HEIGHT = 8.dp
 private val CHART_HEIGHT = 96.dp
 
-private val dateFormat: DateFormat = DateFormat.getDateInstance(DateFormat.MEDIUM)
-
 @Composable
 private fun SaveDates(stats: VaultStats) {
     Row(Modifier.fillMaxWidth()) {
@@ -255,7 +252,7 @@ private fun SaveDates(stats: VaultStats) {
 @Composable
 private fun DateCell(labelRes: Int, at: Long?, modifier: Modifier = Modifier) {
     Column(modifier) {
-        Text(at?.let { dateFormat.format(Date(it)) } ?: "\u2014", style = MaterialTheme.typography.bodyLarge)
+        Text(at?.let { TimeFormat.date(it) } ?: "\u2014", style = MaterialTheme.typography.bodyLarge)
         Text(
             stringResource(labelRes),
             style = MaterialTheme.typography.labelMedium,
