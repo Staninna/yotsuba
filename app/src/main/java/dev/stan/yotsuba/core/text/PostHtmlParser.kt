@@ -1,5 +1,7 @@
 package dev.stan.yotsuba.core.text
 
+import dev.stan.yotsuba.core.util.Urls
+
 /**
  * Hand-written tokenizer for 4chan post HTML (D10).
  *
@@ -81,7 +83,7 @@ object PostHtmlParser {
                                 val annotation = when {
                                     href == null -> null
                                     "quotelink" in classTokens(body) -> parseQuotelink(href)
-                                    else -> PostAnnotation.Link(resolveUrl(href))
+                                    else -> PostAnnotation.Link(Urls.absolute(href))
                                 }
                                 stack.addLast(Frame("a", null, annotation))
                             }
@@ -129,11 +131,8 @@ object PostHtmlParser {
                 postNo = m.groupValues[3].takeIf { it.isNotEmpty() }?.toLong(),
             )
         }
-        return PostAnnotation.Link(resolveUrl(href))
+        return PostAnnotation.Link(Urls.absolute(href))
     }
-
-    private fun resolveUrl(href: String): String =
-        if (href.startsWith("//")) "https:$href" else href
 
     /** Whitespace-separated class names; attribute order is not assumed (D10). */
     private fun classTokens(tagBody: String): Set<String> =

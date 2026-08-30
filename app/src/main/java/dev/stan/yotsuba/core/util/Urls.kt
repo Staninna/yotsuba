@@ -8,6 +8,11 @@ object Urls {
     fun fullMedia(board: String, tim: Long, ext: String) = "$MEDIA_BASE/$board/$tim$ext"
     fun threadWebUrl(board: String, no: Long) = "https://boards.4chan.org/$board/thread/$no"
 
+    /** A protocol-relative `//host/...` link made absolute; anything else passes through. */
+    fun absolute(url: String): String = if (url.startsWith("//")) "https:$url" else url
+
+    private fun uriOf(url: String): java.net.URI? = runCatching { java.net.URI(absolute(url)) }.getOrNull()
+
     /** Internal-link routing by URL shape (D26). */
     sealed interface InternalLink {
         data class Catalog(val board: String, val searchQuery: String? = null) : InternalLink
@@ -20,8 +25,7 @@ object Urls {
 
     /** Returns the in-app destination for a 4chan board link, or null → external path. */
     fun parseInternal(url: String): InternalLink? {
-        val normalized = if (url.startsWith("//")) "https:$url" else url
-        val uri = runCatching { java.net.URI(normalized) }.getOrNull() ?: return null
+        val uri = uriOf(url) ?: return null
         if (uri.host !in INTERNAL_HOSTS) return null
         val path = uri.path.orEmpty().trimEnd('/')
         THREAD_PATH.matchEntire(path)?.let { m ->
@@ -30,7 +34,9 @@ object Urls {
         }
         if (path.endsWith("/catalog")) {
             val board = path.removeSuffix("/catalog").trim('/')
-            val search = uri.fragment?.removePrefix("s=")?.replace('_', ' ')
+            // Only the documented `#s=query` form is a search; any other fragment is noise.
+            val search = uri.fragment?.takeIf { it.startsWith("s=") }?.removePrefix("s=")
+                ?.replace('_', ' ')?.takeIf { it.isNotBlank() }
             if (board.isNotEmpty()) return InternalLink.Catalog(board, search)
         }
         BOARD_PATH.matchEntire(path)?.let { m ->
@@ -39,6 +45,5 @@ object Urls {
         return null
     }
 
-    fun domainOf(url: String): String? =
-        runCatching { java.net.URI(if (url.startsWith("//")) "https:$url" else url).host }.getOrNull()
+    fun domainOf(url: String): String? = uriOf(url)?.host
 }

@@ -34,6 +34,11 @@ class UrlsTest {
         )
     }
 
+    @Test fun `a catalog fragment that is not a search opens the plain catalog`() {
+        assertEquals(InternalLink.Catalog("g"), Urls.parseInternal("https://boards.4chan.org/g/catalog#top"))
+        assertEquals(InternalLink.Catalog("g"), Urls.parseInternal("https://boards.4chan.org/g/catalog#s="))
+    }
+
     @Test fun `4channel host also internal`() {
         assertEquals(InternalLink.Catalog("po"), Urls.parseInternal("https://boards.4channel.org/po/"))
     }
