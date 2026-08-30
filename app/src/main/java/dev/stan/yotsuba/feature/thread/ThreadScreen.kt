@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -84,6 +85,7 @@ import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @Composable
 fun ThreadScreen(
@@ -256,9 +258,9 @@ fun ThreadScreen(
                 exit = motionExit(),
             ) {
                 JumpButtons(
-                    onTop = { scope.launch { listState.animateScrollToItem(0) } },
-                    onFirstNew = firstNewIndex?.let { index -> { scope.launch { listState.animateScrollToItem(index) } } },
-                    onBottom = { scope.launch { listState.animateScrollToItem(rows.lastIndex.coerceAtLeast(0)) } },
+                    onTop = { scope.launch { listState.jumpTo(0) } },
+                    onFirstNew = firstNewIndex?.let { index -> { scope.launch { listState.jumpTo(index) } } },
+                    onBottom = { scope.launch { listState.jumpTo(rows.lastIndex.coerceAtLeast(0)) } },
                 )
             }
         },
@@ -368,6 +370,15 @@ fun ThreadScreen(
                                         is ThreadRow.NewPostsDivider -> "new-posts"
                                         is ThreadRow.MoreReplies -> "more-${row.parentNo}"
                                         is ThreadRow.Filtered -> "filtered-${row.postNo}"
+                                    }
+                                },
+                                // Four different subtrees; only a slot of the same kind is worth reusing.
+                                contentType = { i ->
+                                    when (s.rows[i]) {
+                                        is ThreadRow.Post -> "post"
+                                        is ThreadRow.NewPostsDivider -> "divider"
+                                        is ThreadRow.MoreReplies -> "more"
+                                        is ThreadRow.Filtered -> "filtered"
                                     }
                                 },
                             ) { i ->
@@ -488,6 +499,15 @@ fun ThreadScreen(
             }
         }
     }
+}
+
+/**
+ * A long jump teleports to just short of [target] and animates the last stretch: the user
+ * sees the same settle, and the hundreds of cards in between are never composed.
+ */
+private suspend fun LazyListState.jumpTo(target: Int) {
+    if (abs(target - firstVisibleItemIndex) > 25) scrollToItem((target - 5).coerceAtLeast(0))
+    animateScrollToItem(target)
 }
 
 @Composable
