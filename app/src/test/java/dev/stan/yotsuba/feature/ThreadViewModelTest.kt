@@ -333,6 +333,41 @@ class ThreadViewModelTest {
             assertEquals(listOf(103L), env.bookmarks.seen)
         }
 
+    @Test fun `the read mark ignores the bottom of an ID-filtered or tree-ordered list`() =
+        runTest(dispatcher.scheduler) {
+            val posts = listOf(
+                ThreadEnv.post(100).copy(isOp = true, posterId = "AAAA"),
+                ThreadEnv.post(101).copy(posterId = "BBBB"),
+                ThreadEnv.post(102).copy(posterId = "BBBB"),
+                ThreadEnv.post(103).copy(posterId = "BBBB"),
+                ThreadEnv.post(104).copy(posterId = "AAAA"),
+            )
+            val env = ThreadEnv(posts = posts)
+            val vm = env.collectedVm(backgroundScope)
+            dispatcher.scheduler.advanceUntilIdle()
+
+            vm.onFilterPosterId("AAAA") // rows: 100, 104
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.onVisiblePostsChanged(0, 1)
+            dispatcher.scheduler.runCurrent()
+            assertNull(env.history.readMark)
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(100L, env.history.savedScrollPostNo) // the reading position still tracks the top
+
+            vm.onFilterPosterId(null)
+            vm.onToggleTreeView()
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.onVisiblePostsChanged(0, 4)
+            dispatcher.scheduler.runCurrent()
+            assertNull(env.history.readMark)
+
+            vm.onToggleTreeView()
+            dispatcher.scheduler.advanceUntilIdle()
+            vm.onVisiblePostsChanged(0, 2)
+            dispatcher.scheduler.runCurrent()
+            assertEquals(102L, env.history.readMark)
+        }
+
     @Test fun `bookmarking captures a snapshot of the loaded thread and toggles off again`() =
         runTest(dispatcher.scheduler) {
             val env = ThreadEnv()

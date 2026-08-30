@@ -94,6 +94,9 @@ class ThreadViewModel @AssistedInject constructor(
 
     private var restoredScroll = false
 
+    /** The rows the latest emission put on screen: what the visible-index reports index into. */
+    @Volatile private var lastRows: List<ThreadRow>? = null
+
     private val poller = ThreadPoller(
         // A closed or archived thread will never gain posts; polling it is pure waste.
         isEnabled = {
@@ -132,6 +135,7 @@ class ThreadViewModel @AssistedInject constructor(
                 val repliesToMe = details.posts.filter { p ->
                     p.no !in claimed && p.quotedPostNos.any { it in claimed }
                 }
+                val rows = threadRows(details, session, verdicts).also { lastRows = it }
                 UiState.Success(
                     ThreadContent(
                         details = details,
@@ -139,7 +143,7 @@ class ThreadViewModel @AssistedInject constructor(
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
                         postStates = postStates(details, session, saveStatuses),
-                        rows = threadRows(details, session, verdicts),
+                        rows = rows,
                         filteredCount = verdicts.size,
                         treeView = session.treeView,
                         autoRefreshEnabled = autoRefreshOn(session, settings),
@@ -515,12 +519,21 @@ class ThreadViewModel @AssistedInject constructor(
 
     /** The screen reports the visible row range; the VM owns what it means. */
     fun onVisiblePostsChanged(firstIndex: Int, lastIndex: Int?) {
-        val details = (result.value as? DataResult.Success)?.value ?: return
-        val rows = threadRows(details, _session.value, filterVerdicts(details.posts, matcher.value))
+        val rows = lastRows ?: currentRows() ?: return
         // Top-of-screen post: the reading position restored when the thread is reopened.
         rows.postAt(firstIndex)?.let { topVisiblePostNo.value = it.no }
         // Bottom-of-screen post: the true "read up to" mark behind the bookmarks unread count.
-        if (lastIndex != null) rows.postAt(lastIndex)?.let { bottomVisiblePostNo.value = it.no }
+        // An ID-filtered or tree-ordered list is not the thread in reading order, so its
+        // bottom row says nothing about how far the user has read: the mark stays put.
+        val session = _session.value
+        if (lastIndex == null || session.filterPosterId != null || session.treeView) return
+        rows.postAt(lastIndex)?.let { bottomVisiblePostNo.value = it.no }
+    }
+
+    /** Only before the first emission has cached its rows; the same computation as uiState's. */
+    private fun currentRows(): List<ThreadRow>? {
+        val details = (result.value as? DataResult.Success)?.value ?: return null
+        return threadRows(details, _session.value, filterVerdicts(details.posts, matcher.value))
     }
 
     /**
