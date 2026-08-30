@@ -1,8 +1,5 @@
 package dev.stan.yotsuba.feature.vault
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -31,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapLatest
@@ -368,7 +366,12 @@ class VaultViewModel @Inject constructor(
     private val shuffleOrder = MutableStateFlow<List<String>?>(null)
 
     /** Viewer toggle: advance to the next item when a video ends instead of looping it. */
-    var autoAdvance by mutableStateOf(false)
+    private val _autoAdvance = MutableStateFlow(false)
+    val autoAdvance: StateFlow<Boolean> = _autoAdvance.asStateFlow()
+
+    fun toggleAutoAdvance() {
+        _autoAdvance.value = !_autoAdvance.value
+    }
 
     private val importing = MutableStateFlow(false)
     private val notice = MutableStateFlow<VaultNotice?>(null)

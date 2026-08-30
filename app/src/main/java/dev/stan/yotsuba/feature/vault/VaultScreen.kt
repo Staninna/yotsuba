@@ -92,6 +92,7 @@ fun VaultScreen(
     val behaviour by viewModel.behaviour.collectAsStateWithLifecycle()
     val viewerThread by viewModel.viewerThread.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
+    val autoAdvance by viewModel.autoAdvance.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbar = slots.snackbar
@@ -274,8 +275,8 @@ fun VaultScreen(
                 thread = viewerThread,
                 behaviour = behaviour,
                 playback = playback,
-                autoAdvance = viewModel.autoAdvance,
-                onToggleAutoAdvance = { viewModel.autoAdvance = !viewModel.autoAdvance },
+                autoAdvance = autoAdvance,
+                onToggleAutoAdvance = viewModel::toggleAutoAdvance,
                 onPageViewed = { viewModel.onViewerPage(it.url) },
                 onDismiss = { viewModel.closeViewer() },
                 onDelete = { viewModel.requestDelete(it, undoable = false) },
