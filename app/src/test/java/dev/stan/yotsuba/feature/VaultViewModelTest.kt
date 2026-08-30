@@ -141,6 +141,9 @@ class VaultViewModelTest {
             VaultLocation(board, threadNo).also { threadReads += it }.let { threads[it] }
         override suspend fun rescan() { rescanGate?.await(); rescans++ }
         override suspend fun migrateLegacyIfNeeded() { migrations++ }
+        var unindexed = 0
+        var probes = 0
+        override suspend fun unindexedThreadCount(): Int { probes++; return unindexed }
     }
 
     private suspend fun TurbineTestContext<VaultUiState>.latest() = latest(dispatcher.scheduler)
@@ -760,6 +763,42 @@ class VaultViewModelTest {
             assertEquals(7, reported?.checked)
             assertEquals(true, reported?.rateLimited)
         }
+
+    @Test fun `an empty index over a full disk says so, until a rescan fills it`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        vault.unindexed = 3
+        val vm = vm(vault)
+        vm.uiState.test {
+            val state = latest()
+            assertEquals(VaultBody.Empty, state.body)
+            assertEquals(3, state.unindexedOnDisk)
+
+            vault.state.value = listOf(entry("g/1.jpg", threadG))
+            assertEquals(0, latest().unindexedOnDisk)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `a full index is never probed for unindexed threads`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
+        vault.unindexed = 3
+        vm(vault).uiState.test {
+            assertEquals(0, latest().unindexedOnDisk)
+            assertEquals(0, vault.probes)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `an empty index over an empty disk shows no notice`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        vm(vault).uiState.test {
+            val state = latest()
+            assertEquals(VaultBody.Empty, state.body)
+            assertEquals(0, state.unindexedOnDisk)
+            assertEquals(1, vault.probes)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
 
     @Test fun `rescan migrates before it rebuilds the index`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(emptyList())

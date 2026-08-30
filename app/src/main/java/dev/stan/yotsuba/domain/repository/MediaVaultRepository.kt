@@ -124,6 +124,18 @@ interface MediaVaultRepository {
     /** Rebuilds the saved-media DB purely from the meta.json sidecars on disk. */
     suspend fun rescan()
 
+    /**
+     * How many thread directories on disk carry a sidecar with files the index has no row
+     * for. After a reinstall the media is all still there and only the index is empty, so
+     * the Vault tab uses this to say so instead of looking like data loss. Counts sidecars
+     * against indexed threads; it reads no media and hashes nothing.
+     *
+     * Defaulted, unlike the rest of this interface, because the two test fakes that
+     * implement it sit outside the vault's own code; a fake answering zero is the honest
+     * "nothing unindexed" of a vault that holds nothing.
+     */
+    suspend fun unindexedThreadCount(): Int = 0
+
     /** One-time move of the legacy flat Pictures/Yotsuba files into the vault. No-op once done. */
     suspend fun migrateLegacyIfNeeded()
 }

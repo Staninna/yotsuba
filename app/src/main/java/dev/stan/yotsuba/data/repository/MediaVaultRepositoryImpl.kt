@@ -432,6 +432,17 @@ class MediaVaultRepositoryImpl(
         probeStills(rebuilt)
     }
 
+    override suspend fun unindexedThreadCount(): Int = withContext(ioDispatcher) {
+        if (!hasStorageAccess() || !store.root.isDirectory) return@withContext 0
+        val indexed = savedMediaDao.allOnce()
+            .mapNotNullTo(mutableSetOf()) { row -> row.threadNo?.let { VaultLocation(row.board ?: return@let null, it) } }
+        // Sidecars only: a thread with files but no row is what a reinstall leaves behind.
+        // Snapshot-only threads never had rows, so they are not missing any.
+        store.threadMetas().count { (_, meta) ->
+            meta.files.isNotEmpty() && meta.threadNo?.let { VaultLocation(meta.board, it) !in indexed } == true
+        }
+    }
+
     /**
      * [rescan] for the threads a rename or merge touched, and nothing else: the rows filed
      * under [stale] go, the rows [dirs]' sidecars describe come in, and every other row is

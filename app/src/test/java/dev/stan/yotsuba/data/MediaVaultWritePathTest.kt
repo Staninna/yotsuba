@@ -250,6 +250,28 @@ class MediaVaultWritePathTest {
         assertEquals(7L, dog.threadNo)
     }
 
+    @Test fun `unindexedThreadCount counts sidecar threads the index has no row for`() = runTest {
+        val cats = threadDir("g", "1 - Cats")
+        val dogs = threadDir("a", "7 - Dogs")
+        val snapshotOnly = threadDir("g", "9 - Words")
+        sidecarFile(cats, 1, "2_cat.jpg", "https://i.4cdn.org/g/2.jpg", postNo = 2)
+        sidecarFile(dogs, 7, "8_dog.jpg", "https://i.4cdn.org/a/8.jpg", postNo = 8)
+        store.updateMeta(snapshotOnly) { it.copy(threadNo = 9, snapshotAt = 1) }
+
+        // The reinstall case: everything on disk, nothing in Room.
+        assertEquals(2, repo.unindexedThreadCount())
+
+        repo.rescan()
+        assertEquals(0, repo.unindexedThreadCount())
+
+        // One thread's rows gone again: only that thread counts.
+        db.savedMediaDao().delete("https://i.4cdn.org/a/8.jpg")
+        assertEquals(1, repo.unindexedThreadCount())
+
+        access = false
+        assertEquals(0, repo.unindexedThreadCount())
+    }
+
     @Test fun `rescan on a missing root leaves the index alone`() = runTest {
         val row = row("https://i.4cdn.org/g/2.jpg", File(tmp.root, "g/1/2_cat.jpg"))
         db.savedMediaDao().insert(row)

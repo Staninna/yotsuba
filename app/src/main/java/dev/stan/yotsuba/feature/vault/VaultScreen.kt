@@ -38,6 +38,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
@@ -240,6 +247,14 @@ fun VaultScreen(
             },
         )
         Box(Modifier.fillMaxSize()) {
+            if (state.unindexedOnDisk > 0) {
+                UnindexedBanner(
+                    count = state.unindexedOnDisk,
+                    rescanning = state.sync.running,
+                    onRescan = { viewModel.rescan { scope.launch { snackbar.showSnackbar(rescanDone) } } },
+                    modifier = Modifier.align(Alignment.TopCenter).padding(16.dp),
+                )
+            }
             VaultExplorer(
                 state = state,
                 onOpenBoard = viewModel::openBoard,
@@ -582,4 +597,26 @@ private fun VaultEntry.toViewerPage(): ViewerPage = if (isVideo) {
         note = subject,
         contentDescription = displayName,
     )
+}
+
+/**
+ * The reinstall case: the index is empty but the vault directory is not. Without this the
+ * tab reads as data loss until the user happens on Rescan in the overflow menu.
+ */
+@Composable
+private fun UnindexedBanner(count: Int, rescanning: Boolean, onRescan: () -> Unit, modifier: Modifier = Modifier) {
+    Card(modifier = modifier.zIndex(1f)) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                pluralStringResource(R.plurals.vault_unindexed_found, count, count),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.vault_unindexed_explanation), style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = onRescan, enabled = !rescanning, modifier = Modifier.align(Alignment.End)) {
+                Text(stringResource(R.string.vault_rescan_label))
+            }
+        }
+    }
 }

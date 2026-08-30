@@ -272,6 +272,11 @@ data class VaultUiState(
     val inspecting: VaultEntry? = null,
     /** The rename or merge dialog on screen, if any. */
     val threadEdit: VaultThreadEdit? = null,
+    /**
+     * Threads on disk the index has no row for, probed only while the vault reads as empty:
+     * the state a reinstall leaves. Zero otherwise. See [MediaVaultRepository.unindexedThreadCount].
+     */
+    val unindexedOnDisk: Int = 0,
 ) {
     /** Threads a merge could go into: the same board, minus the one being merged. */
     val mergeTargets: List<VaultThreadSection>
@@ -424,10 +429,21 @@ class VaultViewModel @Inject constructor(
         val notice: VaultNotice?,
         val access: Boolean,
         val delete: VaultDeleteState,
+        val unindexed: Int,
     )
 
-    private val activity = combine(importing, notice, mediaVault.storageAccess, deletes.state) { i, n, a, d ->
-        Activity(i, n, a, d)
+    /**
+     * What sits on disk without a row, checked each time the index turns out empty with
+     * access granted. An empty index over a full disk is the reinstall case; the probe is a
+     * sidecar count, cheap enough to repeat, and it goes back to zero as soon as rows exist.
+     */
+    private val unindexed = combine(entries, mediaVault.storageAccess) { list, access -> list.isEmpty() && access }
+        .distinctUntilChanged()
+        .mapLatest { probe -> if (probe) mediaVault.unindexedThreadCount() else 0 }
+        .flowOn(io)
+
+    private val activity = combine(importing, notice, mediaVault.storageAccess, deletes.state, unindexed) { i, n, a, d, u ->
+        Activity(i, n, a, d, u)
     }
 
     /** Everything the user is in the middle of editing on the explorer itself, and where they are in it. */
@@ -627,6 +643,7 @@ class VaultViewModel @Inject constructor(
             selected = editing.selected.filterTo(mutableSetOf()) { it in urls },
             inspecting = editing.inspecting?.let { url -> entries.firstOrNull { it.url == url } },
             threadEdit = editing.threadEdit,
+            unindexedOnDisk = if (body is VaultBody.Empty) activity.unindexed else 0,
         )
     }
         // Search and the per-frame filtering are lighter, but still not main-thread work.
