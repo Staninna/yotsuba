@@ -38,6 +38,7 @@ import dev.stan.yotsuba.feature.settings.sections.LinksSection
 import dev.stan.yotsuba.feature.settings.sections.MediaSection
 import dev.stan.yotsuba.feature.settings.sections.ReadingSection
 import dev.stan.yotsuba.feature.settings.sections.StorageSection
+import dev.stan.yotsuba.feature.settings.sections.UpdatesSection
 import dev.stan.yotsuba.navigation.SettingsSectionId
 import kotlinx.coroutines.launch
 

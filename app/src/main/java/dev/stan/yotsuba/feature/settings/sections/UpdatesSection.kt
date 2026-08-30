@@ -1,4 +1,4 @@
-package dev.stan.yotsuba.feature.settings
+package dev.stan.yotsuba.feature.settings.sections
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -19,6 +19,7 @@ import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.BuildConfig
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.update.Release
 import dev.stan.yotsuba.core.update.Updater
 
 /**
@@ -30,7 +31,7 @@ import dev.stan.yotsuba.core.update.Updater
 fun UpdatesSection(
     state: Updater.State,
     onCheck: () -> Unit,
-    onInstall: (dev.stan.yotsuba.core.update.Release) -> Unit,
+    onInstall: (Release) -> Unit,
     canInstallPackages: () -> Boolean,
     onRequestInstallPermission: () -> Unit,
 ) {
