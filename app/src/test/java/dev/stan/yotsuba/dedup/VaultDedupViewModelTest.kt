@@ -3,21 +3,13 @@ package dev.stan.yotsuba.dedup
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
-import dev.stan.yotsuba.domain.model.ImportSource
-import dev.stan.yotsuba.domain.model.MediaItem
-import dev.stan.yotsuba.domain.model.ThreadDetails
-import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
-import dev.stan.yotsuba.domain.model.VaultSaveContext
-import dev.stan.yotsuba.domain.model.VaultSyncSummary
-import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
 import dev.stan.yotsuba.feature.vault.DedupPhase
 import dev.stan.yotsuba.feature.vault.VaultDedupViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -57,19 +49,10 @@ class VaultDedupViewModelTest {
         }
     }
 
-    private class DeletingVault : MediaVaultRepository {
+    private class DeletingVault : FakeMediaVault() {
         val deleted = mutableListOf<String>()
         var failing = setOf<String>()
-        override fun hasStorageAccess() = true
-        override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-        override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
-        override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
         override suspend fun delete(url: String): VaultError? { deleted += url; return if (url in failing) VaultError.Io("x") else null }
-        override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
-        override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
-        override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
-        override suspend fun rescan() {}
-        override suspend fun migrateLegacyIfNeeded() {}
     }
 
     private val group = DuplicateGroup(listOf(entry("big", 200, 5), entry("mid", 100, 4), entry("small", 50, 3)), keeperUrl = "big")

@@ -56,7 +56,7 @@ class VaultSyncWorker(
             if (summary.rateLimited) return Result.retry()
             snapshotted = live.toSet()
         }
-        val summary = vault.syncSavedThreads({ _, _ -> }, skip = snapshotted)
+        val summary = vault.syncSavedThreads(skip = snapshotted)
         return if (summary.rateLimited) Result.retry() else Result.success()
     }
 

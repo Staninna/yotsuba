@@ -9,7 +9,6 @@ import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 
 interface MediaVaultRepository {
     /** True when the app may read/write the vault directory. */
@@ -20,9 +19,9 @@ interface MediaVaultRepository {
      * settings page the app never sees, so the value is re-read on [refreshStorageAccess],
      * which a screen calls when it resumes.
      */
-    val storageAccess: Flow<Boolean> get() = flow { emit(hasStorageAccess()) }
+    val storageAccess: Flow<Boolean>
 
-    fun refreshStorageAccess() {}
+    fun refreshStorageAccess()
 
     /** Entries with a real file on disk, newest first. */
     fun entries(): Flow<List<VaultEntry>>
@@ -41,22 +40,21 @@ interface MediaVaultRepository {
 
     /**
      * Like [delete] as far as the index is concerned, but the file is moved aside rather
-     * than removed, so [restoreTrashed] can bring it back until [purgeTrash] runs. The
-     * default cannot undo; real implementations override it.
+     * than removed, so [restoreTrashed] can bring it back until [purgeTrash] runs.
      */
-    suspend fun trash(url: String): VaultError? = delete(url)
+    suspend fun trash(url: String): VaultError?
 
     /** Puts a [trash]ed file back where it was, sidecar entry and row included. */
-    suspend fun restoreTrashed(url: String): VaultError? = VaultError.NotFound
+    suspend fun restoreTrashed(url: String): VaultError?
 
     /** Empties the trash for good. Called at launch and once an undo window closes. */
-    suspend fun purgeTrash() {}
+    suspend fun purgeTrash()
 
     /**
      * Copies a saved file into the device gallery (MediaStore), so it shows up in other
-     * apps; the vault's own copy stays where it is. The default cannot.
+     * apps; the vault's own copy stays where it is.
      */
-    suspend fun exportToGallery(url: String): VaultError? = VaultError.Io("not supported")
+    suspend fun exportToGallery(url: String): VaultError?
 
     /**
      * The thread as it was saved, rebuilt from its sidecars — posts, quote graph and all.
@@ -77,18 +75,13 @@ interface MediaVaultRepository {
      * it still exists. A thread that has 404'd keeps whatever was captured before.
      *
      * Network-bound and rate-limited to roughly one thread per second, so [onProgress]
-     * reports `(done, total)` for a caller that needs to show it going.
-     */
-    suspend fun syncSavedThreads(onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }): VaultSyncSummary
-
-    /**
-     * [syncSavedThreads], leaving out [skip]: a caller that has just snapshotted those
-     * threads has no reason to fetch them twice.
+     * reports `(done, total)` for a caller that needs to show it going. Threads in [skip]
+     * are left out: a caller that has just snapshotted them has no reason to fetch them twice.
      */
     suspend fun syncSavedThreads(
-        onProgress: (done: Int, total: Int) -> Unit,
-        skip: Set<VaultLocation>,
-    ): VaultSyncSummary = syncSavedThreads(onProgress)
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+        skip: Set<VaultLocation> = emptySet(),
+    ): VaultSyncSummary
 
     /**
      * Captures the whole live thread into its vault sidecars without saving any media --
@@ -96,7 +89,7 @@ interface MediaVaultRepository {
      * or creates one carrying only `meta.json` and `posts.json`. [VaultError.NotFound]
      * when the thread is gone.
      */
-    suspend fun snapshotThread(board: String, threadNo: Long): VaultError? = VaultError.Io("not supported")
+    suspend fun snapshotThread(board: String, threadNo: Long): VaultError?
 
     /**
      * [snapshotThread] over many, paced like [syncSavedThreads] and stopping the same way
@@ -105,13 +98,13 @@ interface MediaVaultRepository {
     suspend fun snapshotThreads(
         targets: List<VaultLocation>,
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
-    ): VaultSyncSummary = VaultSyncSummary()
+    ): VaultSyncSummary
 
     /**
      * Gives an imported thread a new subject: the sidecar and the directory name both
      * change. Only local threads can be renamed; a saved 4chan thread keeps its own.
      */
-    suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? = VaultError.Io("not supported")
+    suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError?
 
     /**
      * Moves every file and its sidecar entry from one thread into another, then drops the
@@ -119,7 +112,7 @@ interface MediaVaultRepository {
      */
     suspend fun mergeThreads(
         fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long,
-    ): VaultError? = VaultError.Io("not supported")
+    ): VaultError?
 
     /** Rebuilds the saved-media DB purely from the meta.json sidecars on disk. */
     suspend fun rescan()

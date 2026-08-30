@@ -44,6 +44,7 @@ import dev.stan.yotsuba.domain.repository.ThreadRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -281,6 +282,8 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
     private val state = MutableStateFlow<List<VaultEntry>>(emptyList())
 
     override fun hasStorageAccess(): Boolean = true
+    override val storageAccess: Flow<Boolean> = flowOf(true)
+    override fun refreshStorageAccess() = Unit
     override fun entries(): Flow<List<VaultEntry>> = state
     override fun saved(): Flow<Map<String, String?>> =
         state.map { list -> list.associate { it.url to it.absolutePath } }
@@ -309,7 +312,16 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
         return null
     }
 
-    override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
+    override suspend fun trash(url: String): VaultError? = delete(url)
+    override suspend fun restoreTrashed(url: String): VaultError? = VaultError.NotFound
+    override suspend fun purgeTrash() = Unit
+    override suspend fun exportToGallery(url: String): VaultError? = null
+
+    override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit, skip: Set<VaultLocation>) = VaultSyncSummary()
+    override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? = null
+    override suspend fun snapshotThreads(targets: List<VaultLocation>, onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
+    override suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? = null
+    override suspend fun mergeThreads(fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long): VaultError? = null
 
     override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
 

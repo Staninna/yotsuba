@@ -9,21 +9,18 @@ import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.HistoryEntry
-import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
-import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultSaveContext
-import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
-import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.feature.media.MediaSessionStore
@@ -99,28 +96,21 @@ class FakeHistoryRepository(var savedScrollPostNo: Long? = null) : HistoryReposi
 }
 
 /** Records the first save so a test can await it; `statuses` is too transient to assert on. */
-class FakeVault : MediaVaultRepository {
+class FakeVault : FakeMediaVault() {
     val firstSave = CompletableDeferred<Pair<MediaItem, VaultSaveContext>>()
     /** Completes once [expectedSaves] items have arrived; the queue runs on a real IO thread. */
     val allSaved = CompletableDeferred<List<String>>()
     var expectedSaves = 1
     private val savedUrls = CopyOnWriteArrayList<String>()
     override fun hasStorageAccess() = false
-    override fun entries(): Flow<List<VaultEntry>> = flowOf(emptyList())
-    override fun saved(): Flow<Map<String, String?>> = flowOf(emptyMap())
     override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? {
         firstSave.complete(item to context)
         savedUrls += item.fullUrl
         if (savedUrls.size >= expectedSaves) allSaved.complete(savedUrls.sorted())
         return null
     }
-    override suspend fun delete(url: String): VaultError? = null
-    override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
-    override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null
     var snapshot: ThreadDetails? = null
     override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
-    override suspend fun rescan() {}
-    override suspend fun migrateLegacyIfNeeded() {}
 }
 
 class FakeClaimedPosts : ClaimedPostRepository {
