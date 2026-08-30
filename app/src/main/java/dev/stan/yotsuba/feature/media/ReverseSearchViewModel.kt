@@ -39,16 +39,17 @@ class ReverseSearchViewModel @Inject constructor(
      */
     fun search(engine: ReverseSearchEngine, file: File, ext: String, hostConfirmed: Boolean = false) {
         job?.cancel()
-        _state.value = LocalSearchState.Uploading(engine)
         job = viewModelScope.launch {
             val method = settingsRepository.settings.first().localSearchMethod
             val direct = !hostConfirmed &&
                 method == LocalSearchMethod.DIRECT_UPLOAD &&
                 engine.hasDirectUpload
+            // Decide before showing anything, so the spinner never precedes the question.
             if (!direct && !hostConfirmed) {
                 _state.value = LocalSearchState.ConfirmHost(engine)
                 return@launch
             }
+            _state.value = LocalSearchState.Uploading(engine)
             val result = if (direct) {
                 uploader.directSearchUrl(engine, file, ext)
             } else {
@@ -62,6 +63,11 @@ class ReverseSearchViewModel @Inject constructor(
                 },
             )
         }
+    }
+
+    /** The user declined the host; back to a plain sheet. */
+    fun declineHost() {
+        if (_state.value is LocalSearchState.ConfirmHost) _state.value = LocalSearchState.Idle
     }
 
     /** Stops whatever is in flight and clears the sheet's state; dismissing calls this. */

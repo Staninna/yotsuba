@@ -13,8 +13,9 @@
     <string name="media_search_uploading">Uploading…</string>
     <string name="media_search_upload_failed">Could not upload to %1$s</string>
     <string name="media_search_retry_host">Try the temporary host</string>
-    <string name="media_search_confirm_host_note">Goes through a temporary host (litterbox, kept one hour) so %1$s can fetch it.</string>
-    <string name="media_search_confirm_host">Upload to the temporary host</string>
+    <string name="media_search_confirm_host_title">Upload to a temporary host?</string>
+    <string name="media_search_confirm_host_body">%1$s has no upload form of its own, so this file goes to litterbox first (0x0.st if that fails). Anyone with the link can see it for the next hour, then it is deleted.</string>
+    <string name="media_search_confirm_host">Upload</string>
     <string name="media_search_share_app">Share to another app…</string>
     <string name="media_search_open_failed">Nothing on this phone could open the search</string>
     <string name="media_search_frame">Search a frame</string>
