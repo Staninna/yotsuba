@@ -6,6 +6,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.stan.yotsuba.BuildConfig
 import dev.stan.yotsuba.di.IoDispatcher
+import dev.stan.yotsuba.core.log.Log
 import dev.stan.yotsuba.core.media.mimeOf
 import dev.stan.yotsuba.core.util.apiResult
 import dev.stan.yotsuba.domain.model.DataResult
@@ -23,6 +24,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Call
@@ -49,6 +51,7 @@ data class UploadEndpoints(
         "?images_avatars_size=preview&images_avatars_namespace=images-cbir",
     val yandexResults: String = "https://yandex.com/images/search?rpt=imageview&cbir_id=",
     val litterbox: String = "https://litterbox.catbox.moe/resources/internals/api.php",
+    val uguu: String = "https://uguu.se/upload",
     val zeroXZero: String = "https://0x0.st",
 )
 
@@ -76,14 +79,30 @@ class ReverseSearchRepositoryImpl internal constructor(
             }
         }
 
+    /**
+     * Hosts come and go: litterbox started answering 412 to every upload and 0x0.st switched
+     * uploads off on the same day (2026-08-31). Each one is tried in turn and its refusal
+     * logged, so the next outage names itself in logcat instead of hiding behind the last host's.
+     */
     override suspend fun hostTemporarily(file: File, ext: String): DataResult<HostedFile> = withContext(io) {
         apiResult {
-            try {
-                HostedFile(litterboxUpload(file, ext), TemporaryHost.LITTERBOX)
-            } catch (e: IOException) {
-                HostedFile(zeroXZeroUpload(file, ext), TemporaryHost.ZERO_X_ZERO)
+            var last: IOException? = null
+            for (host in TemporaryHost.entries) {
+                try {
+                    return@apiResult HostedFile(uploadTo(host, file, ext), host)
+                } catch (e: IOException) {
+                    Log.w(TAG, "temporary host $host refused the file", e)
+                    last = e
+                }
             }
+            throw last ?: IOException("no temporary host configured")
         }
+    }
+
+    private suspend fun uploadTo(host: TemporaryHost, file: File, ext: String): String = when (host) {
+        TemporaryHost.LITTERBOX -> litterboxUpload(file, ext)
+        TemporaryHost.UGUU -> uguuUpload(file, ext)
+        TemporaryHost.ZERO_X_ZERO -> zeroXZeroUpload(file, ext)
     }
 
     private suspend fun tineyeSearch(file: File, ext: String): String {
@@ -130,6 +149,24 @@ class ReverseSearchRepositoryImpl internal constructor(
         }
     }
 
+    private suspend fun uguuUpload(file: File, ext: String): String {
+        // Files are kept three hours. The reply is JSON: {"success":true,"files":[{"url":...}]}.
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("files[]", file.name, file.asRequestBody(mimeOf(ext).toMediaType()))
+            .build()
+        client.newCall(Request.Builder().url(endpoints.uguu).post(body).build()).await().use { r ->
+            val reply = r.body.string()
+            val url = runCatching {
+                Json.parseToJsonElement(reply).jsonObject["files"]?.jsonArray?.firstOrNull()
+                    ?.jsonObject?.get("url")?.jsonPrimitive?.content
+            }.getOrNull()
+            if (!r.isSuccessful || url == null || !url.startsWith("https://")) {
+                throw IOException("uguu answered ${r.code}: ${reply.take(120)}")
+            }
+            return url
+        }
+    }
+
     private suspend fun zeroXZeroUpload(file: File, ext: String): String {
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", file.name, file.asRequestBody(mimeOf(ext).toMediaType()))
@@ -148,6 +185,8 @@ class ReverseSearchRepositoryImpl internal constructor(
         }
     }
 }
+
+private const val TAG = "ReverseSearch"
 
 private fun ownClient(): OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(10, TimeUnit.SECONDS)

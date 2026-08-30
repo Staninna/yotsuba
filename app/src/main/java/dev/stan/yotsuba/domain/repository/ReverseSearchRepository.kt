@@ -10,6 +10,8 @@ enum class DirectUploadEngine { TINEYE, YANDEX }
 enum class TemporaryHost {
     /** Deleted after one hour. */
     LITTERBOX,
+    /** Deleted after three hours. */
+    UGUU,
     /** Asked to expire after 24 hours; the host makes no promise about it. */
     ZERO_X_ZERO,
 }
@@ -26,6 +28,6 @@ interface ReverseSearchRepository {
     /** Uploads [file] to [engine]'s own form and returns the results page URL. */
     suspend fun directSearchUrl(engine: DirectUploadEngine, file: File, ext: String): DataResult<String>
 
-    /** Uploads [file] to [TemporaryHost.LITTERBOX], falling back to [TemporaryHost.ZERO_X_ZERO]. */
+    /** Uploads [file] to the first [TemporaryHost] that takes it, in declaration order. */
     suspend fun hostTemporarily(file: File, ext: String): DataResult<HostedFile>
 }

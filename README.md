@@ -80,7 +80,8 @@ The app talks to 4chan for everything ordinary. Beyond that:
   4chan URL. For a file that only exists on your phone (an imported thread, a
   video frame) TinEye and Yandex take a direct upload; the other engines need a
   public URL, so the app first uploads the file to litterbox.catbox.moe (kept
-  one hour) or, if that fails, 0x0.st, and asks you before doing so.
+  one hour), then uguu.se (three hours), then 0x0.st, whichever takes it first,
+  and asks you before doing so.
 
 `MANAGE_EXTERNAL_STORAGE` is what lets the vault live on shared storage instead
 of in the sandbox. Nothing else reads outside `/sdcard/Yotsuba`.

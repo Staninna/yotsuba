@@ -183,7 +183,7 @@
     <string name="settings_autoplay_unmetered">Unmetered connections only</string>
     <string name="settings_autoplay_never">Never</string>
     <string name="settings_local_search">Search local files by</string>
-    <string name="settings_local_search_summary">How a file with no online copy reaches SauceNAO, IQDB, TinEye and Yandex. Direct upload posts it to the engine itself; engines without an upload form use a temporary host: litterbox, which deletes it after an hour, or 0x0.st for up to 24 hours when litterbox is down.</string>
+    <string name="settings_local_search_summary">How a file with no online copy reaches SauceNAO, IQDB, TinEye and Yandex. Direct upload posts it to the engine itself; engines without an upload form use a temporary host: litterbox, which deletes it after an hour, then uguu.se (three hours) or 0x0.st (up to 24 hours) when litterbox is down.</string>
     <string name="settings_local_search_direct">Direct upload</string>
     <string name="settings_local_search_host">Temporary host</string>
     <string name="settings_confirm_temp_host">Ask before uploading a local file</string>

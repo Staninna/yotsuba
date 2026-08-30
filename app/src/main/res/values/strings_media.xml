@@ -15,7 +15,7 @@
     <string name="media_search_upload_failed">Could not upload to %1$s</string>
     <string name="media_search_retry_host">Try the temporary host</string>
     <string name="media_search_confirm_host_title">Upload to a temporary host?</string>
-    <string name="media_search_confirm_host_body">%1$s has no upload form of its own, so this file goes to litterbox, which deletes it after one hour. If litterbox is down it goes to 0x0.st instead, which is asked to expire it after 24 hours but does not promise to. Anyone with the link can see it until then.</string>
+    <string name="media_search_confirm_host_body">%1$s has no upload form of its own, so this file goes to litterbox, which deletes it after one hour. If litterbox is down it goes to uguu.se, which deletes it after three hours, and failing that to 0x0.st, which is asked to expire it after 24 hours but does not promise to. Anyone with the link can see it until then.</string>
     <string name="media_search_confirm_direct_title">Upload to %1$s?</string>
     <string name="media_search_confirm_direct_body">This file goes straight to %1$s through its own upload form. How long %1$s keeps it is up to its own policy, not this app.</string>
     <string name="media_search_confirm_host">Upload</string>

@@ -38,6 +38,7 @@ class ReverseSearchRepositoryImplTest {
                 yandexUpload = "$base/yandex/upload",
                 yandexResults = "$base/yandex/results?rpt=imageview&cbir_id=",
                 litterbox = "$base/litterbox",
+                uguu = "$base/uguu",
                 zeroXZero = "$base/0x0",
             ),
             OkHttpClient(),
@@ -93,12 +94,24 @@ class ReverseSearchRepositoryImplTest {
         assertTrue(body, body.contains("name=\"fileToUpload\""))
     }
 
-    @Test fun `a failed litterbox upload falls through to 0x0`() = runTest {
+    @Test fun `a failed litterbox upload falls through to uguu`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(412).setBody("No file!"))
+        server.enqueue(MockResponse().setBody("""{"success":true,"files":[{"url":"https:\/\/d.uguu.se\/abcd.jpg"}]}"""))
+        val hosted = repo.hostTemporarily(image, ".jpg").value()
+        assertEquals("https://d.uguu.se/abcd.jpg", hosted.url)
+        assertEquals(TemporaryHost.UGUU, hosted.host)
+        server.takeRequest()
+        assertTrue(server.takeRequest().body.readUtf8().contains("name=\"files[]\""))
+    }
+
+    @Test fun `when litterbox and uguu both refuse, 0x0 gets the file`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("nope"))
+        server.enqueue(MockResponse().setResponseCode(503).setBody("""{"success":false}"""))
         server.enqueue(MockResponse().setBody("https://0x0.st/abcd.jpg"))
         val hosted = repo.hostTemporarily(image, ".jpg").value()
         assertEquals("https://0x0.st/abcd.jpg", hosted.url)
         assertEquals(TemporaryHost.ZERO_X_ZERO, hosted.host)
+        server.takeRequest()
         server.takeRequest()
         val fallback = server.takeRequest()
         assertTrue(fallback.getHeader("User-Agent").orEmpty().startsWith("Yotsuba/"))
@@ -107,6 +120,7 @@ class ReverseSearchRepositoryImplTest {
     }
 
     @Test fun `a host answering with something that is not a URL is a failure`() = runTest {
+        server.enqueue(MockResponse().setBody("<html>error</html>"))
         server.enqueue(MockResponse().setBody("<html>error</html>"))
         server.enqueue(MockResponse().setBody("also not a url"))
         assertTrue(repo.hostTemporarily(image, ".jpg") is DataResult.Failure)
