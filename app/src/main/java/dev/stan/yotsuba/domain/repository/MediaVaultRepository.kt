@@ -40,15 +40,22 @@ interface MediaVaultRepository {
 
     /**
      * Like [delete] as far as the index is concerned, but the file is moved aside rather
-     * than removed, so [restoreTrashed] can bring it back until [purgeTrash] runs.
+     * than removed, so [restoreTrashed] can bring it back. The trash is on disk and keeps a
+     * file for a week; [purgeExpiredTrash] at launch is what finally lets go of it.
      */
     suspend fun trash(url: String): VaultError?
+
+    /** What sits in the trash, newest first. The entries point at where the files were. */
+    val trashed: Flow<List<VaultEntry>>
 
     /** Puts a [trash]ed file back where it was, sidecar entry and row included. */
     suspend fun restoreTrashed(url: String): VaultError?
 
-    /** Empties the trash for good. Called at launch and once an undo window closes. */
-    suspend fun purgeTrash()
+    /** Deletes everything in the trash for good. */
+    suspend fun emptyTrash()
+
+    /** Deletes what has been in the trash longer than a week. Called at launch. */
+    suspend fun purgeExpiredTrash()
 
     /**
      * Copies a saved file into the device gallery (MediaStore), so it shows up in other

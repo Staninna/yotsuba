@@ -99,6 +99,7 @@ fun VaultScreen(
     // Read and written by a BackHandler below, so it stays here rather than in the bar.
     var searchOpen by remember { mutableStateOf(state.query.isNotEmpty()) }
     var statsOpen by remember { mutableStateOf(false) }
+    var trashOpen by remember { mutableStateOf(false) }
     var dedupOpen by remember { mutableStateOf(false) }
 
     state.notice?.let { notice ->
@@ -224,6 +225,7 @@ fun VaultScreen(
                             onFetchReplies = { viewModel.fetchReplies(::reportSync) },
                             onStats = { statsOpen = true },
                             onDedup = { dedupOpen = true },
+                            onTrash = { trashOpen = true },
                             onOpenSettings = onOpenSettings,
                         ),
                     )
@@ -280,6 +282,16 @@ fun VaultScreen(
                 onOpenThread = onOpenThread,
             )
         }
+    }
+
+    if (trashOpen) {
+        val trashed by viewModel.trashed.collectAsStateWithLifecycle()
+        VaultTrashSheet(
+            entries = trashed,
+            onDismiss = { trashOpen = false },
+            onRestore = viewModel::restoreFromTrash,
+            onEmpty = { viewModel.emptyTrash(); trashOpen = false },
+        )
     }
 
     if (statsOpen) {

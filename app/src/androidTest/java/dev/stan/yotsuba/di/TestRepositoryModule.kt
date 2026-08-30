@@ -315,8 +315,10 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
     }
 
     override suspend fun trash(url: String): VaultError? = delete(url)
+    override val trashed: Flow<List<VaultEntry>> = flowOf(emptyList())
     override suspend fun restoreTrashed(url: String): VaultError? = VaultError.NotFound
-    override suspend fun purgeTrash() = Unit
+    override suspend fun emptyTrash() = Unit
+    override suspend fun purgeExpiredTrash() = Unit
     override suspend fun exportToGallery(url: String): VaultError? = null
 
     override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit, skip: Set<VaultLocation>) = VaultSyncSummary()

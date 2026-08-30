@@ -6,6 +6,13 @@
     <string name="vault_import_default_name">Imported (%1$d)</string>
     <string name="vault_import_default_name_plain">Imported</string>
     <string name="vault_restored">Restored</string>
+    <string name="vault_trash_label">Trash</string>
+    <string name="vault_trash_explanation">Deleted files, kept for a week</string>
+    <string name="vault_trash_title">Trash</string>
+    <string name="vault_trash_kept">Deleted files stay here for a week, then go for good.</string>
+    <string name="vault_trash_none">The trash is empty</string>
+    <string name="vault_trash_restore">Restore</string>
+    <string name="vault_trash_empty_action">Empty trash</string>
     <string name="vault_undo">Undo</string>
     <string name="vault_delete_dont_ask">Don\'t ask again</string>
     <plurals name="vault_trashed">

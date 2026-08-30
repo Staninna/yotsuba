@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.core.database.entity
 
 import androidx.room.Entity
+import kotlinx.serialization.Serializable
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -57,6 +58,7 @@ data class DownloadedMediaEntity(
  * Mirrors the per-thread `meta.json` sidecars; rebuildable from disk via rescan.
  */
 @Entity(tableName = "saved_media", indices = [Index("md5")])
+@Serializable // the trash index keeps a trashed file's row on disk, so it can be put back after a restart
 data class SavedMediaEntity(
     @PrimaryKey val url: String,
     val board: String?,

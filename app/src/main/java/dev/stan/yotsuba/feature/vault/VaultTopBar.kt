@@ -60,6 +60,7 @@ internal class VaultBarActions(
     val onFetchReplies: () -> Unit,
     val onStats: () -> Unit,
     val onDedup: () -> Unit,
+    val onTrash: () -> Unit,
     val onOpenSettings: () -> Unit,
 )
 
@@ -106,7 +107,7 @@ internal fun VaultBrowseTopBar(state: VaultUiState, actions: VaultBarActions) {
                 SyncMenu(actions.onRescan, actions.onFetchReplies)
             }
             if (state.hasStorageAccess) {
-                MoreMenu(actions.onStats, actions.onDedup)
+                MoreMenu(actions.onStats, actions.onDedup, actions.onTrash)
             }
             IconButton(onClick = actions.onOpenSettings) {
                 Icon(Icons.Outlined.Settings, stringResource(R.string.action_open_settings))
@@ -173,7 +174,7 @@ private fun SyncMenu(onRescan: () -> Unit, onFetchReplies: () -> Unit) {
 
 /** Tools that are not a refresh: they used to hide behind the sync icon. */
 @Composable
-private fun MoreMenu(onStats: () -> Unit, onDedup: () -> Unit) {
+private fun MoreMenu(onStats: () -> Unit, onDedup: () -> Unit, onTrash: () -> Unit) {
     BarMenu(Icons.Filled.MoreVert, stringResource(R.string.vault_more)) { close ->
         DropdownMenuItem(
             text = { MenuLabel(R.string.vault_stats_label, R.string.vault_stats_explanation) },
@@ -184,6 +185,11 @@ private fun MoreMenu(onStats: () -> Unit, onDedup: () -> Unit) {
             text = { MenuLabel(R.string.vault_dedup_label, R.string.vault_dedup_explanation) },
             leadingIcon = { Icon(Icons.Filled.ContentCopy, contentDescription = null) },
             onClick = { close(); onDedup() },
+        )
+        DropdownMenuItem(
+            text = { MenuLabel(R.string.vault_trash_label, R.string.vault_trash_explanation) },
+            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+            onClick = { close(); onTrash() },
         )
     }
 }

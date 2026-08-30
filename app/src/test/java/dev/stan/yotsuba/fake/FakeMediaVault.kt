@@ -26,8 +26,10 @@ open class FakeMediaVault : MediaVaultRepository {
     override suspend fun save(item: MediaItem, context: VaultSaveContext): VaultError? = null
     override suspend fun delete(url: String): VaultError? = null
     override suspend fun trash(url: String): VaultError? = delete(url)
+    override val trashed: Flow<List<VaultEntry>> = flowOf(emptyList())
     override suspend fun restoreTrashed(url: String): VaultError? = VaultError.NotFound
-    override suspend fun purgeTrash() {}
+    override suspend fun emptyTrash() {}
+    override suspend fun purgeExpiredTrash() {}
     override suspend fun exportToGallery(url: String): VaultError? = null
     override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = null
     override suspend fun importLocalThread(name: String, sources: List<ImportSource>): VaultError? = null

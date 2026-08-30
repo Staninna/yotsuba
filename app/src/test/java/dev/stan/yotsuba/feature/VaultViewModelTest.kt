@@ -37,6 +37,7 @@ import dev.stan.yotsuba.feature.vault.VaultViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -93,6 +94,7 @@ class VaultViewModelTest {
         }
         val trash = mutableMapOf<String, VaultEntry>()
         var purges = 0
+        var expiredPurges = 0
         override suspend fun trash(url: String): VaultError? {
             deleteError?.let { return it }
             val entry = state.value.firstOrNull { it.url == url } ?: return VaultError.NotFound
@@ -105,10 +107,12 @@ class VaultViewModelTest {
             state.value = state.value + entry
             return null
         }
-        override suspend fun purgeTrash() {
+        override val trashed: Flow<List<VaultEntry>> = flowOf(emptyList())
+        override suspend fun emptyTrash() {
             purges++
             trash.clear()
         }
+        override suspend fun purgeExpiredTrash() { expiredPurges++ }
         var rescanGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
         var syncs = 0
         var syncSummary = VaultSyncSummary()
@@ -357,7 +361,7 @@ class VaultViewModelTest {
         }
     }
 
-    @Test fun `the undo window closes on its own and empties the trash`() = runTest(dispatcher.scheduler) {
+    @Test fun `the undo window closes on its own but the trash keeps the file`() = runTest(dispatcher.scheduler) {
         val vault = FakeVault(listOf(entry("g/1.jpg", threadG)))
         val vm = vm(vault)
         vm.uiState.test {
@@ -365,16 +369,27 @@ class VaultViewModelTest {
             vm.requestDelete(entry("g/1.jpg", threadG), undoable = true)
             vm.confirmDelete()
             assertEquals(1, now().undo?.size)
-            val purgesBefore = vault.purges
             dispatcher.scheduler.advanceTimeBy(UNDO_WINDOW_MS + 1)
             assertNull(latest().undo)
-            assertEquals(purgesBefore + 1, vault.purges)
-            assertTrue(vault.trash.isEmpty())
-            vm.undoDelete() // too late: nothing to bring back
+            // The snackbar is gone; the file is not. The Trash sheet is the way back now.
+            assertEquals(0, vault.purges)
+            assertEquals(listOf("g/1.jpg"), vault.trash.keys.toList())
+            vm.undoDelete() // too late for the snackbar: nothing happens
             dispatcher.scheduler.advanceUntilIdle()
             assertTrue(vault.state.value.isEmpty())
+            vm.restoreFromTrash("g/1.jpg")
+            dispatcher.scheduler.advanceUntilIdle()
+            assertEquals(listOf("g/1.jpg"), vault.state.value.map { it.url })
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test fun `launch purges only what the trash has kept too long`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(emptyList())
+        vm(vault)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(1, vault.expiredPurges)
+        assertEquals(0, vault.purges)
     }
 
     @Test fun `don't ask again turns the confirmation off and later deletes skip the dialog`() =

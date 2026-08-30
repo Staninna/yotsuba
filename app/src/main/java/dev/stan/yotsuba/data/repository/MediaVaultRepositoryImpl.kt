@@ -162,13 +162,20 @@ class MediaVaultRepositoryImpl @Inject constructor(
         vaultTrash.trash(entity)
     }
 
+    override val trashed: Flow<List<VaultEntry>> = vaultTrash.entries.map { rows -> rows.map { it.toVaultEntry() } }
+
     override suspend fun restoreTrashed(url: String): VaultError? = withContext(Dispatchers.IO) {
         vaultTrash.restore(url)
     }
 
-    override suspend fun purgeTrash() = withContext(Dispatchers.IO) {
+    override suspend fun emptyTrash() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess()) return@withContext
-        vaultTrash.purge()
+        vaultTrash.empty()
+    }
+
+    override suspend fun purgeExpiredTrash() = withContext(Dispatchers.IO) {
+        if (!hasStorageAccess()) return@withContext
+        vaultTrash.purgeExpired()
     }
 
     override suspend fun exportToGallery(url: String): VaultError? = withContext(Dispatchers.IO) {

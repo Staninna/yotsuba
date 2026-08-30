@@ -109,9 +109,10 @@ class VaultDeletes(
     }
 
     private suspend fun trash(entries: List<VaultEntry>) {
-        // A second delete inside the window commits the first: one undo at a time.
+        // A second delete inside the window closes the first's snackbar: one undo at a time.
+        // Nothing is purged; the trash keeps every file for a week, and the Trash sheet can
+        // bring one back after the snackbar is gone.
         undoWindow?.cancel()
-        vault.purgeTrash()
         val moved = entries.filter { entry ->
             when (val error = vault.trash(entry.url)) {
                 null -> true
@@ -123,7 +124,6 @@ class VaultDeletes(
         undoWindow = scope.launch {
             delay(UNDO_WINDOW_MS)
             undo.value = null
-            vault.purgeTrash()
         }
     }
 }

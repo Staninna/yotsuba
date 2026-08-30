@@ -318,9 +318,17 @@ class VaultViewModel @Inject constructor(
 ) : ViewModel() {
 
     init {
-        // Whatever the previous process left in the trash has outlived its undo window.
-        viewModelScope.launch { mediaVault.purgeTrash() }
+        // Trashed files outlive the process; only the ones older than a week go now.
+        viewModelScope.launch { mediaVault.purgeExpiredTrash() }
     }
+
+    /** The Trash sheet's list. */
+    val trashed: StateFlow<List<VaultEntry>> = mediaVault.trashed
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun restoreFromTrash(url: String) = viewModelScope.launch { mediaVault.restoreTrashed(url) }
+
+    fun emptyTrash() = viewModelScope.launch { mediaVault.emptyTrash() }
 
     /**
      * One subscription to the vault for everything below. The repository's flow is cold and

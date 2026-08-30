@@ -20,6 +20,7 @@ import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultPaths
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
@@ -34,6 +35,8 @@ import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -101,6 +104,52 @@ class MediaVaultDeleteTest {
         absolutePath = file.absolutePath, ext = VaultPaths.extensionOf(file.name), sizeBytes = 5, width = null,
         height = null, thumbnailUrl = null, savedAt = 0,
     )
+
+    @Test fun `the trash survives a new instance and gives the file back`() = runTest {
+        val dir = File(File(tmp.root, "g"), "1 - Cats").apply { mkdirs() }
+        val pic = saved(dir, "2_pic.jpg", "https://i.4cdn.org/g/2.jpg")
+        db.savedMediaDao().insert(row(pic, "https://i.4cdn.org/g/2.jpg"))
+
+        assertNull(repo.trash("https://i.4cdn.org/g/2.jpg"))
+        assertFalse(pic.exists())
+        assertNull(db.savedMediaDao().byUrl("https://i.4cdn.org/g/2.jpg"))
+        assertTrue(File(File(tmp.root, VaultPaths.TRASH_DIR_NAME), VaultTrash.INDEX_FILE_NAME).isFile)
+
+        // A fresh instance, as after a process death, reads the index from disk.
+        val again = VaultTrash(VaultStore(tmp.root), db.savedMediaDao())
+        again.warm()
+        assertEquals(listOf("https://i.4cdn.org/g/2.jpg"), again.entries.value.map { it.url })
+        assertNull(again.restore("https://i.4cdn.org/g/2.jpg"))
+
+        assertTrue(pic.isFile)
+        assertNotNull(db.savedMediaDao().byUrl("https://i.4cdn.org/g/2.jpg"))
+        assertTrue(again.entries.value.isEmpty())
+        val meta = VaultMetaCodec.decode(File(dir, VaultPaths.META_FILE_NAME).readText())!!
+        assertTrue(meta.files.any { it.fileName == "2_pic.jpg" })
+    }
+
+    @Test fun `purging drops what is older than a week and keeps the rest`() = runTest {
+        val dir = File(File(tmp.root, "g"), "1 - Cats").apply { mkdirs() }
+        val old = saved(dir, "2_old.jpg", "https://i.4cdn.org/g/2.jpg")
+        val young = saved(dir, "3_young.jpg", "https://i.4cdn.org/g/3.jpg")
+        val trash = VaultTrash(VaultStore(tmp.root), db.savedMediaDao())
+        val now = 10_000_000_000L
+        assertNull(trash.trash(row(old, "https://i.4cdn.org/g/2.jpg"), now = now - VaultTrash.RETENTION_MS))
+        assertNull(trash.trash(row(young, "https://i.4cdn.org/g/3.jpg"), now = now - 1))
+
+        trash.purgeExpired(now)
+
+        assertEquals(listOf("https://i.4cdn.org/g/3.jpg"), trash.entries.value.map { it.url })
+        val trashDir = File(tmp.root, VaultPaths.TRASH_DIR_NAME)
+        assertEquals(1, trashDir.listFiles { f -> f.name.endsWith(".jpg") }!!.size)
+        assertEquals(VaultError.NotFound, trash.restore("https://i.4cdn.org/g/2.jpg"))
+        assertNull(trash.restore("https://i.4cdn.org/g/3.jpg"))
+        assertTrue(young.isFile)
+
+        trash.empty()
+        assertTrue(trash.entries.value.isEmpty())
+        assertFalse(trashDir.exists())
+    }
 
     @Test fun `delete removes the video's still along with the file`() = runTest {
         val dir = File(File(tmp.root, "g"), "1 - Cats").apply { mkdirs() }
