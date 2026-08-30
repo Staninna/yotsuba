@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
 import androidx.core.content.FileProvider
+import dev.stan.yotsuba.core.media.mimeOf
 import java.io.File
 
 /** Opens the system "All files access" toggle for this app so the vault becomes writable. */
@@ -21,16 +22,6 @@ fun requestAllFilesAccess(context: Context) {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
     }
-}
-
-fun mimeOf(ext: String): String = when (ext.lowercase()) {
-    ".jpg", ".jpeg" -> "image/jpeg"
-    ".png" -> "image/png"
-    ".gif" -> "image/gif"
-    ".webp" -> "image/webp"
-    ".webm" -> "video/webm"
-    ".mp4" -> "video/mp4"
-    else -> "application/octet-stream"
 }
 
 /** Fires a share chooser over [file] through the app's FileProvider. */
