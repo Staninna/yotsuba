@@ -56,7 +56,11 @@ class BackupRepositoryImplTest {
         }
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
         override suspend fun markSeen(board: String, threadNo: Long, postNo: Long) {}
-        override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
+        var refreshCalls = 0
+        override suspend fun refreshAll(onProgress: (Int, Int) -> Unit): BookmarkRefreshSummary {
+            refreshCalls++
+            return BookmarkRefreshSummary()
+        }
         override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
         override suspend fun removeDead() {}
         override suspend fun clearAll() { state.value = emptyList() }
@@ -133,6 +137,9 @@ class BackupRepositoryImplTest {
         assertEquals(setOf("g"), target.settings.state.value.favouriteBoards)
         assertEquals(FontSize.LARGE, target.settings.state.value.fontSize)
         assertEquals(LineSpacing.RELAXED, target.settings.state.value.lineSpacing)
+        // Restored rows have no post lists yet; one refresh pass fills them in.
+        runCurrent()
+        assertEquals(1, target.bookmarks.refreshCalls)
     }
 
     @Test

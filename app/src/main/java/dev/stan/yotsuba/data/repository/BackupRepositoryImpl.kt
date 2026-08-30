@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,7 +40,7 @@ class BackupRepositoryImpl(
     private val settings: SettingsRepository,
     private val preferences: DataStore<Preferences>,
     private val storageAccess: StorageAccessCheck,
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher,
 ) : BackupRepository {
 
@@ -104,6 +105,9 @@ class BackupRepositoryImpl(
             }
             val merged = BackupCodec.mergeBookmarks(bookmarks.bookmarks.first(), backup.bookmarks)
             merged.forEach { bookmarks.add(it) }
+            // The backup carries no post lists, so a restored row would read 0 unread until
+            // the next pass. Fetch them now, off the import so the result is not held up.
+            if (merged.isNotEmpty()) scope.launch { bookmarks.refreshAll() }
             val hidden = BackupCodec.newHiddenThreads(hiddenThreads.all.first(), backup.hiddenThreads)
             hidden.forEach { hiddenThreads.hide(it.board, it.threadNo) }
             settings.update { backup.settings }
