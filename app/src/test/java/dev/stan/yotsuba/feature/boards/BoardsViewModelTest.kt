@@ -139,6 +139,31 @@ class BoardsViewModelTest {
             }
         }
 
+    @Test fun `search orders categories by their best match`() =
+        runTest(dispatcher.scheduler) {
+            val repo = FakeBoardRepository(DataResult.Success(listOf(
+                board("a", title = "Anime & Manga", category = BoardCategory.JAPANESE_CULTURE),
+                board("g", title = "Technology", category = BoardCategory.INTERESTS),
+            )))
+            val vm = vm(repo)
+            vm.uiState.test {
+                latest()
+                vm.onSearchChange("g")
+                val ranked = (latest() as UiState.Success).data
+                assertEquals(
+                    listOf(BoardCategory.INTERESTS, BoardCategory.JAPANESE_CULTURE),
+                    ranked.sections.map { it.category },
+                )
+                vm.onSearchChange("")
+                val declared = (latest() as UiState.Success).data
+                assertEquals(
+                    listOf(BoardCategory.JAPANESE_CULTURE, BoardCategory.INTERESTS),
+                    declared.sections.map { it.category },
+                )
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
     @Test fun `hidden boards are filtered out unless edit mode is on`() =
         runTest(dispatcher.scheduler) {
             val repo = FakeBoardRepository(DataResult.Success(listOf(board("g"), board("v"))))

@@ -45,7 +45,10 @@ class BoardsViewModel @Inject constructor(
                 val visibility = settings.visibility()
                 val matching = search(all, query)
                 val visible = matching.filter { editing || visibility.isVisible(it) }
-                val sections = BoardCategory.entries.mapNotNull { cat ->
+                // A query sorts the categories by their best match too, so /g/ comes before
+                // every earlier category whose titles merely contain a g.
+                val order = if (query.isBlank()) BoardCategory.entries else visible.map { it.category }.distinct()
+                val sections = order.mapNotNull { cat ->
                     val inCat = visible.filter { it.category == cat }
                     if (inCat.isEmpty()) return@mapNotNull null
                     BoardSection(
