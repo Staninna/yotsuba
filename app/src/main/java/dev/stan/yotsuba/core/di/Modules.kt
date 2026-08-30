@@ -33,7 +33,10 @@ import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.core.network.RateLimitInterceptor
 import dev.stan.yotsuba.core.network.StaleIfOfflineInterceptor
+import dev.stan.yotsuba.core.network.UserAgentInterceptor
+import dev.stan.yotsuba.core.update.GithubReleases
 import dev.stan.yotsuba.core.util.Urls
+import dev.stan.yotsuba.BuildConfig
 import dev.stan.yotsuba.data.repository.BackupRepositoryImpl
 import dev.stan.yotsuba.data.repository.BoardRepositoryImpl
 import dev.stan.yotsuba.data.repository.BookmarkRepositoryImpl
@@ -91,6 +94,7 @@ object NetworkModule {
     ): OkHttpClient = OkHttpClient.Builder()
         .cache(Cache(File(context.cacheDir, "api_json_cache"), 10L * 1024 * 1024))
         .cookieJar(InMemoryCookieJar())
+        .addInterceptor(UserAgentInterceptor(UserAgentInterceptor.forApp(BuildConfig.VERSION_NAME, GithubReleases.REPO)))
         .addInterceptor(StaleIfOfflineInterceptor { networkMonitor.current() == NetworkStatus.Offline })
         // Network interceptor so cache hits and only-if-cached requests are never throttled.
         .addNetworkInterceptor(RateLimitInterceptor())
