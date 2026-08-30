@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -47,7 +46,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -56,8 +54,10 @@ import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.animatedListItem
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
+import dev.stan.yotsuba.core.designsystem.component.IconMenuItem
 import dev.stan.yotsuba.core.designsystem.component.LoadingSkeleton
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
+import dev.stan.yotsuba.core.designsystem.component.SheetActionRow
 import dev.stan.yotsuba.core.designsystem.component.SwipeToDeleteRow
 import dev.stan.yotsuba.core.designsystem.component.ThreadSummaryRow
 import dev.stan.yotsuba.core.designsystem.component.showUndo
@@ -189,21 +189,23 @@ private fun BookmarkActionSheet(
     onSnapshot: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val spacing = LocalSpacing.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.padding(bottom = 24.dp)) {
+        Column(Modifier.padding(bottom = spacing.xl)) {
+            // Not SheetTitle: a thread subject can run long and this one clamps to two lines.
             Text(
                 bookmark.displayTitle,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = spacing.xl, vertical = spacing.sm),
             )
-            SheetAction(stringResource(R.string.bookmarks_open), Icons.Filled.OpenInNew, onOpen)
-            SheetAction(
+            SheetActionRow(stringResource(R.string.bookmarks_open), Icons.Filled.OpenInNew, onOpen)
+            SheetActionRow(
                 stringResource(if (bookmark.pinned) R.string.bookmarks_unpin else R.string.bookmarks_pin),
                 if (bookmark.pinned) Icons.Outlined.PushPin else Icons.Filled.PushPin,
                 onTogglePinned,
             )
-            SheetAction(
+            SheetActionRow(
                 stringResource(R.string.bookmarks_snapshot),
                 Icons.Filled.Inventory2,
                 onSnapshot,
@@ -214,26 +216,9 @@ private fun BookmarkActionSheet(
                     else -> null
                 },
             )
-            SheetAction(stringResource(R.string.bookmarks_remove), Icons.Filled.Delete, onRemove)
+            SheetActionRow(stringResource(R.string.bookmarks_remove), Icons.Filled.Delete, onRemove)
         }
     }
-}
-
-@Composable
-private fun SheetAction(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    supporting: String? = null,
-) {
-    val tint = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-    ListItem(
-        headlineContent = { Text(label, color = tint) },
-        supportingContent = supporting?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
-        leadingContent = { Icon(icon, contentDescription = null, tint = tint) },
-        modifier = Modifier.combinedClickable(enabled = enabled, onClick = onClick),
-    )
 }
 
 /** "Checking 3/12" under the title while a refresh runs; nothing otherwise. */
@@ -272,12 +257,9 @@ fun BookmarksMenu(
                 open = false; onSortOrderChanged(it)
             }
             HorizontalDivider()
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.bookmarks_remove_dead)) },
-                leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
-                enabled = hasDead,
-                onClick = { open = false; onRemoveDead() },
-            )
+            IconMenuItem(R.string.bookmarks_remove_dead, Icons.Filled.DeleteSweep, enabled = hasDead) {
+                open = false; onRemoveDead()
+            }
         }
     }
 }
@@ -326,7 +308,7 @@ private fun BookmarkCard(
             ).joinToString(" · "),
             titleColor = if (live) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
         ) {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
                 if (snapshotting) {
                     val a11y = stringResource(R.string.bookmarks_snapshotting)
                     CircularProgressIndicator(
