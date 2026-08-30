@@ -549,8 +549,7 @@ class ThreadViewModel @AssistedInject constructor(
         val current = historyRepository.readUpTo(board, threadNo)
         if (current != null && postNo < current) return
         historyRepository.updateReadUpTo(board, threadNo, postNo)
-        val replyCount = (loadedPosts()?.size ?: 1) - 1
-        bookmarkRepository.markSeen(board, threadNo, postNo, replyCount)
+        bookmarkRepository.markSeen(board, threadNo, postNo)
     }
 
     fun onDismissNewPostsDivider() = _session.update { it.copy(newPostsAfter = null) }

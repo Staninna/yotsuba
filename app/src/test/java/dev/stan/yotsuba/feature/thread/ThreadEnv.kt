@@ -71,15 +71,12 @@ class FakeBookmarkRepository : BookmarkRepository {
         bookmarkedFlow.value = false
     }
     override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> = bookmarkedFlow
-    override suspend fun refreshOne(bookmark: Bookmark) = bookmark
     override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
     /** Every markSeen call, in order; the repository itself never lowers the mark. */
     val seen = mutableListOf<Long>()
-    override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {
+    override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {
         seen += lastSeenPostNo
     }
-    @Deprecated("Unread is derived from readUpTo; use markSeen")
-    override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) = Unit
     override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
     override suspend fun removeDead() {}
     override suspend fun clearAll() {}

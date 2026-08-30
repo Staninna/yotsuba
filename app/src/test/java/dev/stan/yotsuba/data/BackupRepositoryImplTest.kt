@@ -53,10 +53,7 @@ class BackupRepositoryImplTest {
             state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
         }
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
-        override suspend fun refreshOne(bookmark: Bookmark) = bookmark
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-        @Deprecated("Unread is derived from readUpTo; use markSeen")
-        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {}
+        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
         override suspend fun clearAll() { state.value = emptyList() }
     }
 

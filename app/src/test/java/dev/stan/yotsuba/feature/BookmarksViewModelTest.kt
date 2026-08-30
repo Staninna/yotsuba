@@ -65,7 +65,6 @@ class BookmarksViewModelTest {
             state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
         }
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(true)
-        override suspend fun refreshOne(bookmark: Bookmark): Bookmark = bookmark
         override suspend fun refreshAll(onProgress: (Int, Int) -> Unit): BookmarkRefreshSummary {
             refreshAllCalls++
             onProgress(0, 2)
@@ -73,9 +72,7 @@ class BookmarksViewModelTest {
             onProgress(2, 2)
             return BookmarkRefreshSummary()
         }
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-        @Deprecated("Unread is derived from readUpTo; use markSeen")
-        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {}
+        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
         override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {
             state.value = state.value.map { if (it.threadNo == threadNo) it.copy(pinned = pinned) else it }
         }

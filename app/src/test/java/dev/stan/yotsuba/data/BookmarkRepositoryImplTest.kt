@@ -162,9 +162,9 @@ class BookmarkRepositoryImplTest {
     @Test fun `markSeen only ever raises the read mark and touches nothing else`() = runTest {
         val dao = FakeBookmarkDao(listOf(bookmark(readUpTo = 103, postNos = listOf(101, 102, 103, 104)).toEntity()))
         val r = repo(threadApi(threadDto()), dao)
-        r.markSeen("g", 100, 101, 9)
+        r.markSeen("g", 100, 101)
         assertEquals(103L, dao.rows.value.single().readUpTo)
-        r.markSeen("g", 100, 104, 9)
+        r.markSeen("g", 100, 104)
         val row = dao.rows.value.single()
         assertEquals(104L, row.readUpTo)
         assertEquals(3, row.replyCount)
@@ -209,7 +209,7 @@ class BookmarkRepositoryImplTest {
         val dao = FakeBookmarkDao(listOf(bookmark(readUpTo = 101).copy(pinned = true).toEntity()))
         val r = repo(threadApi(threadDto()), dao)
         // A markSeen landing mid-refresh is the race the DAO comment promises to survive.
-        r.markSeen("g", 100, 104, 5)
+        r.markSeen("g", 100, 104)
         r.refreshOne(bookmark(readUpTo = 101))
         val row = dao.rows.value.single()
         assertEquals(104L, row.readUpTo)

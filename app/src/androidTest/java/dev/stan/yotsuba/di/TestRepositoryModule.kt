@@ -15,7 +15,6 @@ import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.Bookmark
-import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
@@ -195,23 +194,12 @@ class FakeBookmarkRepository @Inject constructor() : BookmarkRepository {
     override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> =
         state.map { list -> list.any { it.board == board && it.threadNo == threadNo } }
 
-    override suspend fun refreshOne(bookmark: Bookmark): Bookmark =
-        bookmark.copy(state = BookmarkState.ALIVE, lastCheckedAt = 1_700_000_100L)
-
-    override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {
+    override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {
         state.update { list ->
             list.map {
                 if (it.board == board && it.threadNo == threadNo) {
-                    it.copy(lastSeenPostNo = lastSeenPostNo, newReplies = 0, unreadCount = 0)
+                    it.copy(readUpTo = maxOf(it.readUpTo ?: 0, lastSeenPostNo))
                 } else it
-            }
-        }
-    }
-
-    override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {
-        state.update { list ->
-            list.map {
-                if (it.board == board && it.threadNo == threadNo) it.copy(unreadCount = unread) else it
             }
         }
     }

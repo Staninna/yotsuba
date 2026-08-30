@@ -18,9 +18,6 @@ interface BookmarkRepository {
     suspend fun remove(board: String, threadNo: Long)
     fun isBookmarked(board: String, threadNo: Long): Flow<Boolean>
 
-    /** One thread, full JSON: the pull-on-one-row path. */
-    suspend fun refreshOne(bookmark: Bookmark): Bookmark
-
     /**
      * One catalog call per board, thread JSON only where the reply count moved; archived and
      * pruned rows are skipped. [onProgress] reports `(boardsDone, boardsTotal)`.
@@ -30,13 +27,9 @@ interface BookmarkRepository {
 
     /**
      * The user has had [lastSeenPostNo] on screen: raise the read mark to it. Never lowers it
-     * and touches nothing else. [replyCount] is ignored; it stays for source compatibility.
+     * and touches nothing else.
      */
-    suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int)
-
-    /** No-op: unread is derived from the read mark. Call markSeen with the bottom-most visible post instead. */
-    @Deprecated("Unread is derived from readUpTo; use markSeen")
-    suspend fun updateUnread(board: String, threadNo: Long, unread: Int)
+    suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long)
 
     suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
 

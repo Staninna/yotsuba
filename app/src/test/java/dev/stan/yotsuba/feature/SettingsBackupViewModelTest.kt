@@ -74,10 +74,7 @@ class SettingsBackupViewModelTest {
         override suspend fun add(bookmark: Bookmark) {}
         override suspend fun remove(board: String, threadNo: Long) {}
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
-        override suspend fun refreshOne(bookmark: Bookmark) = bookmark
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long, replyCount: Int) {}
-        @Deprecated("Unread is derived from readUpTo; use markSeen")
-        override suspend fun updateUnread(board: String, threadNo: Long, unread: Int) {}
+        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
         override suspend fun clearAll() {}
     }
 
