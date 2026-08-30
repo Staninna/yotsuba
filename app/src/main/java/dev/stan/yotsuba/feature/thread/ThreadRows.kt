@@ -5,6 +5,7 @@ import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterMatcher
 import dev.stan.yotsuba.domain.model.FilterableFields
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
+import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -111,15 +112,40 @@ internal fun QuoteTapAction.other(): QuoteTapAction = when (this) {
     QuoteTapAction.JUMP -> QuoteTapAction.POPOVER
 }
 
-/** The sheet around the last post in [path]; null when the path is empty or its post is gone. */
-internal fun previewSheet(details: ThreadDetails, byNo: Map<Long, ThreadPost>, path: List<Long>): PreviewSheet? {
-    val focus = path.lastOrNull()?.let { byNo[it] } ?: return null
+/**
+ * The sheet around the last post in the session's preview path; null when the path is
+ * empty. A post of the thread on screen ([details], at [own]) comes straight from it. Any
+ * other post is a ghost, read from the session's ghost cache: absent or loading shows the
+ * loading shell, a failed lookup (or a copy without the post) reads as missing. A post of
+ * the screen's own thread that it no longer has (a deadlink) goes the same ghost route.
+ */
+internal fun previewSheet(own: ThreadKey, details: ThreadDetails, session: Session): PreviewSheet? {
+    val ref = session.previewPath.lastOrNull() ?: return null
+    val path = session.previewPath.map { it.postNo }
+    if (ref.key == own) {
+        details.posts.firstOrNull { it.no == ref.postNo }?.let { return postPreview(details, it, path, null) }
+    }
+    val ghost = Ghost(ref.board, ref.threadNo, null)
+    return when (val state = session.ghosts[ref.key]) {
+        null -> if (ref.key == own) null else PreviewSheet.Loading(path, ghost)
+        GhostState.Loading -> PreviewSheet.Loading(path, ghost)
+        is GhostState.Failed -> PreviewSheet.Missing(path, ghost, state.error)
+        is GhostState.Loaded -> {
+            val focus = state.details.posts.firstOrNull { it.no == ref.postNo }
+                ?: return PreviewSheet.Missing(path, ghost, NetworkError.NotFound)
+            postPreview(state.details, focus, path, ghost.copy(source = GhostSource.of(state.details)))
+        }
+    }
+}
+
+private fun postPreview(details: ThreadDetails, focus: ThreadPost, path: List<Long>, ghost: Ghost?): PreviewSheet.Post {
     val graph = PostGraph.of(details)
-    return PreviewSheet(
+    return PreviewSheet.Post(
         focus = focus,
         parents = graph.parentsOf(focus.no),
         replies = graph.repliesTo(focus.no),
         path = path,
+        ghost = ghost,
     )
 }
 

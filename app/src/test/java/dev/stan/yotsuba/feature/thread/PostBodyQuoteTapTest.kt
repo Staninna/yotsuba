@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import dev.stan.yotsuba.core.designsystem.theme.LocalPostTypography
 import dev.stan.yotsuba.domain.model.PostAnnotation
 import dev.stan.yotsuba.domain.model.PostSegment
+import dev.stan.yotsuba.domain.model.PostStyle
 import dev.stan.yotsuba.domain.model.PostText
 import dev.stan.yotsuba.feature.thread.components.BodyTap
 import dev.stan.yotsuba.feature.thread.components.PostBody
@@ -55,6 +56,37 @@ class PostBodyQuoteTapTest {
     @Test
     fun `tapping a quotelink fires SameThreadQuote without a long-press handler`() =
         tapQuotelink(withLongPress = false)
+
+    /** A `>>123` deadlink is tappable once the parser found its number; a cross-board one is not. */
+    @Test
+    fun `tapping a numbered deadlink fires Deadlink and an unnumbered one is inert`() {
+        val numbered = PostText(listOf(PostSegment(">>123", styles = setOf(PostStyle.DEADLINK), annotation = PostAnnotation.Deadlink(123))))
+        assertEquals(listOf<BodyTap>(BodyTap.Deadlink(123)), tapsOn(numbered))
+        val crossBoard = PostText(listOf(PostSegment(">>>/a/123", styles = setOf(PostStyle.DEADLINK), annotation = PostAnnotation.Deadlink(null))))
+        assertEquals(emptyList<BodyTap>(), tapsOn(crossBoard))
+    }
+
+    private fun tapsOn(text: PostText): List<BodyTap> {
+        val taps = mutableListOf<BodyTap>()
+        var bounds: Rect? = null
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent {
+            PlainBodyTheme {
+                PostBody(
+                    body = text,
+                    revealedSpoilerIds = emptySet(),
+                    revealAll = false,
+                    onTap = { taps += it },
+                    modifier = Modifier.onGloballyPositioned { bounds = it.boundsInWindow() },
+                )
+            }
+        }
+        ShadowLooper.idleMainLooper()
+        val rect = bounds ?: error("body never laid out")
+        tap(activity, rect.left + 2f, rect.top + 10f)
+        ShadowLooper.idleMainLooper()
+        return taps
+    }
 
     /** Sanity check on the harness: a plain clickable box must see the same synthetic tap. */
     @Test

@@ -72,11 +72,21 @@ class PostHtmlParserTest {
         assertEquals(PostAnnotation.QuotelinkSameThread(42L), b.segments.single().annotation)
     }
 
-    @Test fun `deadlink is inert styled text`() {
+    @Test fun `deadlink keeps its style and carries the quoted post number`() {
         val t = parser.parse("<span class=\"deadlink\">&gt;&gt;109581000</span>")
         val seg = t.segments.single()
         assertTrue(seg.styles.contains(PostStyle.DEADLINK))
-        assertEquals(PostAnnotation.Deadlink, seg.annotation)
+        assertEquals(PostAnnotation.Deadlink(109581000L), seg.annotation)
+    }
+
+    @Test fun `a cross-board deadlink has no post number to look up`() {
+        val t = parser.parse("<span class=\"deadlink\">&gt;&gt;&gt;/a/123</span>")
+        assertEquals(PostAnnotation.Deadlink(null), t.segments.single().annotation)
+    }
+
+    @Test fun `a deadlink never counts as a same-thread quote`() {
+        val t = parser.parse("<span class=\"deadlink\">&gt;&gt;5</span> <a href=\"#p6\" class=\"quotelink\">&gt;&gt;6</a>")
+        assertEquals(listOf(6L), t.quotedPostNos)
     }
 
     @Test fun `spoilers get distinct ids`() {

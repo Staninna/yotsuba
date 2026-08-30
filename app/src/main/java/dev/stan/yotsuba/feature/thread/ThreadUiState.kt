@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.thread
 
 import dev.stan.yotsuba.core.util.Urls
+import dev.stan.yotsuba.domain.model.ArchiveSource
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.NetworkError
@@ -54,16 +55,68 @@ data class ThreadContent(
 )
 
 /**
- * The preview sheet as a small thread around one post: what it quotes above, what quotes
- * it below. [path] is every post focused so far, oldest first; the last one is [focus].
+ * The quote preview sheet. [path] is every post focused so far, oldest first; the last one
+ * is the post the sheet is about. A post from another thread (or a pruned one recovered
+ * from a saved or archived copy) is a "ghost": [ghost] names where it came from, and the
+ * sheet passes through [Loading] and possibly [Missing] while it is looked up.
  */
-data class PreviewSheet(
-    val focus: ThreadPost,
-    val parents: List<ThreadPost>,
-    val replies: List<ThreadPost>,
-    val path: List<Long>,
-) {
+sealed interface PreviewSheet {
+    val path: List<Long>
+    /** Null while the focused post belongs to the thread on screen. */
+    val ghost: Ghost?
     val canGoBack: Boolean get() = path.size > 1
+    val focusNo: Long get() = path.last()
+
+    /** A small thread around the focused post: what it quotes above, what quotes it below. */
+    data class Post(
+        val focus: ThreadPost,
+        val parents: List<ThreadPost>,
+        val replies: List<ThreadPost>,
+        override val path: List<Long>,
+        override val ghost: Ghost? = null,
+    ) : PreviewSheet
+
+    /** The ghost's thread is being fetched. */
+    data class Loading(override val path: List<Long>, override val ghost: Ghost) : PreviewSheet
+
+    /** No copy of the ghost's thread holds the post; [error] says why the lookup stopped. */
+    data class Missing(
+        override val path: List<Long>,
+        override val ghost: Ghost,
+        val error: NetworkError,
+    ) : PreviewSheet
+}
+
+/** Where a ghost post lives and which copy of that thread it was read from. */
+data class Ghost(val board: String, val threadNo: Long, val source: GhostSource?)
+
+sealed interface GhostSource {
+    data object Live : GhostSource
+    data object Saved : GhostSource
+    data class Archived(val archive: ArchiveSource) : GhostSource
+
+    companion object {
+        fun of(details: ThreadDetails): GhostSource = when {
+            details.offlineCopy -> Saved
+            details.archive != null -> Archived(details.archive)
+            else -> Live
+        }
+    }
+}
+
+/** A thread by address; what the ghost cache is keyed on. */
+data class ThreadKey(val board: String, val threadNo: Long)
+
+/** One step of the preview stack: a post, and the thread it is read in. */
+data class PreviewRef(val board: String, val threadNo: Long, val postNo: Long) {
+    val key: ThreadKey get() = ThreadKey(board, threadNo)
+}
+
+/** What the ViewModel knows about a thread looked up for a ghost post. */
+sealed interface GhostState {
+    data object Loading : GhostState
+    data class Loaded(val details: ThreadDetails) : GhostState
+    data class Failed(val error: NetworkError) : GhostState
 }
 
 /** Why a quotelink target is special; the screen picks the words. */
@@ -128,7 +181,9 @@ data class Session(
     val searchQuery: String? = null,
     val searchIndex: Int = 0,
     /** Posts focused in the preview sheet, oldest first; empty means no sheet. */
-    val previewPath: List<Long> = emptyList(),
+    val previewPath: List<PreviewRef> = emptyList(),
+    /** Threads fetched for ghost posts, kept for the life of the screen. */
+    val ghosts: Map<ThreadKey, GhostState> = emptyMap(),
     val pendingExternalUrl: String? = null,
     /** (last post before the divider, count of posts after it); null = no divider. */
     val newPostsAfter: Pair<Long, Int>? = null,

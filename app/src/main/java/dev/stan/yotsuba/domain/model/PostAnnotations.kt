@@ -23,9 +23,13 @@ sealed interface PostAnnotation {
         val postNo: Long?,
     ) : PostAnnotation
 
-    /** `<span class="deadlink">`: inert styled text, no tap target. */
+    /**
+     * `<span class="deadlink">`: a quote to a post that is gone. [postNo] is the quoted
+     * number when the text is a plain `>>123`, so the quote can be looked up in a saved or
+     * archived copy; null for anything else (a cross-board deadlink), which stays inert.
+     */
     @Serializable
-    data object Deadlink : PostAnnotation
+    data class Deadlink(val postNo: Long? = null) : PostAnnotation
 
     /** A plain `<a href>` link; internal-vs-external routing is decided at tap time (D26). */
     @Serializable

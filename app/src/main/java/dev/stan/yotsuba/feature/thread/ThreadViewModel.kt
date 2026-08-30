@@ -115,6 +115,9 @@ class ThreadViewModel @AssistedInject constructor(
 
     private val bookmarked = bookmarkRepository.isBookmarked(board, threadNo)
 
+    private val own = ThreadKey(board, threadNo)
+    private val ghosts = GhostResolver(mediaVault, threadRepository)
+
     private val claimed = claimedPosts.claimed(board, threadNo)
 
     /** Slow-changing companions of the thread, folded so the top-level combine stays typed. */
@@ -160,7 +163,7 @@ class ThreadViewModel @AssistedInject constructor(
                         searchQuery = session.searchQuery,
                         searchMatches = matches,
                         searchIndex = if (matches.isEmpty()) 0 else session.searchIndex.coerceIn(0, matches.size - 1),
-                        preview = previewSheet(details, byNo, session.previewPath),
+                        preview = previewSheet(own, details, session),
                         pendingExternalUrl = session.pendingExternalUrl,
                         filterPosterId = session.filterPosterId,
                         galleryOpen = session.galleryOpen,
@@ -384,13 +387,75 @@ class ThreadViewModel @AssistedInject constructor(
 
     /**
      * Focuses [postNo] in the preview sheet, on top of whatever it showed before, so the
-     * sheet's back arrow returns there. Refocusing the post already on top is a no-op, and
-     * a post that is not in the thread (a pruned or cross-thread stray) opens nothing.
+     * sheet's back arrow returns there. The post is read in the thread of the post on top
+     * of the sheet (a quote inside a ghost post stays in the ghost's thread), or in this
+     * thread when the sheet is closed. Refocusing the post already on top is a no-op, and a
+     * post of this thread that it does not have (a pruned or cross-thread stray) opens nothing.
      */
     fun onOpenPreview(postNo: Long) {
+        val context = _session.value.previewPath.lastOrNull()?.key ?: own
+        if (context != own) return onOpenGhost(context.board, context.threadNo, postNo)
         if (loadedPosts()?.none { it.no == postNo } != false) return
-        _session.update {
-            if (it.previewPath.lastOrNull() == postNo) it else it.copy(previewPath = it.previewPath + postNo)
+        push(PreviewRef(board, threadNo, postNo))
+    }
+
+    /**
+     * Focuses a post of another thread in the sheet, fetching that thread if this screen
+     * has not seen it yet. A quote to a whole thread previews its OP.
+     */
+    fun onOpenGhost(board: String, threadNo: Long, postNo: Long?) {
+        push(PreviewRef(board, threadNo, postNo ?: threadNo))
+        resolveGhost(board, threadNo, postNo ?: threadNo, skipLive = false)
+    }
+
+    /**
+     * Tap on a cross-thread quotelink in the list. True when the sheet took it; false means
+     * the setting asks for a jump, and the only jump to another thread is to open it.
+     */
+    fun onCrossThreadQuoteTap(board: String, threadNo: Long, postNo: Long?): Boolean {
+        if (settingsState.value.quoteTap == QuoteTapAction.JUMP) return false
+        onOpenGhost(board, threadNo, postNo)
+        return true
+    }
+
+    /**
+     * Tap on a `>>123` deadlink: 4chan pruned the post, so the sheet looks for it in the
+     * vault's and the archive's copy of the thread it was quoted in, never live.
+     */
+    fun onDeadlinkTap(postNo: Long) {
+        val context = _session.value.previewPath.lastOrNull()?.key ?: own
+        push(PreviewRef(context.board, context.threadNo, postNo))
+        resolveGhost(context.board, context.threadNo, postNo, skipLive = true)
+    }
+
+    private fun push(ref: PreviewRef) = _session.update {
+        if (it.previewPath.lastOrNull() == ref) it else it.copy(previewPath = it.previewPath + ref)
+    }
+
+    /**
+     * Fills the session's ghost cache for [postNo]'s thread, unless a copy holding the post
+     * is already there. A copy without it (a partial snapshot) is looked up again, since a
+     * fuller source may have it; what the screen already holds is always tried first.
+     */
+    private fun resolveGhost(board: String, threadNo: Long, postNo: Long, skipLive: Boolean) {
+        val key = ThreadKey(board, threadNo)
+        val held = when {
+            key == own -> (result.value as? DataResult.Success)?.value
+            else -> (_session.value.ghosts[key] as? GhostState.Loaded)?.details
+        }
+        if (held?.posts?.any { it.no == postNo } == true) {
+            if (key != own) _session.update { it.copy(ghosts = it.ghosts + (key to GhostState.Loaded(held))) }
+            return
+        }
+        if (_session.value.ghosts[key] == GhostState.Loading) return
+        _session.update { it.copy(ghosts = it.ghosts + (key to GhostState.Loading)) }
+        viewModelScope.launch {
+            val state = when (val r = ghosts.resolve(board, threadNo, postNo, held, skipLive)) {
+                is DataResult.Success -> GhostState.Loaded(r.value)
+                // A copy already on hand stays useful for the posts it does have.
+                is DataResult.Failure -> if (held != null) GhostState.Loaded(held) else GhostState.Failed(r.error)
+            }
+            _session.update { it.copy(ghosts = it.ghosts + (key to state)) }
         }
     }
 

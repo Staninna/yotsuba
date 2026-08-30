@@ -8,6 +8,7 @@ import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.NetworkError
+import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.PostSegment
 import dev.stan.yotsuba.domain.model.PostText
@@ -36,15 +37,18 @@ import kotlinx.coroutines.launch
 class FakeThreadRepository(details: ThreadDetails) : ThreadRepository {
     var result: DataResult<ThreadDetails> = DataResult.Success(details)
     var archived: DataResult<ThreadDetails> = DataResult.Failure(NetworkError.NotFound)
+    /** Answers for other threads (ghost lookups), by (board, no); [result]/[archived] otherwise. */
+    val byThread = mutableMapOf<Pair<String, Long>, DataResult<ThreadDetails>>()
+    val archivedByThread = mutableMapOf<Pair<String, Long>, DataResult<ThreadDetails>>()
     /** Every source asked, in order, so a test can assert the fallback order. */
     val asked = mutableListOf<String>()
     override suspend fun thread(board: String, no: Long, forceRefresh: Boolean): DataResult<ThreadDetails> {
         asked += "live"
-        return result
+        return byThread[board to no] ?: result
     }
     override suspend fun archivedThread(board: String, no: Long): DataResult<ThreadDetails> {
         asked += "archive"
-        return archived
+        return archivedByThread[board to no] ?: archived
     }
 }
 
@@ -103,7 +107,10 @@ class FakeVault : FakeMediaVault() {
         return null
     }
     var snapshot: ThreadDetails? = null
-    override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? = snapshot
+    /** Saved copies of other threads, by (board, no); [snapshot] answers for the rest. */
+    val snapshots = mutableMapOf<Pair<String, Long>, ThreadDetails>()
+    override suspend fun savedThread(board: String, threadNo: Long): ThreadDetails? =
+        snapshots[board to threadNo] ?: snapshot
 }
 
 class FakeClaimedPosts : ClaimedPostRepository {
@@ -132,8 +139,8 @@ class ThreadEnv(
         ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = backlinks)
     )
 
-    fun details(posts: List<ThreadPost>) =
-        ThreadDetails("g", 100, posts, archived = false, closed = false, backlinks = emptyMap())
+    fun details(posts: List<ThreadPost>, board: String = "g", threadNo: Long = 100) =
+        ThreadDetails(board, threadNo, posts, archived = false, closed = false, backlinks = PostGraph.backlinksOf(posts))
 
     val vault = FakeVault()
     val queue = MediaDownloadQueue(vault, NoDedup, queueScope, io)
