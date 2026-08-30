@@ -69,6 +69,9 @@ fun ThreadTopBar(
     onRefresh: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenGallery: () -> Unit,
+    /** Attachments in the thread; the save-all entry is greyed out at zero. */
+    mediaCount: Int = 0,
+    onSaveAll: () -> Unit = {},
     treeView: Boolean,
     onToggleTreeView: () -> Unit,
     onToggleAutoRefresh: () -> Unit,
@@ -153,6 +156,11 @@ fun ThreadTopBar(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_gallery)) },
                     onClick = { menuOpen = false; onOpenGallery() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.thread_save_all_media, mediaCount)) },
+                    enabled = mediaCount > 0,
+                    onClick = { menuOpen = false; onSaveAll() },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_open_in_browser)) },

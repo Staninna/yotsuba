@@ -314,6 +314,18 @@ fun ThreadScreen(
                 onRefresh = { viewModel.load(forceRefresh = true) },
                 onOpenSearch = { searchOpen = true },
                 onOpenGallery = viewModel::onOpenGallery,
+                mediaCount = s?.mediaPosts?.size ?: 0,
+                onSaveAll = {
+                    saveToVault(
+                        context = context,
+                        hasAccess = viewModel.hasStorageAccess(),
+                        onAccessNeeded = { scope.launch { snackbar.showSnackbar(grantAccessMessage) } },
+                        save = {
+                            viewModel.onSaveAllMedia()
+                            scope.launch { snackbar.showSnackbar(saveAllMessage) }
+                        },
+                    )
+                },
                 treeView = s?.treeView == true,
                 onToggleTreeView = viewModel::onToggleTreeView,
                 onToggleAutoRefresh = viewModel::onToggleAutoRefresh,

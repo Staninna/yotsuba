@@ -27,6 +27,7 @@
         <item quantity="one">%d file</item>
         <item quantity="other">%d files</item>
     </plurals>
+    <string name="thread_save_all_media">Save all media (%1$d)</string>
     <string name="thread_gallery_save_all">Save all</string>
     <string name="thread_gallery_empty">No files in this thread</string>
     <string name="thread_gallery_empty_explanation">Attachments posted here will show up in the gallery.</string>
