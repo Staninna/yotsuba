@@ -104,7 +104,7 @@ class WatchedThreadsWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = WatchedThreadsWidget()
 }
 
-/** Header refresh: one immediate run of the same worker the 30 minute schedule uses. */
+/** Header refresh: one immediate run of the same worker the periodic schedule uses. */
 class RefreshBookmarksAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         WorkManager.getInstance(context).enqueueUniqueWork(

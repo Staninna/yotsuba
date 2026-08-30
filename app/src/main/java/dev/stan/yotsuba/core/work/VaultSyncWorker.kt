@@ -1,26 +1,17 @@
 package dev.stan.yotsuba.core.work
 
 import android.content.Context
-import androidx.work.Constraints
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
-import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import javax.inject.Singleton
 import kotlinx.coroutines.flow.first
 
 /**
@@ -72,29 +63,5 @@ class VaultSyncWorker(
 
         /** Fixed cadence; a sidecar going a few hours stale costs nothing, a 404 in between is rare. */
         const val INTERVAL_HOURS = 6L
-    }
-}
-
-/** Registers the periodic vault sync. An interface so the application stays JVM-testable. */
-interface VaultSyncScheduler {
-    fun ensureScheduled()
-}
-
-@Singleton
-class WorkManagerVaultSyncScheduler @Inject constructor(
-    @ApplicationContext private val context: Context,
-) : VaultSyncScheduler {
-
-    override fun ensureScheduled() {
-        // Same guard as the bookmark scheduler: under Robolectric nothing initialises WorkManager.
-        if (!WorkManager.isInitialized()) return
-        val request = PeriodicWorkRequestBuilder<VaultSyncWorker>(
-            VaultSyncWorker.INTERVAL_HOURS, TimeUnit.HOURS,
-        )
-            .setConstraints(Constraints(requiredNetworkType = NetworkType.CONNECTED))
-            .build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            VaultSyncWorker.UNIQUE_NAME, ExistingPeriodicWorkPolicy.KEEP, request,
-        )
     }
 }

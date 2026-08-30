@@ -85,8 +85,5 @@ class BookmarkRefreshWorker(
         const val UNIQUE_NAME = "bookmark-refresh"
         const val CHANNEL_ID = "bookmarks"
         const val NOTIFICATION_ID = 4001
-
-        /** Until Settings grows a refresh-interval field, every install polls at this cadence. */
-        const val DEFAULT_INTERVAL_MINUTES = 30L
     }
 }
