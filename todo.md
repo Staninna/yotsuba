@@ -86,8 +86,6 @@ Known gaps from that pass, none verified on a device yet:
 - Trash entries live in memory; a process death empties the trash on next launch
 - Restored bookmarks show 0 unread until the next refresh (no `postNos` until then)
 - Sort order in the Threads tab is not persisted
-- `tab_bookmarks`, `tab_history`, `settings_summary_boards`, `settings_summary_storage`,
-  `vault_rescan`, `vault_open_external` in `strings.xml` are unused now
 - Instrumented flows were updated for the new shell (Threads tab, Boards tab, gear) and compile,
   but have not run on hardware since the 2026-08-29 link failure
 
