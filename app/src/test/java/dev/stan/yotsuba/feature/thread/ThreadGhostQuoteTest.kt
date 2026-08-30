@@ -5,18 +5,16 @@ import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.Settings
-import kotlinx.coroutines.Dispatchers
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 /** A cross-thread quote or a deadlink opens the quoted post as a ghost in the preview sheet. */
@@ -25,8 +23,7 @@ class ThreadGhostQuoteTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private val env = ThreadEnv()
 

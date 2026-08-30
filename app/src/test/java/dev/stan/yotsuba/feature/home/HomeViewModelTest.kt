@@ -4,20 +4,18 @@ import app.cash.turbine.test
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.MainDispatcherRule
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -25,8 +23,7 @@ class HomeViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     @Test fun `pages follow the favourites in their saved order`() = runTest(dispatcher.scheduler) {
         val settings = FakeSettings(Settings(favouriteBoards = linkedSetOf("g", "a")))

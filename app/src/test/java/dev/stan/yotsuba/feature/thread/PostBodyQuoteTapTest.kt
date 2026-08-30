@@ -30,7 +30,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLooper
 
 /**
@@ -39,7 +38,6 @@ import org.robolectric.shadows.ShadowLooper
  * window as raw motion events, so the whole Compose pointer pipeline is under test.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
 class PostBodyQuoteTapTest {
 
     private val body = PostText(

@@ -26,6 +26,7 @@ import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.fake.FakeSettings
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.fake.NoDedup
 import dev.stan.yotsuba.fake.latest
 import dev.stan.yotsuba.feature.media.MediaSessionStore
@@ -34,24 +35,21 @@ import dev.stan.yotsuba.feature.media.MediaViewModel
 import dev.stan.yotsuba.feature.media.ViewerPhase
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -63,13 +61,11 @@ import org.robolectric.RobolectricTestRunner
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@org.robolectric.annotation.Config(sdk = [34])
 class MediaViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private class FakeThreadRepository(
         var details: ThreadDetails,

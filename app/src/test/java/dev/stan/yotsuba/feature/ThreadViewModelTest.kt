@@ -9,6 +9,7 @@ import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.feature.thread.FakeHistoryRepository
 import dev.stan.yotsuba.feature.thread.LinkAction
 import dev.stan.yotsuba.feature.thread.PreviewSheet
@@ -22,15 +23,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,8 +37,7 @@ class ThreadViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private fun focused(vm: ThreadViewModel) = content(vm).preview as? PreviewSheet.Post
 

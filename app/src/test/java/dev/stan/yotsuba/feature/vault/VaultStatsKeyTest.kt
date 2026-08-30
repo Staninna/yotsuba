@@ -7,7 +7,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 /**
  * Compose hands every LazyColumn item key to SaveableStateHolderImpl.SaveableStateProvider,
@@ -17,7 +16,6 @@ import org.robolectric.annotation.Config
  * crashed as soon as a populated vault's "Biggest threads" section composed.
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [35])
 class VaultStatsKeyTest {
 
     private val canBeSavedToBundle = Class

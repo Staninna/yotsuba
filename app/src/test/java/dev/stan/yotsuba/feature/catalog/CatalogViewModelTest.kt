@@ -42,7 +42,6 @@ import org.robolectric.RobolectricTestRunner
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@org.robolectric.annotation.Config(sdk = [34])
 class CatalogViewModelTest {
 
     @get:Rule val main = MainDispatcherRule()

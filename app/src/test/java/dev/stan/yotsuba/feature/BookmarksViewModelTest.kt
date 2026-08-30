@@ -2,34 +2,32 @@ package dev.stan.yotsuba.feature
 
 import app.cash.turbine.test
 import dev.stan.yotsuba.domain.model.Bookmark
+import dev.stan.yotsuba.domain.model.BookmarkSortOrder
 import dev.stan.yotsuba.domain.model.BookmarkState
+import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.VaultError
-import dev.stan.yotsuba.domain.repository.MediaVaultRepository
-import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
+import dev.stan.yotsuba.domain.repository.MediaVaultRepository
+import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeMediaVault
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.feature.bookmarks.BookmarksViewModel
 import dev.stan.yotsuba.feature.bookmarks.RefreshProgress
 import dev.stan.yotsuba.feature.bookmarks.SnapshotResult
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import dev.stan.yotsuba.domain.model.BookmarkSortOrder
-import dev.stan.yotsuba.domain.model.Settings
-import dev.stan.yotsuba.domain.repository.SettingsRepository
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
-import org.junit.Before
+import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -37,8 +35,7 @@ class BookmarksViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private fun bookmark(
         no: Long,

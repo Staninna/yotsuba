@@ -11,8 +11,8 @@ import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.FontSize
 import dev.stan.yotsuba.domain.model.HiddenThread
-import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.HistoryEntry
+import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
 import dev.stan.yotsuba.domain.repository.BackupRepository
@@ -24,25 +24,23 @@ import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.fake.FakeGalleryHiding
+import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.fake.latest
 import dev.stan.yotsuba.feature.settings.ClearResult
 import dev.stan.yotsuba.feature.settings.SettingsUiState
 import dev.stan.yotsuba.feature.settings.SettingsViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -53,13 +51,11 @@ import org.robolectric.RobolectricTestRunner
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@org.robolectric.annotation.Config(sdk = [34])
 class SettingsViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
-    @Before fun setUp() { Dispatchers.setMain(dispatcher) }
-    @After fun tearDown() { Dispatchers.resetMain() }
+    @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     private class FakeSettingsRepository(initial: Settings = Settings()) : SettingsRepository {
         val state = MutableStateFlow(initial)

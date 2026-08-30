@@ -29,7 +29,6 @@ import org.robolectric.RobolectricTestRunner
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
-@org.robolectric.annotation.Config(sdk = [35])
 class SettingsDataStoreTest {
 
     @Test fun `defaults, write-read round trip, flow emission on change`() = runTest {
