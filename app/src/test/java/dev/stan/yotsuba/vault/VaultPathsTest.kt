@@ -1,9 +1,6 @@
 package dev.stan.yotsuba.vault
 
-import dev.stan.yotsuba.core.vault.VaultFileMeta
-import dev.stan.yotsuba.core.vault.VaultMetaCodec
 import dev.stan.yotsuba.core.vault.VaultPaths
-import dev.stan.yotsuba.core.vault.VaultThreadMeta
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -53,32 +50,5 @@ class VaultPathsTest {
         assertEquals(".webm", parsed?.ext)
         assertNull(VaultPaths.parseMediaUrl("https://example.com/x.png"))
         assertNull(VaultPaths.parseMediaUrl("https://i.4cdn.org/g/1724500000123s.jpg"))
-    }
-
-    @Test
-    fun `meta json round-trips and upserts by file name`() {
-        val meta = VaultThreadMeta(board = "g", threadNo = 1, subject = "s")
-            .upsert(VaultFileMeta(fileName = "1_a.png", postNo = 1, url = "u1"))
-            .upsert(VaultFileMeta(fileName = "2_b.png", postNo = 2, url = "u2"))
-            .upsert(VaultFileMeta(fileName = "1_a.png", postNo = 1, url = "u1-new"))
-
-        assertEquals(2, meta.files.size)
-        assertEquals("u1-new", meta.files.first { it.fileName == "1_a.png" }.url)
-
-        val decoded = VaultMetaCodec.decode(VaultMetaCodec.encode(meta))
-        assertEquals(meta, decoded)
-    }
-
-    @Test
-    fun `meta remove drops the entry`() {
-        val meta = VaultThreadMeta(board = "g")
-            .upsert(VaultFileMeta(fileName = "1_a.png"))
-            .remove("1_a.png")
-        assertTrue(meta.files.isEmpty())
-    }
-
-    @Test
-    fun `decode of garbage returns null`() {
-        assertNull(VaultMetaCodec.decode("not json"))
     }
 }

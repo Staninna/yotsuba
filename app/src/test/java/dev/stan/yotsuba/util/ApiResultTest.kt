@@ -62,6 +62,7 @@ class ApiResultTest {
     @Test fun `http 5xx maps to Server with code`() {
         assertEquals(NetworkError.Server(500), httpException(500).toNetworkError())
         assertEquals(NetworkError.Server(503), httpException(503).toNetworkError())
+        assertEquals(NetworkError.Server(599), httpException(599).toNetworkError())
     }
 
     @Test fun `other http codes map to Unknown carrying the exception`() {
