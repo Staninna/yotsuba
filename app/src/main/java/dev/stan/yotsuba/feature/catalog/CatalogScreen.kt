@@ -89,14 +89,15 @@ fun CatalogActions(state: UiState<CatalogContent>, viewModel: CatalogViewModel) 
             stringResource(R.string.action_search),
         )
     }
+    // The icon shows the current layout while the tap moves to the next one, so the label
+    // has to say both; a single "Switch layout" reads identically in all three states.
+    val (icon, label) = when (content?.layout) {
+        CatalogLayout.COMPACT -> Icons.Filled.GridView to R.string.catalog_layout_switch_from_compact
+        CatalogLayout.LIST -> Icons.AutoMirrored.Filled.ViewList to R.string.catalog_layout_switch_from_list
+        CatalogLayout.COMFORTABLE -> Icons.Filled.ViewAgenda to R.string.catalog_layout_switch_from_comfortable
+        null -> Icons.Filled.ViewAgenda to R.string.catalog_layout_switch
+    }
     IconButton(onClick = viewModel::onCycleLayout) {
-        Icon(
-            when (content?.layout) {
-                CatalogLayout.COMPACT -> Icons.Filled.GridView
-                CatalogLayout.LIST -> Icons.AutoMirrored.Filled.ViewList
-                CatalogLayout.COMFORTABLE, null -> Icons.Filled.ViewAgenda
-            },
-            stringResource(R.string.catalog_layout_switch),
-        )
+        Icon(icon, stringResource(label))
     }
 }
