@@ -35,12 +35,14 @@ fun SheetActionRow(
     onClick: () -> Unit,
     enabled: Boolean = true,
     supporting: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     val tint = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
     ListItem(
         headlineContent = { Text(label, color = tint) },
         supportingContent = supporting?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
         leadingContent = { Icon(icon, contentDescription = null, tint = tint) },
+        trailingContent = trailing,
         modifier = Modifier.combinedClickable(enabled = enabled, onClick = onClick),
     )
 }
