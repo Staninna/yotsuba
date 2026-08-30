@@ -3,40 +3,53 @@ package dev.stan.yotsuba.core.lock
 import androidx.fragment.app.FragmentActivity
 
 /**
- * Decides when the lock screen puts the system prompt up by itself: on its first showing,
- * and again each time the user comes back to the app while it is still locked. A prompt
- * the user just dismissed is not re-shown on the resume that dismissal causes, otherwise
- * cancelling the PIN screen on Android 9 and below would bounce straight back into it.
- * The "Unlock" button calls [prompt] directly.
+ * Puts the system prompt up by itself whenever the locked app comes to the front: on the
+ * first showing and on every resume after that, so a prompt the system dismissed (face
+ * timed out, app sent to the background with the prompt open) comes back on its own.
+ *
+ * The one exception is the user's own cancel. On the keyguard path (Android 8.x) and the
+ * older device-credential fallback, cancelling finishes a system activity and resumes ours,
+ * so re-prompting there would bounce the user straight back into the PIN screen; that resume
+ * is skipped once. When the cancel happens over a still-resumed activity there is no such
+ * resume, and the next stop clears the skip so the next return prompts again.
+ *
+ * [show] is the prompt itself; production passes [DeviceUnlock.prompt], tests a fake.
  */
 class LockPrompter(
-    private val activity: FragmentActivity,
     private val title: () -> String,
     private val onUnlocked: () -> Unit,
+    private val show: (String, (UnlockResult) -> Unit) -> Unit,
 ) {
+    constructor(activity: FragmentActivity, title: () -> String, onUnlocked: () -> Unit) :
+        this(title, onUnlocked, { t, cb -> DeviceUnlock.prompt(activity, t, cb) })
+
     private var inFlight = false
-    private var promptOnResume = true
+    private var skipNextResume = false
 
     fun prompt() {
         if (inFlight) return
         inFlight = true
-        promptOnResume = false
-        DeviceUnlock.prompt(activity, title()) { passed ->
+        show(title()) { result ->
             inFlight = false
-            if (passed) {
-                promptOnResume = true
-                onUnlocked()
+            when (result) {
+                UnlockResult.PASSED -> onUnlocked()
+                UnlockResult.CANCELLED -> skipNextResume = true
+                UnlockResult.FAILED -> Unit
             }
         }
     }
 
     /** Call from the activity's onResume while locked. */
     fun onResume() {
-        if (promptOnResume) prompt()
+        if (skipNextResume) {
+            skipNextResume = false
+            return
+        }
+        prompt()
     }
 
-    /** Call from the activity's onStop; a stop caused by our own prompt does not arm a re-prompt. */
+    /** Call from the activity's onStop. A stop with no prompt open means the user left on their own. */
     fun onStop() {
-        if (!inFlight) promptOnResume = true
+        if (!inFlight) skipNextResume = false
     }
 }

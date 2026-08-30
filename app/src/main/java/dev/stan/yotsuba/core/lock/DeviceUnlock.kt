@@ -23,6 +23,9 @@ import androidx.fragment.app.FragmentActivity
  * API 28 the library draws its own fingerprint dialog with AppCompat widgets, which the
  * app's platform theme cannot inflate.
  */
+/** How a prompt ended. [CANCELLED] is the user backing out; [FAILED] is everything else. */
+enum class UnlockResult { PASSED, CANCELLED, FAILED }
+
 object DeviceUnlock {
     private const val AUTHENTICATORS = BIOMETRIC_WEAK or DEVICE_CREDENTIAL
     private const val KEYGUARD_RESULT_KEY = "dev.stan.yotsuba.core.lock.keyguard"
@@ -35,15 +38,21 @@ object DeviceUnlock {
         }
 
     /**
-     * Shows the system prompt. [onResult] is called once, on the main thread, with true only
-     * for a passed unlock; a cancel, a lockout or a missing credential all count as false.
+     * Shows the system prompt. [onResult] is called once, on the main thread. A cancel by the
+     * user is reported apart from a timeout, a lockout or the system dismissing the prompt,
+     * because only the user's own cancel should stop the app asking again on the next resume.
      * No negative button: the library forbids one when device credentials are allowed.
      */
-    fun prompt(activity: FragmentActivity, title: String, onResult: (Boolean) -> Unit) {
+    fun prompt(activity: FragmentActivity, title: String, onResult: (UnlockResult) -> Unit) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return promptWithKeyguard(activity, title, onResult)
         val callback = object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onResult(true)
-            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) = onResult(false)
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onResult(UnlockResult.PASSED)
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) = onResult(
+                when (errorCode) {
+                    BiometricPrompt.ERROR_USER_CANCELED, BiometricPrompt.ERROR_NEGATIVE_BUTTON -> UnlockResult.CANCELLED
+                    else -> UnlockResult.FAILED
+                },
+            )
             // A single failed attempt keeps the prompt open; only the error ends it.
             override fun onAuthenticationFailed() {}
         }
@@ -55,15 +64,15 @@ object DeviceUnlock {
     }
 
     @Suppress("DEPRECATION") // The replacement is BiometricPrompt, which is what API 28+ uses.
-    private fun promptWithKeyguard(activity: FragmentActivity, title: String, onResult: (Boolean) -> Unit) {
+    private fun promptWithKeyguard(activity: FragmentActivity, title: String, onResult: (UnlockResult) -> Unit) {
         val keyguard = activity.getSystemService(KeyguardManager::class.java)
-        val intent = keyguard?.createConfirmDeviceCredentialIntent(title, null) ?: return onResult(false)
+        val intent = keyguard?.createConfirmDeviceCredentialIntent(title, null) ?: return onResult(UnlockResult.FAILED)
         var launcher: ActivityResultLauncher<Intent>? = null
         launcher = activity.activityResultRegistry.register(
             KEYGUARD_RESULT_KEY, ActivityResultContracts.StartActivityForResult(),
         ) { result ->
             launcher?.unregister()
-            onResult(result.resultCode == Activity.RESULT_OK)
+            onResult(if (result.resultCode == Activity.RESULT_OK) UnlockResult.PASSED else UnlockResult.CANCELLED)
         }
         launcher.launch(intent)
     }

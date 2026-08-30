@@ -14,6 +14,7 @@ import dev.stan.yotsuba.core.designsystem.component.ChipRow
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
 import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.core.lock.DeviceUnlock
+import dev.stan.yotsuba.core.lock.UnlockResult
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.appLockDelayLabel
 
@@ -47,8 +48,8 @@ fun PrivacySection(
             } else {
                 // Turning it on means passing the prompt once, so nobody locks themselves out
                 // behind an unlock they cannot pass.
-                DeviceUnlock.prompt(activity, confirmTitle) { passed ->
-                    if (passed) update { it.copy(appLock = true) } else showMessage(notConfirmed)
+                DeviceUnlock.prompt(activity, confirmTitle) { result ->
+                    if (result == UnlockResult.PASSED) update { it.copy(appLock = true) } else showMessage(notConfirmed)
                 }
             }
         },
