@@ -123,12 +123,15 @@ class MediaViewModel @AssistedInject constructor(
             // The board lookup can hit the network on a cold cache; it has nothing to
             // wait for, so it runs beside the thread fetch.
             val info = async { boardRepository.board(board) }
-            // Live wins. The saved snapshot is the fallback for a pruned, 404'd or
-            // offline thread, so a vault item still opens with its conversation intact.
+            // Same order as the thread screen: live wins, then the vault snapshot (works
+            // offline and is what the user chose to keep), then, once 4chan says the
+            // thread is gone, a third-party archive. Archive media URLs point at the
+            // archive's own image host; Coil and the byte source load any https URL, so
+            // nothing downstream needs to know which host answered.
             val r = threadRepository.thread(board, threadNo)
             val loaded = when (r) {
                 is DataResult.Success -> r.value
-                is DataResult.Failure -> mediaVault.savedThread(board, threadNo)
+                is DataResult.Failure -> mediaVault.savedThread(board, threadNo) ?: archived(r)
             }
             boardInfo.value = info.await()
             source.value = when {
@@ -137,6 +140,12 @@ class MediaViewModel @AssistedInject constructor(
                 else -> Source.Failed(NetworkError.Unknown())
             }
         }
+    }
+
+    /** The archive's copy, only once 4chan has answered 404; any other failure is reported as is. */
+    private suspend fun archived(failure: DataResult.Failure): ThreadDetails? {
+        if (failure.error != NetworkError.NotFound) return null
+        return (threadRepository.archivedThread(board, threadNo) as? DataResult.Success)?.value
     }
 
     /** Persisted saves, storage access and the in-flight queue, grouped so the combine below stays at five flows. */
