@@ -164,6 +164,8 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 val file = File(entity.absolutePath)
                 val dir = file.parentFile
                 file.delete()
+                // Images have no still; a missing one is nothing to report.
+                VideoStills.stillFor(file).delete()
                 if (dir != null) {
                     store.lock.withLock {
                         store.updateMeta(dir) { it.remove(file.name) }
@@ -226,9 +228,12 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     override suspend fun purgeTrash() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess()) return@withContext
-        val dirs = trashed.values.map { it.dir }.toSet()
+        val items = trashed.values.toList()
         trashed.clear()
         File(store.root, VaultPaths.TRASH_DIR_NAME).deleteRecursively()
+        // Stills stay at the file's original spot while an undo is possible; this is where they go.
+        items.forEach { VideoStills.stillFor(File(it.entity.absolutePath)).delete() }
+        val dirs = items.map { it.dir }.toSet()
         store.lock.withLock { dirs.forEach { if (it.isDirectory) store.pruneIfEmpty(it) } }
     }
 
@@ -376,8 +381,8 @@ class MediaVaultRepositoryImpl @Inject constructor(
         skip: Set<VaultLocation>,
     ): VaultSyncSummary = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext VaultSyncSummary()
-        val targets = savedThreads().filterNot { VaultLocation(it.board, it.threadNo) in skip }
-        runPass(targets.map { VaultLocation(it.board, it.threadNo) }, onProgress) { location, thread ->
+        val targets = savedThreads().filterNot { it in skip }
+        runPass(targets, onProgress) { location, thread ->
             val dir = store.threadDir(location.board, location.threadNo) ?: return@runPass
             // The whole comment section, not just the conversation around what was
             // saved: while the thread is alive this is the only chance to take it.
@@ -447,18 +452,25 @@ class MediaVaultRepositoryImpl @Inject constructor(
         var failed = 0
         var pruned = 0
         var rateLimited = false
+        val touched = mutableSetOf<VaultLocation>()
 
         for ((index, target) in targets.withIndex()) {
             when (val result = threadRepository.thread(target.board, target.threadNo, forceRefresh = true)) {
                 is DataResult.Success -> {
                     val outcome = attempt { store.lock.withLock { apply(target, result.value) } }
-                    if (outcome == null) updated++ else failed++
+                    if (outcome == null) {
+                        updated++
+                        touched += target
+                    } else {
+                        failed++
+                    }
                 }
                 is DataResult.Failure -> when (result.error) {
                     // Already gone. Whatever was captured before is all there will ever be,
                     // so this is the one moment the sidecar can be compacted.
                     NetworkError.NotFound -> {
                         gone++
+                        touched += target
                         if (store.lock.withLock { pruneIfDead(target.board, target.threadNo) }) pruned++
                     }
                     // Backing off is the whole point of a rate limit; finish another day.
@@ -471,7 +483,10 @@ class MediaVaultRepositoryImpl @Inject constructor(
             onProgress(index + 1, targets.size)
             if (rateLimited) break
         }
-        return VaultSyncSummary(updated = updated, gone = gone, failed = failed, pruned = pruned, rateLimited = rateLimited)
+        return VaultSyncSummary(
+            updated = updated, gone = gone, failed = failed, pruned = pruned, rateLimited = rateLimited,
+            touched = touched,
+        )
     }
 
     /** Under the store lock. True when the thread's sidecar was compacted this time. */
@@ -482,16 +497,13 @@ class MediaVaultRepositoryImpl @Inject constructor(
     }
 
     /** Saved threads that have an upstream to sync against; local imports and pruned threads do not. */
-    private fun savedThreads(): List<SavedThreadDir> =
-        store.threadMetas().mapNotNull { (dir, meta) ->
+    private fun savedThreads(): List<VaultLocation> =
+        store.threadMetas().mapNotNull { (_, meta) ->
             if (meta.isPruned) return@mapNotNull null
             val threadNo = meta.threadNo ?: return@mapNotNull null
             val board = meta.board.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            if (!VaultLocation(board, threadNo).isRemote) return@mapNotNull null
-            SavedThreadDir(dir, board, threadNo)
+            VaultLocation(board, threadNo).takeIf { it.isRemote }
         }
-
-    private data class SavedThreadDir(val dir: File, val board: String, val threadNo: Long)
 
     override suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? =
         withContext(Dispatchers.IO) {
@@ -524,17 +536,27 @@ class MediaVaultRepositoryImpl @Inject constructor(
         attempt {
             store.lock.withLock {
                 val fromMeta = store.updateMeta(from) { it }
-                for (f in fromMeta.files) {
-                    val source = File(from, f.fileName)
-                    if (!source.isFile) continue
-                    val target = store.uniqueFile(into, f.fileName)
-                    if (!store.moveFile(source, target)) throw java.io.IOException("Couldn't move ${f.fileName}")
-                    val still = VideoStills.stillFor(source)
-                    if (still.isFile) {
-                        VideoStills.stillFor(target).let { it.parentFile?.mkdirs(); store.moveFile(still, it) }
+                // Original name -> entry under its (possibly deduped) new name. Both sidecars
+                // are written once, after the moves; a failed move still records what got
+                // across so no moved file is left unindexed.
+                val moved = mutableMapOf<String, VaultFileMeta>()
+                try {
+                    for (f in fromMeta.files) {
+                        val source = File(from, f.fileName)
+                        if (!source.isFile) continue
+                        val target = store.uniqueFile(into, f.fileName)
+                        if (!store.moveFile(source, target)) throw java.io.IOException("Couldn't move ${f.fileName}")
+                        val still = VideoStills.stillFor(source)
+                        if (still.isFile) {
+                            VideoStills.stillFor(target).let { it.parentFile?.mkdirs(); store.moveFile(still, it) }
+                        }
+                        moved[f.fileName] = f.copy(fileName = target.name)
                     }
-                    store.updateMeta(into) { it.upsert(f.copy(fileName = target.name)) }
-                    store.updateMeta(from) { it.remove(f.fileName) }
+                } finally {
+                    if (moved.isNotEmpty()) {
+                        store.updateMeta(into) { moved.values.fold(it) { acc, m -> acc.upsert(m) } }
+                        store.updateMeta(from) { moved.keys.fold(it) { acc, name -> acc.remove(name) } }
+                    }
                 }
                 store.readPosts(from)?.let { posts ->
                     store.updatePosts(into, intoBoard, intoThreadNo, posts.posts)
@@ -548,6 +570,9 @@ class MediaVaultRepositoryImpl @Inject constructor(
 
     override suspend fun rescan() = withContext(Dispatchers.IO) {
         if (!hasStorageAccess() || !store.root.isDirectory) return@withContext
+        // The sidecars never held the hashes, so the old rows are the only copy. Room call,
+        // kept outside the store lock.
+        val previous = savedMediaDao.allOnce()
         val rebuilt = store.lock.withLock {
             store.threadMetas().flatMap { (dir, meta) ->
                 meta.files.mapNotNull { f ->
@@ -555,23 +580,21 @@ class MediaVaultRepositoryImpl @Inject constructor(
                     if (file.isFile) savedMediaEntity(meta, f, file) else null
                 }
             }
-        }
+        }.withHashesFrom(previous)
         savedMediaDao.replaceAll(rebuilt)
         // Stills for videos saved before there were any. Decoding is slow, so it happens
         // after the index is usable and each row lands as its still does.
         for (row in rebuilt) {
-            if (row.thumbnailPath != null || !isVideo(row.ext)) continue
+            if (row.thumbnailPath != null || !isVideoExt(row.ext.orEmpty())) continue
             val still = captureStill(File(row.absolutePath)) ?: continue
             savedMediaDao.insert(row.copy(thumbnailPath = still.file.absolutePath, durationMs = still.durationMs))
             recordDuration(File(row.absolutePath), still.durationMs)
         }
     }
 
-    private fun isVideo(ext: String?) = ext == ".webm" || ext == ".mp4"
-
     /** A still and duration for a video; nothing for anything else, or when decoding fails. */
     private fun captureStill(file: File): VideoStills.Still? =
-        if (isVideo(VaultPaths.extensionOf(file.name))) VideoStills.capture(file) else null
+        if (isVideoExt(VaultPaths.extensionOf(file.name))) VideoStills.capture(file) else null
 
     /** Writes a duration learned during rescan back into the sidecar, so the next rescan has it. */
     private suspend fun recordDuration(file: File, durationMs: Long?) {

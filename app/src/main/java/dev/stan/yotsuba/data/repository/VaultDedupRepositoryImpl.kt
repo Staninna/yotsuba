@@ -6,6 +6,7 @@ import dev.stan.yotsuba.core.dedup.DHash
 import dev.stan.yotsuba.core.dedup.Grouping
 import dev.stan.yotsuba.core.dedup.Keeper
 import dev.stan.yotsuba.core.dedup.Md5
+import dev.stan.yotsuba.core.media.isVideoExt
 import dev.stan.yotsuba.domain.model.DedupMode
 import dev.stan.yotsuba.domain.model.DuplicateEntry
 import dev.stan.yotsuba.domain.model.DuplicateGroup
@@ -71,7 +72,7 @@ class VaultDedupRepositoryImpl @Inject constructor(
             }.sortedByDescending { it.redundantBytes }
         }
 
-    private fun isVideo(row: SavedMediaEntity) = row.ext == ".webm" || row.ext == ".mp4"
+    private fun isVideo(row: SavedMediaEntity) = isVideoExt(row.ext.orEmpty())
 
     private fun SavedMediaEntity.toDuplicateEntry() = DuplicateEntry(
         url = url,

@@ -59,6 +59,21 @@ fun savedMediaEntity(meta: VaultThreadMeta, f: VaultFileMeta, file: File): Saved
         durationMs = f.durationMs,
     )
 
+/**
+ * Rebuilt rows with the md5/phash/pixelSize their [previous] rows had. A sidecar carries no
+ * hash, so a rescan would otherwise wipe every one and dedup would start from scratch. Path
+ * first; URL for a file whose directory moved under it (merge, rename), whose path is new.
+ */
+fun List<SavedMediaEntity>.withHashesFrom(previous: List<SavedMediaEntity>): List<SavedMediaEntity> {
+    if (previous.isEmpty()) return this
+    val byPath = previous.filter { it.absolutePath.isNotEmpty() }.associateBy { it.absolutePath }
+    val byUrl = previous.associateBy { it.url }
+    return map { row ->
+        val old = byPath[row.absolutePath] ?: byUrl[row.url] ?: return@map row
+        row.copy(md5 = old.md5, phash = old.phash, pixelSize = old.pixelSize)
+    }
+}
+
 /** A migrated legacy file no thread could be matched for, filed under `_unsorted/`. */
 fun unsortedSavedMediaEntity(target: File, savedAt: Long): SavedMediaEntity = SavedMediaEntity(
     url = "file://${target.absolutePath}",
@@ -95,11 +110,7 @@ fun urlOnlySavedMediaEntity(url: String, downloadedAt: Long): SavedMediaEntity =
 
 fun SavedMediaEntity.toVaultEntry(): VaultEntry = VaultEntry(
     url = url,
-    location = if (board != null && board != VaultPaths.UNSORTED_DIR_NAME && threadNo != null) {
-        VaultLocation(board = board!!, threadNo = threadNo!!)
-    } else {
-        VaultLocation.Unsorted
-    },
+    location = location(),
     subject = subject,
     postNo = postNo,
     displayName = displayName,
@@ -113,3 +124,10 @@ fun SavedMediaEntity.toVaultEntry(): VaultEntry = VaultEntry(
     localThumbnailPath = thumbnailPath,
     durationMs = durationMs,
 )
+
+/** Legacy rows keep the unsorted marker in their columns; the domain has one value for it. */
+private fun SavedMediaEntity.location(): VaultLocation {
+    val b = board ?: return VaultLocation.Unsorted
+    val t = threadNo ?: return VaultLocation.Unsorted
+    return VaultLocation(b, t).takeUnless { it.isUnsorted } ?: VaultLocation.Unsorted
+}
