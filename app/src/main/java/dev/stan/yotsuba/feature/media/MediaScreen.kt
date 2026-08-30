@@ -43,8 +43,8 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.OnResumeEffect
+import dev.stan.yotsuba.core.designsystem.component.errorMessage
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
-import dev.stan.yotsuba.core.util.NetworkError
 import dev.stan.yotsuba.domain.model.MediaItem
 import java.io.File
 import kotlinx.coroutines.launch
@@ -211,16 +211,6 @@ private fun ViewerPlaceholder(onClose: () -> Unit, content: @Composable ColumnSc
             Icon(Icons.Filled.Close, stringResource(R.string.media_close), tint = Color.White)
         }
     }
-}
-
-@Composable
-private fun errorMessage(error: NetworkError): String = when (error) {
-    NetworkError.Offline -> stringResource(R.string.error_offline)
-    NetworkError.Timeout -> stringResource(R.string.error_timeout)
-    NetworkError.RateLimited -> stringResource(R.string.error_rate_limited)
-    NetworkError.NotFound -> stringResource(R.string.error_not_found)
-    is NetworkError.Server -> stringResource(R.string.error_server, error.code)
-    is NetworkError.Unknown -> stringResource(R.string.error_unknown)
 }
 
 private fun MediaItem.toViewerPage(context: Context, state: MediaUiState): ViewerPage {
