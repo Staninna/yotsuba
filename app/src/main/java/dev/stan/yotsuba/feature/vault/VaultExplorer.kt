@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.vault
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -338,65 +339,72 @@ internal fun VaultChipRow(
     onAudio: (VaultAudio) -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    FlowRow(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = spacing.md, vertical = spacing.xs),
-        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(spacing.xs),
-        itemVerticalAlignment = Alignment.CenterVertically,
-    ) {
-        var sortMenu by remember { mutableStateOf(false) }
-        Box {
-            FilterChip(
-                selected = true,
-                onClick = { sortMenu = true },
-                label = { Text(stringResource(sort.labelRes)) },
-                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
-                trailingIcon = {
-                    Icon(
-                        if (reversed) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
-                        contentDescription = stringResource(
-                            if (reversed) R.string.vault_sort_reversed else R.string.vault_sort_forward,
-                        ),
-                        modifier = Modifier.size(FilterChipDefaults.IconSize),
-                    )
-                },
-            )
-            DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
-                VaultSort.entries.forEach { option ->
+    Column(Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.xs)) {
+        FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+            verticalArrangement = Arrangement.spacedBy(spacing.xs),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            var sortMenu by remember { mutableStateOf(false) }
+            Box {
+                FilterChip(
+                    selected = true,
+                    onClick = { sortMenu = true },
+                    label = { Text(stringResource(sort.labelRes)) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
+                    trailingIcon = {
+                        Icon(
+                            if (reversed) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                            contentDescription = stringResource(
+                                if (reversed) R.string.vault_sort_reversed else R.string.vault_sort_forward,
+                            ),
+                            modifier = Modifier.size(FilterChipDefaults.IconSize),
+                        )
+                    },
+                )
+                DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                    VaultSort.entries.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(option.labelRes)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.Check,
+                                    contentDescription = null,
+                                    tint = if (option == sort) LocalContentColor.current else Color.Transparent,
+                                )
+                            },
+                            onClick = { sortMenu = false; onSort(option) },
+                        )
+                    }
+                    HorizontalDivider()
                     DropdownMenuItem(
-                        text = { Text(stringResource(option.labelRes)) },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Filled.Check,
-                                contentDescription = null,
-                                tint = if (option == sort) LocalContentColor.current else Color.Transparent,
-                            )
-                        },
-                        onClick = { sortMenu = false; onSort(option) },
+                        text = { Text(stringResource(R.string.vault_sort_reverse_order)) },
+                        leadingIcon = { Icon(Icons.Filled.SwapVert, contentDescription = null) },
+                        trailingIcon = { Checkbox(checked = reversed, onCheckedChange = null) },
+                        onClick = { sortMenu = false; onToggleReversed() },
                     )
                 }
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.vault_sort_reverse_order)) },
-                    leadingIcon = { Icon(Icons.Filled.SwapVert, contentDescription = null) },
-                    trailingIcon = { Checkbox(checked = reversed, onCheckedChange = null) },
-                    onClick = { sortMenu = false; onToggleReversed() },
+            }
+            // The icon is the label, so the selected tick is switched off.
+            EnumSegmentedRow(options = VaultFilter.entries, selected = filter, onSelect = onFilter, icon = {}) { option ->
+                Icon(
+                    option.icon,
+                    contentDescription = stringResource(option.labelRes),
+                    modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
                 )
             }
         }
-        // The icon is the label, so the selected tick is switched off.
-        EnumSegmentedRow(options = VaultFilter.entries, selected = filter, onSelect = onFilter, icon = {}) { option ->
-            Icon(
-                option.icon,
-                contentDescription = stringResource(option.labelRes),
-                modifier = Modifier.size(SegmentedButtonDefaults.IconSize),
-            )
-        }
-        if (filter == VaultFilter.VIDEOS) {
-            EnumSegmentedRow(options = VaultAudio.entries, selected = audio, onSelect = onAudio) { option ->
-                Text(stringResource(option.labelRes))
+        // The sort chip and the five filter icons already fill a phone's width, so the sound
+        // narrowing gets a line of its own rather than wrapping into whatever is left over.
+        AnimatedVisibility(filter == VaultFilter.VIDEOS) {
+            EnumSegmentedRow(
+                options = VaultAudio.entries,
+                selected = audio,
+                onSelect = onAudio,
+                modifier = Modifier.fillMaxWidth().padding(top = spacing.xs),
+            ) { option ->
+                Text(stringResource(option.labelRes), maxLines = 1)
             }
         }
     }
