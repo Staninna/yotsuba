@@ -9,7 +9,6 @@ import dev.stan.yotsuba.core.database.dao.DownloadedMediaDao
 import dev.stan.yotsuba.core.database.dao.HistoryDao
 import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.util.DataResult
-import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.core.vault.VaultFileMeta
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.domain.model.ThreadPost
@@ -103,25 +102,13 @@ class VaultLegacyMigration @Inject constructor(
 
     private suspend fun migrateMatched(file: File, match: Match, savedAt: Long): Boolean {
         val item = match.post.presentMedia!!
-        val dir = File(
-            File(store.root, VaultPaths.sanitizeSegment(match.board)),
-            VaultPaths.threadDirName(match.threadNo, match.subject),
-        ).apply { mkdirs() }
+        val dir = store.threadDirFor(match.board, match.threadNo, match.subject).apply { mkdirs() }
         val target = store.uniqueFile(dir, VaultPaths.fileName(item.postNo, item.filename, item.ext))
         if (!store.moveFile(file, target)) return false
-        store.lock.withLock {
-            store.updateMeta(dir) { meta ->
-                meta.copy(
-                    board = match.board,
-                    threadNo = match.threadNo,
-                    subject = match.subject,
-                    threadUrl = Urls.threadWebUrl(match.board, match.threadNo),
-                ).upsert(store.fileMetaOf(target.name, item, match.post, savedAt))
-            }
+        val row = store.lock.withLock {
+            store.recordSavedFile(dir, match.board, match.threadNo, match.subject, target, item, match.post, savedAt)
         }
-        savedMediaDao.insert(
-            savedMediaEntity(item, match.board, match.threadNo, match.subject, target, savedAt),
-        )
+        savedMediaDao.insert(row)
         return true
     }
 

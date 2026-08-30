@@ -17,12 +17,12 @@ import dev.stan.yotsuba.core.database.dao.SavedMediaDao
 import dev.stan.yotsuba.core.media.MediaByteSource
 import dev.stan.yotsuba.core.media.isVideoExt
 import dev.stan.yotsuba.core.media.mimeOf
-import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.core.text.PostSegment
 import dev.stan.yotsuba.core.text.PostText
 import dev.stan.yotsuba.core.vault.VaultPostFile
 import dev.stan.yotsuba.core.vault.VaultPostMeta
 import dev.stan.yotsuba.core.vault.VaultFileMeta
+import dev.stan.yotsuba.core.vault.VaultThreadMeta
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import dev.stan.yotsuba.core.vault.VaultPaths
 import dev.stan.yotsuba.core.vault.VideoStills
@@ -99,11 +99,8 @@ class MediaVaultRepositoryImpl @Inject constructor(
             if (!hasStorageAccess()) return@withContext VaultError.NoAccess
             attempt {
                 store.ensureRoot()
-                val dir = File(
-                    File(store.root, VaultPaths.sanitizeSegment(saveContext.board)),
-                    VaultPaths.threadDirName(
-                        saveContext.threadNo, saveContext.threadSubject, saveContext.opExcerpt,
-                    ),
+                val dir = store.threadDirFor(
+                    saveContext.board, saveContext.threadNo, saveContext.threadSubject, saveContext.opExcerpt,
                 ).apply { mkdirs() }
 
                 val target = store.uniqueFile(
@@ -113,18 +110,11 @@ class MediaVaultRepositoryImpl @Inject constructor(
                 val still = captureStill(target)
 
                 val savedAt = System.currentTimeMillis()
-                store.lock.withLock {
-                    store.updateMeta(dir) { meta ->
-                        meta.copy(
-                            board = saveContext.board,
-                            threadNo = saveContext.threadNo,
-                            subject = saveContext.threadSubject,
-                            threadUrl = Urls.threadWebUrl(saveContext.board, saveContext.threadNo),
-                        ).upsert(
-                            store.fileMetaOf(target.name, item, saveContext.post, savedAt)
-                                .copy(durationMs = still?.durationMs),
-                        )
-                    }
+                val row = store.lock.withLock {
+                    val row = store.recordSavedFile(
+                        dir, saveContext.board, saveContext.threadNo, saveContext.threadSubject,
+                        target, item, saveContext.post, savedAt, still,
+                    )
                     // Same lock as meta.json. The two writes are not one transaction, but
                     // each is atomic and a missing posts.json already means "no snapshot",
                     // so a crash between them degrades to exactly the pre-existing state.
@@ -134,14 +124,9 @@ class MediaVaultRepositoryImpl @Inject constructor(
                         threadNo = saveContext.threadNo,
                         incoming = saveContext.conversation.map { it.toVaultMeta() },
                     )
+                    row
                 }
-                savedMediaDao.insert(
-                    savedMediaEntity(
-                        item, saveContext.board, saveContext.threadNo,
-                        saveContext.threadSubject, target, savedAt,
-                        thumbnailPath = still?.file?.absolutePath, durationMs = still?.durationMs,
-                    ),
-                )
+                savedMediaDao.insert(row)
             }
         }
 
@@ -296,10 +281,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
             // outside the range of any real post number on the board it shares a namespace
             // with -- which is none, since _local is ours.
             val threadNo = System.currentTimeMillis()
-            val dir = File(
-                File(store.root, VaultPaths.LOCAL_BOARD_NAME),
-                VaultPaths.threadDirName(threadNo, name),
-            ).apply { mkdirs() }
+            val dir = store.threadDirFor(VaultPaths.LOCAL_BOARD_NAME, threadNo, name).apply { mkdirs() }
 
             // Every file is a post of its own, numbered in pick order. No CDN URL exists, so
             // the file's own path is its key -- the same scheme rescan already uses for
@@ -531,7 +513,7 @@ class MediaVaultRepositoryImpl @Inject constructor(
         val into = store.threadDir(intoBoard, intoThreadNo) ?: return@withContext VaultError.NotFound
         attempt {
             store.lock.withLock {
-                val fromMeta = store.updateMeta(from) { it }
+                val fromMeta = store.readMeta(from) ?: VaultThreadMeta(board = fromBoard)
                 // Original name -> entry under its (possibly deduped) new name. Both sidecars
                 // are written once, after the moves; a failed move still records what got
                 // across so no moved file is left unindexed.
