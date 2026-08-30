@@ -21,6 +21,7 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.repository.BackupInfo
 import dev.stan.yotsuba.domain.repository.BackupResult
+import dev.stan.yotsuba.feature.settings.ClearResult
 import java.text.DateFormat
 import java.util.Date
 
@@ -28,40 +29,37 @@ import java.util.Date
 fun StorageSection(
     settings: Settings,
     update: ((Settings) -> Settings) -> Unit,
+    restoreAvailable: BackupInfo?,
+    backupResult: BackupResult?,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
+    onDismissRestore: () -> Unit,
+    onBackupResultShown: () -> Unit,
+    backupBusy: Boolean,
+    clearResult: ClearResult?,
+    onClearResultShown: () -> Unit,
     onClearCache: () -> Unit,
     onClearHistory: () -> Unit,
     onClearBookmarks: () -> Unit,
+    onClearTrustedDomains: () -> Unit,
     confirmThen: (Int, () -> Unit) -> Unit,
     showMessage: (String) -> Unit,
-    restoreAvailable: BackupInfo? = null,
-    backupResult: BackupResult? = null,
-    onExportBackup: () -> Unit = {},
-    onImportBackup: () -> Unit = {},
-    onDismissRestore: () -> Unit = {},
-    onBackupResultShown: () -> Unit = {},
 ) {
-    val cleared = stringResource(R.string.settings_cleared)
-
-    fun clear(bodyRes: Int, action: () -> Unit) = confirmThen(bodyRes) {
-        action()
-        showMessage(cleared)
-    }
-
     restoreAvailable?.let { info ->
         RestoreCard(info, onRestore = onImportBackup, onDismiss = onDismissRestore)
     }
 
     TextRow(stringResource(R.string.settings_clear_cache)) {
-        clear(R.string.settings_confirm_clear_cache_body, onClearCache)
+        confirmThen(R.string.settings_confirm_clear_cache_body, onClearCache)
     }
     TextRow(stringResource(R.string.settings_clear_history)) {
-        clear(R.string.settings_confirm_clear_history_body, onClearHistory)
+        confirmThen(R.string.settings_confirm_clear_history_body, onClearHistory)
     }
     TextRow(stringResource(R.string.settings_clear_bookmarks)) {
-        clear(R.string.settings_confirm_clear_bookmarks_body, onClearBookmarks)
+        confirmThen(R.string.settings_confirm_clear_bookmarks_body, onClearBookmarks)
     }
     TextRow(stringResource(R.string.settings_clear_trusted)) {
-        clear(R.string.settings_confirm_clear_trusted_body) { update { it.copy(trustedDomains = emptySet()) } }
+        confirmThen(R.string.settings_confirm_clear_trusted_body, onClearTrustedDomains)
     }
     SwitchRow(
         title = stringResource(R.string.settings_confirm_vault_delete),
@@ -89,20 +87,30 @@ fun StorageSection(
     TextRow(
         title = stringResource(R.string.backup_export_now),
         summary = stringResource(R.string.backup_export_summary),
+        enabled = !backupBusy,
         onClick = onExportBackup,
     )
     TextRow(
         title = stringResource(R.string.backup_import),
         summary = stringResource(R.string.backup_import_summary),
+        enabled = !backupBusy,
     ) {
         confirmThen(R.string.backup_confirm_import_body, onImportBackup)
     }
 
-    val message = backupResult?.let { resultMessage(it) }
+    // Snackbars fire when the work has finished, not when the row was tapped.
+    val backupMessage = backupResult?.let { resultMessage(it) }
     LaunchedEffect(backupResult) {
-        if (message != null) {
-            showMessage(message)
+        if (backupMessage != null) {
+            showMessage(backupMessage)
             onBackupResultShown()
+        }
+    }
+    val clearMessage = clearResult?.let { resultMessage(it) }
+    LaunchedEffect(clearResult) {
+        if (clearMessage != null) {
+            showMessage(clearMessage)
+            onClearResultShown()
         }
     }
 }
@@ -140,6 +148,12 @@ private fun resultMessage(result: BackupResult): String = when (result) {
     BackupResult.NoAccess -> stringResource(R.string.backup_no_access)
     BackupResult.NoBackup -> stringResource(R.string.backup_none_found)
     is BackupResult.Failed -> stringResource(R.string.backup_failed, result.message)
+}
+
+@Composable
+private fun resultMessage(result: ClearResult): String = when (result) {
+    ClearResult.Done -> stringResource(R.string.settings_cleared)
+    is ClearResult.Failed -> stringResource(R.string.settings_clear_failed, result.message)
 }
 
 private fun formatDate(epochMillis: Long): String =

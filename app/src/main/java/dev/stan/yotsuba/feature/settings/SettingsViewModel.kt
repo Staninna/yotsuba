@@ -26,6 +26,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
+
+/** How a clear-* action ended, so the snackbar reports the work rather than the tap. */
+sealed interface ClearResult {
+    data object Done : ClearResult
+    data class Failed(val message: String) : ClearResult
+}
 
 data class SettingsUiState(
     val settings: Settings = Settings(),
@@ -42,7 +49,7 @@ class SettingsViewModel @Inject constructor(
     private val boardRepository: BoardRepository,
     private val maintenanceRepository: MaintenanceRepository,
     private val updater: Updater,
-    private val backupRepository: BackupRepository = BackupRepository.None,
+    private val backupRepository: BackupRepository,
 ) : ViewModel() {
 
     private val _restoreAvailable = MutableStateFlow<BackupInfo?>(null)
@@ -55,17 +62,40 @@ class SettingsViewModel @Inject constructor(
     /** The last manual export or import outcome, cleared by [onBackupResultShown]. */
     val backupResult: StateFlow<BackupResult?> = _backupResult.asStateFlow()
 
-    init {
+    private var restoreProbed = false
+
+    /**
+     * Looks for a restorable backup the first time the Storage section is on screen. Only that
+     * section can show the result, so the other sections never pay for the shared-storage read,
+     * and a dismissed banner stays dismissed for the life of this ViewModel.
+     */
+    fun onStorageSectionShown() {
+        if (restoreProbed) return
+        restoreProbed = true
         viewModelScope.launch {
             if (backupRepository.isFreshInstall()) _restoreAvailable.value = backupRepository.available()
         }
     }
 
-    fun onExportBackup() = viewModelScope.launch { _backupResult.value = backupRepository.export() }
+    private val _backupBusy = MutableStateFlow(false)
 
-    fun onImportBackup() = viewModelScope.launch {
-        _backupResult.value = backupRepository.import()
-        _restoreAvailable.value = null
+    /** True while an export or import is running, so the rows can refuse a second tap. */
+    val backupBusy: StateFlow<Boolean> = _backupBusy.asStateFlow()
+
+    fun onExportBackup() = backup { backupRepository.export() }
+
+    fun onImportBackup() = backup {
+        backupRepository.import().also { _restoreAvailable.value = null }
+    }
+
+    private fun backup(run: suspend () -> BackupResult) = viewModelScope.launch {
+        if (_backupBusy.value) return@launch
+        _backupBusy.value = true
+        try {
+            _backupResult.value = run()
+        } finally {
+            _backupBusy.value = false
+        }
     }
 
     fun onDismissRestore() { _restoreAvailable.value = null }
@@ -103,9 +133,28 @@ class SettingsViewModel @Inject constructor(
         settingsRepository.update { it.copy(hiddenBoards = it.hiddenBoards + nsfw) }
     }
 
-    fun onClearCache() = viewModelScope.launch { maintenanceRepository.clearCaches() }
-    fun onClearHistory() = viewModelScope.launch { historyRepository.clearAll() }
-    fun onClearBookmarks() = viewModelScope.launch { bookmarkRepository.clearAll() }
+    private val _clearResult = MutableStateFlow<ClearResult?>(null)
+
+    /** The last clear-* outcome, cleared by [onClearResultShown]. */
+    val clearResult: StateFlow<ClearResult?> = _clearResult.asStateFlow()
+
+    fun onClearResultShown() { _clearResult.value = null }
+
+    fun onClearCache() = clearing { maintenanceRepository.clearCaches() }
+    fun onClearHistory() = clearing { historyRepository.clearAll() }
+    fun onClearBookmarks() = clearing { bookmarkRepository.clearAll() }
+    fun onClearTrustedDomains() = clearing { settingsRepository.update { it.copy(trustedDomains = emptySet()) } }
+
+    private fun clearing(work: suspend () -> Unit) = viewModelScope.launch {
+        _clearResult.value = try {
+            work()
+            ClearResult.Done
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ClearResult.Failed(e.message ?: e.javaClass.simpleName)
+        }
+    }
     fun onUnhideThread(hidden: HiddenThread) = viewModelScope.launch {
         hiddenThreadsRepository.unhide(hidden.board, hidden.threadNo)
     }

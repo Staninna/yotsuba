@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import dev.stan.yotsuba.feature.settings.sections.LinksSection
 import dev.stan.yotsuba.feature.settings.sections.MediaSection
 import dev.stan.yotsuba.feature.settings.sections.ReadingSection
 import dev.stan.yotsuba.feature.settings.sections.StorageSection
+import dev.stan.yotsuba.feature.settings.sections.UpdatesSection
 import dev.stan.yotsuba.navigation.SettingsSectionId
 import kotlinx.coroutines.launch
 
@@ -56,6 +58,8 @@ fun SettingsSectionScreen(
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val restoreAvailable by viewModel.restoreAvailable.collectAsStateWithLifecycle()
     val backupResult by viewModel.backupResult.collectAsStateWithLifecycle()
+    val backupBusy by viewModel.backupBusy.collectAsStateWithLifecycle()
+    val clearResult by viewModel.clearResult.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -97,21 +101,28 @@ fun SettingsSectionScreen(
                 )
                 SettingsSectionId.LINKS -> LinksSection(settings, update)
                 SettingsSectionId.FILTERS -> FiltersSection(settings, update, snackbar)
-                SettingsSectionId.STORAGE -> StorageSection(
-                    settings = settings,
-                    update = update,
-                    restoreAvailable = restoreAvailable,
-                    backupResult = backupResult,
-                    onExportBackup = viewModel::onExportBackup,
-                    onImportBackup = viewModel::onImportBackup,
-                    onDismissRestore = viewModel::onDismissRestore,
-                    onBackupResultShown = viewModel::onBackupResultShown,
-                    onClearCache = viewModel::onClearCache,
-                    onClearHistory = viewModel::onClearHistory,
-                    onClearBookmarks = viewModel::onClearBookmarks,
-                    confirmThen = confirmThen,
-                    showMessage = showMessage,
-                )
+                SettingsSectionId.STORAGE -> {
+                    LaunchedEffect(Unit) { viewModel.onStorageSectionShown() }
+                    StorageSection(
+                        settings = settings,
+                        update = update,
+                        restoreAvailable = restoreAvailable,
+                        backupResult = backupResult,
+                        onExportBackup = viewModel::onExportBackup,
+                        onImportBackup = viewModel::onImportBackup,
+                        onDismissRestore = viewModel::onDismissRestore,
+                        onBackupResultShown = viewModel::onBackupResultShown,
+                        backupBusy = backupBusy,
+                        clearResult = clearResult,
+                        onClearResultShown = viewModel::onClearResultShown,
+                        onClearCache = viewModel::onClearCache,
+                        onClearHistory = viewModel::onClearHistory,
+                        onClearBookmarks = viewModel::onClearBookmarks,
+                        onClearTrustedDomains = viewModel::onClearTrustedDomains,
+                        confirmThen = confirmThen,
+                        showMessage = showMessage,
+                    )
+                }
                 SettingsSectionId.UPDATES -> UpdatesSection(
                     state = updateState,
                     onCheck = viewModel::onCheckForUpdates,

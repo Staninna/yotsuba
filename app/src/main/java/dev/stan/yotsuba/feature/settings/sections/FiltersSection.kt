@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.settings.sections
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,9 +30,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +50,11 @@ import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterField
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.model.insertFilter
+import dev.stan.yotsuba.domain.model.removeFilter
+import dev.stan.yotsuba.domain.model.setFilterEnabled
+import dev.stan.yotsuba.domain.model.upsertFilter
+import dev.stan.yotsuba.feature.settings.labelRes
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -64,8 +72,10 @@ fun FiltersSection(
     val scope = rememberCoroutineScope()
     val deletedMessage = stringResource(R.string.filters_deleted)
     val undoLabel = stringResource(R.string.action_undo)
-    /** null = closed; a Filter with a fresh id = adding; an existing id = editing. */
-    var editing by remember { mutableStateOf<Filter?>(null) }
+    // Only the id survives rotation; the Filter itself is looked up (or, for an unsaved draft,
+    // rebuilt empty) so the dialog can stay open across configuration changes.
+    /** null = closed; a fresh id = adding; an existing id = editing. */
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
 
     if (settings.filters.isEmpty()) {
         Text(
@@ -77,28 +87,23 @@ fun FiltersSection(
     }
     settings.filters.forEachIndexed { index, filter ->
         // Keyed by id so a deleted row's swipe state does not leak onto its successor.
-        androidx.compose.runtime.key(filter.id) {
+        key(filter.id) {
             SwipeToDeleteRow(onDelete = {
-                update { it.copy(filters = it.filters - filter) }
+                update { it.removeFilter(filter.id) }
                 scope.launch {
-                    snackbar.showUndo(deletedMessage, undoLabel) {
-                        update { s ->
-                            val at = index.coerceAtMost(s.filters.size)
-                            s.copy(filters = s.filters.toMutableList().apply { add(at, filter) })
-                        }
-                    }
+                    snackbar.showUndo(deletedMessage, undoLabel) { update { it.insertFilter(index, filter) } }
                 }
             }) {
                 FilterRow(
                     filter = filter,
-                    onClick = { editing = filter },
-                    onToggle = { on -> update { s -> s.copy(filters = s.filters.map { if (it.id == filter.id) it.copy(enabled = on) else it }) } },
+                    onClick = { editingId = filter.id },
+                    onToggle = { on -> update { it.setFilterEnabled(filter.id, on) } },
                 )
             }
         }
     }
     TextButton(
-        onClick = { editing = Filter(id = UUID.randomUUID().toString(), pattern = "") },
+        onClick = { editingId = UUID.randomUUID().toString() },
         modifier = Modifier.padding(horizontal = spacing.md),
     ) {
         Icon(Icons.Filled.Add, contentDescription = null)
@@ -106,17 +111,15 @@ fun FiltersSection(
         Text(stringResource(R.string.filters_add))
     }
 
-    editing?.let { draft ->
+    editingId?.let { id ->
+        val existing = settings.filters.firstOrNull { it.id == id }
         FilterDialog(
-            initial = draft,
-            isNew = settings.filters.none { it.id == draft.id },
-            onDismiss = { editing = null },
+            initial = existing ?: Filter(id = id, pattern = ""),
+            isNew = existing == null,
+            onDismiss = { editingId = null },
             onSave = { saved ->
-                update { s ->
-                    if (s.filters.any { it.id == saved.id }) s.copy(filters = s.filters.map { if (it.id == saved.id) saved else it })
-                    else s.copy(filters = s.filters + saved)
-                }
-                editing = null
+                update { it.upsertFilter(saved) }
+                editingId = null
             },
         )
     }
@@ -156,7 +159,7 @@ private fun FilterRow(filter: Filter, onClick: () -> Unit, onToggle: (Boolean) -
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 val error = remember(filter.pattern, filter.isRegex) { filter.error() }
-                error?.let {
+                if (error != null) {
                     Text(
                         stringResource(R.string.filters_invalid_regex),
                         style = MaterialTheme.typography.bodySmall,
@@ -178,13 +181,14 @@ private fun FilterDialog(
     onSave: (Filter) -> Unit,
 ) {
     val spacing = LocalSpacing.current
-    var pattern by remember { mutableStateOf(initial.pattern) }
-    var isRegex by remember { mutableStateOf(initial.isRegex) }
-    var field by remember { mutableStateOf(initial.field) }
-    var boards by remember { mutableStateOf(initial.boards.joinToString(", ")) }
-    var action by remember { mutableStateOf(initial.action) }
-    var enabled by remember { mutableStateOf(initial.enabled) }
-    var sample by remember { mutableStateOf("") }
+    // Saveable so a rotation mid-edit keeps what was typed; enums ride along as Serializable.
+    var pattern by rememberSaveable { mutableStateOf(initial.pattern) }
+    var isRegex by rememberSaveable { mutableStateOf(initial.isRegex) }
+    var field by rememberSaveable { mutableStateOf(initial.field) }
+    var boards by rememberSaveable { mutableStateOf(initial.boards.joinToString(", ")) }
+    var action by rememberSaveable { mutableStateOf(initial.action) }
+    var enabled by rememberSaveable { mutableStateOf(initial.enabled) }
+    var sample by rememberSaveable { mutableStateOf("") }
 
     val draft = initial.copy(
         pattern = pattern,
@@ -234,7 +238,7 @@ private fun FilterDialog(
                 )
                 Row(
                     modifier = Modifier.padding(top = spacing.sm),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 ) {
                     FilterAction.entries.forEach { a ->
                         FilterChip(
@@ -311,20 +315,3 @@ private fun <T> EnumDropdown(
         }
     }
 }
-
-private val FilterField.labelRes: Int
-    get() = when (this) {
-        FilterField.SUBJECT -> R.string.filters_field_subject
-        FilterField.COMMENT -> R.string.filters_field_comment
-        FilterField.NAME -> R.string.filters_field_name
-        FilterField.TRIPCODE -> R.string.filters_field_tripcode
-        FilterField.FLAG -> R.string.filters_field_flag
-        FilterField.POSTER_ID -> R.string.filters_field_poster_id
-        FilterField.FILENAME -> R.string.filters_field_filename
-    }
-
-private val FilterAction.labelRes: Int
-    get() = when (this) {
-        FilterAction.HIDE -> R.string.filters_action_hide
-        FilterAction.STUB -> R.string.filters_action_stub
-    }

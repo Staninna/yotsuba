@@ -2,6 +2,8 @@ package dev.stan.yotsuba.feature.settings
 
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.domain.model.FilterAction
+import dev.stan.yotsuba.domain.model.FilterField
 import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.QuoteTapAction
@@ -41,4 +43,21 @@ internal val QuoteTapAction.labelRes: Int
     get() = when (this) {
         QuoteTapAction.POPOVER -> R.string.settings_quote_tap_popover
         QuoteTapAction.JUMP -> R.string.settings_quote_tap_jump
+    }
+
+internal val FilterField.labelRes: Int
+    get() = when (this) {
+        FilterField.SUBJECT -> R.string.filters_field_subject
+        FilterField.COMMENT -> R.string.filters_field_comment
+        FilterField.NAME -> R.string.filters_field_name
+        FilterField.TRIPCODE -> R.string.filters_field_tripcode
+        FilterField.FLAG -> R.string.filters_field_flag
+        FilterField.POSTER_ID -> R.string.filters_field_poster_id
+        FilterField.FILENAME -> R.string.filters_field_filename
+    }
+
+internal val FilterAction.labelRes: Int
+    get() = when (this) {
+        FilterAction.HIDE -> R.string.filters_action_hide
+        FilterAction.STUB -> R.string.filters_action_stub
     }
