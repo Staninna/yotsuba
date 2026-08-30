@@ -31,7 +31,7 @@ class VaultDedupRepositoryImpl @Inject constructor(
         dao.updateMd5(url, md5)
     }
 
-    override suspend fun missingHashCount(): Int = withContext(Dispatchers.IO) { dao.missingHashes().size }
+    override suspend fun missingHashCount(): Int = withContext(Dispatchers.IO) { dao.missingHashCount() }
 
     override suspend fun backfillHashes(onProgress: (Int, Int) -> Unit) = withContext(Dispatchers.IO) {
         val todo = dao.missingHashes()

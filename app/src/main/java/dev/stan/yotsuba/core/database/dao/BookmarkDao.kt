@@ -4,12 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Transaction
 import dev.stan.yotsuba.core.database.entity.BookmarkEntity
-import dev.stan.yotsuba.core.database.entity.DownloadedMediaEntity
-import dev.stan.yotsuba.core.database.entity.HiddenThreadEntity
-import dev.stan.yotsuba.core.database.entity.HistoryEntity
-import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -28,11 +23,12 @@ interface BookmarkDao {
 
     /**
      * The one write to the read mark; it only ever rises, so a stale caller can't push it
-     * back. Nothing else is touched.
+     * back. Nothing else is touched, and a call that would not raise it writes no row, so
+     * it fires no invalidation either.
      */
     @Query(
         "UPDATE bookmarks SET readUpTo = MAX(COALESCE(readUpTo, 0), :postNo) " +
-            "WHERE board = :board AND threadNo = :threadNo"
+            "WHERE board = :board AND threadNo = :threadNo AND (readUpTo IS NULL OR readUpTo < :postNo)"
     )
     suspend fun markSeen(board: String, threadNo: Long, postNo: Long)
 

@@ -5,10 +5,6 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import dev.stan.yotsuba.core.database.entity.BookmarkEntity
-import dev.stan.yotsuba.core.database.entity.DownloadedMediaEntity
-import dev.stan.yotsuba.core.database.entity.HiddenThreadEntity
-import dev.stan.yotsuba.core.database.entity.HistoryEntity
 import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -47,6 +43,13 @@ interface SavedMediaDao {
             "(md5 IS NULL OR (phash IS NULL AND ext NOT IN ('.webm', '.mp4')))",
     )
     suspend fun missingHashes(): List<SavedMediaEntity>
+
+    /** How many rows [missingHashes] would return, without loading them. Same predicate, kept verbatim. */
+    @Query(
+        "SELECT COUNT(*) FROM saved_media WHERE absolutePath != '' AND " +
+            "(md5 IS NULL OR (phash IS NULL AND ext NOT IN ('.webm', '.mp4')))",
+    )
+    suspend fun missingHashCount(): Int
 
     @Query("UPDATE saved_media SET md5 = :md5 WHERE url = :url")
     suspend fun updateMd5(url: String, md5: String)

@@ -7,6 +7,7 @@ import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.database.entity.BookmarkEntity
 import dev.stan.yotsuba.core.database.entity.HiddenThreadEntity
 import dev.stan.yotsuba.core.database.entity.HistoryEntity
+import dev.stan.yotsuba.core.database.entity.SavedMediaEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -77,5 +78,39 @@ class RoomTest {
         assertEquals(1, dao.all().first().size)
         dao.unhide("g", 42)
         assertTrue(dao.all().first().isEmpty())
+    }
+
+    @Test fun `markSeen only rises and writes nothing when it would not`() = runTest {
+        val dao = db.bookmarkDao()
+        dao.upsert(bookmark(1))
+        dao.markSeen("g", 1, 10)
+        assertEquals(10L, dao.all().first().single().readUpTo)
+        dao.markSeen("g", 1, 5)
+        assertEquals(10L, dao.all().first().single().readUpTo)
+        dao.markSeen("g", 1, 12)
+        assertEquals(12L, dao.all().first().single().readUpTo)
+    }
+
+    private fun saved(url: String, ext: String?, md5: String?, phash: Long?, path: String = "/v/$url") = SavedMediaEntity(
+        url = url, board = "g", threadNo = 1, postNo = 1, subject = null, displayName = url,
+        absolutePath = path, ext = ext, sizeBytes = null, width = null, height = null,
+        thumbnailUrl = null, savedAt = 0, md5 = md5, phash = phash,
+    )
+
+    @Test fun `missingHashCount agrees with missingHashes`() = runTest {
+        val dao = db.savedMediaDao()
+        dao.insertAll(
+            listOf(
+                saved("a.jpg", ".jpg", md5 = null, phash = null),
+                saved("b.jpg", ".jpg", md5 = "m", phash = null),
+                saved("c.jpg", ".jpg", md5 = "m", phash = 1L),
+                saved("d.webm", ".webm", md5 = "m", phash = null),
+                saved("e.webm", ".webm", md5 = null, phash = null),
+                saved("f.jpg", ".jpg", md5 = null, phash = null, path = ""),
+            ),
+        )
+        val rows = dao.missingHashes()
+        assertEquals(setOf("a.jpg", "b.jpg", "e.webm"), rows.map { it.url }.toSet())
+        assertEquals(rows.size, dao.missingHashCount())
     }
 }
