@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.core.designsystem.theme
 
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -18,14 +19,8 @@ data class YotsubaColors(
     val deadThread: Color,
 )
 
-val LocalYotsubaColors = staticCompositionLocalOf {
-    YotsubaColors(
-        greentext = SeedColor,
-        quotelink = Color(0xFF3D6B99),
-        spoilerScrim = Color(0xFF222222),
-        deadThread = Color(0xFF888888),
-    )
-}
+/** Outside [dev.stan.yotsuba.core.designsystem.theme.YotsubaTheme] (a bare preview) the light values apply; the function is the one definition. */
+val LocalYotsubaColors = staticCompositionLocalOf { yotsubaColors(lightColorScheme(), dark = false) }
 
 fun yotsubaColors(scheme: ColorScheme, dark: Boolean): YotsubaColors = YotsubaColors(
     greentext = if (dark) Color(0xFFA6C761) else Color(0xFF5E7A16),
