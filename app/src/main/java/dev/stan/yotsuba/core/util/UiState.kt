@@ -23,14 +23,20 @@ class LoadableFlow<T>(
     private val fetch: suspend (forceRefresh: Boolean) -> DataResult<T>,
 ) {
     private val result = MutableStateFlow<DataResult<T>?>(null)
+    private var job: Job? = null
 
     /** null = loading. */
     val flow: StateFlow<DataResult<T>?> = result.asStateFlow()
     val current: DataResult<T>? get() = result.value
 
-    /** [showLoading] drops back to the loading state while the fetch runs. */
+    /**
+     * [showLoading] drops back to the loading state while the fetch runs. A load still in
+     * flight is cancelled first, so the newest call always wins: [apiResult] rethrows
+     * cancellation, and a cancelled fetch never writes its (older) answer over a newer one.
+     */
     fun load(forceRefresh: Boolean = false, showLoading: Boolean = !forceRefresh): Job {
         if (showLoading) result.value = null
-        return scope.launch { result.value = fetch(forceRefresh) }
+        job?.cancel()
+        return scope.launch { result.value = fetch(forceRefresh) }.also { job = it }
     }
 }

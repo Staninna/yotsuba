@@ -6,6 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LoadableFlowTest {
@@ -63,5 +64,20 @@ class LoadableFlowTest {
         gate.complete(Unit)
         job.join()
         assertEquals(DataResult.Success(2), loadable.current)
+    }
+
+    @Test fun `a newer load cancels the older one so the newest answer wins`() = runTest {
+        val slow = CompletableDeferred<Unit>()
+        val loadable = LoadableFlow(backgroundScope) { force ->
+            if (!force) slow.await()
+            DataResult.Success(if (force) "fresh" else "stale")
+        }
+        val first = loadable.load()
+        val second = loadable.load(forceRefresh = true)
+        second.join()
+        slow.complete(Unit)
+        first.join()
+        assertTrue(first.isCancelled)
+        assertEquals(DataResult.Success("fresh"), loadable.current)
     }
 }
