@@ -28,17 +28,17 @@ import java.util.Date
 fun StorageSection(
     settings: Settings,
     update: ((Settings) -> Settings) -> Unit,
+    restoreAvailable: BackupInfo?,
+    backupResult: BackupResult?,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
+    onDismissRestore: () -> Unit,
+    onBackupResultShown: () -> Unit,
     onClearCache: () -> Unit,
     onClearHistory: () -> Unit,
     onClearBookmarks: () -> Unit,
     confirmThen: (Int, () -> Unit) -> Unit,
     showMessage: (String) -> Unit,
-    restoreAvailable: BackupInfo? = null,
-    backupResult: BackupResult? = null,
-    onExportBackup: () -> Unit = {},
-    onImportBackup: () -> Unit = {},
-    onDismissRestore: () -> Unit = {},
-    onBackupResultShown: () -> Unit = {},
 ) {
     val cleared = stringResource(R.string.settings_cleared)
 

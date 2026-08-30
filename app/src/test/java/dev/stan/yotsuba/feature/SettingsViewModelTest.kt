@@ -12,6 +12,7 @@ import dev.stan.yotsuba.core.update.GithubReleases
 import dev.stan.yotsuba.core.update.Updater
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThemeMode
+import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
@@ -130,6 +131,7 @@ class SettingsViewModelTest {
             boardRepository = FakeBoardRepository(boards),
             maintenanceRepository = maintenance,
             updater = Updater(ApplicationProvider.getApplicationContext(), GithubReleases()),
+            backupRepository = BackupRepository.None,
         )
     }
 

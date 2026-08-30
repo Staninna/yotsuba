@@ -42,7 +42,7 @@ class SettingsViewModel @Inject constructor(
     private val boardRepository: BoardRepository,
     private val maintenanceRepository: MaintenanceRepository,
     private val updater: Updater,
-    private val backupRepository: BackupRepository = BackupRepository.None,
+    private val backupRepository: BackupRepository,
 ) : ViewModel() {
 
     private val _restoreAvailable = MutableStateFlow<BackupInfo?>(null)
