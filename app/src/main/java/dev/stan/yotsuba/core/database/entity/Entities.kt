@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.core.database.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "bookmarks", primaryKeys = ["board", "threadNo"])
@@ -14,13 +15,7 @@ data class BookmarkEntity(
     val imageCount: Int,
     val bookmarkedAt: Long,
     val lastCheckedAt: Long?,
-    /** Superseded by readUpTo (copied into readUpTo by MIGRATION_6_7); no longer written, dropped in a later migration. */
-    val lastSeenPostNo: Long? = null,
     val state: String, // ALIVE | ARCHIVED | DEAD | UNKNOWN (D9)
-    /** Superseded by readUpTo/postNos; no longer written, dropped in a later migration. */
-    val newReplies: Int = 0,
-    /** Superseded by readUpTo/postNos; no longer written, dropped in a later migration. */
-    val unreadCount: Int = 0,
     /** The one read mark: the newest post the user has had on screen. Only markSeen writes it. */
     val readUpTo: Long? = null,
     /** Comma-separated post numbers as of the last refresh; unread = those past readUpTo. */
@@ -61,7 +56,7 @@ data class DownloadedMediaEntity(
  * Media files saved into the on-disk vault (`/sdcard/Yotsuba/…`), keyed by full CDN URL.
  * Mirrors the per-thread `meta.json` sidecars; rebuildable from disk via rescan.
  */
-@Entity(tableName = "saved_media")
+@Entity(tableName = "saved_media", indices = [Index("md5")])
 data class SavedMediaEntity(
     @PrimaryKey val url: String,
     val board: String?,

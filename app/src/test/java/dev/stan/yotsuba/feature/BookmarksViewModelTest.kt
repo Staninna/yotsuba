@@ -68,7 +68,7 @@ class BookmarksViewModelTest {
             onProgress(2, 2)
             return BookmarkRefreshSummary()
         }
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
+        override suspend fun markSeen(board: String, threadNo: Long, postNo: Long) {}
         override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {
             state.value = state.value.map { if (it.threadNo == threadNo) it.copy(pinned = pinned) else it }
         }

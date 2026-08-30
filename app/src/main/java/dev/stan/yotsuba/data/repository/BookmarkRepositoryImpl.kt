@@ -148,8 +148,8 @@ class BookmarkRepositoryImpl(
         )
     }
 
-    override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) =
-        dao.markSeen(board, threadNo, lastSeenPostNo)
+    override suspend fun markSeen(board: String, threadNo: Long, postNo: Long) =
+        dao.markSeen(board, threadNo, postNo)
 
     override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) =
         dao.setPinned(board, threadNo, pinned)

@@ -196,11 +196,11 @@ class FakeBookmarkRepository @Inject constructor() : BookmarkRepository {
     override fun isBookmarked(board: String, threadNo: Long): Flow<Boolean> =
         state.map { list -> list.any { it.board == board && it.threadNo == threadNo } }
 
-    override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {
+    override suspend fun markSeen(board: String, threadNo: Long, postNo: Long) {
         state.update { list ->
             list.map {
                 if (it.board == board && it.threadNo == threadNo) {
-                    it.copy(readUpTo = maxOf(it.readUpTo ?: 0, lastSeenPostNo))
+                    it.copy(readUpTo = maxOf(it.readUpTo ?: 0, postNo))
                 } else it
             }
         }

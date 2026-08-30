@@ -53,7 +53,7 @@ class BackupRepositoryImplTest {
             state.value = state.value.filterNot { it.board == board && it.threadNo == threadNo }
         }
         override fun isBookmarked(board: String, threadNo: Long) = flowOf(false)
-        override suspend fun markSeen(board: String, threadNo: Long, lastSeenPostNo: Long) {}
+        override suspend fun markSeen(board: String, threadNo: Long, postNo: Long) {}
         override suspend fun refreshAll(onProgress: (Int, Int) -> Unit) = BookmarkRefreshSummary()
         override suspend fun setPinned(board: String, threadNo: Long, pinned: Boolean) {}
         override suspend fun removeDead() {}
@@ -81,7 +81,6 @@ class BackupRepositoryImplTest {
         }
     }
 
-    @Suppress("DEPRECATION")
     private fun bookmark(board: String, no: Long, readUpTo: Long? = null, pinned: Boolean = false) = Bookmark(
         board = board, threadNo = no, subject = "s$no", opExcerpt = "", thumbnailUrl = null,
         replyCount = 3, imageCount = 1, bookmarkedAt = 1_000L, lastCheckedAt = null,
@@ -167,6 +166,23 @@ class BackupRepositoryImplTest {
         assertEquals(BackupResult.Imported(1, 1), target.repo.import())
         assertEquals(ThemeMode.LIGHT, target.settings.state.value.themeMode)
         assertEquals(3L, target.bookmarks.state.value.single().threadNo)
+    }
+
+    @Test
+    fun `bookmarks from a backup that still carries the dropped read-count keys import cleanly`() = runTest {
+        val root = folder.newFolder()
+        File(root, BackupFile.FILE_NAME).writeText(
+            """
+            {"version": 1, "exportedAt": 1,
+             "bookmarks": [{"board": "g", "threadNo": 3, "lastSeenPostNo": 9, "newReplies": 4,
+                            "unreadCount": 2, "readUpTo": 11}]}
+            """.trimIndent(),
+        )
+        val target = Env(root, scope = backgroundScope)
+        assertEquals(BackupResult.Imported(1, 0), target.repo.import())
+        val imported = target.bookmarks.state.value.single()
+        assertEquals(3L, imported.threadNo)
+        assertEquals(11L, imported.readUpTo)
     }
 
     @Test
