@@ -72,6 +72,7 @@ Finished work, kept for the record. Sections mirror the ones above.
 #### 6. Feature ideas (vs Readchan)
 
 - [x] The vault could only sort and search files. Search now has a Files/Threads toggle over the results (`VaultSearchScope`, persisted beside the sort and filter): under Threads a query matches a thread's subject, board or number anywhere in the vault, and tapping a match ends the search inside that thread. The sort and filter chips sit above the thread list too, so threads order by date saved, total size, subject or thread number, reversed like the grids (`arrangeThreads`)
+- [x] Shuffling a handful of threads together. The shuffle FAB plays the ticked items when a selection is up, so long-pressing several threads and pressing shuffle is the whole gesture; with nothing ticked it still takes the level on screen
 
 ### 8. Review wave of 2026-08-31
 

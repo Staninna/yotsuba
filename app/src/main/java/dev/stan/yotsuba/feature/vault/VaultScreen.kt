@@ -241,8 +241,11 @@ fun VaultScreen(
             },
             floatingActionButton = {
                 // The viewer covers the whole tab; a FAB floating over it would be a stray.
-                if (state.viewer == null && state.scopeEntries.isNotEmpty() && state.hasStorageAccess) {
-                    VaultShuffleFab(state.scopeEntries) { viewModel.startShuffle(it) }
+                // Ticked items win over the level on screen: selecting a few threads and
+                // pressing shuffle is how they get played together.
+                val shuffling = if (state.selecting) state.selectedEntries else state.scopeEntries
+                if (state.viewer == null && shuffling.isNotEmpty() && state.hasStorageAccess) {
+                    VaultShuffleFab(shuffling, ofSelection = state.selecting) { viewModel.startShuffle(it) }
                 }
             },
         )

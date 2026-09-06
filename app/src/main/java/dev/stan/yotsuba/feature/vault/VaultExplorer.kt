@@ -609,16 +609,25 @@ internal fun MediaThumb(entry: VaultEntry, modifier: Modifier = Modifier) {
     )
 }
 
-/** Shuffle-play FAB over whatever level is on screen: everything, one board, or one thread. */
+/**
+ * Shuffle-play FAB over whatever level is on screen: everything, one board, or one thread.
+ * While items are ticked it plays those instead, which is how a handful of threads get
+ * shuffled together; [ofSelection] only changes what the first entry calls them.
+ */
 @Composable
-internal fun VaultShuffleFab(scopeEntries: List<VaultEntry>, onShuffle: (List<String>) -> Unit) {
+internal fun VaultShuffleFab(
+    scopeEntries: List<VaultEntry>,
+    ofSelection: Boolean = false,
+    onShuffle: (List<String>) -> Unit,
+) {
     var menuOpen by remember { mutableStateOf(false) }
     Box {
         FloatingActionButton(onClick = { menuOpen = true }) {
             Icon(Icons.Filled.Shuffle, stringResource(R.string.vault_shuffle))
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            IconMenuItem(R.string.vault_shuffle_everything, Icons.Filled.Shuffle) {
+            val everything = if (ofSelection) R.string.vault_shuffle_selected else R.string.vault_shuffle_everything
+            IconMenuItem(everything, Icons.Filled.Shuffle) {
                 menuOpen = false
                 onShuffle(scopeEntries.map { it.url })
             }

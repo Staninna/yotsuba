@@ -265,6 +265,7 @@
     <string name="vault_error_io">Couldn\'t write file</string>
     <string name="vault_shuffle">Shuffle play</string>
     <string name="vault_shuffle_everything">Everything</string>
+    <string name="vault_shuffle_selected">Selection</string>
     <string name="vault_shuffle_videos">Videos only</string>
     <string name="vault_shuffle_videos_with_sound">Videos with sound</string>
     <string name="vault_shuffle_videos_silent">Silent videos</string>
