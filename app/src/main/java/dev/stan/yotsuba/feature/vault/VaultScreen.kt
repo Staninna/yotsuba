@@ -258,7 +258,17 @@ fun VaultScreen(
             VaultExplorer(
                 state = state,
                 onOpenBoard = viewModel::openBoard,
-                onOpenThread = viewModel::openThread,
+                // A thread tapped out of the search results is the end of that search: it
+                // closes, and the explorer lands inside the thread rather than behind it.
+                onOpenThread = { location ->
+                    if (state.searching) {
+                        searchOpen = false
+                        viewModel.setQuery("")
+                        viewModel.reveal(location)
+                    } else {
+                        viewModel.openThread(location)
+                    }
+                },
                 onOpenEntry = { viewModel.openViewer(it.url) },
                 onLongPressEntry = viewModel::inspect,
                 onToggleSelected = viewModel::toggleSelected,
@@ -270,6 +280,7 @@ fun VaultScreen(
                 onToggleReversed = viewModel::toggleReversed,
                 onFilter = viewModel::setFilter,
                 onAudio = viewModel::setAudio,
+                onSearchScope = viewModel::setSearchScope,
                 onMode = viewModel::setMode,
             )
         }
@@ -578,6 +589,7 @@ private fun VaultViewer(
 private fun VaultEntry.toViewerPage(): ViewerPage = if (isVideo) {
     ViewerPage.Video(
         uri = Uri.fromFile(File(absolutePath)).toString(),
+        mediaKey = url,
         thumbnailModel = localThumbnailPath?.let(::File) ?: thumbnailUrl,
         width = width ?: 0,
         height = height ?: 0,

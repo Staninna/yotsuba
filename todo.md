@@ -69,6 +69,10 @@ Finished work, kept for the record. Sections mirror the ones above.
 
 - [x] A save landing while a video played restarted it. The viewer swaps the remote URL for the vault file the moment the download lands, and `rememberVideoPlayback` keyed its ExoPlayer on that URL, so the swap built a new player at position 0. The player is now keyed on the media rather than the source: the source change is staged onto the same player with `setMediaItem(item, currentPosition)`, which keeps the position, the frame on screen and the sound-post sync. `ViewerPage.Video.mediaKey` carries the identity (the full URL in a thread, the vault URL in the explorer); without one the old restart behaviour stands. Not unit-tested: it needs a real ExoPlayer
 
+#### 6. Feature ideas (vs Readchan)
+
+- [x] The vault could only sort and search files. Search now has a Files/Threads toggle over the results (`VaultSearchScope`, persisted beside the sort and filter): under Threads a query matches a thread's subject, board or number anywhere in the vault, and tapping a match ends the search inside that thread. The sort and filter chips sit above the thread list too, so threads order by date saved, total size, subject or thread number, reversed like the grids (`arrangeThreads`)
+
 ### 8. Review wave of 2026-08-31
 
 Two waves of four parallel worktrees off the 2026-08-31 audit; items shipped as written unless noted.

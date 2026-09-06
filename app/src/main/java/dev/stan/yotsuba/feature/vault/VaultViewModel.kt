@@ -43,6 +43,7 @@ private const val KEY_SORT = "vault_sort"
 private const val KEY_FILTER = "vault_filter"
 private const val KEY_REVERSED = "vault_reversed"
 private const val KEY_AUDIO = "vault_audio"
+private const val KEY_SEARCH_SCOPE = "vault_search_scope"
 
 /** Grid order. Each is a total order so paging in the viewer matches the grid. */
 enum class VaultSort {
@@ -76,12 +77,29 @@ data class VaultArrangement(
     val audio: VaultAudio = VaultAudio.ANY,
 )
 
+/** What a search looks through: the files themselves, or the threads holding them. */
+enum class VaultSearchScope { FILES, THREADS }
+
 /** Entries whose file name or thread subject contains [query], case-insensitively. */
 fun searchEntries(entries: List<VaultEntry>, query: String): List<VaultEntry> {
     val q = query.trim()
     if (q.isEmpty()) return entries
     return entries.filter {
         it.displayName.contains(q, ignoreCase = true) || it.subject?.contains(q, ignoreCase = true) == true
+    }
+}
+
+/**
+ * Threads whose subject, board or number contains [query]. The number matches as text, so
+ * a partial thread id finds it the same way a partial subject does.
+ */
+fun searchThreads(threads: List<VaultThreadSection>, query: String): List<VaultThreadSection> {
+    val q = query.trim()
+    if (q.isEmpty()) return threads
+    return threads.filter {
+        it.subject?.contains(q, ignoreCase = true) == true ||
+            it.location.board.contains(q, ignoreCase = true) ||
+            it.location.threadNo.toString().contains(q)
     }
 }
 
@@ -113,6 +131,27 @@ fun arrangeEntries(
         VaultSort.SIZE -> kept.sortedByDescending { it.sizeBytes ?: 0L }
         VaultSort.NAME -> kept.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.displayName })
         VaultSort.POST -> kept.sortedWith(compareBy(nullsLast()) { it.postNo })
+    }
+    return if (reversed) ordered.asReversed() else ordered
+}
+
+/**
+ * [threads] in [sort] order, the thread-level answer to [arrangeEntries]: size and date
+ * read the thread as a whole rather than one file, and the name is its subject, falling
+ * back to the thread number so an untitled thread still lands somewhere predictable.
+ */
+fun arrangeThreads(
+    threads: List<VaultThreadSection>,
+    sort: VaultSort,
+    reversed: Boolean = false,
+): List<VaultThreadSection> {
+    val ordered = when (sort) {
+        VaultSort.SAVED -> threads.sortedByDescending { it.savedAt }
+        VaultSort.SIZE -> threads.sortedByDescending { it.sizeBytes }
+        VaultSort.NAME -> threads.sortedWith(
+            compareBy(String.CASE_INSENSITIVE_ORDER) { it.subject ?: it.location.threadNo.toString() },
+        )
+        VaultSort.POST -> threads.sortedBy { it.location.threadNo }
     }
     return if (reversed) ordered.asReversed() else ordered
 }
@@ -236,8 +275,8 @@ sealed interface VaultBody {
         val recent: List<VaultEntry>,
     ) : VaultBody
 
-    /** One board's threads. */
-    data class Threads(val threads: List<VaultThreadSection>) : VaultBody
+    /** One board's threads, or the threads a search matched across the whole vault. */
+    data class Threads(val threads: List<VaultThreadSection>, val searching: Boolean = false) : VaultBody
 }
 
 data class VaultUiState(
@@ -252,6 +291,8 @@ data class VaultUiState(
     val audio: VaultAudio = VaultAudio.ANY,
     val mode: VaultMode = VaultMode.RECENT,
     val query: String = "",
+    /** Whether the query looks through files or through threads. */
+    val searchScope: VaultSearchScope = VaultSearchScope.FILES,
     /** The drill-down over [entries] after the sort and filter chips. */
     val boards: List<VaultBoardSection> = emptyList(),
     val selection: VaultSelection = VaultSelection(),
@@ -288,8 +329,15 @@ data class VaultUiState(
     /** False for the seed value only: the vault has not been read yet. */
     val ready: Boolean get() = body !is VaultBody.Loading
 
-    /** Matches for [query] across the whole vault, or null when not searching. */
+    /** Matches for [query] across the whole vault, or null when not searching files. */
     val results: List<VaultEntry>? get() = (body as? VaultBody.Grid)?.takeIf { it.searching }?.entries
+
+    /** True while the body is showing search results, whichever scope they came from. */
+    val searching: Boolean get() = when (val body = body) {
+        is VaultBody.Grid -> body.searching
+        is VaultBody.Threads -> body.searching
+        else -> false
+    }
 
     val selecting: Boolean get() = selected.isNotEmpty()
     val selectedEntries: List<VaultEntry> get() = entries.filter { it.url in selected }
@@ -306,7 +354,9 @@ data class VaultUiState(
         get() = when (val body = body) {
             is VaultBody.Grid -> body.entries
             is VaultBody.Root -> if (mode == VaultMode.RECENT) body.recent else boards.flatMap { it.entries }
-            is VaultBody.Threads -> openBoard?.entries.orEmpty()
+            // Flattened rather than read off the open board: a thread search has matches
+            // from several boards and no open board at all.
+            is VaultBody.Threads -> body.threads.flatMap { it.entries }
             VaultBody.Loading, VaultBody.NoAccess, VaultBody.Empty -> emptyList()
         }
 }
@@ -452,6 +502,8 @@ class VaultViewModel @Inject constructor(
         val inspecting: String?,
         val threadEdit: VaultThreadEdit?,
         val selection: VaultSelection,
+        /** Here rather than in [View] so flipping it does not resort the whole vault. */
+        val searchScope: VaultSearchScope,
     )
 
     /** How the entries are arranged on screen. */
@@ -469,6 +521,7 @@ class VaultViewModel @Inject constructor(
     private val reversed = savedState.getStateFlow(KEY_REVERSED, false)
     private val filter = savedState.getStateFlow(KEY_FILTER, VaultFilter.ALL.name)
     private val audio = savedState.getStateFlow(KEY_AUDIO, VaultAudio.ANY.name)
+    private val searchScope = savedState.getStateFlow(KEY_SEARCH_SCOPE, VaultSearchScope.FILES.name)
     private val mode = MutableStateFlow(VaultMode.RECENT)
     private val query = MutableStateFlow("")
 
@@ -492,8 +545,13 @@ class VaultViewModel @Inject constructor(
         this.query.value = query
     }
 
-    private val editing = combine(selected, inspectingUrl, threadEdit, selection) { s, i, t, sel ->
-        Editing(s, i, t, sel)
+    /** Whether the query matches files or threads. Outlives the search, so the next one opens the same way. */
+    fun setSearchScope(scope: VaultSearchScope) {
+        savedState[KEY_SEARCH_SCOPE] = scope.name
+    }
+
+    private val editing = combine(selected, inspectingUrl, threadEdit, selection, searchScope) { s, i, t, sel, scope ->
+        Editing(s, i, t, sel, VaultSearchScope.entries.firstOrNull { it.name == scope } ?: VaultSearchScope.FILES)
     }
 
     fun requestRename(location: VaultLocation) {
@@ -585,7 +643,10 @@ class VaultViewModel @Inject constructor(
             entries = entries,
             view = view,
             visible = visible,
-            boards = groupByBoard(visible),
+            // The sort chips order the thread list too, not only the grids under it.
+            boards = groupByBoard(visible).map { board ->
+                board.copy(threads = arrangeThreads(board.threads, view.sort, view.reversed))
+            },
             recent = visible.sortedByDescending { it.savedAt }.take(RECENT_LIMIT)
                 .let { arrangeEntries(it, view.sort, VaultFilter.ALL, view.reversed) },
         )
@@ -606,7 +667,18 @@ class VaultViewModel @Inject constructor(
         val body = when {
             !activity.access -> VaultBody.NoAccess
             entries.isEmpty() -> VaultBody.Empty
-            view.query.isNotBlank() -> VaultBody.Grid(searchEntries(visible, view.query), searching = true)
+            view.query.isNotBlank() -> when (editing.searchScope) {
+                VaultSearchScope.FILES -> VaultBody.Grid(searchEntries(visible, view.query), searching = true)
+                // Threads from every board at once, so they need ordering again after the merge.
+                VaultSearchScope.THREADS -> VaultBody.Threads(
+                    arrangeThreads(
+                        searchThreads(boards.flatMap { it.threads }, view.query),
+                        view.sort,
+                        view.reversed,
+                    ),
+                    searching = true,
+                )
+            }
             sel.board == null -> VaultBody.Root(recent = arranged.recent)
             sel.thread == null -> VaultBody.Threads(boards.firstOrNull { it.board == sel.board }?.threads.orEmpty())
             else -> VaultBody.Grid(
@@ -630,6 +702,7 @@ class VaultViewModel @Inject constructor(
             audio = view.audio,
             mode = view.mode,
             query = view.query,
+            searchScope = editing.searchScope,
             boards = boards,
             selection = sel,
             viewer = viewerState(visible, feed, sel, viewing.url, viewing.shuffle),

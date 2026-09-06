@@ -30,6 +30,7 @@ import dev.stan.yotsuba.feature.vault.VaultImport
 import dev.stan.yotsuba.feature.vault.VaultMode
 import dev.stan.yotsuba.feature.vault.VaultNotice
 import dev.stan.yotsuba.feature.vault.VaultPlayback
+import dev.stan.yotsuba.feature.vault.VaultSearchScope
 import dev.stan.yotsuba.feature.vault.VaultSort
 import dev.stan.yotsuba.feature.vault.VaultSyncState
 import dev.stan.yotsuba.feature.vault.VaultUiState
@@ -899,4 +900,63 @@ class VaultViewModelTest {
             cancelAndIgnoreRemainingEvents()
         }
     }
+
+    @Test fun `a thread search matches subject, board and number`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(
+            entry("g/1.jpg", VaultLocation("g", 100), savedAt = 1, subject = "Cat thread"),
+            entry("g/2.jpg", VaultLocation("g", 101), savedAt = 2, subject = "Dogs"),
+            entry("a/1.jpg", threadA, savedAt = 3),
+        ))
+        val saved = SavedStateHandle()
+        val vm = vm(vault, saved = saved)
+        vm.uiState.test {
+            vm.setSearchScope(VaultSearchScope.THREADS)
+            vm.setQuery("cat")
+            assertEquals(listOf(VaultLocation("g", 100)), threadsOf(latest()))
+            vm.setQuery("101")
+            assertEquals(listOf(VaultLocation("g", 101)), threadsOf(latest()))
+            // The board name counts too, and matches come back in the chosen order.
+            vm.setQuery("a")
+            assertEquals(listOf(threadA, VaultLocation("g", 100)), threadsOf(latest()))
+            // The same query under Files goes back to a grid of the files themselves.
+            vm.setSearchScope(VaultSearchScope.FILES)
+            vm.setQuery("cat")
+            val files = latest()
+            assertEquals(listOf("g/1.jpg"), files.results?.map { it.url })
+            assertTrue(files.searching)
+            cancelAndIgnoreRemainingEvents()
+        }
+        // The scope outlives the process, like the sort and filter beside it.
+        assertEquals(VaultSearchScope.FILES.name, saved.get<String>("vault_search_scope"))
+    }
+
+    @Test fun `the sort chips order the thread list, not only the grid`() = runTest(dispatcher.scheduler) {
+        val vault = FakeVault(listOf(
+            entry("g/1.jpg", VaultLocation("g", 100), savedAt = 1, sizeBytes = 10, subject = "Zebra"),
+            entry("g/2.jpg", VaultLocation("g", 100), savedAt = 1, sizeBytes = 10, subject = "Zebra"),
+            entry("g/3.jpg", VaultLocation("g", 101), savedAt = 5, sizeBytes = 100, subject = "Apple"),
+            entry("g/4.jpg", VaultLocation("g", 102), savedAt = 3, sizeBytes = 5),
+        ))
+        val vm = vm(vault)
+        vm.uiState.test {
+            vm.openBoard("g")
+            assertEquals(threadNos(latest()), listOf(101L, 102L, 100L))
+            vm.setSort(VaultSort.SIZE)
+            assertEquals(threadNos(latest()), listOf(101L, 100L, 102L))
+            // No subject: the thread number stands in for the name, so it sorts as text.
+            vm.setSort(VaultSort.NAME)
+            assertEquals(threadNos(latest()), listOf(102L, 101L, 100L))
+            vm.setSort(VaultSort.POST)
+            assertEquals(threadNos(latest()), listOf(100L, 101L, 102L))
+            vm.toggleReversed()
+            assertEquals(threadNos(latest()), listOf(102L, 101L, 100L))
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    private fun threadsOf(state: VaultUiState): List<VaultLocation> =
+        (state.body as VaultBody.Threads).threads.map { it.location }
+
+    private fun threadNos(state: VaultUiState): List<Long> = threadsOf(state).map { it.threadNo }
+
 }

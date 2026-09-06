@@ -115,6 +115,7 @@ internal fun VaultExplorer(
     onToggleReversed: () -> Unit,
     onFilter: (VaultFilter) -> Unit,
     onAudio: (VaultAudio) -> Unit,
+    onSearchScope: (VaultSearchScope) -> Unit,
     onMode: (VaultMode) -> Unit,
 ) {
     val context = LocalContext.current
@@ -157,10 +158,13 @@ internal fun VaultExplorer(
                 icon = Icons.Filled.PermMedia,
             )
 
-            is VaultBody.Grid -> grid(
-                body.entries,
-                stringResource(if (body.searching) R.string.vault_search_empty else R.string.vault_filter_empty),
-            )
+            is VaultBody.Grid -> Column(Modifier.fillMaxSize()) {
+                if (body.searching) SearchScopeRow(state.searchScope, onSearchScope)
+                grid(
+                    body.entries,
+                    stringResource(if (body.searching) R.string.vault_search_empty else R.string.vault_filter_empty),
+                )
+            }
 
             is VaultBody.Root -> Column(Modifier.fillMaxSize()) {
                 ModeSwitch(state.mode, onMode)
@@ -178,16 +182,28 @@ internal fun VaultExplorer(
                 }
             }
 
-            is VaultBody.Threads -> ThreadList(
-                view = view,
-                threads = body.threads,
-                selected = state.selected,
-                onOpen = onOpenThread,
-                onToggleSelected = onToggleSelected,
-                onDelete = onDeleteThread,
-                onRename = onRenameThread,
-                onMerge = onMergeThread,
-            )
+            is VaultBody.Threads -> Column(Modifier.fillMaxSize()) {
+                if (body.searching) SearchScopeRow(state.searchScope, onSearchScope)
+                // The same chips as the grids: the sort orders the threads, the type filter
+                // decides which files count towards their size and count.
+                VaultChipRow(
+                    state.sort, state.reversed, state.filter, state.audio,
+                    onSort, onToggleReversed, onFilter, onAudio,
+                )
+                ThreadList(
+                    view = view,
+                    threads = body.threads,
+                    emptyText = stringResource(
+                        if (body.searching) R.string.vault_search_empty else R.string.vault_filter_empty,
+                    ),
+                    selected = state.selected,
+                    onOpen = onOpenThread,
+                    onToggleSelected = onToggleSelected,
+                    onDelete = onDeleteThread,
+                    onRename = onRenameThread,
+                    onMerge = onMergeThread,
+                )
+            }
         }
     }
 }
@@ -229,6 +245,8 @@ private fun BoardList(
 private fun ThreadList(
     view: VaultArrangement,
     threads: List<VaultThreadSection>,
+    /** Shown instead of the list when nothing is in it: the filter or the search emptied it. */
+    emptyText: String,
     selected: Set<String>,
     onOpen: (VaultLocation) -> Unit,
     onToggleSelected: (Collection<String>) -> Unit,
@@ -240,6 +258,12 @@ private fun ThreadList(
     val haptics = rememberHaptics()
     val listState = rememberLazyListState()
     LaunchedEffect(view) { listState.scrollToItem(0) }
+    if (threads.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(emptyText, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
     LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(threads.size, key = { threads[it].location.threadNo }) { i ->
             val section = threads[i]
@@ -304,6 +328,24 @@ private fun ThreadList(
         }
     }
 }
+
+/** Files or threads, over search results only; the search field itself is in the top bar. */
+@Composable
+private fun SearchScopeRow(scope: VaultSearchScope, onScope: (VaultSearchScope) -> Unit) {
+    val spacing = LocalSpacing.current
+    EnumSegmentedRow(
+        options = VaultSearchScope.entries,
+        selected = scope,
+        onSelect = onScope,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.md, vertical = spacing.xs),
+    ) { Text(stringResource(it.labelRes), maxLines = 1) }
+}
+
+private val VaultSearchScope.labelRes: Int
+    get() = when (this) {
+        VaultSearchScope.FILES -> R.string.vault_search_files
+        VaultSearchScope.THREADS -> R.string.vault_search_threads
+    }
 
 /** Recent feed or the board drill-down, at the root only. */
 @OptIn(ExperimentalMaterial3Api::class)
