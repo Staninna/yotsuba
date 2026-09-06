@@ -63,6 +63,12 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 Finished work, kept for the record. Sections mirror the ones above.
 
+### 10. Requested 2026-09-06
+
+#### 2. Bugs
+
+- [x] A save landing while a video played restarted it. The viewer swaps the remote URL for the vault file the moment the download lands, and `rememberVideoPlayback` keyed its ExoPlayer on that URL, so the swap built a new player at position 0. The player is now keyed on the media rather than the source: the source change is staged onto the same player with `setMediaItem(item, currentPosition)`, which keeps the position, the frame on screen and the sound-post sync. `ViewerPage.Video.mediaKey` carries the identity (the full URL in a thread, the vault URL in the explorer); without one the old restart behaviour stands. Not unit-tested: it needs a real ExoPlayer
+
 ### 8. Review wave of 2026-08-31
 
 Two waves of four parallel worktrees off the 2026-08-31 audit; items shipped as written unless noted.

@@ -320,6 +320,8 @@ private fun MediaItem.toViewerPage(context: Context, state: MediaUiState): Viewe
     return if (isVideo) {
         ViewerPage.Video(
             uri = localPath?.let { Uri.fromFile(File(it)).toString() } ?: fullUrl,
+            // The save that fills localPath in mid-play must not restart the video.
+            mediaKey = fullUrl,
             thumbnailModel = thumbnailUrl,
             width = width,
             height = height,

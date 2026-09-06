@@ -96,6 +96,12 @@ private const val EDGE_FRACTION = 0.3f
 @Composable
 fun VideoPage(
     videoUri: String,
+    /**
+     * Stable id of this video, the same before and after a save swaps [videoUri] from the
+     * remote URL to the vault copy. Null falls back to the URI, and that swap restarts the
+     * video from the beginning.
+     */
+    mediaKey: String? = null,
     thumbnailModel: Any?,
     /** Shared-element key of the thumbnail this page was opened from; see [ImagePage]. */
     sharedKey: String? = null,
@@ -124,6 +130,7 @@ fun VideoPage(
 ) {
     val playback = rememberVideoPlayback(
         videoUri = videoUri,
+        mediaKey = mediaKey,
         soundUrl = soundUrl,
         initialWidth = initialWidth,
         initialHeight = initialHeight,
@@ -316,6 +323,7 @@ internal class VideoPlayback(
 @Composable
 private fun rememberVideoPlayback(
     videoUri: String,
+    mediaKey: String?,
     soundUrl: String?,
     initialWidth: Int,
     initialHeight: Int,
@@ -327,12 +335,12 @@ private fun rememberVideoPlayback(
     onEnded: () -> Unit,
 ): VideoPlayback {
     val context = LocalContext.current
-    val player = remember(videoUri) {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(ExoMediaItem.fromUri(videoUri))
-            repeatMode = ExoPlayer.REPEAT_MODE_ONE
-            prepare()
-        }
+    // One player per video, not per source URL: a save landing mid-play swaps the remote
+    // URL for the vault copy, and rebuilding the player there would drop the video back to
+    // the start. A different video, which is what a reused pager page hands over, does get
+    // a fresh one.
+    val player = remember(mediaKey ?: videoUri) {
+        ExoPlayer.Builder(context).build().apply { repeatMode = ExoPlayer.REPEAT_MODE_ONE }
     }
     val soundPlayer = rememberSoundPlayer(soundUrl)
     val playback = remember(player, soundPlayer) {
@@ -345,6 +353,14 @@ private fun rememberVideoPlayback(
                 16f / 9f
             },
         )
+    }
+    // Staging the source. A player that has just been built sits at 0; one whose source
+    // changed under it is wherever the video had got to, and it resumes from there with the
+    // frame already on screen left in place, so the swap costs a buffer and not a restart.
+    LaunchedEffect(player, videoUri) {
+        playback.failed = false
+        player.setMediaItem(ExoMediaItem.fromUri(videoUri), player.currentPosition.coerceAtLeast(0))
+        player.prepare()
     }
     DisposableEffect(player, soundPlayer) {
         val listener = soundPlayer?.followVisual(player)
@@ -368,7 +384,7 @@ private fun rememberVideoPlayback(
     // The transport bar is the only reader of the position, so the poll runs only while
     // it is on screen and the position is moving. One read on entry keeps a paused or
     // freshly revealed bar accurate; [VideoPlayback.isPlaying] comes from the listener.
-    LaunchedEffect(videoUri, playback.isPlaying, chromeVisible) {
+    LaunchedEffect(player, playback.isPlaying, chromeVisible) {
         playback.readPosition()
         while (playback.isPlaying && chromeVisible) {
             delay(POSITION_POLL_MS)
@@ -379,7 +395,7 @@ private fun rememberVideoPlayback(
     val autoAdvanceNow = rememberUpdatedState(autoAdvance)
     val onEndedNow = rememberUpdatedState(onEnded)
     val selectedNow = rememberUpdatedState(selected)
-    DisposableEffect(videoUri) {
+    DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 playback.buffering = playbackState == Player.STATE_BUFFERING

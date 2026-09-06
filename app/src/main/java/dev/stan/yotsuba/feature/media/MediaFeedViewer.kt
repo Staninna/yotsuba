@@ -80,6 +80,11 @@ sealed interface ViewerPage {
     data class Video(
         /** Playable URI string, remote or `file://`. */
         val uri: String,
+        /**
+         * Stable id of the video, which [uri] is not: a save landing mid-play swaps the
+         * remote URL for the vault copy. Same key, so the page keeps playing where it was.
+         */
+        val mediaKey: String? = null,
         override val thumbnailModel: Any? = null,
         override val width: Int = 0,
         override val height: Int = 0,
@@ -236,6 +241,7 @@ fun MediaFeedViewer(
             when (val p = pages[page]) {
                 is ViewerPage.Video -> VideoPage(
                     videoUri = p.uri,
+                    mediaKey = p.mediaKey,
                     thumbnailModel = p.thumbnailModel,
                     initialWidth = p.width,
                     initialHeight = p.height,
