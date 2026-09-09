@@ -122,6 +122,10 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
+    // Declared outright so the test APK's coroutines-test (same catalog version) links
+    // against the same core the app ships. Left to transitive resolution the app landed on
+    // an older core, and every instrumented test died in runTest with a NoSuchMethodError.
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.coil.compose)
