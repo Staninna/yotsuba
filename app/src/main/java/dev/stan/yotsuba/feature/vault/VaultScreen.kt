@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.TextField
@@ -48,6 +50,7 @@ import androidx.compose.ui.zIndex
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -68,6 +71,9 @@ import dev.stan.yotsuba.domain.model.VaultLocation
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ListItem
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.feature.media.BusyDialog
+import dev.stan.yotsuba.feature.media.ImageTextSheet
+import dev.stan.yotsuba.feature.media.ShareCache
 import dev.stan.yotsuba.feature.media.ThreadMediaViewer
 import dev.stan.yotsuba.feature.media.ViewerBehaviour
 import dev.stan.yotsuba.feature.media.FramePickerSheet
@@ -83,6 +89,7 @@ import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.feature.media.shareMediaFile
 import java.io.File
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /** In-app explorer over the on-disk vault: boards → threads → media grid. */
@@ -509,10 +516,17 @@ private fun VaultViewer(
     val entries = viewer.entries
     var searchTarget by remember { mutableStateOf<ReverseSearchTarget?>(null) }
     var frameSource by remember { mutableStateOf<Pair<File, Long>?>(null) }
+    // The image the text sheet reads, and the sticker export in flight with its progress.
+    var textSource by remember { mutableStateOf<File?>(null) }
+    var exporting by remember { mutableStateOf<Job?>(null) }
+    var exportProgress by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val searchFailedMessage = stringResource(R.string.media_search_open_failed)
     val frameFailedMessage = stringResource(R.string.media_frame_failed)
+    val textCopiedMessage = stringResource(R.string.media_text_copied)
+    val exportFailedMessage = stringResource(R.string.media_export_webp_failed)
+    val noAppMessage = stringResource(R.string.media_no_app_for_link)
 
     ThreadMediaViewer(
         pages = entries.map { it.toViewerPage() },
@@ -546,6 +560,18 @@ private fun VaultViewer(
                     close()
                     frameSource = File(current.absolutePath) to (feed?.videoPositionMs ?: 0L)
                 }
+                ViewerMenuItem(Icons.Filled.Animation, stringResource(R.string.media_export_webp)) {
+                    close()
+                    exportProgress = 0f
+                    exporting = scope.launch {
+                        val sticker = ShareCache.writeAnimatedWebp(context, File(current.absolutePath)) { exportProgress = it }
+                        exporting = null
+                        when {
+                            sticker == null -> snackbar.showSnackbar(exportFailedMessage)
+                            !shareMediaFile(context, sticker, ".webp") -> snackbar.showSnackbar(noAppMessage)
+                        }
+                    }
+                }
             } else if (current != null) {
                 ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_image)) {
                     close()
@@ -554,6 +580,10 @@ private fun VaultViewer(
                         file = File(current.absolutePath),
                         ext = current.ext.orEmpty(),
                     )
+                }
+                ViewerMenuItem(Icons.Filled.TextFields, stringResource(R.string.media_text_action)) {
+                    close()
+                    textSource = File(current.absolutePath)
                 }
             }
         },
@@ -583,6 +613,20 @@ private fun VaultViewer(
         }
     }
 
+    if (exporting != null) {
+        BusyDialog(
+            stringResource(R.string.media_export_webp_progress),
+            onCancel = { exporting?.cancel(); exporting = null },
+            progress = exportProgress,
+        )
+    }
+    textSource?.let { image ->
+        ImageTextSheet(
+            file = image,
+            onDismiss = { textSource = null },
+            onCopied = { scope.launch { snackbar.showSnackbar(textCopiedMessage) } },
+        )
+    }
     frameSource?.let { (video, at) ->
         FramePickerSheet(
             video = video,
