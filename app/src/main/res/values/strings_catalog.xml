@@ -11,6 +11,9 @@
     <string name="catalog_sort_replies">Most replies</string>
     <string name="catalog_sort_images">Most images</string>
     <string name="catalog_sort_replies_per_hour">Replies per hour</string>
+    <!-- Card at the top of a catalog the first time the board is opened in a session. -->
+    <string name="catalog_about_title">About /%1$s/</string>
+    <string name="catalog_about_dismiss">Dismiss</string>
     <!-- Badge on a visited thread: replies since the user last read it. -->
     <string name="catalog_new_replies">+%1$d new</string>
     <!-- The catalog only lists the newest few replies, so past that the count is a floor. -->

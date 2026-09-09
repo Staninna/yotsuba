@@ -64,7 +64,7 @@ class CatalogViewModelTest {
         }
     }
 
-    private val boards = FakeBoardRepository(listOf(FakeBoardRepository.stub("g")))
+    private val boards = FakeBoardRepository(listOf(FakeBoardRepository.stub("g").copy(description = "Technology")))
 
     private inner class Env(
         threads: List<CatalogThread> = listOf(thread(1, subject = "Alpha"), thread(2), thread(3)),
@@ -74,6 +74,7 @@ class CatalogViewModelTest {
     ) {
         val catalog = FakeCatalogRepository(DataResult.Success(threads))
         val siblings = ThreadSiblingsStore()
+        val aboutCards = BoardAboutCards()
 
         fun vm(initialSearch: String? = null) = CatalogViewModel(
             board = "g",
@@ -84,6 +85,7 @@ class CatalogViewModelTest {
             hiddenThreadsRepository = hidden,
             historyRepository = history,
             threadSiblings = siblings,
+            aboutCards = aboutCards,
             networkMonitor = NetworkMonitor(ApplicationProvider.getApplicationContext()),
             compute = dispatcher,
         )
@@ -269,6 +271,21 @@ class CatalogViewModelTest {
             assertEquals(setOf(1L, 3L), (latest() as UiState.Success).data.blurred)
             env.settings.state.value = Settings()
             assertEquals(emptySet<Long>(), (latest() as UiState.Success).data.blurred)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `the about card shows once per board per session`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        val vm = env.vm()
+        vm.uiState.test {
+            assertEquals("Technology", (latest() as UiState.Success).data.about)
+            vm.onDismissAbout()
+            assertNull((latest() as UiState.Success).data.about)
+            cancelAndIgnoreRemainingEvents()
+        }
+        env.vm().uiState.test {
+            assertNull((latest() as UiState.Success).data.about)
             cancelAndIgnoreRemainingEvents()
         }
     }

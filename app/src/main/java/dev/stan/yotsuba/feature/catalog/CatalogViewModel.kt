@@ -43,6 +43,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     private val hiddenThreadsRepository: HiddenThreadsRepository,
     historyRepository: HistoryRepository,
     private val threadSiblings: ThreadSiblingsStore,
+    aboutCards: BoardAboutCards,
     networkMonitor: NetworkMonitor,
     /** Where the filter pipeline runs; tests pass their scheduler's dispatcher. */
     @ComputeDispatcher private val compute: CoroutineDispatcher = Dispatchers.Default,
@@ -72,6 +73,11 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     /** Board metadata for the top bar; not part of the list pipeline. */
     private val _boardInfo = MutableStateFlow<Board?>(null)
     val boardInfo: StateFlow<Board?> = _boardInfo
+    /** The About card is claimed once per board per session, by whichever ViewModel gets there first. */
+    private val aboutDismissed = MutableStateFlow(!aboutCards.claim(board))
+    private val about = combine(_boardInfo, aboutDismissed) { info, dismissed ->
+        info?.description?.takeIf { !dismissed && it.isNotBlank() }
+    }
 
     /**
      * Where the grid was when its pane last left composition, as (first visible item, pixel
@@ -108,6 +114,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
         val hidden: Set<Long>,
         val offline: Boolean,
         val readMarks: Map<Long, Long>,
+        val about: String?,
     )
 
     private val inputs = combine(
@@ -118,7 +125,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
         hiddenNos,
         offline,
         readMarks,
-    ) { (prefs, matcher), hidden, offline, readMarks -> Inputs(prefs, matcher, hidden, offline, readMarks) }
+        about,
+    ) { (prefs, matcher), hidden, offline, readMarks, about -> Inputs(prefs, matcher, hidden, offline, readMarks, about) }
 
     val uiState: StateFlow<UiState<CatalogContent>> = combine(
         result.flow, searchQuery, refreshing, inputs, unblurred,
@@ -141,6 +149,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                 searchQuery = query,
                 refreshing = isRefreshing,
                 offline = i.offline,
+                about = i.about,
                 stubs = verdicts.filterValues { it.action == FilterAction.STUB },
                 // Every verdict is a HIDE or a STUB, so the map's size is the count.
                 filteredCount = verdicts.size,
@@ -165,6 +174,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     }
 
     fun onRevealThumbnail(threadNo: Long) { unblurred.value += threadNo }
+    fun onDismissAbout() { aboutDismissed.value = true }
 
     /** Bump order is the default, so choosing it drops the board's entry rather than storing it. */
     fun onSelectSort(sort: CatalogSort) = viewModelScope.launch {

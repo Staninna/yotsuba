@@ -21,12 +21,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Link
@@ -37,6 +39,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -205,6 +208,11 @@ fun CatalogPane(
                             verticalArrangement = Arrangement.spacedBy(spacing.md),
                             modifier = Modifier.fillMaxSize(),
                         ) {
+                            if (s.about != null) {
+                                item(key = "about", contentType = "about", span = { GridItemSpan(maxLineSpan) }) {
+                                    AboutCard(board, s.about, onDismiss = viewModel::onDismissAbout)
+                                }
+                            }
                             // A collapsed stub and a card are different shapes; keying the
                             // slot type keeps the grid from reusing one for the other.
                             fun stubbed(thread: CatalogThread) =
@@ -295,6 +303,23 @@ private fun ThreadActionsSheet(
             modifier = Modifier.clickable(onClick = onOpenInBrowser),
         )
         Spacer(Modifier.height(spacing.lg))
+    }
+}
+
+/** The board's description from boards.json, the first time the board is opened this session. */
+@Composable
+private fun AboutCard(board: String, text: String, onDismiss: () -> Unit) {
+    val spacing = LocalSpacing.current
+    Card {
+        Row(Modifier.padding(start = spacing.md, top = spacing.xs, bottom = spacing.md), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.catalog_about_title, board), style = MaterialTheme.typography.titleSmall)
+                Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Filled.Close, stringResource(R.string.catalog_about_dismiss))
+            }
+        }
     }
 }
 

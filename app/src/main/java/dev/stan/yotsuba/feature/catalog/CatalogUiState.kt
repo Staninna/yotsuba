@@ -15,6 +15,8 @@ data class CatalogContent(
     val searchQuery: String?,
     val refreshing: Boolean,
     val offline: Boolean,
+    /** The board's own description, shown once per session at the top of the list; null once dismissed. */
+    val about: String? = null,
     /** Threads still in [threads] but collapsed to a stub, keyed by thread number. */
     val stubs: Map<Long, Filter> = emptyMap(),
     /** Threads a filter hid outright plus the ones stubbed; for the top bar count. */
