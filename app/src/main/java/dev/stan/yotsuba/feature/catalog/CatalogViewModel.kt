@@ -63,6 +63,14 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     private val _boardInfo = MutableStateFlow<Board?>(null)
     val boardInfo: StateFlow<Board?> = _boardInfo
 
+    /**
+     * Where the grid was when its pane last left composition, as (first visible item, pixel
+     * offset). The pane's own saveable state covers process death and back navigation, but a
+     * Home page swiped out of the pager loses it once the tab is switched away and back; this
+     * outlives the pane because the ViewModel is keyed by board under the screen that hosts it.
+     */
+    var scrollPosition: Pair<Int, Int> = 0 to 0
+
     init {
         load()
         viewModelScope.launch { _boardInfo.value = boardRepository.board(board) }

@@ -42,6 +42,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -115,7 +116,13 @@ fun CatalogPane(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val scope = rememberCoroutineScope()
-    val gridState = rememberLazyGridState()
+    val (savedIndex, savedOffset) = viewModel.scrollPosition
+    val gridState = rememberLazyGridState(savedIndex, savedOffset)
+    DisposableEffect(gridState) {
+        onDispose {
+            viewModel.scrollPosition = gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset
+        }
+    }
     val haptics = rememberHaptics()
     val showScrollTop by remember {
         derivedStateOf { gridState.firstVisibleItemIndex > 8 }
