@@ -59,11 +59,31 @@ Open work first; everything finished lives under `# Done` at the bottom.
 - [ ] Playback speed and frame stepping for webm (loop range is wave 11)
 - [ ] Per-bookmark auto-save of all media in a watched thread
 - [ ] Per-board font size and line spacing from a board profile are stored but not applied: post typography is set once in `MainActivity` through `YotsubaTheme`. Needs `CompositionLocalProvider(LocalPostTypography ...)` around the thread and catalog content with `settings.forBoard(board)`
-- [ ] The vault viewer's menu has neither "Copy text" (OCR) nor "Export as animated WebP"; only the thread viewer got them in wave 10
+- [ ] The data meter does not count video or sound-post streaming: ExoPlayer uses Media3's own HTTP stack. Needs `media3-datasource-okhttp` and an `OkHttpDataSource.Factory(client)` in `VideoCache.playbackFactory` and `rememberSoundPlayer`
+- [ ] The sound-post audio player does not play through `VideoCache`, so a precached sound post still fetches its audio on open
+- [ ] Removed-thread ETA, hot-right-now, and the other unpicked ideas from the 2026-09-09 lists live only in that session; nothing here
 
 # Done
 
 Finished work, kept for the record. Sections mirror the ones above.
+
+### 12. Wave 11, 2026-09-09
+
+#### 6. Feature ideas (vs Readchan)
+
+- [x] Precache the next media pages (`MediaPrecache.kt`; images via Coil's disk cache, video via a Media3 `SimpleCache` the player also reads). `Settings.precacheCount` 1 to 10, default 3, `precacheUnmeteredOnly`; off under data saver
+- [x] Loop a section of a webm: range slider handles, a non-deleting `PlayerMessage` seeks back at the end handle
+- [x] Thread gallery filename search
+- [x] Unread-only view in a thread with a read mark (`Session.readPosts` tri-state: shown, collapsed, hidden)
+- [x] Catalog sort per board (`CatalogSort`, `Settings.catalogSorts`)
+- [x] Blur thumbnails, global and per board profile; first tap reveals, second opens
+- [x] "About /x/" card from `meta_description`, once per board per process. The JSON API has no announcement field; nothing scrapes HTML
+- [x] Thread cross-references in the catalog from cross-thread quotelinks (`crossReferences()`)
+- [x] Link previews (Open Graph title, site, description) inside the confirm-before-opening dialog (`core/network/LinkPreview`)
+- [x] Timestamp modes: relative, absolute, both; phone or New York zone (`TimeFormat.post`, `LocalTimestampStyle`)
+- [x] Vault re-download of missing files from the live thread, then the archive chain (`MediaVaultRepository.redownloadMissing`, `VaultEntry.missing`)
+- [x] OCR and animated WebP export in the vault viewer
+- [x] Data usage meter: `DataUsageMeter` network interceptor, batched per board, `BYTES_FETCHED` usage events; shown in Settings > Storage and on the You page
 
 ### 11. Wave 10, 2026-09-09
 
