@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
@@ -119,10 +120,27 @@ fun MediaScreen(
     var sharing by remember { mutableStateOf(false) }
     var searchTarget by remember { mutableStateOf<ReverseSearchTarget?>(null) }
     val searchFailedMessage = stringResource(R.string.media_search_open_failed)
-    // The video the frame picker is open over, and the fetch that may be bringing it down.
+    // The video the frame picker is open over, and the image the text sheet reads.
     var frameSource by remember { mutableStateOf<Pair<File, Long>?>(null) }
-    var fetching by remember { mutableStateOf<Job?>(null) }
+    var textSource by remember { mutableStateOf<File?>(null) }
     val frameFailedMessage = stringResource(R.string.media_frame_failed)
+    val textCopiedMessage = stringResource(R.string.media_text_copied)
+
+    // The fetch bringing a remote item down for an action that needs it on disk. The
+    // share download is the same fetch, into the same cache.
+    var fetching by remember { mutableStateOf<Job?>(null) }
+    val withLocalFile = { item: MediaItem, use: (File) -> Unit ->
+        val local = localFileOf(item, state)
+        if (local != null) {
+            use(local)
+        } else {
+            fetching = scope.launch {
+                val file = viewModel.prepareShare(item)
+                fetching = null
+                if (file != null) use(file) else snackbar.showSnackbar(shareFailedMessage)
+            }
+        }
+    }
 
     val haptics = rememberHaptics()
     // Queued + running saves. Failed ones are not "in progress"; they wait on the icon.
@@ -171,18 +189,7 @@ fun MediaScreen(
                 ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_frame)) {
                     close()
                     val at = feed?.videoPositionMs ?: 0L
-                    val local = localFileOf(item, state)
-                    if (local != null) {
-                        frameSource = local to at
-                    } else {
-                        // A remote video has to be on disk for the retriever; the share
-                        // download is the same fetch, into the same cache.
-                        fetching = scope.launch {
-                            val file = viewModel.prepareShare(item)
-                            fetching = null
-                            if (file != null) frameSource = file to at else snackbar.showSnackbar(shareFailedMessage)
-                        }
-                    }
+                    withLocalFile(item) { frameSource = it to at }
                 }
             } else if (item != null) {
                 ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_image)) {
@@ -192,6 +199,10 @@ fun MediaScreen(
                         file = localFileOf(item, state),
                         ext = item.ext,
                     )
+                }
+                ViewerMenuItem(Icons.Filled.TextFields, stringResource(R.string.media_text_action)) {
+                    close()
+                    withLocalFile(item) { textSource = it }
                 }
             }
         },
@@ -262,7 +273,14 @@ fun MediaScreen(
     }
 
     if (fetching != null) {
-        FetchingVideoDialog(onCancel = { fetching?.cancel(); fetching = null })
+        FetchingDialog(onCancel = { fetching?.cancel(); fetching = null })
+    }
+    textSource?.let { image ->
+        ImageTextSheet(
+            file = image,
+            onDismiss = { textSource = null },
+            onCopied = { scope.launch { snackbar.showSnackbar(textCopiedMessage) } },
+        )
     }
     frameSource?.let { (video, at) ->
         FramePickerSheet(

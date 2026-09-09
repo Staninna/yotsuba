@@ -173,9 +173,9 @@ fun FramePickerSheet(
     }
 }
 
-/** "Fetching the video…" with a cancel button, while a remote video is pulled down for the picker. */
+/** "Fetching the file…" with a cancel button, while a remote item is pulled down for an action that needs it on disk. */
 @Composable
-fun FetchingVideoDialog(onCancel: () -> Unit) {
+fun FetchingDialog(onCancel: () -> Unit) {
     AlertDialog(
         onDismissRequest = onCancel,
         confirmButton = {
@@ -185,7 +185,7 @@ fun FetchingVideoDialog(onCancel: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator()
                 Text(
-                    stringResource(R.string.media_frame_fetching),
+                    stringResource(R.string.media_fetching),
                     modifier = Modifier.padding(start = LocalSpacing.current.md),
                 )
             }

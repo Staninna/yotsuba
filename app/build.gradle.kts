@@ -124,6 +124,7 @@ dependencies {
     implementation(libs.coil.gif)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui.compose)
+    implementation(libs.mlkit.text.recognition)
     implementation(libs.telephoto.zoomable.image.coil3)
 
     testImplementation(libs.junit)

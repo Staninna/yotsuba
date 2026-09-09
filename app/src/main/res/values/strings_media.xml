@@ -26,6 +26,11 @@
     <string name="media_frame_title">Pick a frame</string>
     <string name="media_frame_slider">Frame position</string>
     <string name="media_frame_use">Use this frame</string>
-    <string name="media_frame_fetching">Fetching the video…</string>
+    <string name="media_fetching">Fetching the file…</string>
+    <string name="media_text_action">Copy text</string>
+    <string name="media_text_title">Text in this image</string>
+    <string name="media_text_copy">Copy all</string>
+    <string name="media_text_copied">Text copied</string>
+    <string name="media_text_none">No text was recognised in this image</string>
     <string name="media_frame_failed">Couldn\'t read a frame from this video</string>
 </resources>
