@@ -47,6 +47,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import dev.stan.yotsuba.fake.NoUsage
 
 /** Deleting a saved video takes its captured still with it, not only the file and its row. */
 @RunWith(RobolectricTestRunner::class)
@@ -85,6 +86,7 @@ class MediaVaultDeleteTest {
             storageCheck = StorageAccessCheck { false },
             runMigration = {},
             ioDispatcher = UnconfinedTestDispatcher(),
+            usage = NoUsage,
         )
     }
 

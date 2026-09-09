@@ -27,6 +27,7 @@ import dev.stan.yotsuba.domain.model.ImportSource
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.model.VaultEntry
 import dev.stan.yotsuba.domain.model.VaultError
 import dev.stan.yotsuba.domain.model.VaultLocation
@@ -66,6 +67,7 @@ class MediaVaultRepositoryImpl(
     /** The legacy-layout migration; a parameter so a test can hand in one that fails. */
     private val runMigration: suspend () -> Unit,
     private val ioDispatcher: CoroutineDispatcher,
+    private val usage: UsageRecorder,
 ) : MediaVaultRepository {
 
     @Inject constructor(
@@ -81,12 +83,14 @@ class MediaVaultRepositoryImpl(
         preferences: DataStore<Preferences>,
         settings: SettingsRepository,
         @IoDispatcher ioDispatcher: CoroutineDispatcher,
+        usage: UsageRecorder,
     ) : this(
         savedMediaDao, store, vaultTrash, localImporter, galleryExporter, byteSource, threadRepository,
         preferences, settings,
         storageCheck = StorageAccessCheck { allFilesAccessGranted(context) },
         runMigration = migration::run,
         ioDispatcher = ioDispatcher,
+        usage = usage,
     )
 
     override fun hasStorageAccess(): Boolean = storageCheck.granted()
@@ -141,6 +145,10 @@ class MediaVaultRepositoryImpl(
                     row
                 }
                 savedMediaDao.insert(row)
+                usage.record(
+                    if (row.ext?.let(::isVideoExt) == true) UsageKind.VIDEO_SAVED else UsageKind.IMAGE_SAVED,
+                    saveContext.board, saveContext.threadNo, row.sizeBytes,
+                )
             }
         }
 

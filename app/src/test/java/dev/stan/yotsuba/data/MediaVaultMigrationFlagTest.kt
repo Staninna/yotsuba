@@ -43,6 +43,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import dev.stan.yotsuba.fake.NoUsage
 
 /**
  * The "legacy vault migrated" flag is only earned by a migration that ran to the end. One
@@ -96,6 +97,7 @@ class MediaVaultMigrationFlagTest {
             storageCheck = StorageAccessCheck { true },
             runMigration = migration,
             ioDispatcher = UnconfinedTestDispatcher(),
+            usage = NoUsage,
         )
     }
 

@@ -18,6 +18,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import dev.stan.yotsuba.fake.NoUsage
 
 class RepositoryTest {
 
@@ -98,7 +99,7 @@ class RepositoryTest {
                 CatalogPageDto(page = 2, threads = listOf(PostDto(no = 3))),
             )
         }
-        val result = CatalogRepositoryImpl(api).catalog("g") as DataResult.Success
+        val result = CatalogRepositoryImpl(api, NoUsage).catalog("g") as DataResult.Success
         assertEquals(listOf(1L, 2L, 3L), result.value.map { it.no })
         assertTrue(result.value.all { it.board == "g" })
         assertEquals("first", result.value[0].subject)
@@ -109,7 +110,7 @@ class RepositoryTest {
             override suspend fun catalog(board: String, cacheControl: String?): List<CatalogPageDto> =
                 throw java.net.SocketTimeoutException()
         }
-        assertEquals(DataResult.Failure(NetworkError.Timeout), CatalogRepositoryImpl(api).catalog("g"))
+        assertEquals(DataResult.Failure(NetworkError.Timeout), CatalogRepositoryImpl(api, NoUsage).catalog("g"))
     }
 
     // ThreadRepositoryImpl
@@ -126,7 +127,7 @@ class RepositoryTest {
                 )
             )
         }
-        val result = ThreadRepositoryImpl(api, NoArchive).thread("g", 100) as DataResult.Success
+        val result = ThreadRepositoryImpl(api, NoArchive, NoUsage).thread("g", 100) as DataResult.Success
         val details = result.value
         assertEquals("g", details.board)
         assertEquals(100L, details.threadNo)
@@ -143,7 +144,7 @@ class RepositoryTest {
             override suspend fun thread(board: String, no: Long, cacheControl: String?): ThreadDto =
                 throw java.net.ConnectException()
         }
-        assertEquals(DataResult.Failure(NetworkError.Offline), ThreadRepositoryImpl(api, NoArchive).thread("g", 1))
+        assertEquals(DataResult.Failure(NetworkError.Offline), ThreadRepositoryImpl(api, NoArchive, NoUsage).thread("g", 1))
     }
 }
 

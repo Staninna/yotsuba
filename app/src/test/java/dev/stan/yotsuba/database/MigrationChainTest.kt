@@ -9,6 +9,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import dev.stan.yotsuba.core.database.MIGRATION_10_11
 import dev.stan.yotsuba.core.database.MIGRATION_11_12
+import dev.stan.yotsuba.core.database.MIGRATION_12_13
 import dev.stan.yotsuba.core.database.MIGRATION_6_7
 import dev.stan.yotsuba.core.database.MIGRATION_7_8
 import dev.stan.yotsuba.core.database.MIGRATION_8_9
@@ -45,7 +46,7 @@ class MigrationChainTest {
     private val dbName = "migration-chain-test"
     private val startVersion = 6
     private val migrations = arrayOf(
-        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
     )
     private lateinit var context: Context
     private var opened: YotsubaDatabase? = null

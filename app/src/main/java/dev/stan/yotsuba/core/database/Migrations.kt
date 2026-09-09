@@ -116,3 +116,14 @@ val MIGRATION_11_12 = object : Migration(11, 12) {
         db.execSQL("ALTER TABLE `saved_media` ADD COLUMN `soundUrl` TEXT")
     }
 }
+
+/** Local usage events behind the "You" page. */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `usage_events` (" +
+                "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `kind` TEXT NOT NULL, `board` TEXT, " +
+                "`threadNo` INTEGER, `at` INTEGER NOT NULL, `value` INTEGER)",
+        )
+    }
+}

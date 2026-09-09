@@ -8,6 +8,7 @@ import dev.stan.yotsuba.core.util.apiResult
 import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,6 +17,7 @@ import javax.inject.Singleton
 class ThreadRepositoryImpl @Inject constructor(
     private val api: FourChanApi,
     private val archiveApi: ArchiveApi,
+    private val usage: UsageRecorder,
 ) : ThreadRepository {
 
     override suspend fun thread(board: String, no: Long, forceRefresh: Boolean): DataResult<ThreadDetails> =
@@ -37,7 +39,10 @@ class ThreadRepositoryImpl @Inject constructor(
         return when (val r = apiResult { parseFoolFuukaThread(archiveApi.thread(url)) }) {
             is DataResult.Failure -> r
             is DataResult.Success -> r.value
-                ?.let { DataResult.Success(it.toThreadDetails(board, source)) }
+                ?.let {
+                    usage.record(UsageKind.ARCHIVE_RESCUE, board, no)
+                    DataResult.Success(it.toThreadDetails(board, source))
+                }
                 ?: DataResult.Failure(NetworkError.NotFound)
         }
     }

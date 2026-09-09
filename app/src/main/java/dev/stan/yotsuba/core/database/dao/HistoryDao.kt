@@ -53,7 +53,7 @@ interface HistoryDao {
         "UPDATE history SET maxReadPostNo = :postNo WHERE board = :board AND threadNo = :threadNo " +
             "AND (maxReadPostNo IS NULL OR maxReadPostNo < :postNo)"
     )
-    suspend fun updateMaxRead(board: String, threadNo: Long, postNo: Long)
+    suspend fun updateMaxRead(board: String, threadNo: Long, postNo: Long): Int
 
     @Query("SELECT maxReadPostNo FROM history WHERE board = :board AND threadNo = :threadNo")
     suspend fun maxRead(board: String, threadNo: Long): Long?

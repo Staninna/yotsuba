@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="stats_title">You</string>
+    <string name="stats_entry">Your numbers</string>
+    <string name="stats_entry_summary">Threads read, files saved, habits. Stays on this phone.</string>
+    <string name="stats_explanation">Counted on this phone since it was installed. Nothing here is sent anywhere.</string>
+    <string name="stats_reading">Reading</string>
+    <string name="stats_threads_read">Threads read</string>
+    <string name="stats_posts_read">Read marks</string>
+    <string name="stats_in_history">In history now</string>
+    <string name="stats_watching">Watching now</string>
+    <string name="stats_watch_added">Threads watched, ever</string>
+    <string name="stats_boards">Boards by visits</string>
+    <string name="stats_saving">Saving</string>
+    <string name="stats_images_saved">Images saved</string>
+    <string name="stats_videos_saved">Videos saved</string>
+    <string name="stats_bytes_saved">Downloaded into the vault</string>
+    <string name="stats_vault_now">In the vault now</string>
+    <string name="stats_vault_detail">%1$d files, %2$s</string>
+    <string name="stats_habits">Habits</string>
+    <string name="stats_busiest_hour">Busiest hour</string>
+    <string name="stats_busiest_day">Busiest day</string>
+    <string name="stats_longest_streak">Longest streak</string>
+    <string name="stats_days">%1$d days</string>
+    <string name="stats_first_use">First use</string>
+    <string name="stats_rescues">Elsewhere</string>
+    <string name="stats_archive_rescues">Threads rescued from an archive</string>
+    <string name="stats_searches">Reverse image searches</string>
+</resources>

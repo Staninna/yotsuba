@@ -10,6 +10,7 @@ import dev.stan.yotsuba.core.log.Log
 import dev.stan.yotsuba.core.media.mimeOf
 import dev.stan.yotsuba.core.util.apiResult
 import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.repository.DirectUploadEngine
 import dev.stan.yotsuba.domain.repository.HostedFile
 import dev.stan.yotsuba.domain.repository.ReverseSearchRepository
@@ -65,12 +66,15 @@ class ReverseSearchRepositoryImpl internal constructor(
     private val io: CoroutineDispatcher,
     private val endpoints: UploadEndpoints,
     private val client: OkHttpClient,
+    private val usage: UsageRecorder,
 ) : ReverseSearchRepository {
 
-    @Inject constructor(@IoDispatcher io: CoroutineDispatcher, endpoints: UploadEndpoints) : this(io, endpoints, ownClient())
+    @Inject constructor(@IoDispatcher io: CoroutineDispatcher, endpoints: UploadEndpoints, usage: UsageRecorder) :
+        this(io, endpoints, ownClient(), usage)
 
     override suspend fun directSearchUrl(engine: DirectUploadEngine, file: File, ext: String): DataResult<String> =
         withContext(io) {
+            usage.record(UsageKind.SEARCH_RUN)
             apiResult {
                 when (engine) {
                     DirectUploadEngine.TINEYE -> tineyeSearch(file, ext)
@@ -85,6 +89,7 @@ class ReverseSearchRepositoryImpl internal constructor(
      * logged, so the next outage names itself in logcat instead of hiding behind the last host's.
      */
     override suspend fun hostTemporarily(file: File, ext: String): DataResult<HostedFile> = withContext(io) {
+        usage.record(UsageKind.SEARCH_RUN)
         apiResult {
             var last: IOException? = null
             for (host in TemporaryHost.entries) {

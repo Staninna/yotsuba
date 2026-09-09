@@ -23,6 +23,7 @@ sealed interface Route {
     @Serializable data object Vault : Route
     @Serializable data object Settings : Route
     @Serializable data class SettingsSection(val id: SettingsSectionId) : Route
+    @Serializable data object Stats : Route
 }
 
 /**
