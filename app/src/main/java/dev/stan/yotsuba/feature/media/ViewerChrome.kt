@@ -55,7 +55,9 @@ import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import me.saket.telephoto.zoomable.coil3.ZoomableAsyncImage
+import me.saket.telephoto.zoomable.ZoomSpec
 import me.saket.telephoto.zoomable.rememberZoomableImageState
+import me.saket.telephoto.zoomable.rememberZoomableState
 
 /**
  * The shared top bar of every full-screen media viewer (live thread and vault): close
@@ -237,7 +239,9 @@ fun ImagePage(
     muted: Boolean = true,
     sharedKey: String? = null,
 ) {
-    val zoomState = rememberZoomableImageState()
+    val zoomState = rememberZoomableImageState(
+        rememberZoomableState(zoomSpec = ZoomSpec(maxZoomFactor = MAX_ZOOM)),
+    )
     SoundTrack(soundUrl = soundUrl, playWhenReady = selected && playing, muted = muted)
     // Once tapped the image stays loaded for this page's lifetime, even if the connection
     // flips back to metered mid-thread: the bytes are already spent.
@@ -298,3 +302,6 @@ internal fun LoadPill(sizeBytes: Long?, onClick: () -> Unit) {
         )
     }
 }
+
+/** How far past fit-to-screen a pinch may go, for photos and videos alike. Telephoto's default 2x is too tight for reading small text in screenshots. */
+internal const val MAX_ZOOM = 5f

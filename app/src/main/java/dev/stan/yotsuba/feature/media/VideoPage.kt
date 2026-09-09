@@ -71,6 +71,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
+import me.saket.telephoto.zoomable.ZoomSpec
 import me.saket.telephoto.zoomable.ZoomableState
 import me.saket.telephoto.zoomable.rememberZoomableState
 import me.saket.telephoto.zoomable.zoomable
@@ -157,7 +158,7 @@ fun VideoPage(
         }
     }
 
-    val zoomState = rememberZoomableState()
+    val zoomState = rememberZoomableState(zoomSpec = ZoomSpec(maxZoomFactor = MAX_ZOOM))
     val doubleClick = remember(behaviour, viewportWidth, playback) {
         if (!behaviour.doubleTapSeek || viewportWidth <= 0) {
             DoubleClickToZoomListener.cycle()
