@@ -86,6 +86,7 @@ fun StatsScreen(onBack: () -> Unit, viewModel: StatsViewModel = hiltViewModel())
             u.firstUseAt?.let { StatRow(R.string.stats_first_use, TimeFormat.date(it)) }
             Header(R.string.stats_rescues)
             StatRow(R.string.stats_archive_rescues, u.archiveRescues.toString())
+            StatRow(R.string.stats_offline_copies, u.offlineCopies.toString())
             StatRow(R.string.stats_searches, u.searchesRun.toString())
         }
     }

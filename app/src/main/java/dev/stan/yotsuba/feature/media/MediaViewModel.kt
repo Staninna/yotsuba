@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -103,6 +104,7 @@ class MediaViewModel @AssistedInject constructor(
     private val boardInfo = MutableStateFlow<Board?>(null)
     /** Read directly for saves, which must not depend on whether the UI is collecting. */
     private val settingsState = settingsRepository.settings
+        .map { it.forBoard(board) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
 
     private val loadedDetails: ThreadDetails?
@@ -154,7 +156,7 @@ class MediaViewModel @AssistedInject constructor(
     ) { saved, access, states -> Triple(saved, access, states) }
 
     val uiState: StateFlow<MediaUiState> = combine(
-        source, boardInfo, settingsRepository.settings, networkMonitor.status, saves,
+        source, boardInfo, settingsState, networkMonitor.status, saves,
     ) { src, info, settings, status, (saved, access, states) ->
         val d = (src as? Source.Loaded)?.details
         val list = d?.posts.orEmpty().mapNotNull { it.presentMedia }

@@ -17,6 +17,8 @@ enum class UsageKind {
     /** A third-party archive answered for a thread 4chan had dropped. */
     ARCHIVE_RESCUE,
     SEARCH_RUN,
+    /** A thread that neither 4chan nor an archive answered for was read from the vault sidecar. */
+    OFFLINE_COPY,
 }
 
 data class UsageEvent(
@@ -39,6 +41,7 @@ data class UsageStats(
     val bytesSaved: Long,
     val bookmarksAdded: Int,
     val archiveRescues: Int,
+    val offlineCopies: Int,
     val searchesRun: Int,
     /** 0 to 23 in [ZoneId] local time; null before the first event. */
     val busiestHour: Int?,
@@ -73,6 +76,7 @@ data class UsageStats(
                     .sumOf { it.value ?: 0L },
                 bookmarksAdded = count(UsageKind.BOOKMARK_ADDED),
                 archiveRescues = count(UsageKind.ARCHIVE_RESCUE),
+                offlineCopies = count(UsageKind.OFFLINE_COPY),
                 searchesRun = count(UsageKind.SEARCH_RUN),
                 busiestHour = moments.groupingBy { it.hour }.eachCount().maxByOrNull { it.value }?.key,
                 busiestDay = moments.groupingBy { it.dayOfWeek }.eachCount().maxByOrNull { it.value }?.key,

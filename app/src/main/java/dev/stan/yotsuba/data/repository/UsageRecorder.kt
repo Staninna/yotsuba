@@ -28,7 +28,7 @@ class UsageRecorder @Inject constructor(
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : UsageRepository {
 
-    fun record(kind: UsageKind, board: String? = null, threadNo: Long? = null, value: Long? = null) {
+    override fun record(kind: UsageKind, board: String?, threadNo: Long?, value: Long?) {
         val at = System.currentTimeMillis()
         scope.launch(io) {
             try {

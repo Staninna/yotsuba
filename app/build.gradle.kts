@@ -45,6 +45,9 @@ android {
             // Unit-test coverage (JaCoCo): ./gradlew :app:createDebugUnitTestCoverageReport
             // Report: app/build/reports/coverage/test/debug/index.html
             enableUnitTestCoverage = true
+            // Instrumented coverage: ./gradlew :app:createDebugAndroidTestCoverageReport
+            // Report: app/build/reports/coverage/androidTest/debug/connected/index.html
+            enableAndroidTestCoverage = true
         }
         release {
             isMinifyEnabled = true

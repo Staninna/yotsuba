@@ -25,6 +25,7 @@ import dev.stan.yotsuba.domain.repository.ThreadRepository
 import dev.stan.yotsuba.fake.FakeBoardRepository
 import dev.stan.yotsuba.fake.FakeBookmarkRepository
 import dev.stan.yotsuba.fake.FakeHistoryRepository
+import dev.stan.yotsuba.fake.NoUsage
 import dev.stan.yotsuba.fake.FakeMediaVault
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.FakeThreadRepository
@@ -84,6 +85,7 @@ class ThreadEnv(
         bookmarkRepository = bookmarks,
         historyRepository = history,
         settingsRepository = settings,
+        usage = NoUsage,
         mediaSessionStore = sessionStore,
         mediaVault = vault,
         downloadQueue = queue,

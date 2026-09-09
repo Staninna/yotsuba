@@ -22,10 +22,12 @@ import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.ClaimedPostRepository
+import dev.stan.yotsuba.domain.repository.UsageRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.MediaSaveQueue
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
@@ -67,6 +69,7 @@ class ThreadViewModel @AssistedInject constructor(
     private val mediaVault: MediaVaultRepository,
     private val downloadQueue: MediaSaveQueue,
     private val claimedPosts: ClaimedPostRepository,
+    private val usage: UsageRepository,
     /** Where the row pipeline runs; tests pass their scheduler's dispatcher. */
     @ComputeDispatcher private val compute: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
@@ -81,7 +84,9 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     private val result = MutableStateFlow<DataResult<ThreadDetails>?>(null)
+    /** Global settings with this board's profile applied; every read in here goes through it. */
     private val settingsState = settingsRepository.settings
+        .map { it.forBoard(board) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Settings())
     private val boardInfo = MutableStateFlow<Board?>(null)
     /** Compiled once per change to the filter list, never per post. */
@@ -134,7 +139,7 @@ class ThreadViewModel @AssistedInject constructor(
     )
 
     val uiState: StateFlow<UiState<ThreadContent>> = combine(
-        result, settingsRepository.settings, meta, _session, matcher,
+        result, settingsState, meta, _session, matcher,
     ) { res, settings, (board, bookmarked, saveStatuses, claimed, savedPaths), session, matcher ->
         when (res) {
             null -> UiState.Loading
@@ -260,6 +265,7 @@ class ThreadViewModel @AssistedInject constructor(
      */
     private suspend fun fallback(failure: DataResult.Failure): DataResult<ThreadDetails> {
         mediaVault.savedThread(board, threadNo)?.let { saved ->
+            usage.record(UsageKind.OFFLINE_COPY, board, threadNo)
             _session.update { it.copy(offlineCopyAt = savedAt(saved)) }
             return DataResult.Success(saved.copy(offlineCopy = true))
         }
@@ -294,7 +300,7 @@ class ThreadViewModel @AssistedInject constructor(
      * replies. Only when there are some; a fully read thread was opened to be re-read.
      */
     private suspend fun collapseReadPosts(details: ThreadDetails) {
-        if (!settingsRepository.settings.first().collapseReadPosts) return
+        if (!settingsState.value.collapseReadPosts) return
         if (!bookmarked.first()) return
         val mark = historyRepository.readUpTo(board, threadNo) ?: return
         val body = details.posts.drop(1)
@@ -339,7 +345,7 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     private suspend fun recordHistory(details: ThreadDetails) {
-        val settings = settingsRepository.settings.first()
+        val settings = settingsState.value
         if (!settings.recordHistory) return
         val op = details.posts.firstOrNull() ?: return
         historyRepository.record(

@@ -24,6 +24,7 @@
     <string name="stats_days">%1$d days</string>
     <string name="stats_first_use">First use</string>
     <string name="stats_rescues">Elsewhere</string>
+    <string name="stats_offline_copies">Offline copies opened</string>
     <string name="stats_archive_rescues">Threads rescued from an archive</string>
     <string name="stats_searches">Reverse image searches</string>
 </resources>

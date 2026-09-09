@@ -45,8 +45,8 @@ have it pruned down to the OP plus the replies around each saved file.
 
 Threads have quote previews, spoilers that stay hidden until tapped, in-thread
 search, and a read position that returns you to where you left off. When 4chan
-no longer has a thread, the app falls through to desuarchive, arch.b4k.co or
-warosu for the boards they cover.
+no longer has a thread, the app falls through to the archives that cover that
+board, in order: desuarchive, arch.b4k.dev, 4plebs, fireden, palanq, archived.moe.
 
 Bookmarked threads are polled in the background and can notify you of new
 replies. A home screen widget lists them, unread first.
@@ -73,8 +73,9 @@ The app talks to 4chan for everything ordinary. Beyond that:
 
 - GitHub (`api.github.com`), when you check for updates. An unauthenticated GET
   for the latest release; no account, no token.
-- desuarchive.org, arch.b4k.co and warosu.org, when a thread is gone from 4chan
-  and one of them archives that board.
+- desuarchive.org, arch.b4k.dev, archive.4plebs.org, boards.fireden.net,
+  archive.palanq.win and archived.moe, when a thread is gone from 4chan and one of
+  them archives that board. Tried in that order; the first hit wins.
 - TinEye, Yandex, SauceNAO, IQDB and Google Lens, only when you pick one from
   the reverse search menu. For images that are still online the engine gets the
   4chan URL. For a file that only exists on your phone (an imported thread, a
