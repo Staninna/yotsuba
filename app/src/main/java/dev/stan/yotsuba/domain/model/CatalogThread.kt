@@ -13,6 +13,8 @@ data class CatalogThread(
     val lastModified: Long,
     val sticky: Boolean,
     val closed: Boolean,
+    /** Post numbers of the newest replies the catalog carries (a handful at most), oldest first. */
+    val lastReplyNos: List<Long> = emptyList(),
 ) {
     val displayTitle: String
         get() = threadDisplayTitle(subject, excerpt.plainText, fallback = "#$no")

@@ -15,4 +15,6 @@ data class CatalogContent(
     val stubs: Map<Long, Filter> = emptyMap(),
     /** Threads a filter hid outright plus the ones stubbed; for the top bar count. */
     val filteredCount: Int = 0,
+    /** Replies since the user last read each visited thread, keyed by thread number. */
+    val newReplies: Map<Long, NewReplies> = emptyMap(),
 )
