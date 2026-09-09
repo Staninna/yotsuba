@@ -4,4 +4,16 @@
     <string name="catalog_thread_open_in_browser">Open in browser</string>
     <string name="catalog_thread_link_copied">Link copied</string>
     <string name="boards_favourite_removed">Removed /%1$s/ from favourites</string>
+    <string name="boards_profiles">Board profiles</string>
+    <string name="boards_profiles_summary">Override text size, spacing, autoplay, spoilers and inline images for one board</string>
+    <string name="boards_profile_add">Board code</string>
+    <string name="boards_profile_global">Uses global settings</string>
+    <plurals name="boards_profile_overrides">
+        <item quantity="one">%1$d override</item>
+        <item quantity="other">%1$d overrides</item>
+    </plurals>
+    <string name="boards_profile_use_global">Use global</string>
+    <string name="boards_profile_on">On</string>
+    <string name="boards_profile_off">Off</string>
+    <string name="boards_profile_remove">Remove profile</string>
 </resources>

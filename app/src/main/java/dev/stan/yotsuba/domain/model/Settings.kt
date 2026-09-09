@@ -42,6 +42,23 @@ enum class LineSpacing(val em: Float) {
 }
 
 /**
+ * Per-board overrides for the settings that differ most between boards. Null means the
+ * global value; [Settings.forBoard] applies the rest.
+ */
+@Serializable
+data class BoardProfile(
+    val fontSize: FontSize? = null,
+    val lineSpacing: LineSpacing? = null,
+    val mediaAutoplay: MediaAutoplay? = null,
+    val revealAllSpoilers: Boolean? = null,
+    val inlineImageExpansion: Boolean? = null,
+) {
+    /** How many fields diverge from the global; 0 means the profile is not worth keeping. */
+    val overrides: Int
+        get() = listOfNotNull(fontSize, lineSpacing, mediaAutoplay, revealAllSpoilers, inlineImageExpansion).size
+}
+
+/**
  * Persisted as one JSON blob. Every field needs a default: the serializer coerces missing
  * keys and unknown enum names to it, which is how old installs survive new fields.
  */
@@ -135,4 +152,18 @@ data class Settings(
     val translatePosts: Boolean = false,
     /** In the dark theme, paint backgrounds and surfaces true black for OLED screens. */
     val pureBlack: Boolean = false,
-)
+    /** Keyed by board code. A consumer reading settings for a board goes through [forBoard]. */
+    val boardProfiles: Map<String, BoardProfile> = emptyMap(),
+) {
+    /** These settings with [board]'s profile laid over them; the global ones if it has none. */
+    fun forBoard(board: String): Settings {
+        val p = boardProfiles[board] ?: return this
+        return copy(
+            fontSize = p.fontSize ?: fontSize,
+            lineSpacing = p.lineSpacing ?: lineSpacing,
+            mediaAutoplay = p.mediaAutoplay ?: mediaAutoplay,
+            revealAllSpoilers = p.revealAllSpoilers ?: revealAllSpoilers,
+            inlineImageExpansion = p.inlineImageExpansion ?: inlineImageExpansion,
+        )
+    }
+}

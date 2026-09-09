@@ -98,6 +98,8 @@ fun SettingsSectionScreen(
                 SettingsSectionId.READING -> ReadingSection(settings, update)
                 SettingsSectionId.MEDIA -> MediaSection(settings, update)
                 SettingsSectionId.BOARDS -> BoardsSection(
+                    settings = settings,
+                    update = update,
                     hiddenThreads = state.hiddenThreads,
                     onHideNsfwBoards = viewModel::onHideNsfwBoards,
                     onUnhideThread = viewModel::onUnhideThread,
