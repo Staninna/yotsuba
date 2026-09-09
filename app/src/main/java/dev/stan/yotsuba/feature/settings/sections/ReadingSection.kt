@@ -60,6 +60,12 @@ fun ReadingSection(settings: Settings, update: ((Settings) -> Settings) -> Unit)
         labelOf = { stringResource(it.labelRes) },
     )
     SwitchRow(
+        title = stringResource(R.string.settings_translate_posts),
+        summary = stringResource(R.string.settings_translate_posts_summary),
+        checked = settings.translatePosts,
+        onToggle = { v -> update { it.copy(translatePosts = v) } },
+    )
+    SwitchRow(
         title = stringResource(R.string.settings_record_history),
         summary = null,
         checked = settings.recordHistory,

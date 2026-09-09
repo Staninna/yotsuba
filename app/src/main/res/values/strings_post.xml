@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Post action sheet and card -->
+    <string name="post_translate">Translate</string>
+    <string name="post_translation_label">Translation</string>
+    <string name="post_translating">Translating…</string>
+    <string name="post_translation_downloading">Downloading the language model…</string>
+    <string name="post_translation_failed">Could not translate this post.</string>
+    <string name="post_translation_hide">Hide</string>
+
+    <!-- Settings, Reading section -->
+    <string name="settings_translate_posts">Translate posts</string>
+    <string name="settings_translate_posts_summary">Adds Translate to the post menu. Runs on-device; the language model downloads on first use.</string>
+</resources>

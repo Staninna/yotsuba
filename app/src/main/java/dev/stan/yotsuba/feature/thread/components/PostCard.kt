@@ -31,7 +31,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,6 +47,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.theme.LocalYotsubaColors
 import dev.stan.yotsuba.core.designsystem.theme.postTypography
@@ -57,6 +61,8 @@ import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.feature.thread.PostTranslation
+import dev.stan.yotsuba.feature.thread.PostTranslationViewModel
 import dev.stan.yotsuba.feature.thread.PostUiState
 
 /** Deterministic chip colour from the poster-ID hash, harmonised into the scheme (D21). */
@@ -319,6 +325,7 @@ fun PostCard(
                     onLongPress = actions.onBodyLongPress?.let { hold -> { tap -> hold(post, tap) } },
                     quoteLabels = quoteLabels,
                 )
+                TranslationBlock(post.no)
             }
             val backlinkCount = ui.backlinks.size
             if (backlinkCount > 0) {
@@ -339,6 +346,52 @@ fun PostCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The post's translation from the action sheet, under its body until hidden. The
+ * screen-scoped view model is the cache: the card asks nothing and persists nothing.
+ */
+@Composable
+private fun TranslationBlock(postNo: Long) {
+    val viewModel = hiltViewModel<PostTranslationViewModel>()
+    val translations by viewModel.translations.collectAsStateWithLifecycle()
+    val translation = translations[postNo] ?: return
+    val spacing = LocalSpacing.current
+    Spacer(Modifier.height(spacing.sm))
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small)
+            .padding(start = spacing.md, top = spacing.sm, end = spacing.sm),
+    ) {
+        Text(
+            stringResource(R.string.post_translation_label),
+            style = postTypography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        when (translation) {
+            is PostTranslation.Working -> Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(spacing.sm))
+                Text(
+                    stringResource(
+                        if (translation.downloading) R.string.post_translation_downloading else R.string.post_translating,
+                    ),
+                    style = postTypography.bodyMedium,
+                )
+            }
+            is PostTranslation.Done -> Text(translation.text, style = postTypography.bodyMedium)
+            PostTranslation.Failed -> Text(
+                stringResource(R.string.post_translation_failed),
+                style = postTypography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        TextButton(onClick = { viewModel.hide(postNo) }, modifier = Modifier.align(Alignment.End)) {
+            Text(stringResource(R.string.post_translation_hide))
         }
     }
 }

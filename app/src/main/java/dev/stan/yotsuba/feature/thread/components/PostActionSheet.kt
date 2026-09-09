@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -18,12 +19,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.feature.thread.PostTranslationViewModel
 
 /** Long-press menu for one post. Each callback closes the sheet itself. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -40,6 +45,8 @@ fun PostActionSheet(
     onDismiss: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
+    val translations = hiltViewModel<PostTranslationViewModel>()
+    val translateEnabled by translations.enabled.collectAsStateWithLifecycle()
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column {
             Text(
@@ -59,6 +66,12 @@ fun PostActionSheet(
             )
             if (showFilterById && post.posterId != null) {
                 SheetRow(Icons.Filled.FilterList, stringResource(R.string.thread_filter_by_id), onFilterById)
+            }
+            if (translateEnabled && post.body.plainText.isNotBlank()) {
+                SheetRow(Icons.Filled.Translate, stringResource(R.string.post_translate)) {
+                    onDismiss()
+                    translations.translate(post)
+                }
             }
             Spacer(Modifier.height(spacing.lg))
         }
