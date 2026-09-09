@@ -9,6 +9,8 @@ data class CatalogContent(
     val threads: List<CatalogThread>,
     val layout: CatalogLayout,
     val sort: CatalogSort = CatalogSort.BUMP_ORDER,
+    /** Threads whose thumbnail is still hidden behind a blur; empty when the board does not blur. */
+    val blurred: Set<Long> = emptySet(),
     /** null = search closed. */
     val searchQuery: String?,
     val refreshing: Boolean,

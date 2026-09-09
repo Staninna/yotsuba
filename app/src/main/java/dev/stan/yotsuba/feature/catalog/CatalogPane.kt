@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.catalog
 
 import android.content.Intent
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -53,7 +54,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -221,8 +226,10 @@ fun CatalogPane(
                                             thread = thread,
                                             newReplies = s.newReplies[thread.no],
                                             layout = s.layout,
+                                            blurred = thread.no in s.blurred,
                                             onClick = { viewModel.onThreadOpened(thread.no); onOpenThread(thread.no) },
                                             onLongClick = { haptics.longPress(); sheetThread = thread },
+                                            onReveal = { viewModel.onRevealThumbnail(thread.no) },
                                         )
                                     }
                                 }
@@ -324,12 +331,16 @@ private fun ThreadCard(
     thread: CatalogThread,
     newReplies: NewReplies?,
     layout: CatalogLayout,
+    blurred: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onReveal: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
     // The OP card in the thread carries the same key, so opening the thread carries the image.
-    val shared = thread.thumbnailUrl?.let { Modifier.sharedMedia(it) } ?: Modifier
+    // A blurred thumbnail takes the first tap for itself; the card gets the next one.
+    val shared = (thread.thumbnailUrl?.let { Modifier.sharedMedia(it) } ?: Modifier)
+        .then(if (blurred) Modifier.hidden().combinedClickable(onClick = onReveal, onLongClick = onLongClick) else Modifier)
     Card(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         when (layout) {
             CatalogLayout.LIST -> Row(Modifier.padding(spacing.md)) {
@@ -386,6 +397,14 @@ private fun ThreadCard(
         }
     }
 }
+
+/**
+ * Blur strong enough that nothing in the picture can be made out. RenderEffect blur needs
+ * API 31; below that the image is painted over instead, which hides it just as well.
+ */
+private fun Modifier.hidden(): Modifier =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) blur(24.dp, BlurredEdgeTreatment.Rectangle)
+    else drawWithContent { drawRect(Color.Gray) }
 
 @Composable
 private fun TitleAndBadges(thread: CatalogThread, newReplies: NewReplies?, maxLines: Int = 1) {

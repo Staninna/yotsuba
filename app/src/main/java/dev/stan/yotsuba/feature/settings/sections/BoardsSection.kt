@@ -23,6 +23,7 @@ import androidx.compose.ui.text.input.ImeAction
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.ChipRow
 import dev.stan.yotsuba.core.designsystem.component.SectionHeader
+import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.core.designsystem.component.TextRow
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.BoardProfile
@@ -60,6 +61,12 @@ fun BoardsSection(
     TextRow(stringResource(R.string.settings_hidden_threads, hiddenThreads.size)) {
         showHidden = true
     }
+    SwitchRow(
+        title = stringResource(R.string.boards_blur_thumbnails),
+        summary = stringResource(R.string.boards_blur_thumbnails_summary),
+        checked = settings.blurThumbnails,
+        onToggle = { on -> update { it.copy(blurThumbnails = on) } },
+    )
 
     SectionHeader(stringResource(R.string.boards_profiles))
     // Favourites are the boards worth a profile; the text field below covers the rest.
@@ -167,6 +174,13 @@ private fun BoardProfileDialog(
                     options = listOf(null, true, false),
                     selected = profile.inlineImageExpansion,
                     onSelect = { onChange(profile.copy(inlineImageExpansion = it)) },
+                    labelOf = onOff,
+                )
+                ChipRow(
+                    label = stringResource(R.string.boards_blur_thumbnails),
+                    options = listOf(null, true, false),
+                    selected = profile.blurThumbnails,
+                    onSelect = { onChange(profile.copy(blurThumbnails = it)) },
                     labelOf = onOff,
                 )
             }

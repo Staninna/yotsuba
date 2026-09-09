@@ -7,6 +7,7 @@ import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
+import dev.stan.yotsuba.domain.model.BoardProfile
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogSort
 import dev.stan.yotsuba.domain.model.CatalogThread
@@ -254,6 +255,20 @@ class CatalogViewModelTest {
             vm.onSelectSort(CatalogSort.BUMP_ORDER)
             assertEquals(listOf(1L, 2L, 3L), (latest() as UiState.Success).data.threads.map { it.no })
             assertEquals(emptyMap<String, CatalogSort>(), env.settings.state.value.catalogSorts)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `blur follows the board profile and a reveal sticks for the session`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.settings.state.value = Settings(boardProfiles = mapOf("g" to BoardProfile(blurThumbnails = true)))
+        val vm = env.vm()
+        vm.uiState.test {
+            assertEquals(setOf(1L, 2L, 3L), (latest() as UiState.Success).data.blurred)
+            vm.onRevealThumbnail(2)
+            assertEquals(setOf(1L, 3L), (latest() as UiState.Success).data.blurred)
+            env.settings.state.value = Settings()
+            assertEquals(emptySet<Long>(), (latest() as UiState.Success).data.blurred)
             cancelAndIgnoreRemainingEvents()
         }
     }

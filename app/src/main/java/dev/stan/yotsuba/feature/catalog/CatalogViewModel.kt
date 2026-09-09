@@ -12,6 +12,7 @@ import dev.stan.yotsuba.core.util.toUiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogSort
+import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterMatcher
 import dev.stan.yotsuba.domain.repository.BoardRepository
@@ -56,6 +57,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     /** null = search closed; the list is unfiltered. */
     private val searchQuery = MutableStateFlow(initialSearch?.takeIf { it.isNotBlank() })
     private val refreshing = MutableStateFlow(false)
+    /** Threads whose blurred thumbnail was tapped open; lasts as long as this ViewModel. */
+    private val unblurred = MutableStateFlow(emptySet<Long>())
     private val hiddenNos = hiddenThreadsRepository.forBoard(board)
         .map { list -> list.map { it.threadNo }.toSet() }
     /** Read mark per visited thread on this board, for the "+N new" badge. */
@@ -95,10 +98,12 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     /** Error-state retry: bypass the cache like pull-to-refresh, but show the loading shell. */
     fun retry(): Job = result.load(forceRefresh = true, showLoading = true)
 
+    /** The slice of settings the list depends on; compared by value so the matcher compiles once per change. */
+    private data class Prefs(val layout: CatalogLayout, val sort: CatalogSort, val blur: Boolean, val filters: List<Filter>)
+
     /** Everything the list is derived from besides the fetch result and the user's own toggles. */
     private data class Inputs(
-        val layout: CatalogLayout,
-        val sort: CatalogSort,
+        val prefs: Prefs,
         val matcher: FilterMatcher,
         val hidden: Set<Long>,
         val offline: Boolean,
@@ -106,19 +111,18 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     )
 
     private val inputs = combine(
-        // One settings collection; the matcher compiles once per change to the filter list.
         settingsRepository.settings
-            .map { Triple(it.catalogLayout, it.catalogSorts[board] ?: CatalogSort.BUMP_ORDER, it.filters) }
+            .map { Prefs(it.catalogLayout, it.catalogSorts[board] ?: CatalogSort.BUMP_ORDER, it.forBoard(board).blurThumbnails, it.filters) }
             .distinctUntilChanged()
-            .map { (layout, sort, filters) -> Triple(layout, sort, FilterMatcher(filters)) },
+            .map { it to FilterMatcher(it.filters) },
         hiddenNos,
         offline,
         readMarks,
-    ) { (layout, sort, matcher), hidden, offline, readMarks -> Inputs(layout, sort, matcher, hidden, offline, readMarks) }
+    ) { (prefs, matcher), hidden, offline, readMarks -> Inputs(prefs, matcher, hidden, offline, readMarks) }
 
     val uiState: StateFlow<UiState<CatalogContent>> = combine(
-        result.flow, searchQuery, refreshing, inputs,
-    ) { res, query, isRefreshing, i ->
+        result.flow, searchQuery, refreshing, inputs, unblurred,
+    ) { res, query, isRefreshing, i, unblurred ->
         res.toUiState { threads ->
             val searched = threads
                 .filter { it.no !in i.hidden }
@@ -128,11 +132,12 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                         it.excerpt.plainText.contains(query, true)
                 }
             val verdicts = i.matcher.verdicts(searched, board)
-            val shown = searched.filterNot { verdicts[it.no]?.action == FilterAction.HIDE }.sortedBy(i.sort)
+            val shown = searched.filterNot { verdicts[it.no]?.action == FilterAction.HIDE }.sortedBy(i.prefs.sort)
             CatalogContent(
                 threads = shown,
-                layout = i.layout,
-                sort = i.sort,
+                layout = i.prefs.layout,
+                sort = i.prefs.sort,
+                blurred = if (i.prefs.blur) shown.mapTo(mutableSetOf()) { it.no } - unblurred else emptySet(),
                 searchQuery = query,
                 refreshing = isRefreshing,
                 offline = i.offline,
@@ -158,6 +163,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
             s.copy(catalogLayout = next)
         }
     }
+
+    fun onRevealThumbnail(threadNo: Long) { unblurred.value += threadNo }
 
     /** Bump order is the default, so choosing it drops the board's entry rather than storing it. */
     fun onSelectSort(sort: CatalogSort) = viewModelScope.launch {
