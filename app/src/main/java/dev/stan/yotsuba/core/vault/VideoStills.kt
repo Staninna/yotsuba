@@ -110,10 +110,11 @@ object VideoStills {
         }
     }
 
-    private fun shrink(frame: Bitmap): Bitmap {
+    /** [frame] with its longest edge at most [maxEdge]: the same bitmap when it already fits, else a scaled copy. */
+    fun shrink(frame: Bitmap, maxEdge: Int = MAX_EDGE): Bitmap {
         val edge = maxOf(frame.width, frame.height)
-        if (edge <= MAX_EDGE) return frame
-        val scale = MAX_EDGE.toFloat() / edge
+        if (edge <= maxEdge) return frame
+        val scale = maxEdge.toFloat() / edge
         return Bitmap.createScaledBitmap(
             frame, (frame.width * scale).toInt().coerceAtLeast(1), (frame.height * scale).toInt().coerceAtLeast(1), true,
         )

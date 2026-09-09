@@ -8,8 +8,11 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings as AndroidSettings
 import androidx.core.content.FileProvider
+import dev.stan.yotsuba.core.media.AnimatedWebp
 import dev.stan.yotsuba.core.media.mimeOf
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Opens the system "All files access" toggle for this app so the vault becomes writable:
@@ -90,7 +93,7 @@ private fun sendIntent(context: Context, file: File, ext: String): Intent {
 
 /**
  * The one cache directory for files handed to other apps: downloads made for the share
- * button and frames cut out of a video. Everything in it is disposable, and [trim] keeps
+ * button, frames cut out of a video and stickers made from one. Everything in it is disposable, and [trim] keeps
  * it to the newest [LIMIT] files so a long session does not fill the phone.
  */
 object ShareCache {
@@ -115,6 +118,19 @@ object ShareCache {
         trim(dir, keep = file)
         file
     }.getOrNull()
+
+    /**
+     * Writes the opening seconds of [video] as an animated WebP into the cache and trims
+     * around it. [onProgress] reports the share of frames done. Null on failure.
+     */
+    suspend fun writeAnimatedWebp(context: Context, video: File, onProgress: (Float) -> Unit): File? =
+        withContext(Dispatchers.IO) {
+            val dir = dir(context)
+            val file = File(dir, video.nameWithoutExtension + ".webp")
+            if (!AnimatedWebp.fromVideo(video, file, onProgress)) return@withContext null
+            trim(dir, keep = file)
+            file
+        }
 
     /** The cache name for the frame of [video] at [timeMs]: `clip.webm` at 1.5 s is `clip-1500ms.jpg`. */
     fun frameFileName(video: File, timeMs: Long): String =

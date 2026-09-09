@@ -25,13 +25,16 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -173,6 +176,36 @@ fun AutoAdvanceMenuItem(autoAdvance: Boolean, onToggle: () -> Unit) {
 @Composable
 fun PipMenuItem(onClick: () -> Unit) {
     ViewerMenuItem(Icons.Filled.PictureInPictureAlt, stringResource(R.string.media_pip), onClick)
+}
+
+/**
+ * "Working…" with a cancel button, over a job the viewer is waiting on: a remote file
+ * being fetched, a sticker being encoded. [progress] draws a bar in place of the spinner.
+ */
+@Composable
+fun BusyDialog(text: String, onCancel: () -> Unit, progress: Float? = null) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        confirmButton = {
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
+        },
+        text = {
+            if (progress != null) {
+                Column {
+                    Text(text)
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth().padding(top = LocalSpacing.current.md),
+                    )
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator()
+                    Text(text, modifier = Modifier.padding(start = LocalSpacing.current.md))
+                }
+            }
+        },
+    )
 }
 
 /**
