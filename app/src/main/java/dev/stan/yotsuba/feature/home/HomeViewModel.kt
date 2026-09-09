@@ -3,8 +3,17 @@ package dev.stan.yotsuba.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.DataResult
+import dev.stan.yotsuba.domain.model.FilterAction
+import dev.stan.yotsuba.domain.model.FilterMatcher
+import dev.stan.yotsuba.domain.repository.CatalogRepository
+import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -15,6 +24,8 @@ import javax.inject.Inject
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
+    private val catalogRepository: CatalogRepository,
+    private val hiddenThreadsRepository: HiddenThreadsRepository,
 ) : ViewModel() {
 
     /**
@@ -24,6 +35,28 @@ class HomeViewModel @Inject constructor(
     val boards: StateFlow<List<String>?> = settingsRepository.settings
         .map { it.favouriteBoards.toList() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Boards the dice skips. In memory only: the veto lasts as long as this ViewModel does. */
+    val vetoedBoards: StateFlow<Set<String>> get() = _vetoedBoards
+    private val _vetoedBoards = MutableStateFlow(emptySet<String>())
+
+    fun toggleVeto(board: String) = _vetoedBoards.update { if (board in it) it - board else it + board }
+
+    /**
+     * A random live thread from a random favourite the user has not vetoed, with hidden and
+     * filtered threads left out the same way the catalog leaves them out. Null when no board
+     * yields one, which includes every catalog failing to load.
+     */
+    suspend fun rollThread(): CatalogThread? {
+        val settings = settingsRepository.settings.first()
+        val matcher = FilterMatcher(settings.filters)
+        return pickRandomThread(settings.favouriteBoards - _vetoedBoards.value) { board ->
+            val threads = (catalogRepository.catalog(board) as? DataResult.Success)?.value ?: emptyList()
+            val hidden = hiddenThreadsRepository.forBoard(board).first().map { it.threadNo }.toSet()
+            val verdicts = matcher.verdicts(threads, board)
+            threads.filter { it.no !in hidden && verdicts[it.no]?.action != FilterAction.HIDE }
+        }
+    }
 
     /**
      * Moves the favourite at [from] to slot [to], shifting the tabs between them by one. The
