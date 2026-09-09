@@ -80,4 +80,16 @@
     <string name="vault_unindexed_explanation">Your files are still here. Rescan rebuilds the index from them.</string>
     <string name="vault_fetch_replies">Fetch new replies</string>
     <string name="vault_fetch_replies_explanation">Refresh saved threads from 4chan, one a second</string>
+    <string name="vault_redownload_missing">Re-download missing</string>
+    <string name="vault_redownload_missing_explanation">Fetch back files deleted outside the app, from 4chan or an archive</string>
+    <string name="vault_redownload_failed">Couldn\'t fetch any file back</string>
+    <plurals name="vault_redownload_done">
+        <item quantity="one">Fetched %1$d file back, %2$d unrecoverable.</item>
+        <item quantity="other">Fetched %1$d files back, %2$d unrecoverable.</item>
+    </plurals>
+    <string name="vault_missing">Missing from disk</string>
+    <plurals name="vault_missing_count">
+        <item quantity="one">%1$d missing</item>
+        <item quantity="other">%1$d missing</item>
+    </plurals>
 </resources>
