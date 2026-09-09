@@ -1,10 +1,17 @@
 package dev.stan.yotsuba.feature.settings.sections
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.ChipRow
@@ -15,6 +22,10 @@ import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.SeekStep
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.feature.settings.labelRes
+import kotlin.math.roundToInt
+
+private const val PRECACHE_MIN = 1
+private const val PRECACHE_MAX = 10
 
 @Composable
 fun MediaSection(settings: Settings, update: ((Settings) -> Settings) -> Unit) {
@@ -31,6 +42,19 @@ fun MediaSection(settings: Settings, update: ((Settings) -> Settings) -> Unit) {
         summary = stringResource(R.string.settings_inline_images_summary),
         checked = settings.inlineImageExpansion,
         onToggle = { v -> update { it.copy(inlineImageExpansion = v) } },
+    )
+    // Data saver switches precaching off altogether, so its rows go dead with it.
+    PrecacheRow(
+        count = settings.precacheCount,
+        enabled = !settings.dataSaver,
+        onChange = { n -> update { it.copy(precacheCount = n) } },
+    )
+    SwitchRow(
+        title = stringResource(R.string.media_precache_unmetered),
+        summary = stringResource(R.string.media_precache_unmetered_summary),
+        checked = settings.precacheUnmeteredOnly,
+        enabled = !settings.dataSaver,
+        onToggle = { v -> update { it.copy(precacheUnmeteredOnly = v) } },
     )
 
     SectionHeader(stringResource(R.string.settings_video))
@@ -87,4 +111,35 @@ fun MediaSection(settings: Settings, update: ((Settings) -> Settings) -> Unit) {
         checked = settings.saveRepliesWithMedia,
         onToggle = { v -> update { it.copy(saveRepliesWithMedia = v) } },
     )
+}
+
+/** "Precache ahead: 3 pages" over a stepped slider; the setting is written once, on release. */
+@Composable
+private fun PrecacheRow(count: Int, enabled: Boolean, onChange: (Int) -> Unit) {
+    val spacing = LocalSpacing.current
+    var dragging by remember { mutableStateOf<Int?>(null) }
+    val shown = dragging ?: count
+    Column(Modifier.padding(horizontal = spacing.lg, vertical = spacing.xs)) {
+        Text(
+            stringResource(R.string.media_precache_count),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.38f),
+        )
+        Text(
+            pluralStringResource(R.plurals.media_precache_pages, shown, shown),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.38f),
+        )
+        Slider(
+            value = shown.toFloat(),
+            onValueChange = { dragging = it.roundToInt() },
+            onValueChangeFinished = {
+                dragging?.takeIf { it != count }?.let(onChange)
+                dragging = null
+            },
+            valueRange = PRECACHE_MIN.toFloat()..PRECACHE_MAX.toFloat(),
+            steps = PRECACHE_MAX - PRECACHE_MIN - 1,
+            enabled = enabled,
+        )
+    }
 }

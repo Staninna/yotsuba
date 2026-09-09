@@ -36,4 +36,11 @@
     <string name="media_export_webp">Export as animated WebP</string>
     <string name="media_export_webp_progress">Encoding the sticker…</string>
     <string name="media_export_webp_failed">Couldn\'t export this video</string>
+    <string name="media_precache_count">Precache ahead</string>
+    <plurals name="media_precache_pages">
+        <item quantity="one">The next %d page is fetched before you swipe to it</item>
+        <item quantity="other">The next %d pages are fetched before you swipe to them</item>
+    </plurals>
+    <string name="media_precache_unmetered">Only on wi-fi</string>
+    <string name="media_precache_unmetered_summary">Never precache on mobile data. Data saver turns precaching off altogether</string>
 </resources>

@@ -173,6 +173,7 @@ fun MediaScreen(
         },
         onDismiss = onClose,
         activeDownloads = pending,
+        precacheAhead = state.precacheAhead,
         onLongPressPage = { page ->
             val item = state.items.getOrNull(page)
             if (state.behaviour.holdToSave && item != null) {
@@ -361,6 +362,7 @@ private fun ViewerPlaceholder(onClose: () -> Unit, content: @Composable ColumnSc
 private fun MediaItem.toViewerPage(context: Context, state: MediaUiState): ViewerPage {
     // Already-saved media plays straight from the vault file, so no buffering.
     val localPath = state.savedPath(fullUrl)
+    val remoteUrl = fullUrl.takeIf { localPath == null && !it.startsWith("file:") }
     val description = context.getString(R.string.media_image_description, displayName, width, height)
     return if (isVideo) {
         ViewerPage.Video(
@@ -375,6 +377,7 @@ private fun MediaItem.toViewerPage(context: Context, state: MediaUiState): Viewe
             contentDescription = description,
             soundUrl = soundUrl,
             sharedKey = fullUrl,
+            remoteUrl = remoteUrl,
         )
     } else {
         ViewerPage.Image(
@@ -392,6 +395,7 @@ private fun MediaItem.toViewerPage(context: Context, state: MediaUiState): Viewe
             deferLoad = state.deferHeavyMedia && localPath == null,
             soundUrl = soundUrl,
             sharedKey = fullUrl,
+            remoteUrl = remoteUrl,
         )
     }
 }

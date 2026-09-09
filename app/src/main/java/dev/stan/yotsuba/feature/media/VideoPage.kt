@@ -58,6 +58,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 import coil3.compose.AsyncImage
@@ -321,6 +322,7 @@ internal class VideoPlayback(
  * listener that feeds [VideoPlayback], the lifecycle pause, and the position poll that runs
  * only while the transport bar can show it ([chromeVisible]) and it is moving.
  */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 private fun rememberVideoPlayback(
     videoUri: String,
@@ -341,7 +343,10 @@ private fun rememberVideoPlayback(
     // the start. A different video, which is what a reused pager page hands over, does get
     // a fresh one.
     val player = remember(mediaKey ?: videoUri) {
-        ExoPlayer.Builder(context).build().apply { repeatMode = ExoPlayer.REPEAT_MODE_ONE }
+        ExoPlayer.Builder(context)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(VideoCache.playbackFactory(context)))
+            .build()
+            .apply { repeatMode = ExoPlayer.REPEAT_MODE_ONE }
     }
     val soundPlayer = rememberSoundPlayer(soundUrl)
     val playback = remember(player, soundPlayer) {
