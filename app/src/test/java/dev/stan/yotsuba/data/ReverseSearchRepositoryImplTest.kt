@@ -18,6 +18,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import dev.stan.yotsuba.fake.NoUsage
 
 class ReverseSearchRepositoryImplTest {
 
@@ -42,6 +43,7 @@ class ReverseSearchRepositoryImplTest {
                 zeroXZero = "$base/0x0",
             ),
             OkHttpClient(),
+            NoUsage,
         )
         image = tmp.newFile("frame.jpg").apply { writeBytes(byteArrayOf(1, 2, 3)) }
     }

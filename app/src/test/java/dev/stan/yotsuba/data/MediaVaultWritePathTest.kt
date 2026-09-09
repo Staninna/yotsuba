@@ -58,6 +58,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import dev.stan.yotsuba.fake.NoUsage
 
 /**
  * The vault's write path end to end on a temp folder: bytes land where the layout says,
@@ -104,6 +105,7 @@ class MediaVaultWritePathTest {
             storageCheck = StorageAccessCheck { access },
             runMigration = {},
             ioDispatcher = UnconfinedTestDispatcher(),
+            usage = NoUsage,
         )
     }
 

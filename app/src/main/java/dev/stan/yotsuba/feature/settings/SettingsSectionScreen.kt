@@ -53,6 +53,7 @@ import kotlinx.coroutines.launch
 fun SettingsSectionScreen(
     section: SettingsSectionId,
     onBack: () -> Unit,
+    onOpenStats: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -143,7 +144,7 @@ fun SettingsSectionScreen(
                     canInstallPackages = viewModel::canInstallPackages,
                     onRequestInstallPermission = { context.startActivity(viewModel.unknownSourcesIntent()) },
                 )
-                SettingsSectionId.ABOUT -> AboutSection(state.versionName)
+                SettingsSectionId.ABOUT -> AboutSection(state.versionName, onOpenStats)
             }
         }
     }

@@ -23,6 +23,7 @@ import dev.stan.yotsuba.core.database.MIGRATION_8_9
 import dev.stan.yotsuba.core.database.MIGRATION_9_10
 import dev.stan.yotsuba.core.database.MIGRATION_10_11
 import dev.stan.yotsuba.core.database.MIGRATION_11_12
+import dev.stan.yotsuba.core.database.MIGRATION_12_13
 import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
 import dev.stan.yotsuba.core.network.ArchiveApi
@@ -49,6 +50,7 @@ import dev.stan.yotsuba.data.repository.MediaDownloadQueue
 import dev.stan.yotsuba.data.repository.MediaVaultRepositoryImpl
 import dev.stan.yotsuba.data.repository.ReverseSearchRepositoryImpl
 import dev.stan.yotsuba.data.repository.ThreadRepositoryImpl
+import dev.stan.yotsuba.data.repository.UsageRecorder
 import dev.stan.yotsuba.data.repository.VaultDedupRepositoryImpl
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BoardRepository
@@ -63,6 +65,7 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.ReverseSearchRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
+import dev.stan.yotsuba.domain.repository.UsageRepository
 import dev.stan.yotsuba.domain.repository.VaultDedupRepository
 import java.io.File
 import javax.inject.Singleton
@@ -132,7 +135,7 @@ object DatabaseModule {
     @Singleton
     fun database(@ApplicationContext context: Context): YotsubaDatabase =
         Room.databaseBuilder(context, YotsubaDatabase::class.java, "yotsuba.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
             .build()
 
     @Provides fun bookmarkDao(db: YotsubaDatabase) = db.bookmarkDao()
@@ -141,6 +144,7 @@ object DatabaseModule {
     @Provides fun downloadedMediaDao(db: YotsubaDatabase) = db.downloadedMediaDao()
     @Provides fun savedMediaDao(db: YotsubaDatabase) = db.savedMediaDao()
     @Provides fun claimedPostDao(db: YotsubaDatabase) = db.claimedPostDao()
+    @Provides fun usageEventDao(db: YotsubaDatabase) = db.usageEventDao()
 }
 
 @Module
@@ -168,6 +172,7 @@ abstract class RepositoryModule {
     @Binds abstract fun claimedPostRepository(impl: ClaimedPostRepositoryImpl): ClaimedPostRepository
     @Binds abstract fun mediaSaveQueue(impl: MediaDownloadQueue): MediaSaveQueue
     @Binds abstract fun reverseSearchRepository(impl: ReverseSearchRepositoryImpl): ReverseSearchRepository
+    @Binds abstract fun usageRepository(impl: UsageRecorder): UsageRepository
 }
 
 /** Its own module so the instrumented tests' replacement of [RepositoryModule] leaves it bound. */

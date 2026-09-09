@@ -31,6 +31,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.HttpException
 import retrofit2.Response
+import dev.stan.yotsuba.fake.NoUsage
 
 class BookmarkRepositoryImplTest {
 
@@ -141,7 +142,7 @@ class BookmarkRepositoryImplTest {
         api: FourChanApi,
         dao: FakeBookmarkDao = FakeBookmarkDao(),
         catalog: CatalogRepository = FakeCatalog(emptyMap()),
-    ) = BookmarkRepositoryImpl(dao, api, catalog, clock = { 42L })
+    ) = BookmarkRepositoryImpl(dao, api, catalog, NoUsage, clock = { 42L })
 
     // --- unread derivation -------------------------------------------------------------
 

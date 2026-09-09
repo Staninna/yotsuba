@@ -59,6 +59,7 @@ import dev.stan.yotsuba.feature.catalog.ThreadSiblingsViewModel
 import dev.stan.yotsuba.feature.media.MediaScreen
 import dev.stan.yotsuba.feature.settings.SettingsScreen
 import dev.stan.yotsuba.feature.settings.SettingsSectionScreen
+import dev.stan.yotsuba.feature.stats.StatsScreen
 import dev.stan.yotsuba.feature.thread.ThreadScreen
 import dev.stan.yotsuba.feature.threads.ThreadsScreen
 import dev.stan.yotsuba.feature.vault.VaultScreen
@@ -223,7 +224,11 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
                             SettingsSectionScreen(
                                 section = entry.toRoute<Route.SettingsSection>().id,
                                 onBack = { navController.popBackStack() },
+                                onOpenStats = { navController.push(Route.Stats) },
                             )
+                        }
+                        screen<Route.Stats> {
+                            StatsScreen(onBack = { navController.popBackStack() })
                         }
                     }
                 }

@@ -8,6 +8,7 @@ import dev.stan.yotsuba.core.util.apiResult
 import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadDetails
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.repository.ThreadRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,6 +17,7 @@ import javax.inject.Singleton
 class ThreadRepositoryImpl @Inject constructor(
     private val api: FourChanApi,
     private val archiveApi: ArchiveApi,
+    private val usage: UsageRecorder,
 ) : ThreadRepository {
 
     override suspend fun thread(board: String, no: Long, forceRefresh: Boolean): DataResult<ThreadDetails> =
@@ -31,14 +33,26 @@ class ThreadRepositoryImpl @Inject constructor(
             )
         }
 
+    /**
+     * Every archive that carries the board, in [ArchiveHosts] order, until one has the
+     * thread. "Not found" and a failed request move on to the next; a rate limit stops the
+     * chain, since hammering the next host is how the next host rate-limits too.
+     */
     override suspend fun archivedThread(board: String, no: Long): DataResult<ThreadDetails> {
-        val source = ArchiveHosts.sourceFor(board) ?: return DataResult.Failure(NetworkError.NotFound)
-        val url = ArchiveHosts.apiUrl(source, board, no) ?: return DataResult.Failure(NetworkError.NotFound)
-        return when (val r = apiResult { parseFoolFuukaThread(archiveApi.thread(url)) }) {
-            is DataResult.Failure -> r
-            is DataResult.Success -> r.value
-                ?.let { DataResult.Success(it.toThreadDetails(board, source)) }
-                ?: DataResult.Failure(NetworkError.NotFound)
+        var last: DataResult<ThreadDetails> = DataResult.Failure(NetworkError.NotFound)
+        for (source in ArchiveHosts.sourcesFor(board)) {
+            val url = ArchiveHosts.apiUrl(source, board, no) ?: continue
+            val r = apiResult { parseFoolFuukaThread(archiveApi.thread(url)) }
+            val thread = (r as? DataResult.Success)?.value
+            if (thread != null) {
+                usage.record(UsageKind.ARCHIVE_RESCUE, board, no)
+                return DataResult.Success(thread.toThreadDetails(board, source))
+            }
+            if (r is DataResult.Failure) {
+                if (r.error == NetworkError.RateLimited) return r
+                last = r
+            }
         }
+        return last
     }
 }

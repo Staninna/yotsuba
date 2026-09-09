@@ -39,10 +39,15 @@ data class ThreadDetails(
     val offlineCopy: Boolean = false,
 )
 
-/** Third-party archives, in lookup order for boards more than one of them carries. */
+/** Third-party archives, in the order they are tried for a board more than one of them carries. */
 enum class ArchiveSource(val label: String) {
     DESU("desuarchive.org"),
-    B4K("arch.b4k.co"),
+    B4K("arch.b4k.dev"),
+    FOUR_PLEBS("archive.4plebs.org"),
+    FIREDEN("boards.fireden.net"),
+    PALANQ("archive.palanq.win"),
+    /** Carries nearly everything, so it goes after the specialists. */
+    ARCHIVED_MOE("archived.moe"),
     /** Listed for the board table; has no JSON API, so nothing reads from it yet. */
     WAROSU("warosu.org"),
 }

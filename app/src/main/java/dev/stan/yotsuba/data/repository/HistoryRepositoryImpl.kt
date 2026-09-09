@@ -3,6 +3,7 @@ package dev.stan.yotsuba.data.repository
 import dev.stan.yotsuba.core.database.dao.HistoryDao
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.HistoryRetention
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
@@ -15,7 +16,11 @@ import kotlinx.coroutines.flow.map
 class HistoryRepositoryImpl @Inject constructor(
     private val dao: HistoryDao,
     private val settingsRepository: SettingsRepository,
+    private val usage: UsageRecorder,
 ) : HistoryRepository {
+
+    /** When each thread was last counted as a visit; every poll records history, only the first is a visit. */
+    private val lastVisit = java.util.concurrent.ConcurrentHashMap<Pair<String, Long>, Long>()
 
     override val history: Flow<List<HistoryEntry>> =
         dao.all().map { list -> list.map { it.toDomain() } }
@@ -23,6 +28,11 @@ class HistoryRepositoryImpl @Inject constructor(
     override suspend fun record(entry: HistoryEntry) {
         dao.record(entry.toEntity())
         applyRetention()
+        val key = entry.board to entry.threadNo
+        if (entry.viewedAt - (lastVisit[key] ?: 0L) >= VISIT_GAP_MS) {
+            lastVisit[key] = entry.viewedAt
+            usage.record(UsageKind.THREAD_VISITED, entry.board, entry.threadNo)
+        }
     }
 
     /** Applies the retention preference on every write, so trimming never depends on a screen. */
@@ -38,8 +48,9 @@ class HistoryRepositoryImpl @Inject constructor(
     override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) =
         dao.updateScroll(board, threadNo, postNo)
 
-    override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) =
-        dao.updateMaxRead(board, threadNo, postNo)
+    override suspend fun updateReadUpTo(board: String, threadNo: Long, postNo: Long) {
+        if (dao.updateMaxRead(board, threadNo, postNo) > 0) usage.record(UsageKind.READ_MARK, board, threadNo, postNo)
+    }
 
     override suspend fun readUpTo(board: String, threadNo: Long): Long? = dao.maxRead(board, threadNo)
 
@@ -57,4 +68,8 @@ class HistoryRepositoryImpl @Inject constructor(
     override suspend fun clearAll() = dao.clearAll()
 
     override suspend fun trim(retainAfterMs: Long) = dao.trimOlderThan(retainAfterMs)
+
+    private companion object {
+        const val VISIT_GAP_MS = 30 * 60_000L
+    }
 }

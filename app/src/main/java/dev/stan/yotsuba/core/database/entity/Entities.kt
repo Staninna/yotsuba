@@ -100,3 +100,14 @@ data class ClaimedPostEntity(
     val postNo: Long,
     val claimedAt: Long,
 )
+
+/** One local usage event for the "You" page; [kind] is a [dev.stan.yotsuba.domain.model.UsageKind] name. */
+@Entity(tableName = "usage_events")
+data class UsageEventEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val kind: String,
+    val board: String?,
+    val threadNo: Long?,
+    val at: Long,
+    val value: Long?,
+)

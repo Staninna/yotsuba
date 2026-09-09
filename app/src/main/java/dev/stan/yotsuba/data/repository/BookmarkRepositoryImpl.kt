@@ -9,6 +9,7 @@ import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.NetworkError
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.repository.BookmarkRefreshSummary
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
@@ -24,16 +25,20 @@ class BookmarkRepositoryImpl(
     private val dao: BookmarkDao,
     private val api: FourChanApi,
     private val catalogRepository: CatalogRepository,
+    private val usage: UsageRecorder,
     private val clock: () -> Long,
 ) : BookmarkRepository {
 
-    @Inject constructor(dao: BookmarkDao, api: FourChanApi, catalogRepository: CatalogRepository) :
-        this(dao, api, catalogRepository, System::currentTimeMillis)
+    @Inject constructor(dao: BookmarkDao, api: FourChanApi, catalogRepository: CatalogRepository, usage: UsageRecorder) :
+        this(dao, api, catalogRepository, usage, System::currentTimeMillis)
 
     override val bookmarks: Flow<List<Bookmark>> =
         dao.all().map { list -> list.map { it.toDomain() } }
 
-    override suspend fun add(bookmark: Bookmark) = dao.upsert(bookmark.toEntity())
+    override suspend fun add(bookmark: Bookmark) {
+        dao.upsert(bookmark.toEntity())
+        usage.record(UsageKind.BOOKMARK_ADDED, bookmark.board, bookmark.threadNo)
+    }
 
     override suspend fun remove(board: String, threadNo: Long) = dao.delete(board, threadNo)
 
