@@ -52,11 +52,22 @@ data class BoardProfile(
     val mediaAutoplay: MediaAutoplay? = null,
     val revealAllSpoilers: Boolean? = null,
     val inlineImageExpansion: Boolean? = null,
+    /** Blur catalog and thread thumbnails until tapped. Not NSFW hiding, just discretion. */
+    val blurThumbnails: Boolean? = null,
 ) {
     /** How many fields diverge from the global; 0 means the profile is not worth keeping. */
     val overrides: Int
-        get() = listOfNotNull(fontSize, lineSpacing, mediaAutoplay, revealAllSpoilers, inlineImageExpansion).size
+        get() = listOfNotNull(fontSize, lineSpacing, mediaAutoplay, revealAllSpoilers, inlineImageExpansion, blurThumbnails).size
 }
+
+/** How a post's time reads. */
+enum class TimestampMode { RELATIVE, ABSOLUTE, BOTH }
+
+/** Whose clock an absolute time uses: the phone's, or 4chan's (US Eastern). */
+enum class TimestampZone { LOCAL, BOARD }
+
+/** Catalog order. [REPLIES_PER_HOUR] is replies divided by the thread's age. */
+enum class CatalogSort { BUMP, CREATED, REPLIES, IMAGES, REPLIES_PER_HOUR }
 
 /**
  * Persisted as one JSON blob. Every field needs a default: the serializer coerces missing
@@ -154,6 +165,16 @@ data class Settings(
     val pureBlack: Boolean = false,
     /** Keyed by board code. A consumer reading settings for a board goes through [forBoard]. */
     val boardProfiles: Map<String, BoardProfile> = emptyMap(),
+    /** Blur thumbnails on every board; a profile can override it. */
+    val blurThumbnails: Boolean = false,
+    /** How many media pages ahead of the open one the viewer fetches, 1 to 10. */
+    val precacheCount: Int = 3,
+    /** Only precache on an unmetered connection. */
+    val precacheUnmeteredOnly: Boolean = true,
+    val timestampMode: TimestampMode = TimestampMode.RELATIVE,
+    val timestampZone: TimestampZone = TimestampZone.LOCAL,
+    /** Keyed by board code; a board absent here sorts by bump order. */
+    val catalogSorts: Map<String, CatalogSort> = emptyMap(),
 ) {
     /** These settings with [board]'s profile laid over them; the global ones if it has none. */
     fun forBoard(board: String): Settings {
@@ -164,6 +185,7 @@ data class Settings(
             mediaAutoplay = p.mediaAutoplay ?: mediaAutoplay,
             revealAllSpoilers = p.revealAllSpoilers ?: revealAllSpoilers,
             inlineImageExpansion = p.inlineImageExpansion ?: inlineImageExpansion,
+            blurThumbnails = p.blurThumbnails ?: blurThumbnails,
         )
     }
 }

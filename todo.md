@@ -56,12 +56,34 @@ Open work first; everything finished lives under `# Done` at the bottom.
 
 - [ ] Full-text search across the vault: index every sidecar's `posts.json` in a Room FTS table, search text/name/ID/filename offline. List snapshot-only threads in the explorer at the same time
 - [ ] Re-orderable favourites and per-board accents on Home
-- [ ] Playback speed, loop toggle and frame stepping for webm
+- [ ] Playback speed and frame stepping for webm (loop range is wave 11)
 - [ ] Per-bookmark auto-save of all media in a watched thread
+- [ ] Per-board font size and line spacing from a board profile are stored but not applied: post typography is set once in `MainActivity` through `YotsubaTheme`. Needs `CompositionLocalProvider(LocalPostTypography ...)` around the thread and catalog content with `settings.forBoard(board)`
+- [ ] The vault viewer's menu has neither "Copy text" (OCR) nor "Export as animated WebP"; only the thread viewer got them in wave 10
 
 # Done
 
 Finished work, kept for the record. Sections mirror the ones above.
+
+### 11. Wave 10, 2026-09-09
+
+#### 6. Feature ideas (vs Readchan)
+
+- [x] Reply chain viewer: the quote preview sheet lists a post's replies as a depth-first, foldable tree (`PostGraph.replyTree`, `Session.foldedReplies`)
+- [x] Thread gallery collapses reposts by MD5 with an "xN" badge (`galleryTiles`)
+- [x] Opt-in on-device post translation, ML Kit translate plus language ID, behind `core/text/PostTranslator`; in-memory only
+- [x] Opt-in dubs and gets tint (`repeatingTail`, `Settings.highlightGets`)
+- [x] `FilterAction.FADE`: matching posts and catalog cards stay at 40% opacity instead of hiding
+- [x] Pure black dark theme (`Settings.pureBlack`, `ColorScheme.pureBlack()`)
+- [x] Board profiles: `BoardProfile` per board, `Settings.forBoard`, editor under Settings > Boards; applied in the thread and media view models
+- [x] OCR "Copy text" on images (ML Kit text recognition behind `core/media/ImageText`)
+- [x] Export a webm as an animated WebP sticker; the container is muxed by hand in `core/media/AnimatedWebp` since the platform only decodes them
+- [x] Catalog grid and boards list remember their scroll position
+- [x] "+N new" badge on visited catalog threads, from `last_replies` versus the history read mark
+- [x] Thread roulette: dice in the Home top bar, long-press to veto boards for the session
+- [x] Local "You" stats page at Settings > About > Your numbers, from a `usage_events` table written by `UsageRecorder` at the repository layer (DB v13)
+- [x] Archive fallback chain (`ArchiveHosts.sourcesFor`): desu, b4k (.dev), 4plebs, fireden, palanq, archived.moe; stops on rate limit
+- Already built before the wave, rejected as duplicates: poster ID colours with tap-to-filter, vault dedup
 
 ### 10. Requested 2026-09-06
 
