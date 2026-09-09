@@ -13,6 +13,7 @@ data class ThreadContent(
     val board: Board?,
     val bookmarked: Boolean,
     val revealAllSpoilers: Boolean,
+    val highlightGets: Boolean = false,
     /** Per-post display state, keyed by post number; missing means [PostUiState.Default]. */
     val postStates: Map<Long, PostUiState>,
     /** What the list shows, top to bottom: posts with the "N new posts" divider in place. */

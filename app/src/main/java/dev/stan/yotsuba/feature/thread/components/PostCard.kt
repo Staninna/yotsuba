@@ -37,6 +37,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextDecoration
@@ -61,6 +62,7 @@ import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadPost
+import dev.stan.yotsuba.domain.model.repeatingTail
 import dev.stan.yotsuba.feature.thread.PostTranslation
 import dev.stan.yotsuba.feature.thread.PostTranslationViewModel
 import dev.stan.yotsuba.feature.thread.PostUiState
@@ -76,6 +78,12 @@ fun posterIdColor(id: String, dark: Boolean): Color {
  * lands near 1.3:1, so it takes black; the dark pill at 45% keeps white.
  */
 fun posterIdTextColor(dark: Boolean): Color = if (dark) Color.White else Color.Black
+
+/** Card colour for a get: a wash of tertiary over the surface, deeper with each repeated digit. */
+@Composable
+private fun getTint(repeats: Int): Color =
+    MaterialTheme.colorScheme.tertiary.copy(alpha = (0.08f * (repeats - 1)).coerceAtMost(0.4f))
+        .compositeOver(MaterialTheme.colorScheme.surface)
 
 /** ISO country code -> Unicode regional-indicator flag (D21). */
 fun countryFlagEmoji(iso: String): String =
@@ -142,8 +150,11 @@ fun PostCard(
     sharesMediaWithViewer: Boolean = false,
     highlight: String? = null,
     quoteLabels: Map<Long, String> = emptyMap(),
+    /** Tint dubs, trips and up (the highlightGets setting). */
+    highlightGets: Boolean = false,
 ) {
     val spacing = LocalSpacing.current
+    val get = if (highlightGets) repeatingTail(post.no) else 1
     val onLongPress = actions.onLongPress
     // Long-presses are out of reach for a screen reader, so each one is also a custom action.
     val postActionsLabel = stringResource(R.string.thread_post_actions)
@@ -155,6 +166,7 @@ fun PostCard(
         colors = when {
             ui.highlighted -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
             post.isOp -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+            get >= 2 -> CardDefaults.cardColors(containerColor = getTint(get))
             else -> CardDefaults.cardColors()
         },
     ) {

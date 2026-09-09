@@ -9,6 +9,8 @@
     <string name="post_translation_hide">Hide</string>
 
     <!-- Settings, Reading section -->
+    <string name="settings_highlight_gets">Highlight gets</string>
+    <string name="settings_highlight_gets_summary">Tint posts whose number ends in dubs, trips or better.</string>
     <string name="settings_translate_posts">Translate posts</string>
     <string name="settings_translate_posts_summary">Adds Translate to the post menu. Runs on-device; the language model downloads on first use.</string>
 </resources>
