@@ -74,7 +74,7 @@ internal class Precacher(private val context: Context, private val scope: Corout
     private suspend fun fetchVideo(url: String) {
         try {
             // CacheWriter stops at a thread interrupt, which is how the cancel reaches it.
-            runInterruptible(Dispatchers.IO) { VideoCache.writer(context, url).cache() }
+            runInterruptible(Dispatchers.IO) { VideoCache.fetch(context, url) }
         } catch (_: IOException) {
             // The page fetches it again when it gets there.
         }
@@ -115,7 +115,8 @@ internal object VideoCache {
     fun playbackFactory(context: Context): DataSource.Factory =
         DefaultDataSource.Factory(context, cacheFactory(context))
 
-    /** Pulls the whole of [url] into the cache; `cache()` blocks until done or interrupted. */
-    fun writer(context: Context, url: String): CacheWriter =
-        CacheWriter(cacheFactory(context).createDataSource(), DataSpec(Uri.parse(url)), null, null)
+    /** Pulls the whole of [url] into the cache; blocks until done, failed or interrupted. */
+    fun fetch(context: Context, url: String) {
+        CacheWriter(cacheFactory(context).createDataSource(), DataSpec(Uri.parse(url)), null, null).cache()
+    }
 }
