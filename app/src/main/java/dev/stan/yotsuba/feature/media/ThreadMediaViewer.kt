@@ -46,6 +46,7 @@ fun ThreadMediaViewer(
     onDismiss: () -> Unit,
     onLongPressPage: (Int) -> Unit = {},
     activeDownloads: Int = 0,
+    precacheAhead: Int = 0,
     overlay: @Composable BoxScope.() -> Unit = {},
     /** Secondary actions for the page, behind the top bar's overflow menu. */
     topBarMenu: @Composable ColumnScope.(page: Int, close: () -> Unit) -> Unit = { _, _ -> },
@@ -101,6 +102,7 @@ fun ThreadMediaViewer(
         behaviour = behaviour,
         onLongPressPage = onLongPressPage,
         activeDownloads = activeDownloads,
+        precacheAhead = precacheAhead,
         // Horizontal navigation: left opens the current post's replies, right goes back.
         modifier = Modifier.pointerInput(pip.inPipMode) {
             if (pip.inPipMode) return@pointerInput
