@@ -13,6 +13,7 @@ class FakeUsageEventDao : UsageEventDao {
     val events = mutableListOf<UsageEventEntity>()
     override suspend fun insert(event: UsageEventEntity) { events += event }
     override fun all(): Flow<List<UsageEventEntity>> = flowOf(events.toList())
+    override suspend fun deleteKind(kind: String) { events.removeAll { it.kind == kind } }
 }
 
 val NoUsage = UsageRecorder(FakeUsageEventDao(), CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined)

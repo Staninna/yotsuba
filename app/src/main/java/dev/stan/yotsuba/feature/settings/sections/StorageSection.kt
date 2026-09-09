@@ -11,19 +11,35 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.SectionHeader
 import dev.stan.yotsuba.core.designsystem.component.SwitchRow
 import dev.stan.yotsuba.core.designsystem.component.TextRow
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.util.FileSize
+import dev.stan.yotsuba.domain.model.BytesFetched
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.repository.BackupInfo
 import dev.stan.yotsuba.domain.repository.BackupResult
+import dev.stan.yotsuba.domain.repository.UsageRepository
 import dev.stan.yotsuba.feature.settings.ClearResult
 import java.text.DateFormat
 import java.util.Date
+import javax.inject.Inject
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 @Composable
 fun StorageSection(
@@ -65,6 +81,7 @@ fun StorageSection(
     TextRow(stringResource(R.string.settings_clear_trusted)) {
         confirmThen(R.string.settings_confirm_clear_trusted_body, onClearTrustedDomains)
     }
+    DataThisWeek(confirmThen)
     SwitchRow(
         title = stringResource(R.string.settings_confirm_vault_delete),
         summary = stringResource(R.string.settings_confirm_vault_delete_summary),
@@ -138,6 +155,44 @@ fun StorageSection(
         if (clearMessage != null) {
             showMessage(clearMessage)
             onClearResultShown()
+        }
+    }
+}
+
+/**
+ * Its own view model rather than a field on the settings one: the byte events are the
+ * meter's business and nothing else in settings reads them.
+ */
+@HiltViewModel
+class DataUsageViewModel @Inject constructor(private val usage: UsageRepository) : ViewModel() {
+    val thisWeek: StateFlow<BytesFetched?> = usage.events()
+        .map { BytesFetched.of(it, since = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun reset() {
+        viewModelScope.launch { usage.clear(UsageKind.BYTES_FETCHED) }
+    }
+}
+
+@Composable
+private fun DataThisWeek(confirmThen: (Int, () -> Unit) -> Unit, viewModel: DataUsageViewModel = hiltViewModel()) {
+    val week by viewModel.thisWeek.collectAsStateWithLifecycle()
+    val data = week ?: return
+    TextRow(
+        title = stringResource(R.string.settings_data_this_week),
+        summary = stringResource(R.string.settings_data_this_week_summary, FileSize.format(data.total)),
+    ) {
+        confirmThen(R.string.settings_confirm_reset_data_body, viewModel::reset)
+    }
+    data.byBoard.take(5).forEach { (board, bytes) ->
+        val spacing = LocalSpacing.current
+        Row(Modifier.fillMaxWidth().padding(horizontal = spacing.lg, vertical = spacing.xs)) {
+            Text(
+                board?.let { "/$it/" } ?: stringResource(R.string.stats_other_hosts),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Text(FileSize.format(bytes), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

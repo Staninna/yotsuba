@@ -17,6 +17,9 @@
     <string name="settings_pure_black_summary">True black backgrounds in the dark theme, for OLED screens</string>
     <string name="settings_reduce_motion">Reduce motion</string>
     <string name="settings_reduce_motion_summary">Turns off transitions and list animations</string>
+    <string name="settings_data_this_week">Data this week</string>
+    <string name="settings_data_this_week_summary">%1$s fetched in the last seven days. Tap to reset.</string>
+    <string name="settings_confirm_reset_data_body">Reset the data meter? Only the byte counts go; the rest of your numbers stay.</string>
     <string name="settings_clear_failed">Couldn\'t clear: %1$s</string>
 
     <!-- Post text -->

@@ -13,4 +13,7 @@ interface UsageEventDao {
 
     @Query("SELECT * FROM usage_events ORDER BY at")
     fun all(): Flow<List<UsageEventEntity>>
+
+    @Query("DELETE FROM usage_events WHERE kind = :kind")
+    suspend fun deleteKind(kind: String)
 }

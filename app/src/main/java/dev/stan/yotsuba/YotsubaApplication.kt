@@ -15,6 +15,7 @@ import coil3.request.crossfade
 import androidx.lifecycle.ProcessLifecycleOwner
 import dagger.hilt.android.HiltAndroidApp
 import dev.stan.yotsuba.core.lock.AppLock
+import dev.stan.yotsuba.core.network.DataUsageMeter
 import dev.stan.yotsuba.core.work.PeriodicWorkScheduler
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import javax.inject.Inject
@@ -32,6 +33,8 @@ class YotsubaApplication : Application(), SingletonImageLoader.Factory {
 
     @Inject lateinit var appLock: AppLock
 
+    @Inject lateinit var dataUsageMeter: DataUsageMeter
+
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) {
@@ -44,6 +47,7 @@ class YotsubaApplication : Application(), SingletonImageLoader.Factory {
         }
         periodicWork.ensureScheduled()
         ProcessLifecycleOwner.get().lifecycle.addObserver(appLock)
+        ProcessLifecycleOwner.get().lifecycle.addObserver(dataUsageMeter)
     }
 
     /**
