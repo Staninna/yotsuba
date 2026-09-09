@@ -79,6 +79,11 @@ fun StatsScreen(onBack: () -> Unit, viewModel: StatsViewModel = hiltViewModel())
             StatRow(R.string.stats_videos_saved, u.videosSaved.toString())
             StatRow(R.string.stats_bytes_saved, FileSize.format(u.bytesSaved))
             StatRow(R.string.stats_vault_now, stringResource(R.string.stats_vault_detail, s.vaultFiles, FileSize.format(s.vaultBytes)))
+            Header(R.string.stats_data)
+            StatRow(R.string.stats_bytes_fetched, FileSize.format(u.bytesFetched.total))
+            u.bytesFetched.byBoard.take(10).forEach { (board, bytes) ->
+                StatRow(board?.let { "/$it/" } ?: stringResource(R.string.stats_other_hosts), FileSize.format(bytes))
+            }
             Header(R.string.stats_habits)
             u.busiestHour?.let { StatRow(R.string.stats_busiest_hour, "%02d:00".format(it)) }
             u.busiestDay?.let { StatRow(R.string.stats_busiest_day, it.getDisplayName(TextStyle.FULL, LocalLocale.current.platformLocale)) }

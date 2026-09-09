@@ -17,6 +17,9 @@
     <string name="stats_bytes_saved">Downloaded into the vault</string>
     <string name="stats_vault_now">In the vault now</string>
     <string name="stats_vault_detail">%1$d files, %2$s</string>
+    <string name="stats_data">Data</string>
+    <string name="stats_bytes_fetched">Fetched over the network</string>
+    <string name="stats_other_hosts">Outside any board</string>
     <string name="stats_habits">Habits</string>
     <string name="stats_busiest_hour">Busiest hour</string>
     <string name="stats_busiest_day">Busiest day</string>

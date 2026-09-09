@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.domain
 
+import dev.stan.yotsuba.domain.model.BytesFetched
 import dev.stan.yotsuba.domain.model.UsageEvent
 import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.model.UsageStats
@@ -53,5 +54,19 @@ class UsageStatsTest {
         assertEquals(0, s.longestStreak)
         assertNull(s.busiestHour)
         assertNull(s.firstUseAt)
+    }
+
+    @Test fun `bytes fetched sum per board from a starting point`() {
+        val events = listOf(
+            UsageEvent(UsageKind.BYTES_FETCHED, at(1), "g", value = 500),
+            UsageEvent(UsageKind.BYTES_FETCHED, at(8), "g", value = 100),
+            UsageEvent(UsageKind.BYTES_FETCHED, at(9), "a", value = 300),
+            UsageEvent(UsageKind.BYTES_FETCHED, at(9), null, value = 20),
+            UsageEvent(UsageKind.IMAGE_SAVED, at(9), "a", value = 999),
+        )
+        val week = BytesFetched.of(events, since = at(8))
+        assertEquals(420L, week.total)
+        assertEquals(listOf("a" to 300L, "g" to 100L, null to 20L), week.byBoard)
+        assertEquals(920L, UsageStats.of(events, ZoneOffset.UTC).bytesFetched.total)
     }
 }
