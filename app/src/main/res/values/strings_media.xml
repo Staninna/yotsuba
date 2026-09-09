@@ -33,4 +33,7 @@
     <string name="media_text_copied">Text copied</string>
     <string name="media_text_none">No text was recognised in this image</string>
     <string name="media_frame_failed">Couldn\'t read a frame from this video</string>
+    <string name="media_export_webp">Export as animated WebP</string>
+    <string name="media_export_webp_progress">Encoding the sticker…</string>
+    <string name="media_export_webp_failed">Couldn\'t export this video</string>
 </resources>

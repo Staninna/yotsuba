@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Comment
+import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.Share
@@ -30,6 +31,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -125,6 +127,10 @@ fun MediaScreen(
     var textSource by remember { mutableStateOf<File?>(null) }
     val frameFailedMessage = stringResource(R.string.media_frame_failed)
     val textCopiedMessage = stringResource(R.string.media_text_copied)
+    // The sticker export in flight and how far along it is.
+    var exporting by remember { mutableStateOf<Job?>(null) }
+    var exportProgress by remember { mutableFloatStateOf(0f) }
+    val exportFailedMessage = stringResource(R.string.media_export_webp_failed)
 
     // The fetch bringing a remote item down for an action that needs it on disk. The
     // share download is the same fetch, into the same cache.
@@ -190,6 +196,20 @@ fun MediaScreen(
                     close()
                     val at = feed?.videoPositionMs ?: 0L
                     withLocalFile(item) { frameSource = it to at }
+                }
+                ViewerMenuItem(Icons.Filled.Animation, stringResource(R.string.media_export_webp)) {
+                    close()
+                    withLocalFile(item) { video ->
+                        exportProgress = 0f
+                        exporting = scope.launch {
+                            val sticker = ShareCache.writeAnimatedWebp(context, video) { exportProgress = it }
+                            exporting = null
+                            when {
+                                sticker == null -> snackbar.showSnackbar(exportFailedMessage)
+                                !shareMediaFile(context, sticker, ".webp") -> snackbar.showSnackbar(noAppMessage)
+                            }
+                        }
+                    }
                 }
             } else if (item != null) {
                 ViewerMenuItem(Icons.Filled.ImageSearch, stringResource(R.string.media_search_image)) {
@@ -273,7 +293,14 @@ fun MediaScreen(
     }
 
     if (fetching != null) {
-        FetchingDialog(onCancel = { fetching?.cancel(); fetching = null })
+        BusyDialog(stringResource(R.string.media_fetching), onCancel = { fetching?.cancel(); fetching = null })
+    }
+    if (exporting != null) {
+        BusyDialog(
+            stringResource(R.string.media_export_webp_progress),
+            onCancel = { exporting?.cancel(); exporting = null },
+            progress = exportProgress,
+        )
     }
     textSource?.let { image ->
         ImageTextSheet(
