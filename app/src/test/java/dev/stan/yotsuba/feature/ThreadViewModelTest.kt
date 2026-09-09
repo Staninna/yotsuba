@@ -601,6 +601,20 @@ class ThreadViewModelTest {
             assertEquals(2, content(vm).filteredCount)
         }
 
+    @Test fun `a FADE filter keeps the post in the flow, marks it faded and does not count it`() =
+        runTest(dispatcher.scheduler) {
+            val env = ThreadEnv(posts = listOf(ThreadEnv.post(100).copy(isOp = true), ThreadEnv.post(101), ThreadEnv.post(102)))
+            env.settings.state.value = Settings(
+                filters = listOf(Filter(id = "f", pattern = "other 101", action = FilterAction.FADE)),
+            )
+            val vm = env.collectedVm(backgroundScope)
+            dispatcher.scheduler.advanceUntilIdle()
+            val loaded = content(vm)
+            assertEquals(listOf(100L, 101L, 102L), loaded.rows.map { (it as ThreadRow.Post).post.no })
+            assertEquals(listOf(101L), loaded.postStates.filterValues { it.faded }.keys.toList())
+            assertEquals(0, loaded.filteredCount)
+        }
+
     @Test fun `the OP is never filtered and an empty filter list changes nothing`() =
         runTest(dispatcher.scheduler) {
             val env = ThreadEnv(posts = listOf(ThreadEnv.post(100).copy(isOp = true), ThreadEnv.post(101)))

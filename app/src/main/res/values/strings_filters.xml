@@ -34,6 +34,7 @@
     <string name="filters_all_boards">All boards</string>
     <string name="filters_action_hide">Hide</string>
     <string name="filters_action_stub">Stub</string>
+    <string name="filters_action_fade">Fade</string>
     <string name="filters_enabled">Enabled</string>
     <string name="filters_test">Test against sample text</string>
     <string name="filters_test_match">Matches</string>

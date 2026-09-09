@@ -53,6 +53,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -210,7 +211,7 @@ fun CatalogPane(
                                 contentType = { if (stubbed(s.threads[it])) "stub" else "thread" },
                             ) { i ->
                                 val thread = s.threads[i]
-                                Box(animatedGridItem()) {
+                                Box(animatedGridItem().then(if (thread.no in s.faded) Modifier.alpha(0.4f) else Modifier)) {
                                     if (stubbed(thread)) {
                                         FilteredStub(
                                             s.stubs.getValue(thread.no),

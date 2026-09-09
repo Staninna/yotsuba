@@ -6,8 +6,14 @@ import kotlinx.serialization.Serializable
 /** Which part of a post or catalog entry a [Filter] reads. */
 enum class FilterField { SUBJECT, COMMENT, NAME, TRIPCODE, FLAG, POSTER_ID, FILENAME }
 
-/** What happens to a match: gone entirely, or collapsed to a one-line stub that opens on tap. */
-enum class FilterAction { HIDE, STUB }
+/**
+ * What happens to a match: gone entirely, collapsed to a one-line stub that opens on tap,
+ * or left in place at low opacity so the thread still reads around it.
+ */
+enum class FilterAction { HIDE, STUB, FADE }
+
+/** How many verdicts took something off the screen, for the "N filtered" count; a fade is still there. */
+val Map<Long, Filter>.removedCount: Int get() = count { it.value.action != FilterAction.FADE }
 
 /**
  * A user-defined content filter. Plain patterns are case-insensitive substring matches;

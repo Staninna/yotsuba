@@ -13,6 +13,7 @@ data class ThreadContent(
     val board: Board?,
     val bookmarked: Boolean,
     val revealAllSpoilers: Boolean,
+    val highlightGets: Boolean = false,
     /** Per-post display state, keyed by post number; missing means [PostUiState.Default]. */
     val postStates: Map<Long, PostUiState>,
     /** What the list shows, top to bottom: posts with the "N new posts" divider in place. */
@@ -145,6 +146,8 @@ data class PostUiState(
     val sticky: Boolean = false,
     /** Set while the full image is shown in the card instead of its thumbnail. */
     val inlineImage: InlineImage? = null,
+    /** A FADE filter matched: drawn at low opacity, still in the flow. */
+    val faded: Boolean = false,
 ) {
     val imageExpanded: Boolean get() = inlineImage != null
 

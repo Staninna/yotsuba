@@ -13,6 +13,8 @@ data class CatalogContent(
     val offline: Boolean,
     /** Threads still in [threads] but collapsed to a stub, keyed by thread number. */
     val stubs: Map<Long, Filter> = emptyMap(),
+    /** Threads a FADE filter matched: drawn at low opacity. */
+    val faded: Set<Long> = emptySet(),
     /** Threads a filter hid outright plus the ones stubbed; for the top bar count. */
     val filteredCount: Int = 0,
     /** Replies since the user last read each visited thread, keyed by thread number. */

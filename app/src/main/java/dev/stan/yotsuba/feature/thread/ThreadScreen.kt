@@ -370,6 +370,7 @@ fun ThreadScreen(
                         sharesMediaWithViewer = !inPreview,
                         highlight = if (inPreview) null else s.searchQuery,
                         quoteLabels = quoteLabels,
+                        highlightGets = s.highlightGets,
                     )
                 }
 

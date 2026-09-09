@@ -20,6 +20,7 @@ import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.model.removedCount
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.UsageKind
@@ -159,9 +160,10 @@ class ThreadViewModel @AssistedInject constructor(
                         board = board,
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
-                        postStates = postStates(details, session, saveStatuses, savedPaths, settings.dataSaver),
+                        highlightGets = settings.highlightGets,
+                        postStates = postStates(details, session, saveStatuses, savedPaths, settings.dataSaver, verdicts),
                         rows = rows,
-                        filteredCount = verdicts.size,
+                        filteredCount = verdicts.removedCount,
                         treeView = session.treeView,
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,

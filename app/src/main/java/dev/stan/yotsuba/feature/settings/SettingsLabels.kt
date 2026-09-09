@@ -135,4 +135,5 @@ internal val FilterAction.labelRes: Int
     get() = when (this) {
         FilterAction.HIDE -> R.string.filters_action_hide
         FilterAction.STUB -> R.string.filters_action_stub
+        FilterAction.FADE -> R.string.filters_action_fade
     }

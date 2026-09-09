@@ -100,6 +100,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.biometric)
+    implementation(libs.mlkit.translate)
+    implementation(libs.mlkit.language.id)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)
