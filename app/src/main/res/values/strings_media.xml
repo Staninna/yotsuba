@@ -36,6 +36,8 @@
     <string name="media_export_webp">Export as animated WebP</string>
     <string name="media_export_webp_progress">Encoding the sticker…</string>
     <string name="media_export_webp_failed">Couldn\'t export this video</string>
+    <string name="media_loop_section">Loop a section</string>
+    <string name="media_loop_whole">Loop the whole video</string>
     <string name="media_precache_count">Precache ahead</string>
     <plurals name="media_precache_pages">
         <item quantity="one">The next %d page is fetched before you swipe to it</item>

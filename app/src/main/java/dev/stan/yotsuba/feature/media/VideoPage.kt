@@ -24,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,6 +71,7 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
 import me.saket.telephoto.zoomable.ZoomSpec
@@ -129,6 +131,8 @@ fun VideoPage(
     onPositionRead: (Long) -> Unit = {},
     /** A sound post's external audio, kept in step with the video. */
     soundUrl: String? = null,
+    /** Loop between two handles on the seek bar instead of over the whole video. */
+    loopSection: Boolean = false,
 ) {
     val playback = rememberVideoPlayback(
         videoUri = videoUri,
@@ -141,6 +145,7 @@ fun VideoPage(
         muted = muted,
         autoAdvance = autoAdvance,
         chromeVisible = chromeVisible,
+        loopSection = loopSection,
         onEnded = onEnded,
     )
 
@@ -284,6 +289,8 @@ internal class VideoPlayback(
     var hasAudio by mutableStateOf(true)
     val canMute: Boolean get() = hasAudio || soundPlayer != null
     var aspect by mutableFloatStateOf(initialAspect)
+    /** The section on repeat, or null to loop the whole video. Lives and dies with the page. */
+    var loop by mutableStateOf<LoopRange?>(null)
 
     fun readPosition() {
         positionMs = player.currentPosition.coerceAtLeast(0)
@@ -335,6 +342,7 @@ private fun rememberVideoPlayback(
     muted: Boolean,
     autoAdvance: Boolean,
     chromeVisible: Boolean,
+    loopSection: Boolean,
     onEnded: () -> Unit,
 ): VideoPlayback {
     val context = LocalContext.current
@@ -386,6 +394,29 @@ private fun rememberVideoPlayback(
     }
     // Closing the app or the PiP window stops the activity. Audio must not keep running.
     PauseWhenStopped(player, shouldPlay = selected && playing)
+
+    // The handles need a duration to sit on; until the player has one the section waits.
+    val hasDuration = playback.durationMs > 0
+    LaunchedEffect(playback, loopSection, hasDuration) {
+        playback.loop = if (loopSection && hasDuration) LoopRange(0L, playback.durationMs) else null
+    }
+    // A player message fires exactly when playback reaches the end handle, every time it
+    // does (it is not deleted after delivery); a position poll could only approximate that,
+    // and rebuilding the source as a clip would drop the position the swap above preserves.
+    val loop = playback.loop
+    LaunchedEffect(player, videoUri, loop) {
+        if (loop == null) return@LaunchedEffect
+        if (player.currentPosition !in loop) player.seekTo(loop.startMs)
+        val message = player.createMessage { _, _ -> player.seekTo(loop.startMs) }
+            .setPosition(loop.endMs)
+            .setDeleteAfterDelivery(false)
+            .send()
+        try {
+            awaitCancellation()
+        } finally {
+            message.cancel()
+        }
+    }
 
     // The transport bar is the only reader of the position, so the poll runs only while
     // it is on screen and the position is moving. One read on entry keeps a paused or
@@ -492,19 +523,31 @@ private fun VideoTransportBar(
                 color = Color.White,
                 style = MaterialTheme.typography.labelSmall,
             )
-            Slider(
-                value = if (durationMs > 0) shownMs.toFloat() / durationMs else 0f,
-                onValueChange = { f ->
-                    onScrubbing(true)
-                    if (durationMs > 0) previewMs = (f * durationMs).toLong()
-                },
-                onValueChangeFinished = {
-                    previewMs?.let(playback::seekTo)
-                    previewMs = null
-                    onScrubbing(false)
-                },
-                modifier = Modifier.weight(1f).padding(horizontal = spacing.sm),
-            )
+            val loop = playback.loop
+            val sliderModifier = Modifier.weight(1f).padding(horizontal = spacing.sm)
+            if (loop != null && durationMs > 0) {
+                LoopHandles(
+                    loop = loop,
+                    durationMs = durationMs,
+                    onChange = { playback.loop = it },
+                    onScrubbing = onScrubbing,
+                    modifier = sliderModifier,
+                )
+            } else {
+                Slider(
+                    value = if (durationMs > 0) shownMs.toFloat() / durationMs else 0f,
+                    onValueChange = { f ->
+                        onScrubbing(true)
+                        if (durationMs > 0) previewMs = (f * durationMs).toLong()
+                    },
+                    onValueChangeFinished = {
+                        previewMs?.let(playback::seekTo)
+                        previewMs = null
+                        onScrubbing(false)
+                    },
+                    modifier = sliderModifier,
+                )
+            }
             Text(
                 formatMs(durationMs),
                 color = Color.White,
@@ -532,6 +575,55 @@ private fun VideoTransportBar(
             }
         }
     }
+}
+
+/**
+ * The two loop handles over the seek bar's track. Like the seek bar, the thumbs follow the
+ * finger and the player is told once, on release; the section is clamped there.
+ */
+@Composable
+private fun LoopHandles(
+    loop: LoopRange,
+    durationMs: Long,
+    onChange: (LoopRange) -> Unit,
+    onScrubbing: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var preview by remember { mutableStateOf<ClosedFloatingPointRange<Float>?>(null) }
+    RangeSlider(
+        value = preview ?: (loop.startMs.toFloat() / durationMs)..(loop.endMs.toFloat() / durationMs),
+        onValueChange = {
+            onScrubbing(true)
+            preview = it
+        },
+        onValueChangeFinished = {
+            preview?.let { p ->
+                onChange(loopRange((p.start * durationMs).toLong(), (p.endInclusive * durationMs).toLong(), durationMs))
+            }
+            preview = null
+            onScrubbing(false)
+        },
+        modifier = modifier,
+    )
+}
+
+/** A section of a video to play on repeat, in ms from its start. */
+internal data class LoopRange(val startMs: Long, val endMs: Long) {
+    operator fun contains(ms: Long): Boolean = ms in startMs..endMs
+}
+
+/** Shortest section worth looping; closer and the handles sit on top of each other. */
+internal const val LOOP_MIN_GAP_MS = 250L
+
+/**
+ * Handles at [startMs] and [endMs] brought inside a video [durationMs] long, in order and
+ * at least [LOOP_MIN_GAP_MS] apart. The start handle stays put and the end one gives way;
+ * a clip shorter than the gap loops whole.
+ */
+internal fun loopRange(startMs: Long, endMs: Long, durationMs: Long): LoopRange {
+    if (durationMs <= LOOP_MIN_GAP_MS) return LoopRange(0L, durationMs.coerceAtLeast(0L))
+    val start = startMs.coerceIn(0L, durationMs - LOOP_MIN_GAP_MS)
+    return LoopRange(start, endMs.coerceIn(start + LOOP_MIN_GAP_MS, durationMs))
 }
 
 /**

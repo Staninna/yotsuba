@@ -130,6 +130,9 @@ class MediaFeedState internal constructor(
     /** True while the seek bar is being dragged; the chrome stays put until it is let go. */
     var scrubbing by mutableStateOf(false)
 
+    /** The open video loops between two handles on its seek bar. Reset on every page change. */
+    var loopSection by mutableStateOf(false)
+
     /** Keeps the chrome up and restarts its countdown. */
     fun touchChrome() {
         chromeVisible = true
@@ -209,7 +212,10 @@ fun MediaFeedViewer(
         }
     }
 
-    LaunchedEffect(feed.currentPage) { onPageViewed(feed.currentPage) }
+    LaunchedEffect(feed.currentPage) {
+        feed.loopSection = false
+        onPageViewed(feed.currentPage)
+    }
 
     val precacher = rememberPrecacher()
     LaunchedEffect(precacher, pages, feed.currentPage, precacheAhead) {
@@ -272,6 +278,7 @@ fun MediaFeedViewer(
                     onLongPress = { onLongPressPage(page) },
                     soundUrl = p.soundUrl,
                     sharedKey = p.sharedKey,
+                    loopSection = feed.loopSection && feed.currentPage == page,
                 )
                 is ViewerPage.Image -> ImagePage(
                     model = p.model,
@@ -306,6 +313,9 @@ fun MediaFeedViewer(
                 ViewerOverflowMenu { close ->
                     AutoAdvanceMenuItem(autoAdvance) { close(); onToggleAutoAdvance() }
                     PipMenuItem { close(); pip.enter(current?.pipInfo, feed.playbackOn) }
+                    if (current?.isVideo == true) {
+                        LoopSectionMenuItem(feed.loopSection) { close(); feed.loopSection = !feed.loopSection }
+                    }
                     topBarMenu(close)
                 }
             }
