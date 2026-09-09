@@ -35,6 +35,7 @@ import dev.stan.yotsuba.domain.model.VaultPaths
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
 import dev.stan.yotsuba.domain.model.isVideoExt
+import dev.stan.yotsuba.domain.model.redownloadSources
 import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.ThreadRepository
@@ -105,11 +106,13 @@ class MediaVaultRepositoryImpl(
     }
 
     override fun entries(): Flow<List<VaultEntry>> = savedMediaDao.all().map { rows ->
-        rows.filter { it.absolutePath.isNotEmpty() }.map { it.toVaultEntry() }
+        rows.filter { it.absolutePath.isNotEmpty() || it.isMissing }.map { it.toVaultEntry() }
     }
 
+    // A missing file is not saved: the thread screen offers to save it again, which lands
+    // it back under the same name.
     override fun saved(): Flow<Map<String, String?>> = savedMediaDao.all().map { rows ->
-        rows.associate { it.url to it.absolutePath.ifEmpty { null } }
+        rows.filterNot { it.isMissing }.associate { it.url to it.absolutePath.ifEmpty { null } }
     }
 
     override suspend fun save(item: MediaItem, saveContext: VaultSaveContext): VaultError? =
@@ -167,17 +170,17 @@ class MediaVaultRepositoryImpl(
     override suspend fun delete(url: String): VaultError? = withContext(ioDispatcher) {
         val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
         attempt {
-            if (entity.absolutePath.isNotEmpty()) {
-                val file = File(entity.absolutePath)
-                val dir = file.parentFile
+            // A missing file still has a sidecar entry to drop, or the next rescan brings it back.
+            val file = File(entity.absolutePath).takeIf { entity.absolutePath.isNotEmpty() }
+                ?: entity.threadDir()?.let { File(it, entity.displayName) }
+            val dir = file?.parentFile
+            if (file != null && dir != null) {
                 file.delete()
                 // Images have no still; a missing one is nothing to report.
                 VideoStills.stillFor(file).delete()
-                if (dir != null) {
-                    store.withStore {
-                        store.updateMeta(dir) { it.remove(file.name) }
-                        store.pruneIfEmpty(dir)
-                    }
+                store.withStore {
+                    store.updateMeta(dir) { it.remove(file.name) }
+                    store.pruneIfEmpty(dir)
                 }
             }
             savedMediaDao.delete(url)
@@ -239,6 +242,102 @@ class MediaVaultRepositoryImpl(
             )
         }
     }
+
+    override suspend fun redownloadMissing(
+        targets: List<VaultLocation>,
+        onProgress: (done: Int, total: Int) -> Unit,
+    ): VaultSyncSummary = withContext(ioDispatcher) {
+        if (!hasStorageAccess()) return@withContext VaultSyncSummary()
+        val missing = savedMediaDao.allOnce().filter { it.isMissing }
+            .groupBy { VaultLocation(it.board.orEmpty(), it.threadNo ?: 0L) }
+        val threads = targets.filter { it in missing }
+        onProgress(0, threads.size)
+        var updated = 0
+        var gone = 0
+        var failed = 0
+        var redownloaded = 0
+        var unrecoverable = 0
+        var rateLimited = false
+        val touched = mutableSetOf<VaultLocation>()
+
+        for ((index, target) in threads.withIndex()) {
+            val rows = missing.getValue(target).associateBy { it.toVaultEntry() }
+            when (val sources = sourcesFor(target, rows.keys.toList())) {
+                is DataResult.Success -> {
+                    var fetched = 0
+                    var broken = false
+                    for ((entry, source) in sources.value) {
+                        if (source == null) {
+                            unrecoverable++
+                            continue
+                        }
+                        if (fetchBack(rows.getValue(entry), source) == null) fetched++ else broken = true
+                    }
+                    redownloaded += fetched
+                    if (broken) failed++ else if (fetched > 0) {
+                        updated++
+                        touched += target
+                    }
+                }
+                is DataResult.Failure -> when (sources.error) {
+                    NetworkError.NotFound -> gone++
+                    NetworkError.RateLimited -> rateLimited = true
+                    else -> failed++
+                }
+            }
+            onProgress(index + 1, threads.size)
+            if (rateLimited) break
+        }
+        VaultSyncSummary(
+            updated = updated, gone = gone, failed = failed, redownloaded = redownloaded,
+            unrecoverable = unrecoverable, rateLimited = rateLimited, touched = touched,
+        )
+    }
+
+    /**
+     * Where [entries]' files can be fetched from: the live thread first, then the archive
+     * chain for whatever it no longer carries, or all of them once 4chan has dropped the
+     * thread. [NetworkError.NotFound] only when neither has the thread at all.
+     */
+    private suspend fun sourcesFor(location: VaultLocation, entries: List<VaultEntry>): DataResult<Map<VaultEntry, String?>> {
+        val live = threadRepository.thread(location.board, location.threadNo, forceRefresh = true)
+        if (live is DataResult.Failure && live.error != NetworkError.NotFound) return live
+        var sources = (live as? DataResult.Success)?.let { redownloadSources(entries, it.value) }
+            ?: entries.associateWith { null }
+        if (sources.containsValue(null)) {
+            when (val archived = threadRepository.archivedThread(location.board, location.threadNo)) {
+                is DataResult.Success ->
+                    sources = sources + redownloadSources(entries.filter { sources[it] == null }, archived.value)
+                is DataResult.Failure ->
+                    if (archived.error == NetworkError.RateLimited || live is DataResult.Failure) return archived
+            }
+        }
+        return DataResult.Success(sources)
+    }
+
+    /** Streams [source] back to where [row]'s sidecar says the file belongs and re-points the row. */
+    private suspend fun fetchBack(row: SavedMediaEntity, source: String): VaultError? {
+        val dir = row.threadDir() ?: return VaultError.NotFound
+        return attempt {
+            val target = File(dir, row.displayName)
+            streamTo(source, target)
+            val still = VideoStills.captureIfVideo(target)
+            savedMediaDao.insert(
+                row.copy(
+                    absolutePath = target.absolutePath,
+                    sizeBytes = target.length(),
+                    thumbnailPath = still?.file?.absolutePath,
+                    durationMs = still?.durationMs ?: row.durationMs,
+                    hasAudio = still?.hasAudio ?: row.hasAudio,
+                ),
+            )
+            if (still != null) recordProbe(target, still)
+        }
+    }
+
+    /** The directory a row's file lives in, by its thread rather than its path, which a missing row has none of. */
+    private fun SavedMediaEntity.threadDir(): File? =
+        threadNo?.let { store.threadDir(board ?: return null, it) }
 
     override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? =
         withContext(ioDispatcher) {
@@ -428,14 +527,7 @@ class MediaVaultRepositoryImpl(
         // The sidecars never held the hashes, so the old rows are the only copy. Room call,
         // kept outside the store lock.
         val previous = savedMediaDao.allOnce()
-        val rebuilt = store.withStore {
-            store.threadMetas().flatMap { (dir, meta) ->
-                meta.files.mapNotNull { f ->
-                    val file = File(dir, f.fileName)
-                    if (file.isFile) savedMediaEntity(meta, f, file) else null
-                }
-            }
-        }.withHashesFrom(previous)
+        val rebuilt = store.withStore { store.threadMetas().flatMap { it.rows() } }.withHashesFrom(previous)
         savedMediaDao.replaceAll(rebuilt)
         probeStills(rebuilt)
     }
@@ -461,12 +553,7 @@ class MediaVaultRepositoryImpl(
         val previous = savedMediaDao.allOnce()
         val rebuilt = store.withStore {
             dirs.mapNotNull { dir -> store.readMeta(dir)?.let { VaultStore.StoredThread(dir, it) } }
-                .flatMap { (dir, meta) ->
-                    meta.files.mapNotNull { f ->
-                        val file = File(dir, f.fileName)
-                        if (file.isFile) savedMediaEntity(meta, f, file) else null
-                    }
-                }
+                .flatMap { it.rows() }
         }.withHashesFrom(previous)
         val staleRows = previous.filter { row ->
             stale.any { it.board == row.board && it.threadNo == row.threadNo } ||
@@ -479,12 +566,27 @@ class MediaVaultRepositoryImpl(
     }
 
     /**
+     * The index rows a sidecar describes. A listed file that is not on disk keeps a row
+     * with no path, so the explorer can show it missing and offer to fetch it back; only a
+     * remote thread has anywhere to fetch from, so an imported or unsorted one is dropped.
+     */
+    private fun VaultStore.StoredThread.rows(): List<SavedMediaEntity> = meta.files.mapNotNull { f ->
+        val file = File(dir, f.fileName)
+        when {
+            file.isFile -> savedMediaEntity(meta, f, file)
+            f.url != null && meta.threadNo?.let { VaultLocation(meta.board, it).isRemote } == true ->
+                savedMediaEntity(meta, f, file).copy(absolutePath = "", sizeBytes = f.sizeBytes)
+            else -> null
+        }
+    }
+
+    /**
      * Stills and sound probes for videos saved before there were any. Decoding is slow, so
      * it happens after the index is usable and each row lands as its still does.
      */
     private suspend fun probeStills(rows: List<SavedMediaEntity>) {
         for (row in rows) {
-            if (!isVideoExt(row.ext.orEmpty()) || (row.thumbnailPath != null && row.hasAudio != null)) continue
+            if (row.isMissing || !isVideoExt(row.ext.orEmpty()) || (row.thumbnailPath != null && row.hasAudio != null)) continue
             val still = VideoStills.captureIfVideo(File(row.absolutePath)) ?: continue
             savedMediaDao.insert(
                 row.copy(thumbnailPath = still.file.absolutePath, durationMs = still.durationMs, hasAudio = still.hasAudio),
@@ -535,6 +637,12 @@ class MediaVaultRepositoryImpl(
         }
     }
 }
+
+/**
+ * A sidecar file with no file on disk. A legacy URL-only row has no path either, but no
+ * thread: it was never located, rather than lost.
+ */
+private val SavedMediaEntity.isMissing: Boolean get() = absolutePath.isEmpty() && threadNo != null
 
 /** All-files access on Android 11 and up; the legacy write permission below it. */
 private fun allFilesAccessGranted(context: Context): Boolean =

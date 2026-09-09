@@ -162,6 +162,18 @@ fun VaultScreen(
         scope.launch { snackbar.showSnackbar(message) }
     }
 
+    val redownloadFailed = stringResource(R.string.vault_redownload_failed)
+    fun reportRedownload(summary: VaultSyncSummary) {
+        val message = when {
+            summary.rateLimited -> syncRateLimited
+            summary.redownloaded == 0 && summary.unrecoverable == 0 -> redownloadFailed
+            else -> resources.getQuantityString(
+                R.plurals.vault_redownload_done, summary.redownloaded, summary.redownloaded, summary.unrecoverable,
+            )
+        }
+        scope.launch { snackbar.showSnackbar(message) }
+    }
+
     val pickFiles = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
@@ -231,6 +243,7 @@ fun VaultScreen(
                             onImportFolder = { pickFolder.launch(null) },
                             onRescan = { viewModel.rescan { scope.launch { snackbar.showSnackbar(rescanDone) } } },
                             onFetchReplies = { viewModel.fetchReplies(::reportSync) },
+                            onRedownloadMissing = { viewModel.redownloadMissing(::reportRedownload) },
                             onStats = { statsOpen = true },
                             onDedup = { dedupOpen = true },
                             onTrash = { trashOpen = true },
@@ -279,6 +292,7 @@ fun VaultScreen(
                 onDeleteBoard = viewModel::deleteBoard,
                 onRenameThread = viewModel::requestRename,
                 onMergeThread = viewModel::requestMerge,
+                onRedownloadMissing = { viewModel.redownloadMissing(it, ::reportRedownload) },
                 onSort = viewModel::setSort,
                 onToggleReversed = viewModel::toggleReversed,
                 onFilter = viewModel::setFilter,
@@ -358,6 +372,7 @@ fun VaultScreen(
             onShare = { viewModel.closeInspector(); shareVaultEntries(context, listOf(entry)) },
             onSaveToGallery = { viewModel.closeInspector(); viewModel.exportToGallery(listOf(entry)) },
             onDelete = { viewModel.closeInspector(); viewModel.requestDelete(entry, undoable = true) },
+            onRedownload = { viewModel.closeInspector(); viewModel.redownloadMissing(entry.location, ::reportRedownload) },
         )
     }
 

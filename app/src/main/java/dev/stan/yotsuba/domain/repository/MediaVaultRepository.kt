@@ -23,7 +23,7 @@ interface MediaVaultRepository {
 
     fun refreshStorageAccess()
 
-    /** Entries with a real file on disk, newest first. */
+    /** Every indexed entry, newest first, [VaultEntry.missing] ones included. */
     fun entries(): Flow<List<VaultEntry>>
 
     /**
@@ -103,6 +103,17 @@ interface MediaVaultRepository {
      * on a rate limit. Threads that turned out gone count as [VaultSyncSummary.gone].
      */
     suspend fun snapshotThreads(
+        targets: List<VaultLocation>,
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
+    ): VaultSyncSummary
+
+    /**
+     * Fetches back the files of [targets] that a rescan found [VaultEntry.missing], from the
+     * live thread while it lasts and from the archives after. Paced and stopped like
+     * [syncSavedThreads]; [VaultSyncSummary.redownloaded] and [VaultSyncSummary.unrecoverable]
+     * count files, the rest counts threads.
+     */
+    suspend fun redownloadMissing(
         targets: List<VaultLocation>,
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ): VaultSyncSummary

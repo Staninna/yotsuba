@@ -172,6 +172,9 @@ data class VaultThreadSection(
 
     /** When the newest file in it was saved. */
     val savedAt: Long get() = entries.maxOf { it.savedAt }
+
+    /** How many of its files a rescan found gone from disk. */
+    val missing: Int get() = entries.count { it.missing }
 }
 
 data class VaultBoardSection(
@@ -319,6 +322,10 @@ data class VaultUiState(
      */
     val unindexedOnDisk: Int = 0,
 ) {
+    /** Threads with files gone from disk, in explorer order; what "Re-download missing" works through. */
+    val missing: List<VaultLocation>
+        get() = boards.flatMap { board -> board.threads.filter { it.missing > 0 }.map { it.location } }
+
     /** Threads a merge could go into: the same board, minus the one being merged. */
     val mergeTargets: List<VaultThreadSection>
         get() = threadEdit?.let { edit ->
@@ -876,6 +883,15 @@ class VaultViewModel @Inject constructor(
         mediaVault.syncSavedThreads(progress)
     }
 
+    /** Fetches back the files a rescan found missing, in every thread or in one. */
+    fun redownloadMissing(onDone: (VaultSyncSummary) -> Unit = {}) = redownload(uiState.value.missing, onDone)
+
+    fun redownloadMissing(location: VaultLocation, onDone: (VaultSyncSummary) -> Unit = {}) =
+        redownload(listOf(location), onDone)
+
+    private fun redownload(targets: List<VaultLocation>, onDone: (VaultSyncSummary) -> Unit) =
+        runSync(onDone) { progress -> mediaVault.redownloadMissing(targets, progress) }
+
     /** See [VaultDeletes.request]. The public surface stays here; the screen and tests call these. */
     fun requestDelete(entries: List<VaultEntry>, undoable: Boolean) = deletes.request(entries, undoable)
 
@@ -899,11 +915,12 @@ class VaultViewModel @Inject constructor(
         url: String?,
         shuffle: List<String>?,
     ): VaultViewerState? {
-        val byUrl = entries.associateBy { it.url }
+        // A missing file has nothing to show; the viewer pages past it.
+        val byUrl = entries.filterNot { it.missing }.associateBy { it.url }
         val current = url?.let { byUrl[it] } ?: return null
         val ordered = shuffle?.mapNotNull { byUrl[it] }
-            ?: feed?.takeIf { list -> list.any { it.url == current.url } }
-            ?: entries.filter { it.location == sel.thread }.ifEmpty { listOf(current) }
+            ?: feed?.filterNot { it.missing }?.takeIf { list -> list.any { it.url == current.url } }
+            ?: byUrl.values.filter { it.location == sel.thread }.ifEmpty { listOf(current) }
         val index = ordered.indexOfFirst { it.url == current.url }.coerceAtLeast(0)
         return VaultViewerState(ordered, index)
     }
