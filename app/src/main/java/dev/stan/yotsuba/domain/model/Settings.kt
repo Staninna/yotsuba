@@ -10,6 +10,12 @@ enum class HistoryRetention { FOREVER, DAYS_30, DAYS_7 }
 /** What a tap on a `>>123` quotelink does; a long-press does the other one. */
 enum class QuoteTapAction { POPOVER, JUMP }
 
+/** How a post's time reads: "3m ago", the date and time, or both. */
+enum class TimestampMode { RELATIVE, ABSOLUTE, BOTH }
+
+/** The zone an absolute post time is shown in: the phone's, or the board's (New York). */
+enum class TimestampZone { LOCAL, BOARD }
+
 /**
  * How a file that only exists on this phone reaches a reverse search engine. Direct upload
  * posts it to the engine's own form; the temporary host puts it on litterbox for an hour
@@ -128,6 +134,8 @@ data class Settings(
     /** Post text only; chrome and the settings screens follow the system size. */
     val fontSize: FontSize = FontSize.DEFAULT,
     val lineSpacing: LineSpacing = LineSpacing.DEFAULT,
+    val timestampMode: TimestampMode = TimestampMode.RELATIVE,
+    val timestampZone: TimestampZone = TimestampZone.LOCAL,
     /**
      * Tapping a thumbnail in a thread shows the full image in place of it. Still images only;
      * videos, gifs and sound posts keep opening the viewer.
