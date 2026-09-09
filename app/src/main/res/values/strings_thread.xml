@@ -41,6 +41,7 @@
     <string name="thread_gallery_filter_silent">Silent</string>
     <string name="thread_gallery_sound_hint">On this board every video may have sound.</string>
     <string name="thread_gallery_filter_empty">Nothing matches this filter</string>
+    <string name="thread_gallery_search_hint">Search filenames</string>
     <string name="thread_gallery_filter_empty_explanation">Pick another filter, or All to see every file.</string>
     <string name="thread_jump_top">Jump to top</string>
     <string name="thread_jump_first_new">Jump to first new post</string>
