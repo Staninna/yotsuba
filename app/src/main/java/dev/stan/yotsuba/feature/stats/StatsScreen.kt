@@ -19,6 +19,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,7 +28,6 @@ import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.core.util.TimeFormat
 import java.time.format.TextStyle
-import java.util.Locale
 
 /** Plain rows of numbers about this install. Everything here is read from the phone's own tables. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,7 +81,7 @@ fun StatsScreen(onBack: () -> Unit, viewModel: StatsViewModel = hiltViewModel())
             StatRow(R.string.stats_vault_now, stringResource(R.string.stats_vault_detail, s.vaultFiles, FileSize.format(s.vaultBytes)))
             Header(R.string.stats_habits)
             u.busiestHour?.let { StatRow(R.string.stats_busiest_hour, "%02d:00".format(it)) }
-            u.busiestDay?.let { StatRow(R.string.stats_busiest_day, it.getDisplayName(TextStyle.FULL, Locale.getDefault())) }
+            u.busiestDay?.let { StatRow(R.string.stats_busiest_day, it.getDisplayName(TextStyle.FULL, LocalLocale.current.platformLocale)) }
             StatRow(R.string.stats_longest_streak, stringResource(R.string.stats_days, u.longestStreak))
             u.firstUseAt?.let { StatRow(R.string.stats_first_use, TimeFormat.date(it)) }
             Header(R.string.stats_rescues)
