@@ -11,6 +11,7 @@ import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.toUiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.domain.model.CatalogSort
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterMatcher
 import dev.stan.yotsuba.domain.repository.BoardRepository
@@ -97,6 +98,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     /** Everything the list is derived from besides the fetch result and the user's own toggles. */
     private data class Inputs(
         val layout: CatalogLayout,
+        val sort: CatalogSort,
         val matcher: FilterMatcher,
         val hidden: Set<Long>,
         val offline: Boolean,
@@ -105,12 +107,14 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
 
     private val inputs = combine(
         // One settings collection; the matcher compiles once per change to the filter list.
-        settingsRepository.settings.map { it.catalogLayout to it.filters }.distinctUntilChanged()
-            .map { (layout, filters) -> layout to FilterMatcher(filters) },
+        settingsRepository.settings
+            .map { Triple(it.catalogLayout, it.catalogSorts[board] ?: CatalogSort.BUMP_ORDER, it.filters) }
+            .distinctUntilChanged()
+            .map { (layout, sort, filters) -> Triple(layout, sort, FilterMatcher(filters)) },
         hiddenNos,
         offline,
         readMarks,
-    ) { (layout, matcher), hidden, offline, readMarks -> Inputs(layout, matcher, hidden, offline, readMarks) }
+    ) { (layout, sort, matcher), hidden, offline, readMarks -> Inputs(layout, sort, matcher, hidden, offline, readMarks) }
 
     val uiState: StateFlow<UiState<CatalogContent>> = combine(
         result.flow, searchQuery, refreshing, inputs,
@@ -124,10 +128,11 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                         it.excerpt.plainText.contains(query, true)
                 }
             val verdicts = i.matcher.verdicts(searched, board)
-            val shown = searched.filterNot { verdicts[it.no]?.action == FilterAction.HIDE }
+            val shown = searched.filterNot { verdicts[it.no]?.action == FilterAction.HIDE }.sortedBy(i.sort)
             CatalogContent(
                 threads = shown,
                 layout = i.layout,
+                sort = i.sort,
                 searchQuery = query,
                 refreshing = isRefreshing,
                 offline = i.offline,
@@ -151,6 +156,13 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
         settingsRepository.update { s ->
             val next = CatalogLayout.entries[(s.catalogLayout.ordinal + 1) % CatalogLayout.entries.size]
             s.copy(catalogLayout = next)
+        }
+    }
+
+    /** Bump order is the default, so choosing it drops the board's entry rather than storing it. */
+    fun onSelectSort(sort: CatalogSort) = viewModelScope.launch {
+        settingsRepository.update { s ->
+            s.copy(catalogSorts = if (sort == CatalogSort.BUMP_ORDER) s.catalogSorts - board else s.catalogSorts + (board to sort))
         }
     }
 

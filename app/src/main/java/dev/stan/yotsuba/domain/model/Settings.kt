@@ -52,10 +52,11 @@ data class BoardProfile(
     val mediaAutoplay: MediaAutoplay? = null,
     val revealAllSpoilers: Boolean? = null,
     val inlineImageExpansion: Boolean? = null,
+    val blurThumbnails: Boolean? = null,
 ) {
     /** How many fields diverge from the global; 0 means the profile is not worth keeping. */
     val overrides: Int
-        get() = listOfNotNull(fontSize, lineSpacing, mediaAutoplay, revealAllSpoilers, inlineImageExpansion).size
+        get() = listOfNotNull(fontSize, lineSpacing, mediaAutoplay, revealAllSpoilers, inlineImageExpansion, blurThumbnails).size
 }
 
 /**
@@ -133,6 +134,10 @@ data class Settings(
      * videos, gifs and sound posts keep opening the viewer.
      */
     val inlineImageExpansion: Boolean = false,
+    /** Catalog thumbnails come up blurred until tapped; a per-board profile can override it. */
+    val blurThumbnails: Boolean = false,
+    /** Catalog order per board code; a board not in here is in bump order. */
+    val catalogSorts: Map<String, CatalogSort> = emptyMap(),
     /** Ask for the phone's own unlock (biometrics or PIN) before showing the app. */
     val appLock: Boolean = false,
     /**
@@ -164,6 +169,7 @@ data class Settings(
             mediaAutoplay = p.mediaAutoplay ?: mediaAutoplay,
             revealAllSpoilers = p.revealAllSpoilers ?: revealAllSpoilers,
             inlineImageExpansion = p.inlineImageExpansion ?: inlineImageExpansion,
+            blurThumbnails = p.blurThumbnails ?: blurThumbnails,
         )
     }
 }

@@ -4,6 +4,13 @@
     <string name="catalog_layout_switch_from_comfortable">Comfortable layout. Switch to compact</string>
     <string name="catalog_layout_switch_from_compact">Compact layout. Switch to list</string>
     <string name="catalog_layout_switch_from_list">List layout. Switch to comfortable</string>
+    <!-- Sort menu in the catalog top bar. -->
+    <string name="catalog_sort">Sort</string>
+    <string name="catalog_sort_bump">Bump order</string>
+    <string name="catalog_sort_created">Newest first</string>
+    <string name="catalog_sort_replies">Most replies</string>
+    <string name="catalog_sort_images">Most images</string>
+    <string name="catalog_sort_replies_per_hour">Replies per hour</string>
     <!-- Badge on a visited thread: replies since the user last read it. -->
     <string name="catalog_new_replies">+%1$d new</string>
     <!-- The catalog only lists the newest few replies, so past that the count is a floor. -->

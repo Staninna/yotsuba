@@ -44,6 +44,7 @@ fun PostDto.toCatalogThread(board: String): CatalogThread = CatalogThread(
     no = no,
     subject = sub?.let { PostHtmlParser.parse(it).plainText.ifBlank { null } },
     excerpt = PostHtmlParser.parse(com),
+    createdAt = time,
     thumbnailUrl = tim?.let { Urls.thumbnail(board, it) },
     replyCount = replies ?: 0,
     imageCount = images ?: 0,

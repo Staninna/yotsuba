@@ -15,7 +15,12 @@ data class CatalogThread(
     val closed: Boolean,
     /** Post numbers of the newest replies the catalog carries (a handful at most), oldest first. */
     val lastReplyNos: List<Long> = emptyList(),
+    /** When the OP was posted, epoch seconds. */
+    val createdAt: Long = 0,
 ) {
     val displayTitle: String
         get() = threadDisplayTitle(subject, excerpt.plainText, fallback = "#$no")
 }
+
+/** Catalog order. [BUMP_ORDER] is the API's own order; the rest sort descending on one number. */
+enum class CatalogSort { BUMP_ORDER, CREATION_TIME, REPLY_COUNT, IMAGE_COUNT, REPLIES_PER_HOUR }

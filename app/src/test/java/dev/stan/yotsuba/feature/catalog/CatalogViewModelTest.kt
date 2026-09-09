@@ -8,6 +8,7 @@ import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.domain.model.CatalogSort
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.Filter
@@ -238,6 +239,21 @@ class CatalogViewModelTest {
             vm.onCycleLayout()
             vm.onCycleLayout()
             assertEquals(CatalogLayout.COMFORTABLE, ((latest() as UiState.Success).data).layout)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `selecting a sort reorders the list and is saved per board`() = runTest(dispatcher.scheduler) {
+        val env = Env(threads = listOf(thread(1).copy(replyCount = 1), thread(2).copy(replyCount = 9), thread(3)))
+        val vm = env.vm()
+        vm.uiState.test {
+            latest()
+            vm.onSelectSort(CatalogSort.REPLY_COUNT)
+            assertEquals(listOf(2L, 1L, 3L), (latest() as UiState.Success).data.threads.map { it.no })
+            assertEquals(mapOf("g" to CatalogSort.REPLY_COUNT), env.settings.state.value.catalogSorts)
+            vm.onSelectSort(CatalogSort.BUMP_ORDER)
+            assertEquals(listOf(1L, 2L, 3L), (latest() as UiState.Success).data.threads.map { it.no })
+            assertEquals(emptyMap<String, CatalogSort>(), env.settings.state.value.catalogSorts)
             cancelAndIgnoreRemainingEvents()
         }
     }

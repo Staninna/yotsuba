@@ -1,12 +1,14 @@
 package dev.stan.yotsuba.feature.catalog
 
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.domain.model.CatalogSort
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.Filter
 
 data class CatalogContent(
     val threads: List<CatalogThread>,
     val layout: CatalogLayout,
+    val sort: CatalogSort = CatalogSort.BUMP_ORDER,
     /** null = search closed. */
     val searchQuery: String?,
     val refreshing: Boolean,
