@@ -8,22 +8,19 @@ import org.junit.Test
 
 class ArchiveHostsTest {
 
-    @Test fun `each board goes to its archive`() {
-        assertEquals(ArchiveSource.DESU, ArchiveHosts.sourceFor("a"))
-        assertEquals(ArchiveSource.DESU, ArchiveHosts.sourceFor("wsg"))
-        assertEquals(ArchiveSource.B4K, ArchiveHosts.sourceFor("v"))
-        assertEquals(ArchiveSource.B4K, ArchiveHosts.sourceFor("vst"))
-        assertEquals(ArchiveSource.WAROSU, ArchiveHosts.sourceFor("g"))
-        assertEquals(ArchiveSource.WAROSU, ArchiveHosts.sourceFor("3"))
-    }
-
-    @Test fun `a board two archives carry resolves to the first in order`() {
-        assertEquals(ArchiveSource.DESU, ArchiveHosts.sourceFor("vr"))
+    @Test fun `each board lists its archives in chain order`() {
+        assertEquals(listOf(ArchiveSource.DESU, ArchiveSource.ARCHIVED_MOE), ArchiveHosts.sourcesFor("a"))
+        assertEquals(listOf(ArchiveSource.B4K, ArchiveSource.ARCHIVED_MOE), ArchiveHosts.sourcesFor("vst"))
+        assertEquals(
+            listOf(ArchiveSource.DESU, ArchiveSource.ARCHIVED_MOE, ArchiveSource.WAROSU),
+            ArchiveHosts.sourcesFor("vr"),
+        )
+        assertEquals(listOf(ArchiveSource.ARCHIVED_MOE, ArchiveSource.WAROSU), ArchiveHosts.sourcesFor("3"))
     }
 
     @Test fun `an unarchived board has no source`() {
-        assertNull(ArchiveHosts.sourceFor("b"))
-        assertNull(ArchiveHosts.sourceFor(""))
+        assertEquals(emptyList<ArchiveSource>(), ArchiveHosts.sourcesFor("zzz"))
+        assertEquals(emptyList<ArchiveSource>(), ArchiveHosts.sourcesFor(""))
     }
 
     @Test fun `foolfuuka hosts have an api url and warosu does not`() {
@@ -32,7 +29,7 @@ class ArchiveHostsTest {
             ArchiveHosts.apiUrl(ArchiveSource.DESU, "a", 123),
         )
         assertEquals(
-            "https://arch.b4k.co/_/api/chan/thread/?board=v&num=7",
+            "https://arch.b4k.dev/_/api/chan/thread/?board=v&num=7",
             ArchiveHosts.apiUrl(ArchiveSource.B4K, "v", 7),
         )
         assertNull(ArchiveHosts.apiUrl(ArchiveSource.WAROSU, "g", 1))
