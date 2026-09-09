@@ -18,7 +18,7 @@ fun LinksSection(settings: Settings, update: ((Settings) -> Settings) -> Unit) {
 
     SwitchRow(
         title = stringResource(R.string.settings_confirm_links),
-        summary = stringResource(R.string.settings_confirm_links_summary),
+        summary = stringResource(R.string.settings_confirm_links_preview_summary),
         checked = settings.confirmBeforeOpeningLinks,
         onToggle = { v -> update { it.copy(confirmBeforeOpeningLinks = v) } },
     )

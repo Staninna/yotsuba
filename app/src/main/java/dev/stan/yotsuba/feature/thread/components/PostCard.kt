@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -66,6 +67,8 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.repeatingTail
 import dev.stan.yotsuba.feature.thread.PostTranslation
 import dev.stan.yotsuba.feature.thread.PostTranslationViewModel
+import dev.stan.yotsuba.domain.model.TimestampMode
+import dev.stan.yotsuba.domain.model.TimestampZone
 import dev.stan.yotsuba.feature.thread.PostUiState
 
 /** Deterministic chip colour from the poster-ID hash, harmonised into the scheme (D21). */
@@ -91,6 +94,11 @@ fun countryFlagEmoji(iso: String): String =
     iso.uppercase().filter { it in 'A'..'Z' }.map { 0x1F1E6 + (it - 'A') }
         .joinToString("") { String(Character.toChars(it)) }
         .ifEmpty { "🏳" }
+
+/** The reader's post-time setting, provided once at the root; the default is what the app always showed. */
+data class TimestampStyle(val mode: TimestampMode = TimestampMode.RELATIVE, val zone: TimestampZone = TimestampZone.LOCAL)
+
+val LocalTimestampStyle = compositionLocalOf { TimestampStyle() }
 
 /** How a card presents the posts quoting it. */
 sealed interface BacklinksUi {
@@ -213,8 +221,9 @@ fun PostCard(
                     )
                 }
                 Spacer(Modifier.weight(1f))
+                val stamp = LocalTimestampStyle.current
                 Text(
-                    TimeFormat.relative(post.timeSeconds),
+                    TimeFormat.post(post.timeSeconds, stamp.mode, stamp.zone),
                     style = postTypography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

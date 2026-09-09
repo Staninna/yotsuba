@@ -1,7 +1,14 @@
 package dev.stan.yotsuba.core.util
 
+import dev.stan.yotsuba.domain.model.TimestampMode
+import dev.stan.yotsuba.domain.model.TimestampZone
 import java.text.DateFormat
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.util.Date
+import java.util.Locale
 
 object TimeFormat {
     private val mediumDate: DateFormat by lazy { DateFormat.getDateInstance(DateFormat.MEDIUM) }
@@ -42,4 +49,33 @@ object TimeFormat {
      */
     fun relative(epochSeconds: Long, nowMs: Long = System.currentTimeMillis()): String =
         relativeMillis(epochSeconds * 1000, nowMs)
+
+    /**
+     * A post's time the way the reader asked for it: "3m ago", the date and time, or both as
+     * "3m ago, 21:04". The clock parts follow [locale] and sit in the phone's zone or the
+     * board's; the relative part needs neither.
+     */
+    fun post(
+        epochSeconds: Long,
+        mode: TimestampMode,
+        zone: TimestampZone,
+        nowMs: Long = System.currentTimeMillis(),
+        locale: Locale = Locale.getDefault(),
+    ): String {
+        if (mode == TimestampMode.RELATIVE) return relative(epochSeconds, nowMs)
+        val zoneId = when (zone) {
+            TimestampZone.LOCAL -> ZoneId.systemDefault()
+            TimestampZone.BOARD -> BOARD_ZONE
+        }
+        val at = Instant.ofEpochSecond(epochSeconds).atZone(zoneId)
+        return when (mode) {
+            TimestampMode.ABSOLUTE -> dateTime.withLocale(locale).format(at)
+            else -> "${relative(epochSeconds, nowMs)}, ${time.withLocale(locale).format(at)}"
+        }
+    }
+
+    /** 4chan stamps posts in US Eastern time; this is what the site itself shows. */
+    private val BOARD_ZONE: ZoneId = ZoneId.of("America/New_York")
+    private val dateTime = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+    private val time = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
 }
