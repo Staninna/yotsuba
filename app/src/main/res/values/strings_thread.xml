@@ -70,6 +70,8 @@
         <item quantity="one">Replying to %d post</item>
         <item quantity="other">Replying to %d posts</item>
     </plurals>
+    <string name="thread_preview_fold_replies">Fold replies</string>
+    <string name="thread_preview_unfold_replies">Unfold replies</string>
     <plurals name="thread_preview_replies">
         <item quantity="one">%d reply</item>
         <item quantity="other">%d replies</item>

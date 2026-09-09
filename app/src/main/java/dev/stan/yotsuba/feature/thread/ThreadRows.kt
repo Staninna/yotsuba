@@ -145,7 +145,7 @@ internal fun previewSheet(own: ThreadKey, details: ThreadDetails, session: Sessi
     val ref = session.previewPath.lastOrNull() ?: return null
     val path = session.previewPath.map { it.postNo }
     if (ref.key == own) {
-        details.posts.firstOrNull { it.no == ref.postNo }?.let { return postPreview(details, it, path, null) }
+        details.posts.firstOrNull { it.no == ref.postNo }?.let { return postPreview(details, it, path, null, session) }
     }
     val ghost = Ghost(ref.board, ref.threadNo, null)
     return when (val state = session.ghosts[ref.key]) {
@@ -155,20 +155,43 @@ internal fun previewSheet(own: ThreadKey, details: ThreadDetails, session: Sessi
         is GhostState.Loaded -> {
             val focus = state.details.posts.firstOrNull { it.no == ref.postNo }
                 ?: return PreviewSheet.Missing(path, ghost, NetworkError.NotFound)
-            postPreview(state.details, focus, path, ghost.copy(source = GhostSource.of(state.details)))
+            postPreview(state.details, focus, path, ghost.copy(source = GhostSource.of(state.details)), session)
         }
     }
 }
 
-private fun postPreview(details: ThreadDetails, focus: ThreadPost, path: List<Long>, ghost: Ghost?): PreviewSheet.Post {
+private fun postPreview(
+    details: ThreadDetails,
+    focus: ThreadPost,
+    path: List<Long>,
+    ghost: Ghost?,
+    session: Session,
+): PreviewSheet.Post {
     val graph = PostGraph.of(details)
     return PreviewSheet.Post(
         focus = focus,
         parents = graph.parentsOf(focus.no),
-        replies = graph.repliesTo(focus.no),
+        replies = replyRows(graph.replyTree(focus.no, MAX_TREE_DEPTH), session.foldedReplies),
         path = path,
         ghost = ghost,
     )
+}
+
+/**
+ * The reply tree with [folded] branches cut: a folded post keeps its row and its
+ * descendant count, the rows under it go. Deeper than [MAX_TREE_DEPTH] is not walked;
+ * refocusing the sheet on a post at the cap continues from there.
+ */
+internal fun replyRows(tree: List<PostGraph.TreeNode>, folded: Set<Long>): List<ReplyNode> = buildList {
+    var i = 0
+    while (i < tree.size) {
+        val node = tree[i++]
+        var end = i
+        while (end < tree.size && tree[end].depth > node.depth) end++
+        val isFolded = node.post.no in folded
+        add(ReplyNode(node.post, node.depth, descendants = end - i, folded = isFolded))
+        if (isFolded) i = end
+    }
 }
 
 /** The OP is labelled first; a claimed OP still reads as yours. */

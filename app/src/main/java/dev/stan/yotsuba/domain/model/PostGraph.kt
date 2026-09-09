@@ -73,7 +73,27 @@ class PostGraph(
         return out
     }
 
-    /** A post with its nesting depth under [parentNo] in [tree]; depth 0 is top level. */
+    /**
+     * The replies under [postNo] as a depth-first tree: each reply followed by its own
+     * replies, [maxDepth] levels down at most. Depth 0 is a direct reply. A post reachable
+     * by more than one path (or through a cycle) appears once, where it was first met.
+     */
+    fun replyTree(postNo: Long, maxDepth: Int): List<TreeNode> {
+        val out = mutableListOf<TreeNode>()
+        val seen = hashSetOf(postNo)
+        fun visit(parent: Long, depth: Int) {
+            if (depth > maxDepth) return
+            repliesTo(parent).forEach { reply ->
+                if (!seen.add(reply.no)) return@forEach
+                out += TreeNode(reply, depth, parent)
+                visit(reply.no, depth + 1)
+            }
+        }
+        visit(postNo, 0)
+        return out
+    }
+
+    /** A post with its nesting depth under [parentNo] in [tree] or [replyTree]; depth 0 is top level. */
     data class TreeNode(val post: ThreadPost, val depth: Int, val parentNo: Long?)
 
     private fun inThreadOrder(nos: Collection<Long>): List<ThreadPost> =
