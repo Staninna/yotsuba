@@ -17,6 +17,7 @@ import dev.stan.yotsuba.domain.model.BookmarkState
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.MediaItem
+import dev.stan.yotsuba.domain.model.PostAnnotation
 import dev.stan.yotsuba.domain.model.PostGraph
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -39,20 +40,29 @@ fun BoardDto.toDomain(): Board = Board(
     textOnly = text_only == 1,
 )
 
-fun PostDto.toCatalogThread(board: String): CatalogThread = CatalogThread(
-    board = board,
-    no = no,
-    subject = sub?.let { PostHtmlParser.parse(it).plainText.ifBlank { null } },
-    excerpt = PostHtmlParser.parse(com),
-    createdAt = time,
-    thumbnailUrl = tim?.let { Urls.thumbnail(board, it) },
-    replyCount = replies ?: 0,
-    imageCount = images ?: 0,
-    lastModified = last_modified ?: time,
-    sticky = sticky == 1,
-    closed = closed == 1,
-    lastReplyNos = last_replies.orEmpty().map { it.no },
-)
+fun PostDto.toCatalogThread(board: String): CatalogThread {
+    val excerpt = PostHtmlParser.parse(com)
+    return CatalogThread(
+        board = board,
+        no = no,
+        subject = sub?.let { PostHtmlParser.parse(it).plainText.ifBlank { null } },
+        excerpt = excerpt,
+        createdAt = time,
+        thumbnailUrl = tim?.let { Urls.thumbnail(board, it) },
+        replyCount = replies ?: 0,
+        imageCount = images ?: 0,
+        lastModified = last_modified ?: time,
+        sticky = sticky == 1,
+        closed = closed == 1,
+        lastReplyNos = last_replies.orEmpty().map { it.no },
+        // 4chan marks a quote into another thread up as a cross-thread link even on the same
+        // board, so same-thread quotelinks can only point inside this thread and are skipped.
+        quotedThreadNos = (listOf(excerpt) + last_replies.orEmpty().map { PostHtmlParser.parse(it.com) })
+            .flatMap { it.segments }
+            .mapNotNull { (it.annotation as? PostAnnotation.QuotelinkCrossThread)?.takeIf { q -> q.board == board }?.threadNo }
+            .filterTo(mutableSetOf()) { it != no },
+    )
+}
 
 fun PostDto.toThreadPost(board: String): ThreadPost {
     val body = PostHtmlParser.parse(com)

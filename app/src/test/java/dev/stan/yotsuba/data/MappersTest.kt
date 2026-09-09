@@ -2,6 +2,7 @@ package dev.stan.yotsuba.data
 
 import dev.stan.yotsuba.core.network.dto.PostDto
 import dev.stan.yotsuba.data.repository.buildThreadDetails
+import dev.stan.yotsuba.data.repository.toCatalogThread
 import dev.stan.yotsuba.data.repository.toPostMedia
 import dev.stan.yotsuba.data.repository.toThreadPost
 import dev.stan.yotsuba.domain.model.MediaItem
@@ -69,6 +70,19 @@ class MappersTest {
                 "<a href=\"/a/thread/9#p9\" class=\"quotelink\">&gt;&gt;9</a>",
         )
         assertEquals(listOf(1L, 2L), dto.toThreadPost("g").quotedPostNos)
+    }
+
+    @Test fun `toCatalogThread collects same-board thread quotes from the OP and last replies`() {
+        val op = PostDto(
+            no = 1, time = 5,
+            com = "<a href=\"/g/thread/2#p2\" class=\"quotelink\">&gt;&gt;2</a> " +
+                "<a href=\"/a/thread/3\" class=\"quotelink\">&gt;&gt;&gt;/a/3</a> " +
+                "<a href=\"#p1\" class=\"quotelink\">&gt;&gt;1</a>",
+            last_replies = listOf(PostDto(no = 9, resto = 1, com = "<a href=\"/g/thread/4#p40\" class=\"quotelink\">&gt;&gt;40</a>")),
+        )
+        val thread = op.toCatalogThread("g")
+        assertEquals(setOf(2L, 4L), thread.quotedThreadNos)
+        assertEquals(5L, thread.createdAt)
     }
 
     @Test fun `toThreadPost basics`() {

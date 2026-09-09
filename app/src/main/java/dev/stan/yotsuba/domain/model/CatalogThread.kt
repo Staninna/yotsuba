@@ -17,6 +17,8 @@ data class CatalogThread(
     val lastReplyNos: List<Long> = emptyList(),
     /** When the OP was posted, epoch seconds. */
     val createdAt: Long = 0,
+    /** Other threads on this board that the OP or the newest replies quote. */
+    val quotedThreadNos: Set<Long> = emptySet(),
 ) {
     val displayTitle: String
         get() = threadDisplayTitle(subject, excerpt.plainText, fallback = "#$no")

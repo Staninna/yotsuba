@@ -14,6 +14,15 @@
     <!-- Card at the top of a catalog the first time the board is opened in a session. -->
     <string name="catalog_about_title">About /%1$s/</string>
     <string name="catalog_about_dismiss">Dismiss</string>
+    <!-- Metadata row: quotelink ties to other threads in the same catalog. -->
+    <plurals name="catalog_links_to_threads">
+        <item quantity="one">Links to %1$d thread</item>
+        <item quantity="other">Links to %1$d threads</item>
+    </plurals>
+    <plurals name="catalog_referenced_by_threads">
+        <item quantity="one">%1$d thread references this</item>
+        <item quantity="other">%1$d threads reference this</item>
+    </plurals>
     <!-- Badge on a visited thread: replies since the user last read it. -->
     <string name="catalog_new_replies">+%1$d new</string>
     <!-- The catalog only lists the newest few replies, so past that the count is a floor. -->

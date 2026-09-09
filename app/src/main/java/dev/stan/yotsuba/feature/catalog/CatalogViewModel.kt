@@ -153,6 +153,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                 stubs = verdicts.filterValues { it.action == FilterAction.STUB },
                 // Every verdict is a HIDE or a STUB, so the map's size is the count.
                 filteredCount = verdicts.size,
+                crossReferences = crossReferences(threads),
                 newReplies = shown.mapNotNull { t ->
                     i.readMarks[t.no]?.let { mark -> t.newRepliesSince(mark)?.let { t.no to it } }
                 }.toMap(),

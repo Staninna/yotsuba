@@ -233,6 +233,7 @@ fun CatalogPane(
                                         ThreadCard(
                                             thread = thread,
                                             newReplies = s.newReplies[thread.no],
+                                            crossReferences = s.crossReferences[thread.no],
                                             layout = s.layout,
                                             blurred = thread.no in s.blurred,
                                             onClick = { viewModel.onThreadOpened(thread.no); onOpenThread(thread.no) },
@@ -355,6 +356,7 @@ private fun FilteredStub(filter: Filter, onClick: () -> Unit) {
 private fun ThreadCard(
     thread: CatalogThread,
     newReplies: NewReplies?,
+    crossReferences: CrossReferences?,
     layout: CatalogLayout,
     blurred: Boolean,
     onClick: () -> Unit,
@@ -383,7 +385,7 @@ private fun ThreadCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    MetadataRow(thread)
+                    MetadataRow(thread, crossReferences)
                 }
             }
             CatalogLayout.COMPACT -> Column {
@@ -396,7 +398,7 @@ private fun ThreadCard(
                 }
                 Column(Modifier.padding(spacing.sm)) {
                     TitleAndBadges(thread, newReplies, maxLines = 2)
-                    MetadataRow(thread)
+                    MetadataRow(thread, crossReferences)
                 }
             }
             CatalogLayout.COMFORTABLE -> Column {
@@ -416,7 +418,7 @@ private fun ThreadCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(spacing.xs))
-                    MetadataRow(thread)
+                    MetadataRow(thread, crossReferences)
                 }
             }
         }
@@ -477,12 +479,14 @@ private fun TitleAndBadges(thread: CatalogThread, newReplies: NewReplies?, maxLi
 }
 
 @Composable
-private fun MetadataRow(thread: CatalogThread) {
+private fun MetadataRow(thread: CatalogThread, refs: CrossReferences?) {
     Text(
-        listOf(
+        listOfNotNull(
             pluralStringResource(R.plurals.replies_count, thread.replyCount, thread.replyCount),
             pluralStringResource(R.plurals.images_count, thread.imageCount, thread.imageCount),
             TimeFormat.relative(thread.lastModified),
+            refs?.linksTo?.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.catalog_links_to_threads, it, it) },
+            refs?.referencedBy?.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.catalog_referenced_by_threads, it, it) },
         ).joinToString(" · "),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
