@@ -16,6 +16,7 @@ import dev.stan.yotsuba.domain.model.FilterMatcher
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
+import dev.stan.yotsuba.domain.repository.HistoryRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     private val boardRepository: BoardRepository,
     private val settingsRepository: SettingsRepository,
     private val hiddenThreadsRepository: HiddenThreadsRepository,
+    historyRepository: HistoryRepository,
     private val threadSiblings: ThreadSiblingsStore,
     networkMonitor: NetworkMonitor,
     /** Where the filter pipeline runs; tests pass their scheduler's dispatcher. */
@@ -55,6 +57,10 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     private val refreshing = MutableStateFlow(false)
     private val hiddenNos = hiddenThreadsRepository.forBoard(board)
         .map { list -> list.map { it.threadNo }.toSet() }
+    /** Read mark per visited thread on this board, for the "+N new" badge. */
+    private val readMarks = historyRepository.history
+        .map { entries -> entries.filter { it.board == board }.associate { it.threadNo to it.readUpTo } }
+        .distinctUntilChanged()
     // Collected only while uiState has subscribers, so the system network callback is
     // registered for as long as the catalog is on screen, not for the ViewModel's lifetime.
     private val offline = networkMonitor.status.map { it == NetworkStatus.Offline }.distinctUntilChanged()
@@ -62,6 +68,14 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     /** Board metadata for the top bar; not part of the list pipeline. */
     private val _boardInfo = MutableStateFlow<Board?>(null)
     val boardInfo: StateFlow<Board?> = _boardInfo
+
+    /**
+     * Where the grid was when its pane last left composition, as (first visible item, pixel
+     * offset). The pane's own saveable state covers process death and back navigation, but a
+     * Home page swiped out of the pager loses it once the tab is switched away and back; this
+     * outlives the pane because the ViewModel is keyed by board under the screen that hosts it.
+     */
+    var scrollPosition: Pair<Int, Int> = 0 to 0
 
     init {
         load()
@@ -86,6 +100,7 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
         val matcher: FilterMatcher,
         val hidden: Set<Long>,
         val offline: Boolean,
+        val readMarks: Map<Long, Long>,
     )
 
     private val inputs = combine(
@@ -94,7 +109,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
             .map { (layout, filters) -> layout to FilterMatcher(filters) },
         hiddenNos,
         offline,
-    ) { (layout, matcher), hidden, offline -> Inputs(layout, matcher, hidden, offline) }
+        readMarks,
+    ) { (layout, matcher), hidden, offline, readMarks -> Inputs(layout, matcher, hidden, offline, readMarks) }
 
     val uiState: StateFlow<UiState<CatalogContent>> = combine(
         result.flow, searchQuery, refreshing, inputs,
@@ -108,8 +124,9 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                         it.excerpt.plainText.contains(query, true)
                 }
             val verdicts = i.matcher.verdicts(searched, board)
+            val shown = searched.filterNot { verdicts[it.no]?.action == FilterAction.HIDE }
             CatalogContent(
-                threads = searched.filterNot { verdicts[it.no]?.action == FilterAction.HIDE },
+                threads = shown,
                 layout = i.layout,
                 searchQuery = query,
                 refreshing = isRefreshing,
@@ -117,6 +134,9 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                 stubs = verdicts.filterValues { it.action == FilterAction.STUB },
                 // Every verdict is a HIDE or a STUB, so the map's size is the count.
                 filteredCount = verdicts.size,
+                newReplies = shown.mapNotNull { t ->
+                    i.readMarks[t.no]?.let { mark -> t.newRepliesSince(mark)?.let { t.no to it } }
+                }.toMap(),
             )
         }
     }

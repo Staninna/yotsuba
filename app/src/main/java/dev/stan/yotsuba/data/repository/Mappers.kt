@@ -50,6 +50,7 @@ fun PostDto.toCatalogThread(board: String): CatalogThread = CatalogThread(
     lastModified = last_modified ?: time,
     sticky = sticky == 1,
     closed = closed == 1,
+    lastReplyNos = last_replies.orEmpty().map { it.no },
 )
 
 fun PostDto.toThreadPost(board: String): ThreadPost {

@@ -10,4 +10,8 @@
     <string name="home_remove_zone">Remove from Home</string>
     <string name="home_move_left">Move left</string>
     <string name="home_move_right">Move right</string>
+    <!-- The dice in the top bar. Tap for a random thread; hold to choose which boards it may pick from. -->
+    <string name="home_roulette">Random thread. Hold to choose boards</string>
+    <string name="home_roulette_boards">Roll from</string>
+    <string name="home_roulette_empty">No thread to roll. Check the boards the dice may use.</string>
 </resources>

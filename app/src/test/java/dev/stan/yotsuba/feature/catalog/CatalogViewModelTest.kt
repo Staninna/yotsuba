@@ -14,6 +14,7 @@ import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterField
 import dev.stan.yotsuba.domain.model.HiddenThread
+import dev.stan.yotsuba.domain.model.HistoryEntry
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.PostSegment
 import dev.stan.yotsuba.domain.model.PostText
@@ -24,6 +25,7 @@ import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.fake.FakeBoardRepository
 import dev.stan.yotsuba.fake.FakeHiddenThreadsRepository
+import dev.stan.yotsuba.fake.FakeHistoryRepository
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.MainDispatcherRule
 import dev.stan.yotsuba.fake.latest
@@ -66,6 +68,7 @@ class CatalogViewModelTest {
         threads: List<CatalogThread> = listOf(thread(1, subject = "Alpha"), thread(2), thread(3)),
         val settings: FakeSettings = FakeSettings(),
         val hidden: FakeHiddenThreadsRepository = FakeHiddenThreadsRepository(),
+        val history: FakeHistoryRepository = FakeHistoryRepository(),
     ) {
         val catalog = FakeCatalogRepository(DataResult.Success(threads))
         val siblings = ThreadSiblingsStore()
@@ -77,6 +80,7 @@ class CatalogViewModelTest {
             boardRepository = boards,
             settingsRepository = settings,
             hiddenThreadsRepository = hidden,
+            historyRepository = history,
             threadSiblings = siblings,
             networkMonitor = NetworkMonitor(ApplicationProvider.getApplicationContext()),
             compute = dispatcher,
@@ -102,6 +106,19 @@ class CatalogViewModelTest {
             assertEquals(listOf(1L, 2L, 3L), content.threads.map { it.no })
             assertEquals("g", vm.boardInfo.value?.code)
             assertEquals(false, content.refreshing)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `a visited thread carries the replies since its read mark`() = runTest(dispatcher.scheduler) {
+        val visited = thread(2).copy(replyCount = 3, lastReplyNos = listOf(10L, 11L, 12L))
+        val history = FakeHistoryRepository(listOf(
+            HistoryEntry("g", 2, null, "", null, viewedAt = 0, lastScrollPostNo = null, maxReadPostNo = 11),
+        ))
+        val env = Env(threads = listOf(thread(1), visited), history = history)
+        env.vm().uiState.test {
+            val content = (latest() as UiState.Success).data
+            assertEquals(mapOf(2L to NewReplies(1, atLeast = false)), content.newReplies)
             cancelAndIgnoreRemainingEvents()
         }
     }

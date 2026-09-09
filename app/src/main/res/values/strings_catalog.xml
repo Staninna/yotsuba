@@ -4,6 +4,10 @@
     <string name="catalog_layout_switch_from_comfortable">Comfortable layout. Switch to compact</string>
     <string name="catalog_layout_switch_from_compact">Compact layout. Switch to list</string>
     <string name="catalog_layout_switch_from_list">List layout. Switch to comfortable</string>
+    <!-- Badge on a visited thread: replies since the user last read it. -->
+    <string name="catalog_new_replies">+%1$d new</string>
+    <!-- The catalog only lists the newest few replies, so past that the count is a floor. -->
+    <string name="catalog_new_replies_at_least">%1$d+ new</string>
     <!-- Swiping sideways in a thread at either end of the catalog it was opened from. -->
     <string name="thread_swipe_no_next">No next thread</string>
     <string name="thread_swipe_no_previous">No previous thread</string>

@@ -1,8 +1,12 @@
 package dev.stan.yotsuba.feature.home
 
 import app.cash.turbine.test
+import dev.stan.yotsuba.domain.model.CatalogThread
+import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.SettingsRepository
+import dev.stan.yotsuba.fake.FakeHiddenThreadsRepository
 import dev.stan.yotsuba.fake.FakeSettings
 import dev.stan.yotsuba.fake.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,11 +27,19 @@ class HomeViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
 
+    private fun vm(settings: SettingsRepository) = HomeViewModel(
+        settings,
+        catalogRepository = object : CatalogRepository {
+            override suspend fun catalog(board: String, forceRefresh: Boolean) = DataResult.Success(emptyList<CatalogThread>())
+        },
+        hiddenThreadsRepository = FakeHiddenThreadsRepository(),
+    )
+
     @get:Rule val mainDispatcherRule = MainDispatcherRule(dispatcher)
 
     @Test fun `pages follow the favourites in their saved order`() = runTest(dispatcher.scheduler) {
         val settings = FakeSettings(Settings(favouriteBoards = linkedSetOf("g", "a")))
-        val vm = HomeViewModel(settings)
+        val vm = vm(settings)
         vm.boards.test {
             assertEquals(null, awaitItem())
             assertEquals(listOf("g", "a"), awaitItem())
@@ -39,7 +51,7 @@ class HomeViewModelTest {
 
     @Test fun `removing a favourite and undoing it keeps the old position`() = runTest(dispatcher.scheduler) {
         val settings = FakeSettings(Settings(favouriteBoards = linkedSetOf("g", "a", "v")))
-        val vm = HomeViewModel(settings)
+        val vm = vm(settings)
         val undo = vm.removeFavourite("a")
         advanceUntilIdle()
         assertEquals(listOf("g", "v"), settings.state.value.favouriteBoards.toList())
@@ -50,7 +62,7 @@ class HomeViewModelTest {
 
     @Test fun `undoing before the removal has landed still restores the board`() = runTest(dispatcher.scheduler) {
         val settings = SlowFirstWrite(Settings(favouriteBoards = linkedSetOf("g", "a", "v")))
-        val vm = HomeViewModel(settings)
+        val vm = vm(settings)
         val undo = vm.removeFavourite("a")
         undo()
         advanceUntilIdle()
@@ -59,7 +71,7 @@ class HomeViewModelTest {
 
     @Test fun `reordering moves the board and persists the new order`() = runTest(dispatcher.scheduler) {
         val settings = OrderedSettings(Settings(favouriteBoards = linkedSetOf("g", "a", "v", "k")))
-        val vm = HomeViewModel(settings)
+        val vm = vm(settings)
         vm.reorder(from = 0, to = 2)
         advanceUntilIdle()
         assertEquals(listOf("a", "v", "g", "k"), settings.current.favouriteBoards.toList())
@@ -71,7 +83,7 @@ class HomeViewModelTest {
 
     @Test fun `reordering out of range leaves the favourites alone`() = runTest(dispatcher.scheduler) {
         val settings = OrderedSettings(Settings(favouriteBoards = linkedSetOf("g", "a")))
-        val vm = HomeViewModel(settings)
+        val vm = vm(settings)
         vm.reorder(from = 0, to = 5)
         vm.reorder(from = 1, to = 1)
         advanceUntilIdle()

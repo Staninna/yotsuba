@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
@@ -60,6 +61,8 @@ fun BoardsScreen(
     viewModel: BoardsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // Above the state branch, so a refresh's loading skeleton does not drop the position.
+    val listState = rememberLazyListState()
     val spacing = LocalSpacing.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
@@ -105,7 +108,7 @@ fun BoardsScreen(
                     explanation = stringResource(R.string.boards_empty_explanation),
                 )
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState) {
                     item {
                         SearchField(
                             value = s.searchQuery,

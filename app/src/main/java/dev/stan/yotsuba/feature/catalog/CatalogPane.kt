@@ -3,6 +3,7 @@ package dev.stan.yotsuba.feature.catalog
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -115,7 +117,13 @@ fun CatalogPane(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val spacing = LocalSpacing.current
     val scope = rememberCoroutineScope()
-    val gridState = rememberLazyGridState()
+    val (savedIndex, savedOffset) = viewModel.scrollPosition
+    val gridState = rememberLazyGridState(savedIndex, savedOffset)
+    DisposableEffect(gridState) {
+        onDispose {
+            viewModel.scrollPosition = gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset
+        }
+    }
     val haptics = rememberHaptics()
     val showScrollTop by remember {
         derivedStateOf { gridState.firstVisibleItemIndex > 8 }
@@ -211,6 +219,7 @@ fun CatalogPane(
                                     } else {
                                         ThreadCard(
                                             thread = thread,
+                                            newReplies = s.newReplies[thread.no],
                                             layout = s.layout,
                                             onClick = { viewModel.onThreadOpened(thread.no); onOpenThread(thread.no) },
                                             onLongClick = { haptics.longPress(); sheetThread = thread },
@@ -313,6 +322,7 @@ private fun FilteredStub(filter: Filter, onClick: () -> Unit) {
 @Composable
 private fun ThreadCard(
     thread: CatalogThread,
+    newReplies: NewReplies?,
     layout: CatalogLayout,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
@@ -330,7 +340,7 @@ private fun ThreadCard(
                 )
                 Spacer(Modifier.width(spacing.md))
                 Column(Modifier.weight(1f)) {
-                    TitleAndBadges(thread)
+                    TitleAndBadges(thread, newReplies)
                     Text(
                         thread.excerpt.plainText,
                         style = postTypography.bodyMedium,
@@ -349,7 +359,7 @@ private fun ThreadCard(
                     )
                 }
                 Column(Modifier.padding(spacing.sm)) {
-                    TitleAndBadges(thread, maxLines = 2)
+                    TitleAndBadges(thread, newReplies, maxLines = 2)
                     MetadataRow(thread)
                 }
             }
@@ -362,7 +372,7 @@ private fun ThreadCard(
                     )
                 }
                 Column(Modifier.padding(spacing.md)) {
-                    TitleAndBadges(thread)
+                    TitleAndBadges(thread, newReplies)
                     Text(
                         thread.excerpt.plainText,
                         style = postTypography.bodyMedium,
@@ -378,7 +388,8 @@ private fun ThreadCard(
 }
 
 @Composable
-private fun TitleAndBadges(thread: CatalogThread, maxLines: Int = 1) {
+private fun TitleAndBadges(thread: CatalogThread, newReplies: NewReplies?, maxLines: Int = 1) {
+    val spacing = LocalSpacing.current
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (thread.sticky) {
             Icon(
@@ -401,7 +412,23 @@ private fun TitleAndBadges(thread: CatalogThread, maxLines: Int = 1) {
             style = MaterialTheme.typography.titleMedium,
             maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
         )
+        if (newReplies != null) {
+            Spacer(Modifier.width(spacing.sm))
+            Text(
+                stringResource(
+                    if (newReplies.atLeast) R.string.catalog_new_replies_at_least else R.string.catalog_new_replies,
+                    newReplies.count,
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 1,
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.extraSmall)
+                    .padding(horizontal = spacing.sm, vertical = spacing.xs),
+            )
+        }
     }
 }
 
