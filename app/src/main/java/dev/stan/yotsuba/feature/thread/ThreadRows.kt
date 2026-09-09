@@ -17,10 +17,14 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 // the screen draws. Nothing here touches ViewModel state, so the row, tree and fold rules are
 // testable without the flow plumbing.
 
-/** The poster-ID filter applied; the OP always stays so the thread keeps its header. */
+/** The poster-ID filter and the unread-only cut applied; the OP always stays so the thread keeps its header. */
 private fun visiblePosts(posts: List<ThreadPost>, session: Session): List<ThreadPost> {
-    val id = session.filterPosterId ?: return posts
-    return posts.filter { it.isOp || it.posterId == id }
+    val id = session.filterPosterId
+    val hiddenUpTo = session.hiddenUpTo
+    if (id == null && hiddenUpTo == null) return posts
+    return posts.filter { post ->
+        post.isOp || (id == null || post.posterId == id) && (hiddenUpTo == null || post.no > hiddenUpTo)
+    }
 }
 
 /** Tree view indents this deep; anything deeper collapses into a "N more" row. */

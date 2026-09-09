@@ -65,6 +65,8 @@ data class ThreadTopBarState(
     /** Attachments in the thread; the save-all entry is greyed out at zero. */
     val mediaCount: Int = 0,
     val treeView: Boolean = false,
+    /** "Unread only"; null greys the entry out because the thread has no read mark. */
+    val unreadOnly: Boolean? = null,
     /** When set, "Open in browser" goes here instead of 4chan; share and copy keep the 4chan link. */
     val archiveUrl: String? = null,
 )
@@ -81,6 +83,7 @@ data class ThreadTopBarActions(
     val onOpenGallery: () -> Unit,
     val onSaveAll: () -> Unit,
     val onToggleTreeView: () -> Unit,
+    val onToggleUnreadOnly: () -> Unit,
     val onToggleAutoRefresh: () -> Unit,
     val onOpenExternal: (String) -> Unit,
     val onClearFilter: () -> Unit,
@@ -191,6 +194,13 @@ fun ThreadTopBar(
                     trailingIcon = { if (state.treeView) Icon(Icons.Filled.Check, contentDescription = null) },
                     onClick = { menuOpen = false; actions.onToggleTreeView() },
                     modifier = Modifier.semantics { toggleableState = ToggleableState(state.treeView) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.thread_unread_only)) },
+                    enabled = state.unreadOnly != null,
+                    trailingIcon = { if (state.unreadOnly == true) Icon(Icons.Filled.Check, contentDescription = null) },
+                    onClick = { menuOpen = false; actions.onToggleUnreadOnly() },
+                    modifier = Modifier.semantics { toggleableState = ToggleableState(state.unreadOnly == true) },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.thread_auto_refresh)) },

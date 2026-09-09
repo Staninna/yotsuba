@@ -224,6 +224,7 @@ fun ThreadScreen(
             onOpenGallery = viewModel::onOpenGallery,
             onSaveAll = { saveAll(null) },
             onToggleTreeView = viewModel::onToggleTreeView,
+            onToggleUnreadOnly = viewModel::onToggleUnreadOnly,
             onToggleAutoRefresh = viewModel::onToggleAutoRefresh,
             onOpenExternal = ::openExternal,
             onClearFilter = { viewModel.onFilterPosterId(null) },
@@ -474,6 +475,7 @@ private fun topBarState(board: String, threadNo: Long, s: ThreadContent?): Threa
         filterPosterId = s.filterPosterId,
         mediaCount = s.mediaPosts.size,
         treeView = s.treeView,
+        unreadOnly = s.unreadOnly,
         archiveUrl = s.archiveUrl,
     )
 

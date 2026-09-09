@@ -52,6 +52,7 @@
     <string name="thread_copy_image_url">Copy image URL</string>
     <string name="thread_image_url_copied">Image URL copied</string>
     <string name="thread_tree_view">Tree view</string>
+    <string name="thread_unread_only">Unread only</string>
     <plurals name="thread_more_replies">
         <item quantity="one">%d more reply</item>
         <item quantity="other">%d more replies</item>

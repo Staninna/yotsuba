@@ -12,7 +12,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/** A watched thread with unread replies opens with the read part folded under the OP. */
+/**
+ * A watched thread with unread replies opens with the read part folded under the OP, and
+ * "unread only" drops that part instead.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ThreadCollapseReadTest {
 
@@ -22,7 +25,7 @@ class ThreadCollapseReadTest {
 
     private fun env(readMark: Long? = 102, watched: Boolean = true, collapse: Boolean = true) =
         ThreadEnv(
-            posts = (100L..104L).map(::post),
+            posts = (100L..104L).map(::post).mapIndexed { i, p -> p.copy(isOp = i == 0) },
             settings = FakeSettings(Settings(collapseReadPosts = collapse)),
         ).apply {
             history.readMark = readMark
@@ -56,6 +59,21 @@ class ThreadCollapseReadTest {
                 assertEquals(all, shape(vm))
             }
         }
+
+    @Test fun `unread only hides the read run outright, without the collapse setting`() = runTest(dispatcher.scheduler) {
+        val vm = env(collapse = false).collectedVm(backgroundScope)
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(false, content(vm).unreadOnly)
+
+        vm.onToggleUnreadOnly()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("100", "103", "104"), shape(vm))
+        assertEquals(true, content(vm).unreadOnly)
+
+        vm.onToggleUnreadOnly()
+        dispatcher.scheduler.advanceUntilIdle()
+        assertEquals(listOf("100", "101", "102", "103", "104"), shape(vm))
+    }
 
     @Test fun `a jump into the folded run unfolds it`() = runTest(dispatcher.scheduler) {
         val vm = env().collectedVm(backgroundScope)

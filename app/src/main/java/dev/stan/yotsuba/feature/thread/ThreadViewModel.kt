@@ -158,6 +158,7 @@ class ThreadViewModel @AssistedInject constructor(
                         rows = rows,
                         filteredCount = verdicts.size,
                         treeView = session.treeView,
+                        unreadOnly = if (session.readMark == null) null else session.readPosts == ReadPosts.HIDDEN,
                         autoRefreshEnabled = autoRefreshOn(session, settings),
                         archivedNotice = session.archived || details.archived,
                         archiveUrl = details.archive?.let { ArchiveHosts.threadUrl(it, this@ThreadViewModel.board, threadNo) },
@@ -284,31 +285,39 @@ class ThreadViewModel @AssistedInject constructor(
             _session.update { it.copy(newPostsAfter = previous to newOnes) }
             poller.resetBackoff()
         }
-        if (previous == 0L) collapseReadPosts(details)
+        if (previous == 0L) applyReadMark(details)
         recordHistory(details)
         resolveScrollTarget(details)
     }
 
     /**
-     * First load of a watched thread: fold what was read last time so it opens at the new
-     * replies. Only when there are some; a fully read thread was opened to be re-read.
+     * First load: keep the read mark for the session, and on a watched thread fold what was
+     * read last time so it opens at the new replies. Only when there are some; a fully read
+     * thread was opened to be re-read.
      */
-    private suspend fun collapseReadPosts(details: ThreadDetails) {
+    private suspend fun applyReadMark(details: ThreadDetails) {
+        val mark = historyRepository.readUpTo(board, threadNo) ?: return
+        _session.update { it.copy(readMark = mark) }
         if (!settingsRepository.settings.first().collapseReadPosts) return
         if (!bookmarked.first()) return
-        val mark = historyRepository.readUpTo(board, threadNo) ?: return
         val body = details.posts.drop(1)
         if (body.none { it.no <= mark } || body.none { it.no > mark }) return
-        _session.update { it.copy(collapsedUpTo = mark) }
+        _session.update { it.copy(readPosts = ReadPosts.COLLAPSED) }
     }
 
-    /** A jump or search hit inside the folded run unfolds it; the target has to be on screen. */
+    /** A jump or search hit inside the folded or hidden run brings it back; the target has to be on screen. */
     private fun unfoldFor(postNo: Long) {
-        val mark = _session.value.collapsedUpTo ?: return
-        if (postNo <= mark) _session.update { it.copy(collapsedUpTo = null) }
+        val session = _session.value
+        val mark = session.readMark ?: return
+        if (session.readPosts == ReadPosts.SHOWN || postNo > mark) return
+        _session.update { it.copy(readPosts = ReadPosts.SHOWN) }
     }
 
-    fun onExpandEarlier() = _session.update { it.copy(collapsedUpTo = null) }
+    fun onExpandEarlier() = _session.update { it.copy(readPosts = ReadPosts.SHOWN) }
+
+    fun onToggleUnreadOnly() = _session.update {
+        it.copy(readPosts = if (it.readPosts == ReadPosts.HIDDEN) ReadPosts.SHOWN else ReadPosts.HIDDEN)
+    }
 
     /** The screen showed the refresh error; drop it so it is not shown again. */
     fun onRefreshErrorShown() = _session.update { it.copy(refreshError = null) }

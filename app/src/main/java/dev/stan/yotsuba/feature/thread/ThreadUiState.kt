@@ -48,6 +48,8 @@ data class ThreadContent(
     /** The post whose long-press sheet is up. */
     val postSheet: ThreadPost? = null,
     val treeView: Boolean = false,
+    /** The "unread only" toggle: null when the thread has no read mark to cut at. */
+    val unreadOnly: Boolean? = null,
     /** Posts a content filter hid or stubbed; the top bar shows it when non-zero. */
     val filteredCount: Int = 0,
     /** Posts with a present attachment, in thread order. */
@@ -211,11 +213,10 @@ data class Session(
     val pendingExternalUrl: String? = null,
     /** (last post before the divider, count of posts after it); null = no divider. */
     val newPostsAfter: Pair<Long, Int>? = null,
-    /**
-     * Posts up to this number (the OP aside) fold into one "N earlier posts" row. Set on the
-     * first load of a watched thread from its read mark; null once expanded or never set.
-     */
-    val collapsedUpTo: Long? = null,
+    /** History's "read up to" mark as it stood on first load; null when the thread was never read. */
+    val readMark: Long? = null,
+    /** What the linear view does with the posts up to [readMark]; the OP is never touched. */
+    val readPosts: ReadPosts = ReadPosts.SHOWN,
     /** The thread 404ed during a refresh. */
     val archived: Boolean = false,
     val autoRefreshOverride: Boolean? = null,
@@ -237,4 +238,17 @@ data class Session(
     val refreshing: Boolean = false,
     /** When the vault copy on screen was taken; null until one is shown. */
     val offlineCopyAt: Long? = null,
-)
+) {
+    /** The read mark when it folds posts into one "N earlier posts" row. */
+    val collapsedUpTo: Long? get() = readMark.takeIf { readPosts == ReadPosts.COLLAPSED }
+
+    /** The read mark when the posts up to it are left out of the list entirely. */
+    val hiddenUpTo: Long? get() = readMark.takeIf { readPosts == ReadPosts.HIDDEN }
+}
+
+/**
+ * How the thread treats the posts read on an earlier visit. [COLLAPSED] is set on the first
+ * load of a watched thread when the setting asks for it; [HIDDEN] is the "unread only"
+ * toggle in the top bar. Both give way to [SHOWN] on a jump into the read run.
+ */
+enum class ReadPosts { SHOWN, COLLAPSED, HIDDEN }
