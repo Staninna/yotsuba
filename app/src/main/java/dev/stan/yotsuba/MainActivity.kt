@@ -89,6 +89,7 @@ class MainActivity : FragmentActivity() {
             YotsubaTheme(
                 darkTheme = dark,
                 dynamicColor = settings.dynamicColor,
+                pureBlack = settings.pureBlack,
                 reduceMotion = settings.reduceMotion,
                 fontSize = settings.fontSize,
                 lineSpacing = settings.lineSpacing,

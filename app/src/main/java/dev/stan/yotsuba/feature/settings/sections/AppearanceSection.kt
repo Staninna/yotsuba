@@ -25,6 +25,13 @@ fun AppearanceSection(settings: Settings, update: ((Settings) -> Settings) -> Un
         checked = settings.dynamicColor,
         onToggle = { v -> update { it.copy(dynamicColor = v) } },
     )
+    SwitchRow(
+        title = stringResource(R.string.settings_pure_black),
+        summary = stringResource(R.string.settings_pure_black_summary),
+        checked = settings.pureBlack,
+        onToggle = { v -> update { it.copy(pureBlack = v) } },
+        enabled = settings.themeMode != ThemeMode.LIGHT,
+    )
     ChipRow(
         label = stringResource(R.string.settings_catalog_layout),
         options = CatalogLayout.entries,

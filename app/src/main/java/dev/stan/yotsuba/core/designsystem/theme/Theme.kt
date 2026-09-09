@@ -2,6 +2,7 @@ package dev.stan.yotsuba.core.designsystem.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -83,10 +84,28 @@ private val DarkScheme = darkColorScheme(
     scrim = Color(0xFF000000),
 )
 
+/**
+ * AMOLED variant of any dark scheme: black background and surface, containers stepped up
+ * just far enough from black to still read as separate layers. Every other role, including
+ * a dynamic scheme's accents, is kept.
+ */
+private fun ColorScheme.pureBlack(): ColorScheme = copy(
+    background = Color.Black,
+    surface = Color.Black,
+    surfaceDim = Color.Black,
+    surfaceBright = Color(0xFF2A2A2A),
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF0D0D0D),
+    surfaceContainer = Color(0xFF141414),
+    surfaceContainerHigh = Color(0xFF1C1C1C),
+    surfaceContainerHighest = Color(0xFF262626),
+)
+
 @Composable
 fun YotsubaTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
+    pureBlack: Boolean = false,
     reduceMotion: Boolean = false,
     fontSize: FontSize = FontSize.DEFAULT,
     lineSpacing: LineSpacing = LineSpacing.DEFAULT,
@@ -98,7 +117,7 @@ fun YotsubaTheme(
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         darkTheme -> DarkScheme
         else -> LightScheme
-    }
+    }.let { if (darkTheme && pureBlack) it.pureBlack() else it }
     // One settings-provider read per theme, not one per animated row: every consumer
     // reads the merged answer through the local. Spacing and Motion resolve through their
     // locals' own defaults.

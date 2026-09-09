@@ -133,4 +133,6 @@ data class Settings(
     val highlightGets: Boolean = false,
     /** Offer an on-device translation of a post from its action sheet. Off by default; the model downloads on first use. */
     val translatePosts: Boolean = false,
+    /** In the dark theme, paint backgrounds and surfaces true black for OLED screens. */
+    val pureBlack: Boolean = false,
 )
