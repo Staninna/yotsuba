@@ -66,9 +66,6 @@ enum class TimestampMode { RELATIVE, ABSOLUTE, BOTH }
 /** Whose clock an absolute time uses: the phone's, or 4chan's (US Eastern). */
 enum class TimestampZone { LOCAL, BOARD }
 
-/** Catalog order. [REPLIES_PER_HOUR] is replies divided by the thread's age. */
-enum class CatalogSort { BUMP, CREATED, REPLIES, IMAGES, REPLIES_PER_HOUR }
-
 /**
  * Persisted as one JSON blob. Every field needs a default: the serializer coerces missing
  * keys and unknown enum names to it, which is how old installs survive new fields.
