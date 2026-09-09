@@ -129,4 +129,8 @@ data class Settings(
     val localSearchMethod: LocalSearchMethod = LocalSearchMethod.DIRECT_UPLOAD,
     /** Ask before a local-only file is uploaded anywhere, an engine or the temporary host. */
     val confirmTemporaryHost: Boolean = true,
+    /** Tint post numbers ending in repeating digits (dubs, trips, and up). Off by default. */
+    val highlightGets: Boolean = false,
+    /** Offer an on-device translation of a post from its action sheet. Off by default; the model downloads on first use. */
+    val translatePosts: Boolean = false,
 )
