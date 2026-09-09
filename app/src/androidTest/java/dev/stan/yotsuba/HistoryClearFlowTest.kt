@@ -12,6 +12,7 @@ class HistoryClearFlowTest : FlowTest() {
     @Test
     fun clearAll_asksForConfirmation_thenEmptiesHistory() {
         composeRule.openSeededThread()
+        composeRule.goBack()
         composeRule.openThreadsTab("Recent")
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
 
