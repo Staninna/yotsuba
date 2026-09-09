@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -162,7 +163,8 @@ fun PostCard(
         .pointerInput(onLongPress, post) { detectTapGestures(onLongPress = { onLongPress(post) }) }
         .semantics { customActions = listOf(CustomAccessibilityAction(postActionsLabel) { onLongPress(post); true }) }
     Card(
-        modifier = modifier.fillMaxWidth().then(longPress),
+        // A faded post stays in the flow at low opacity: a FADE filter matched it.
+        modifier = modifier.fillMaxWidth().then(if (ui.faded) Modifier.alpha(0.4f) else Modifier).then(longPress),
         colors = when {
             ui.highlighted -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
             post.isOp -> CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)

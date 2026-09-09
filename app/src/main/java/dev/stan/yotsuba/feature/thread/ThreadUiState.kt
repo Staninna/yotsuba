@@ -139,6 +139,8 @@ data class PostUiState(
     val sticky: Boolean = false,
     /** Set while the full image is shown in the card instead of its thumbnail. */
     val inlineImage: InlineImage? = null,
+    /** A FADE filter matched: drawn at low opacity, still in the flow. */
+    val faded: Boolean = false,
 ) {
     val imageExpanded: Boolean get() = inlineImage != null
 

@@ -40,6 +40,7 @@ internal fun filterVerdicts(posts: List<ThreadPost>, matcher: FilterMatcher): Ma
 /** The row for a post the filters had a say on: nothing, a stub, or the post once opened. */
 private fun filteredRow(post: ThreadPost, filter: Filter, session: Session, depth: Int): ThreadRow? = when {
     filter.action == FilterAction.HIDE -> null
+    filter.action == FilterAction.FADE -> ThreadRow.Post(post, depth)
     post.no in session.expandedFiltered -> ThreadRow.Post(post, depth)
     else -> ThreadRow.Filtered(post.no, filter.pattern, depth)
 }
@@ -183,6 +184,7 @@ internal fun postStates(
     saveStatuses: Map<String, MediaSaveStatus>,
     savedPaths: Map<String, String?> = emptyMap(),
     dataSaver: Boolean = false,
+    verdicts: Map<Long, Filter> = emptyMap(),
 ): Map<Long, PostUiState> {
     val revealedText = session.revealedText.groupBy({ it.first }, { it.second })
     val idCounts = details.posts.mapNotNull { it.posterId }.groupingBy { it }.eachCount()
@@ -199,6 +201,7 @@ internal fun postStates(
             inlineImage = post.presentMedia?.takeIf { post.no in session.expandedImages }?.let { media ->
                 InlineImage(localPath = savedPaths[media.fullUrl], dataSaver = dataSaver)
             },
+            faded = verdicts[post.no]?.action == FilterAction.FADE,
         )
     }
 }

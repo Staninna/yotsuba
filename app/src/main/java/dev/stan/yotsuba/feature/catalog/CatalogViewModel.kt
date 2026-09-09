@@ -13,6 +13,7 @@ import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterMatcher
+import dev.stan.yotsuba.domain.model.removedCount
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
 import dev.stan.yotsuba.domain.repository.HiddenThreadsRepository
@@ -115,8 +116,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                 refreshing = isRefreshing,
                 offline = i.offline,
                 stubs = verdicts.filterValues { it.action == FilterAction.STUB },
-                // Every verdict is a HIDE or a STUB, so the map's size is the count.
-                filteredCount = verdicts.size,
+                faded = verdicts.filterValues { it.action == FilterAction.FADE }.keys,
+                filteredCount = verdicts.removedCount,
             )
         }
     }

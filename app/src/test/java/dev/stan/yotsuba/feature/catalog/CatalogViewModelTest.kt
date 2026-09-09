@@ -252,6 +252,19 @@ class CatalogViewModelTest {
         }
     }
 
+    @Test fun `a fade filter keeps the thread, fades it and does not count it`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.settings.state.value = Settings(filters = listOf(Filter(id = "1", pattern = "excerpt 2", action = FilterAction.FADE)))
+        env.vm().uiState.test {
+            val content = (latest() as UiState.Success).data
+            assertEquals(listOf(1L, 2L, 3L), content.threads.map { it.no })
+            assertEquals(setOf(2L), content.faded)
+            assertEquals(emptyMap<Long, Filter>(), content.stubs)
+            assertEquals(0, content.filteredCount)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test fun `filters scoped to another board leave this catalog alone`() = runTest(dispatcher.scheduler) {
         val env = Env()
         env.settings.state.value = Settings(filters = listOf(
