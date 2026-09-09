@@ -90,4 +90,20 @@ class PostGraphTest {
         assertEquals(listOf(1L, 2L, 3L), g.tree().map { it.post.no }.sorted())
         assertEquals(3, g.tree().size)
     }
+
+    @Test fun `reply tree walks a post's replies depth-first and stops at the cap`() {
+        //  1 <- 2 <- 4;  1 <- 3 <- 5
+        assertEquals(listOf(2L, 4L, 3L, 5L), graph.replyTree(1, maxDepth = 4).map { it.post.no })
+        assertEquals(listOf(0, 1, 0, 1), graph.replyTree(1, maxDepth = 4).map { it.depth })
+        assertEquals(listOf(1L, 2L, 1L, 3L), graph.replyTree(1, maxDepth = 4).map { it.parentNo })
+        assertEquals(listOf(2L, 3L), graph.replyTree(1, maxDepth = 0).map { it.post.no })
+    }
+
+    @Test fun `reply tree lists a post reached twice once, and survives a cycle`() {
+        // 3 quotes both 1 and 2, so it is reachable under 1 directly and under 2; 1 quotes 3.
+        val messy = listOf(post(1, listOf(3)), post(2, listOf(1)), post(3, listOf(1, 2)))
+        val g = PostGraph(messy, PostGraph.backlinksOf(messy))
+        assertEquals(listOf(2L, 3L), g.replyTree(1, maxDepth = 4).map { it.post.no })
+        assertEquals(listOf(0, 1), g.replyTree(1, maxDepth = 4).map { it.depth })
+    }
 }

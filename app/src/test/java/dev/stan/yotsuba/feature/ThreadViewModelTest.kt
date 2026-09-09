@@ -537,13 +537,15 @@ class ThreadViewModelTest {
             dispatcher.scheduler.advanceUntilIdle()
             val sheet = focused(vm)!!
             assertEquals(listOf(100L, 101L), sheet.parents.map { it.no }) // thread order, 999 dropped
-            assertEquals(listOf(103L, 104L), sheet.replies.map { it.no })
+            assertEquals(listOf(103L, 104L), sheet.replies.map { it.post.no })
 
             vm.onOpenPreview(101) // a "quoted by" tap: the post with its replies inline
             dispatcher.scheduler.advanceUntilIdle()
             val quoted = focused(vm)!!
             assertEquals(emptyList<Long>(), quoted.parents.map { it.no })
-            assertEquals(listOf(102L, 104L), quoted.replies.map { it.no })
+            // The reply tree: 102, then 103 and 104 nested under it; 104 quotes 101 too but is listed once.
+            assertEquals(listOf(102L, 103L, 104L), quoted.replies.map { it.post.no })
+            assertEquals(listOf(0, 1, 1), quoted.replies.map { it.depth })
             assertEquals(listOf(102L, 101L), quoted.path)
         }
 

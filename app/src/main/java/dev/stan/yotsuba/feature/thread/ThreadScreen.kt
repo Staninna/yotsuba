@@ -240,6 +240,7 @@ fun ThreadScreen(
             onDismissPreview = viewModel::onDismissPreview,
             onJumpToPost = viewModel::onJumpToPost,
             onFocusPreview = viewModel::onOpenPreview,
+            onToggleReplyFold = viewModel::onToggleReplyFold,
             onOpenThread = { board, threadNo, postNo ->
                 onOpenInternal(Urls.InternalLink.Thread(board, threadNo, postNo))
             },

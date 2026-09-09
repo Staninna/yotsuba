@@ -54,8 +54,9 @@ import dev.stan.yotsuba.feature.thread.PreviewSheet
 
 /**
  * The quote preview as a small thread focused on one post: what it quotes above (folded
- * into a strip until opened), the post itself, and what quotes it below. Tapping any of
- * the other posts refocuses the sheet on it; the header's back arrow returns. Each focused
+ * into a strip until opened), the post itself, and what quotes it below as a tree, each
+ * branch folding under its own "N replies" line. Tapping any of the other posts refocuses
+ * the sheet on it; the header's back arrow returns. Each focused
  * post keeps its own scroll position while it is on the path, so going back lands where
  * the reader left.
  *
@@ -77,6 +78,7 @@ fun QuotePreviewSheet(
     onGoTo: (Long) -> Unit,
     onOpenThread: (String, Long, Long) -> Unit,
     onFocus: (Long) -> Unit,
+    onToggleFold: (Long) -> Unit,
     postCard: @Composable (ThreadPost) -> Unit,
 ) {
     val spacing = LocalSpacing.current
@@ -125,6 +127,9 @@ fun QuotePreviewSheet(
                             ),
                             expanded = parentsShown,
                             onToggle = { parentsShown = !parentsShown },
+                            contentDescription = stringResource(
+                                if (parentsShown) R.string.thread_preview_hide_parents else R.string.thread_preview_show_parents,
+                            ),
                         )
                     }
                     if (parentsShown) {
@@ -143,8 +148,20 @@ fun QuotePreviewSheet(
                             modifier = Modifier.padding(top = spacing.xs),
                         )
                     }
-                    items(preview.replies, key = { "reply-${it.no}" }) { reply ->
-                        Box(Modifier.clickable { onFocus(reply.no) }) { postCard(reply) }
+                    items(preview.replies, key = { "reply-${it.post.no}" }) { node ->
+                        Column(Modifier.padding(start = spacing.md * node.depth)) {
+                            Box(Modifier.clickable { onFocus(node.post.no) }) { postCard(node.post) }
+                            if (node.descendants > 0) {
+                                SectionRow(
+                                    label = pluralStringResource(R.plurals.thread_preview_replies, node.descendants, node.descendants),
+                                    expanded = !node.folded,
+                                    onToggle = { onToggleFold(node.post.no) },
+                                    contentDescription = stringResource(
+                                        if (node.folded) R.string.thread_preview_unfold_replies else R.string.thread_preview_fold_replies,
+                                    ),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -243,9 +260,9 @@ private fun ghostLine(ghost: Ghost): String {
     return "$from · $source"
 }
 
-/** The fold line above the parents: the count, and a chevron for its state. */
+/** A fold line: the count, and a chevron for its state, described by [contentDescription]. */
 @Composable
-private fun SectionRow(label: String, expanded: Boolean, onToggle: () -> Unit) {
+private fun SectionRow(label: String, expanded: Boolean, onToggle: () -> Unit, contentDescription: String) {
     val spacing = LocalSpacing.current
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -259,7 +276,7 @@ private fun SectionRow(label: String, expanded: Boolean, onToggle: () -> Unit) {
         )
         Icon(
             if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-            stringResource(if (expanded) R.string.thread_preview_hide_parents else R.string.thread_preview_show_parents),
+            contentDescription,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

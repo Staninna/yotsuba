@@ -71,7 +71,8 @@ sealed interface PreviewSheet {
     data class Post(
         val focus: ThreadPost,
         val parents: List<ThreadPost>,
-        val replies: List<ThreadPost>,
+        /** The reply tree under [focus], depth-first, with folded branches already cut. */
+        val replies: List<ReplyNode>,
         override val path: List<Long>,
         override val ghost: Ghost? = null,
     ) : PreviewSheet
@@ -86,6 +87,12 @@ sealed interface PreviewSheet {
         val error: NetworkError,
     ) : PreviewSheet
 }
+
+/**
+ * One row of the preview sheet's reply tree. [descendants] counts the replies nested under
+ * this one (within the depth cap); they follow it in the list unless [folded].
+ */
+data class ReplyNode(val post: ThreadPost, val depth: Int, val descendants: Int, val folded: Boolean)
 
 /** Where a ghost post lives and which copy of that thread it was read from. */
 data class Ghost(val board: String, val threadNo: Long, val source: GhostSource?)
@@ -222,6 +229,8 @@ data class Session(
     val treeView: Boolean = false,
     /** Depth-capped subtrees the user expanded, by the post at the cap. */
     val expandedTails: Set<Long> = emptySet(),
+    /** Branches folded shut in the preview sheet's reply tree, by the post at the fold. */
+    val foldedReplies: Set<Long> = emptySet(),
     /** Stubbed posts the user opened. */
     val expandedFiltered: Set<Long> = emptySet(),
     val refreshError: NetworkError? = null,

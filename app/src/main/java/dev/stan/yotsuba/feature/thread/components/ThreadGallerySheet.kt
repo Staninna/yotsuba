@@ -1,5 +1,6 @@
 package dev.stan.yotsuba.feature.thread.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -62,6 +64,20 @@ enum class GalleryFilter(val labelRes: Int) {
     }
 }
 
+/** One grid cell: the first post carrying a file, and how many posts in the thread carry it. */
+data class GalleryTile(val post: ThreadPost, val media: MediaItem, val copies: Int)
+
+/**
+ * The cells for [posts] under [filter], in thread order, one per distinct file: reposts
+ * (same MD5) fold into the first post that carried the file, which shows the count. A file
+ * whose source gave no MD5 stands alone.
+ */
+internal fun galleryTiles(posts: List<ThreadPost>, filter: GalleryFilter, boardAllowsAudio: Boolean): List<GalleryTile> =
+    posts.mapNotNull { post -> post.presentMedia?.let { post to it } }
+        .filter { (_, media) -> filter.matches(media, boardAllowsAudio) }
+        .groupBy { (_, media) -> media.md5 ?: media.fullUrl }
+        .values.map { copies -> GalleryTile(copies.first().first, copies.first().second, copies.size) }
+
 /**
  * Every attachment in the thread as a grid, narrowed by a chip row; tapping one opens the
  * viewer at that post. [onSaveAll] receives the posts currently shown, not the whole thread.
@@ -78,12 +94,7 @@ fun ThreadGallerySheet(
 ) {
     val spacing = LocalSpacing.current
     var filter by rememberSaveable { mutableStateOf(GalleryFilter.ALL) }
-    // The caller already passes only posts with media; pairing each with its item here
-    // states that contract once instead of guarding every cell.
-    val withMedia = remember(posts, filter, boardAllowsAudio) {
-        posts.mapNotNull { post -> post.presentMedia?.let { post to it } }
-            .filter { (_, media) -> filter.matches(media, boardAllowsAudio) }
-    }
+    val withMedia = remember(posts, filter, boardAllowsAudio) { galleryTiles(posts, filter, boardAllowsAudio) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = spacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -92,7 +103,7 @@ fun ThreadGallerySheet(
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { onSaveAll(withMedia.map { it.first }) }, enabled = withMedia.isNotEmpty()) {
+                TextButton(onClick = { onSaveAll(withMedia.map { it.post }) }, enabled = withMedia.isNotEmpty()) {
                     Text(stringResource(R.string.thread_gallery_save_all))
                 }
             }
@@ -141,7 +152,7 @@ fun ThreadGallerySheet(
                 contentPadding = PaddingValues(bottom = spacing.lg),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                items(withMedia, key = { (post, _) -> post.no }) { (post, media) ->
+                items(withMedia, key = { it.post.no }) { (post, media, copies) ->
                     Box(
                         Modifier
                             .aspectRatio(1f)
@@ -154,6 +165,18 @@ fun ThreadGallerySheet(
                             modifier = Modifier.fillMaxSize(),
                         )
                         if (media.isVideo) VideoBadge()
+                        if (copies > 1) {
+                            Text(
+                                stringResource(R.string.thread_gallery_copies, copies),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(spacing.xs)
+                                    .background(Color.Black.copy(alpha = 0.6f), MaterialTheme.shapes.extraSmall)
+                                    .padding(horizontal = spacing.xs, vertical = 1.dp),
+                            )
+                        }
                     }
                 }
             }

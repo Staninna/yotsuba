@@ -46,6 +46,7 @@ data class ThreadOverlayActions(
     val onDismissPreview: () -> Unit,
     val onJumpToPost: (Long) -> Unit,
     val onFocusPreview: (Long) -> Unit,
+    val onToggleReplyFold: (Long) -> Unit,
     val onOpenThread: (board: String, threadNo: Long, postNo: Long?) -> Unit,
     val onClosePostSheet: () -> Unit,
     val onToggleClaimed: (Long) -> Unit,
@@ -97,6 +98,7 @@ fun ThreadOverlays(
             onGoTo = actions.onJumpToPost,
             onOpenThread = actions.onOpenThread,
             onFocus = actions.onFocusPreview,
+            onToggleFold = actions.onToggleReplyFold,
             postCard = { post -> postCard(post, true) },
         )
     }

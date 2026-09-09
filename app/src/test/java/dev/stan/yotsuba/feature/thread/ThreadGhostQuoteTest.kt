@@ -54,7 +54,7 @@ class ThreadGhostQuoteTest {
             assertEquals(201L, ghost.focus.no)
             assertEquals(Ghost("b", 200, GhostSource.Live), ghost.ghost)
             assertEquals(listOf(200L), ghost.parents.map { it.no })
-            assertEquals(listOf(202L), ghost.replies.map { it.no })
+            assertEquals(listOf(202L), ghost.replies.map { it.post.no })
             assertEquals(listOf(201L), ghost.path)
             assertEquals(listOf("live"), env.threads.asked)
             assertNull(vm.scrollTarget.value) // the reader's place is kept

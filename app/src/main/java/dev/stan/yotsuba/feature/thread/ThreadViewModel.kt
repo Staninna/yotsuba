@@ -518,6 +518,11 @@ class ThreadViewModel @AssistedInject constructor(
     /** The sheet was swiped away or its scrim tapped: the whole path goes. */
     fun onDismissPreview() = _session.update { it.copy(previewPath = emptyList()) }
 
+    /** Folds or unfolds the branch under [postNo] in the sheet's reply tree. */
+    fun onToggleReplyFold(postNo: Long) = _session.update {
+        it.copy(foldedReplies = if (postNo in it.foldedReplies) it.foldedReplies - postNo else it.foldedReplies + postNo)
+    }
+
     /** "Mark as mine" / "Not mine": flips whether [postNo] reads as the user's own post. */
     fun onToggleClaimed(postNo: Long) = viewModelScope.launch {
         if (postNo in claimed.first()) claimedPosts.unclaim(board, threadNo, postNo)
