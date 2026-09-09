@@ -42,9 +42,10 @@ class MigrationTest {
             assertEquals(20L, c.getLong(5))
             assertEquals(1, c.count)
         }
+        // The primary key's autoindex sits in the same table; only the md5 index is ours.
         db.query("SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'saved_media'").use { c ->
-            assertTrue(c.moveToFirst())
-            assertEquals("index_saved_media_md5", c.getString(0))
+            val names = generateSequence { if (c.moveToNext()) c.getString(0) else null }.toList()
+            assertTrue("indexes: $names", "index_saved_media_md5" in names)
         }
         db.close()
     }
