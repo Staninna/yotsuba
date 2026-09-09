@@ -12,7 +12,7 @@ class HistoryFlowTest : FlowTest() {
         composeRule.openSeededThread()
 
         // Leave the thread, then open the Recent segment of the Threads tab.
-        composeRule.goBack()
+        composeRule.backToTabs()
         composeRule.openThreadsTab("Recent")
 
         // The visited thread shows up as a history entry.

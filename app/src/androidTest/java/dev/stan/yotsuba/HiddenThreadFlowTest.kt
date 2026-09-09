@@ -21,6 +21,7 @@ class HiddenThreadFlowTest : FlowTest() {
         // Long-press the catalog card to hide the thread.
         composeRule.onNodeWithText(TestSeed.THREAD_SUBJECT, substring = true, ignoreCase = true)
             .performTouchInput { longClick() }
+        composeRule.tap("Hide thread")
         composeRule.waitForText("Thread hidden")
         composeRule.waitUntil(UI_TIMEOUT_MS) {
             composeRule.onAllNodesWithText(TestSeed.THREAD_SUBJECT, substring = true, ignoreCase = true)

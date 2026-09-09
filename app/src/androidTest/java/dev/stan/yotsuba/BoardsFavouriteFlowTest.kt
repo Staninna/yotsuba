@@ -1,7 +1,7 @@
 package dev.stan.yotsuba
 
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
@@ -23,12 +23,13 @@ class BoardsFavouriteFlowTest : FlowTest() {
         composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
 
-        composeRule.onAllNodesWithContentDescription("Toggle favourite")[0].performClick()
+        composeRule.iconInRow(TestSeed.BOARD_TITLE, "Toggle favourite").performClick()
         composeRule.waitForText("Favourites")
         composeRule.waitUntil(UI_TIMEOUT_MS) { TestSeed.BOARD in settings.state.value.favouriteBoards }
 
         // Toggling again clears the section.
-        composeRule.onAllNodesWithContentDescription("Toggle favourite")[0].performClick()
+        // The board now sits in Favourites and in its category: either star will do.
+        composeRule.onAllNodes(inRow(TestSeed.BOARD_TITLE, "Toggle favourite"), useUnmergedTree = true).onFirst().performClick()
         composeRule.waitUntil(UI_TIMEOUT_MS) {
             composeRule.onAllNodesWithText("Favourites").fetchSemanticsNodes().isEmpty()
         }

@@ -1,7 +1,13 @@
 package dev.stan.yotsuba
 
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -79,6 +85,18 @@ fun ComposeTestRule.nodeWithText(text: String, substring: Boolean = true): Seman
 fun ComposeTestRule.nodeWithContentDescription(description: String, substring: Boolean = false): SemanticsNodeInteraction =
     onNodeWithContentDescription(description, substring = substring, ignoreCase = true)
 
+/**
+ * An icon inside the clickable row that carries [rowText]: the favourite star of one board,
+ * the overflow of one thread. Beats indexing into `onAllNodes`, which follows list order.
+ */
+fun ComposeTestRule.iconInRow(rowText: String, description: String): SemanticsNodeInteraction =
+    onNode(inRow(rowText, description), useUnmergedTree = true)
+
+/** The matcher behind [iconInRow], for `onAllNodes(inRow(...), useUnmergedTree = true)` when a row repeats. */
+fun inRow(rowText: String, description: String): SemanticsMatcher =
+    hasContentDescription(description, substring = false, ignoreCase = true) and
+        hasAnyAncestor(hasClickAction() and hasAnyDescendant(hasText(rowText, substring = true, ignoreCase = true)))
+
 /** The one text field on screen (a search bar, a dialog's input). */
 fun ComposeTestRule.textField(): SemanticsNodeInteraction = onNode(hasSetTextAction())
 
@@ -111,6 +129,16 @@ fun ComposeTestRule.openThreadsTab(segment: String = "Watched", select: Boolean 
 
 /** Backs out of a pushed screen with the top bar's back arrow. */
 fun ComposeTestRule.goBack() = tapIcon("Back")
+
+/** Backs out of pushed screens until the bottom bar is showing again. */
+fun ComposeTestRule.backToTabs() {
+    repeat(5) {
+        if (hasText("Threads", substring = false)) return
+        goBack()
+        waitForIdle()
+    }
+    waitForText("Threads", substring = false)
+}
 
 /** Boards tab, then the board named [title], and waits for the catalog's first thread. */
 fun ComposeTestRule.openCatalog(title: String = TestSeed.BOARD_TITLE, firstThread: String = TestSeed.THREAD_SUBJECT) {

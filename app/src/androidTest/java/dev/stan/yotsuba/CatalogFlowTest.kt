@@ -49,7 +49,7 @@ class CatalogFlowTest : FlowTest() {
         assertEquals(CatalogLayout.COMFORTABLE, settings.state.value.catalogLayout)
 
         openCatalog()
-        composeRule.onNodeWithContentDescription("Switch layout").performClick()
+        composeRule.onNodeWithContentDescription("Switch to", substring = true).performClick()
 
         composeRule.waitUntil(UI_TIMEOUT_MS) {
             settings.state.value.catalogLayout != CatalogLayout.COMFORTABLE

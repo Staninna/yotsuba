@@ -5,6 +5,7 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dev.stan.yotsuba.di.Fakes
 import org.junit.After
@@ -41,9 +42,22 @@ abstract class FlowTest {
 
     @Before
     fun setUp() {
+        grantNotificationPermission()
         hiltRule.inject()
         seed()
         if (launchOnSetUp) launch()
+    }
+
+    /**
+     * The first bookmark asks for POST_NOTIFICATIONS through a system dialog, which pauses
+     * the activity and leaves the test staring at "no compose hierarchies". Granted up front.
+     */
+    private fun grantNotificationPermission() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.uiAutomation.grantRuntimePermission(
+            instrumentation.targetContext.packageName,
+            "android.permission.POST_NOTIFICATIONS",
+        )
     }
 
     @After
