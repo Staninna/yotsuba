@@ -96,8 +96,13 @@ fun AppNavHost(shell: ShellViewModel = hiltViewModel()) {
 
     // Targets that arrive from outside the graph: a browser link, shared text, a widget tap.
     val pendingLink by shell.pendingLink.collectAsStateWithLifecycle()
-    LaunchedEffect(pendingLink) {
+    LaunchedEffect(pendingLink, backStackEntry) {
         val link = pendingLink ?: return@LaunchedEffect
+        // On a cold start the link is already pending when this composes, and the NavHost below
+        // lives inside a Scaffold, which subcomposes it during layout: navigating now would ask
+        // a NavController that has no graph yet and throw. The first back stack entry is the
+        // signal that the graph is up, and it recomposes here with the link still pending.
+        if (backStackEntry == null) return@LaunchedEffect
         when (link) {
             is InternalLink.Catalog -> navController.navigate(Route.Catalog(link.board, link.searchQuery))
             is InternalLink.Thread -> navController.navigate(Route.Thread(link.board, link.threadNo, link.postNo))
