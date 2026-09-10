@@ -16,9 +16,9 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import dev.stan.yotsuba.clickContentDescription
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.hasContentDescription
@@ -127,18 +127,6 @@ fun ComposeTestRule.waitForViewerTitle(name: String) {
 fun ComposeTestRule.waitForViewerTitleIn(names: Collection<String>) {
     showViewerChrome()
     waitUntilTrue { names.any { showsText(it, substring = false) } }
-}
-
-/**
- * The page under the viewer's chrome, told apart from the grid cell of the same file (still
- * composed underneath) by being as wide as the screen.
- */
-fun ComposeTestRule.viewerPage(name: String): SemanticsNodeInteraction {
-    val rootWidth = onRoot().fetchSemanticsNode().size.width
-    return onNode(
-        hasContentDescription(name, substring = false, ignoreCase = true) and
-            SemanticsMatcher("fills the width") { it.size.width >= rootWidth },
-    )
 }
 
 private val vaultThumbnail = SemanticsMatcher("a seeded vault thumbnail") { node ->
