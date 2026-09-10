@@ -6,13 +6,17 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import dev.stan.yotsuba.clickContentDescription
 import dev.stan.yotsuba.di.TestSeed
@@ -134,4 +138,27 @@ fun ComposeTestRule.waitForGridOrder(expected: List<String>) {
 fun ComposeTestRule.confirmDelete() {
     waitForText("Delete file?")
     button("Delete").performClick()
+}
+
+/*
+ * A bottom sheet lies over the explorer, and the grid underneath keeps its nodes: a
+ * thumbnail's file name matches in both. Everything below is scoped by a text only the
+ * open sheet shows, so a sheet's own copy of a file wins.
+ */
+
+/** A node inside the sheet titled [titled], by the content description [cd]. */
+fun ComposeTestRule.inSheet(titled: String, cd: String): SemanticsNodeInteraction = onNode(
+    hasContentDescription(cd, substring = false, ignoreCase = true) and
+        hasAnyAncestor(hasAnyDescendant(hasText(titled, substring = false, ignoreCase = true))),
+)
+
+/**
+ * Scrolls the sheet titled [titled] until [text] is composed. A sheet long enough to need
+ * this only composes the rows near the top, so its buttons cannot be tapped until it does.
+ */
+fun ComposeTestRule.scrollSheetTo(titled: String, text: String) {
+    waitForText(titled, substring = false)
+    onNode(hasScrollAction() and hasAnyDescendant(hasText(titled, substring = false, ignoreCase = true)))
+        .performScrollToNode(hasText(text, substring = true, ignoreCase = true))
+    waitForText(text)
 }
