@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -29,6 +30,20 @@ const val UI_TIMEOUT_MS = 10_000L
 fun ComposeTestRule.waitForText(text: String, substring: Boolean = true) {
     waitUntil(UI_TIMEOUT_MS) {
         onAllNodesWithText(text, substring = substring, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+    }
+}
+
+/**
+ * Waits for [text] to be on screen, not merely composed. A lazy list composes a little beyond
+ * the viewport, so a node existing says nothing about the user seeing it, and a scroll that
+ * has not run yet looks the same as one that has.
+ */
+fun ComposeTestRule.waitForTextDisplayed(text: String, substring: Boolean = true) {
+    waitUntil(UI_TIMEOUT_MS) {
+        val screen = onRoot().fetchSemanticsNode().boundsInRoot
+        onAllNodesWithText(text, substring = substring, ignoreCase = true)
+            .fetchSemanticsNodes()
+            .any { it.boundsInRoot.overlaps(screen) }
     }
 }
 

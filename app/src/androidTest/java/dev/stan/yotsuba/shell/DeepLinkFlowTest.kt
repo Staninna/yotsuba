@@ -4,13 +4,12 @@ import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
-import androidx.compose.ui.test.assertIsDisplayed
 import dev.stan.yotsuba.MainActivity
 import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.di.TestSeed
-import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.waitForContentDescription
 import dev.stan.yotsuba.waitForText
+import dev.stan.yotsuba.waitForTextDisplayed
 import org.junit.Test
 
 @HiltAndroidTest
@@ -31,8 +30,7 @@ class DeepLinkFlowTest : FlowTest() {
         // Composed is not proof: a lazy list composes a little beyond the viewport, which is
         // why waiting for the OP to leave the composition was flaky. The deep-linked post
         // being on screen is the scroll, and it cannot be while the list still sits at the OP.
-        composeRule.waitForText(TestSeed.GREENTEXT_LINE)
-        composeRule.nodeWithText(TestSeed.GREENTEXT_LINE).assertIsDisplayed()
+        composeRule.waitForTextDisplayed(TestSeed.GREENTEXT_LINE)
     }
 
     @Test
