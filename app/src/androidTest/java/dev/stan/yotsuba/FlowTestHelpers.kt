@@ -113,16 +113,32 @@ fun ComposeTestRule.clearField() {
  * inside "Pick boards", "Saved" inside "Saved media").
  */
 
-fun ComposeTestRule.openHomeTab() = tap("Home", substring = false)
-fun ComposeTestRule.openBoardsTab() = tap("Boards", substring = false)
-fun ComposeTestRule.openVaultTab() = tap("Saved", substring = false)
+/**
+ * A bottom-bar item by its label, told from a screen title of the same word by its click
+ * action: the Home tab and an unloaded Home screen both say "Home", and the Boards tab and
+ * the Boards screen both say "Boards".
+ */
+fun ComposeTestRule.tab(label: String): SemanticsNodeInteraction = onNode(tabMatcher(label))
+
+/** Top level, because this file's own `hasText` is a Boolean check on the rule, not a matcher. */
+private fun tabMatcher(label: String): SemanticsMatcher =
+    hasText(label, substring = false) and hasClickAction()
+
+fun ComposeTestRule.tapTab(label: String) {
+    waitForText(label, substring = false)
+    tab(label).performClick()
+}
+
+fun ComposeTestRule.openHomeTab() = tapTab("Home")
+fun ComposeTestRule.openBoardsTab() = tapTab("Boards")
+fun ComposeTestRule.openVaultTab() = tapTab("Saved")
 
 /**
  * Opens the Threads tab and waits for [segment] ("Watched" or "Recent") to show, selecting
  * it unless [select] is false, for the default segment that is already showing.
  */
 fun ComposeTestRule.openThreadsTab(segment: String = "Watched", select: Boolean = segment != "Watched") {
-    tap("Threads", substring = false)
+    tapTab("Threads")
     waitForText(segment)
     if (select) clickText(segment)
 }
