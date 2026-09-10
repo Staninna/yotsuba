@@ -111,19 +111,17 @@ class HistoryFlowTest : FlowTest() {
         composeRule.waitForTextGone(TestSeed.OP_TEXT)
     }
 
-    /**
-     * Only the removal. The snackbar's Undo does put the entry back, but the row is restored
-     * still dismissed and deletes itself again (see the report on SwipeToDeleteRow), so the
-     * entry does not survive and nothing comes back on screen. Once that is fixed, tapping
-     * Undo and waiting for the row belongs here.
-     */
     @Test
-    fun swipeToDelete_removesTheEntry() {
+    fun swipeToDelete_removesTheEntry_andUndoRestoresIt() {
         openRecent()
         composeRule.nodeWithText("Yesterday thread").performTouchInput { swipeLeft() }
         composeRule.waitForText("Removed from history")
         composeRule.waitUntilTrue { entries.none { it.threadNo == yesterday.threadNo } }
         composeRule.waitForTextGone("Yesterday thread")
+
+        composeRule.tap("Undo")
+        composeRule.waitUntilTrue { entries.any { it.threadNo == yesterday.threadNo } }
+        composeRule.waitForText("Yesterday thread")
     }
 
     @Test
