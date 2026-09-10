@@ -30,6 +30,7 @@ class ViewerMenuFlowTest : FlowTest() {
         assertTrue(composeRule.hasText(looping))
         assertFalse(composeRule.hasText("Search a frame"))
         assertFalse(composeRule.hasText("Export as animated WebP"))
+        assertFalse(composeRule.hasText("Loop a section"))
     }
 
     @Test
@@ -38,8 +39,29 @@ class ViewerMenuFlowTest : FlowTest() {
         composeRule.tapChrome("More")
         composeRule.waitForText("Search a frame")
         assertTrue(composeRule.hasText("Export as animated WebP"))
+        assertTrue(composeRule.hasText("Loop a section"))
         assertFalse(composeRule.hasText("Search image"))
         assertFalse(composeRule.hasText("Copy text"))
+    }
+
+    /**
+     * The handles themselves need a duration to sit on, and the seeded URL never resolves,
+     * so the toggle and its label are all this emulator can reach.
+     */
+    @Test
+    fun loopSection_resetsOnTheNextPage_andItsLabelFlips() {
+        composeRule.openSeededVideo()
+        composeRule.openViewerMenu("Loop a section")
+        composeRule.nextPage()
+        composeRule.waitForText(TestSeed.soundItem.displayName, substring = false)
+
+        // The new page loops whole again, whatever the page before it was set to.
+        composeRule.openViewerMenu("Loop a section")
+        composeRule.tapChrome("More")
+        composeRule.waitForText("Loop the whole video")
+        composeRule.clickText("Loop the whole video", substring = false)
+        composeRule.tapChrome("More")
+        composeRule.waitForText("Loop a section")
     }
 
     @Test
