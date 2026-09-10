@@ -68,6 +68,7 @@ import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.media.VideoCache
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt

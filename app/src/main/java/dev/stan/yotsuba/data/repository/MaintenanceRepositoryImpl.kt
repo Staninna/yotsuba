@@ -2,6 +2,7 @@ package dev.stan.yotsuba.data.repository
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.stan.yotsuba.core.media.VideoCache
 import dev.stan.yotsuba.domain.repository.MaintenanceRepository
 import java.io.File
 import javax.inject.Inject
@@ -19,6 +20,7 @@ class MaintenanceRepositoryImpl @Inject constructor(
     override suspend fun clearCaches() = withContext(Dispatchers.IO) {
         runCatching { okHttpClient.cache?.evictAll() }
         File(context.cacheDir, "image_cache").deleteRecursively()
+        runCatching { VideoCache.clear(context) }
         Unit
     }
 }

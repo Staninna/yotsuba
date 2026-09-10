@@ -1,6 +1,6 @@
 package dev.stan.yotsuba.domain.repository
 
 interface MaintenanceRepository {
-    /** Evicts the OkHttp API cache and deletes the Coil image cache directory. */
+    /** Empties every cache the app writes: the OkHttp API cache, Coil's images, the video cache. */
     suspend fun clearCaches()
 }

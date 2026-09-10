@@ -1,27 +1,16 @@
 package dev.stan.yotsuba.feature.media
 
 import android.content.Context
-import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.database.StandaloneDatabaseProvider
-import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.DataSpec
-import androidx.media3.datasource.DefaultDataSource
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.cache.CacheWriter
-import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
-import androidx.media3.datasource.cache.SimpleCache
 import coil3.SingletonImageLoader
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import dev.stan.yotsuba.core.media.VideoCache
 import dev.stan.yotsuba.core.network.NetworkStatus
 import dev.stan.yotsuba.domain.model.Settings
-import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -87,36 +76,4 @@ internal fun rememberPrecacher(): Precacher {
     val context = LocalContext.current.applicationContext
     val scope = rememberCoroutineScope()
     return remember(scope) { Precacher(context, scope) }
-}
-
-/**
- * The one disk cache every video plays through, so a clip fetched ahead, or watched once,
- * comes off disk. media3 allows one [SimpleCache] per directory per process, hence the
- * process-wide object rather than a per-player instance.
- */
-@androidx.annotation.OptIn(UnstableApi::class)
-internal object VideoCache {
-    private const val MAX_BYTES = 256L * 1024 * 1024
-    private var instance: SimpleCache? = null
-
-    @Synchronized
-    private fun cache(context: Context): SimpleCache = instance ?: SimpleCache(
-        File(context.cacheDir, "video_cache"),
-        LeastRecentlyUsedCacheEvictor(MAX_BYTES),
-        StandaloneDatabaseProvider(context.applicationContext),
-    ).also { instance = it }
-
-    private fun cacheFactory(context: Context) = CacheDataSource.Factory()
-        .setCache(cache(context))
-        .setUpstreamDataSourceFactory(DefaultHttpDataSource.Factory())
-        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
-
-    /** What a player reads through: a `file://` URI straight, http through the cache. */
-    fun playbackFactory(context: Context): DataSource.Factory =
-        DefaultDataSource.Factory(context, cacheFactory(context))
-
-    /** Pulls the whole of [url] into the cache; blocks until done, failed or interrupted. */
-    fun fetch(context: Context, url: String) {
-        CacheWriter(cacheFactory(context).createDataSource(), DataSpec(Uri.parse(url)), null, null).cache()
-    }
 }
