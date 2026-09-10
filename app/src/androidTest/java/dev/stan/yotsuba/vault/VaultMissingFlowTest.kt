@@ -138,4 +138,22 @@ class VaultMissingFlowTest : FlowTest() {
         composeRule.waitForText("1 selected")
         assertFalse(composeRule.hasText("Saved 1 file"))
     }
+
+    @Test
+    fun deletingAMissingFile_trashesIt_andUndoBringsTheRowBack() {
+        openMissingSheet()
+        composeRule.tap("Delete", substring = false)
+        composeRule.waitForText("${VaultSeed.missingImage.displayName} will be removed from the vault.")
+        composeRule.confirmDelete()
+        composeRule.waitUntilTrue {
+            fakes.vault.trashState.value.map { it.url } == listOf(VaultSeed.missingImage.url)
+        }
+        assertTrue(fakes.vault.entriesNow.none { it.url == VaultSeed.missingImage.url })
+
+        // The row is the only record of what to re-download, so the undo has to work.
+        composeRule.waitForText("Deleted 1 file")
+        composeRule.tap("Undo", substring = false)
+        composeRule.waitUntilTrue { fakes.vault.trashState.value.isEmpty() }
+        composeRule.waitForContentDescription("Missing from disk")
+    }
 }
