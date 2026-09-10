@@ -24,7 +24,10 @@
     <string name="stats_busiest_hour">Busiest hour</string>
     <string name="stats_busiest_day">Busiest day</string>
     <string name="stats_longest_streak">Longest streak</string>
-    <string name="stats_days">%1$d days</string>
+    <plurals name="stats_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
     <string name="stats_first_use">First use</string>
     <string name="stats_rescues">Elsewhere</string>
     <string name="stats_offline_copies">Offline copies opened</string>
