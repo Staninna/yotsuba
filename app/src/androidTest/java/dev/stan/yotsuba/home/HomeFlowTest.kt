@@ -5,7 +5,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performTouchInput
-import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
@@ -51,7 +51,7 @@ class HomeFlowTest : FlowTest() {
 
         // Back to the first page by swiping the pager the other way. Starting well inside
         // the window keeps clear of the system's edge gestures.
-        composeRule.onRoot().performTouchInput { swipeLeft(startX = width * 0.2f, endX = width * 0.8f) }
+        composeRule.onRoot().performTouchInput { swipeRight(startX = width * 0.2f, endX = width * 0.8f) }
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
         boardTab(TestSeed.BOARD).assertIsSelected()
     }

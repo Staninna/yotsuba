@@ -1,7 +1,6 @@
 package dev.stan.yotsuba.catalog
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -100,7 +99,7 @@ class CatalogFlowTest : FlowTest() {
     fun pullToRefresh_refetchesPastTheCache() {
         composeRule.openCatalog()
         composeRule.waitUntilTrue { fakes.catalog.calls.contains(TestSeed.BOARD to false) }
-        composeRule.onNode(hasScrollToIndexAction()).performTouchInput { swipeDown() }
+        composeRule.catalogGrid().performTouchInput { swipeDown() }
         composeRule.waitUntilTrue { fakes.catalog.calls.contains(TestSeed.BOARD to true) }
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
     }
@@ -109,7 +108,7 @@ class CatalogFlowTest : FlowTest() {
     fun scrollToTopButton_appearsAfterScrolling_andReturnsToTheTop() {
         seedLongCatalog()
         composeRule.openCatalog(firstThread = FIRST_FILLER)
-        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(20)
+        composeRule.catalogGrid().performScrollToIndex(20)
         composeRule.waitForContentDescription("Scroll to top")
 
         composeRule.tapIcon("Scroll to top")
@@ -122,7 +121,7 @@ class CatalogFlowTest : FlowTest() {
         seedLongCatalog()
         fakes.settings.set { it.copy(favouriteBoards = setOf(TestSeed.BOARD)) }
         composeRule.waitForText(FIRST_FILLER)
-        composeRule.onNode(hasScrollToIndexAction()).performScrollToIndex(20)
+        composeRule.catalogGrid().performScrollToIndex(20)
         composeRule.waitForContentDescription("Scroll to top")
 
         composeRule.openBoardsTab()

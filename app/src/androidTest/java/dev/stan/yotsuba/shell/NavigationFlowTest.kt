@@ -6,11 +6,10 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.goBack
+import dev.stan.yotsuba.hasContentDescription
 import dev.stan.yotsuba.hasText
-import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openBoardsTab
 import dev.stan.yotsuba.openSeededThread
-import dev.stan.yotsuba.openSeededViewer
 import dev.stan.yotsuba.openThreadsTab
 import dev.stan.yotsuba.openVaultTab
 import dev.stan.yotsuba.tapIcon
@@ -68,7 +67,8 @@ class NavigationFlowTest : FlowTest() {
         composeRule.waitForText(TestSeed.BOARD_TITLE)
         composeRule.tapTab("Threads")
         composeRule.waitForContentDescription("Clear all")
-        composeRule.nodeWithText("Recent", substring = false).assertIsSelected()
+        // Recent's own actions are up, so the segment came back selected, not Watched.
+        assertFalse(composeRule.hasContentDescription("Bookmark options"))
     }
 
     @Test
@@ -76,7 +76,8 @@ class NavigationFlowTest : FlowTest() {
         composeRule.openSeededThread()
         composeRule.waitForTextGone("Saved", substring = false)
         // The viewer is pushed on top of the thread; the bar stays hidden all the way down.
-        composeRule.openSeededViewer()
+        composeRule.tapIcon(TestSeed.MEDIA_FILENAME, substring = true)
+        composeRule.waitForContentDescription("Close viewer")
         assertFalse(composeRule.hasText("Saved", substring = false))
         pressBack()
         composeRule.waitForText(TestSeed.OP_TEXT)

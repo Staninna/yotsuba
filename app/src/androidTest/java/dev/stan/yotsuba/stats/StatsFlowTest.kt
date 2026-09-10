@@ -1,7 +1,5 @@
 package dev.stan.yotsuba.stats
 
-import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.hasAnySibling
 import androidx.compose.ui.test.hasTextExactly
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
@@ -12,6 +10,7 @@ import dev.stan.yotsuba.domain.model.UsageEvent
 import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.hasText
 import dev.stan.yotsuba.openSettingsSection
+import dev.stan.yotsuba.shell.nodeOnLineWith
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.waitForText
 import java.time.LocalDateTime
@@ -64,12 +63,9 @@ class StatsFlowTest : FlowTest() {
         composeRule.waitForText("You", substring = false)
     }
 
-    /** A row's value, matched through its label, since the two are separate Texts in one Row. */
+    /** A row's value, found on the label's line: the page scrolls, so rows below the fold count too. */
     private fun assertStat(label: String, value: String) {
-        composeRule.onNode(
-            hasTextExactly(label) and hasAnySibling(hasTextExactly(value)),
-            useUnmergedTree = true,
-        ).assertIsDisplayed()
+        composeRule.nodeOnLineWith(label, hasTextExactly(value)).assertExists()
     }
 
     @Test

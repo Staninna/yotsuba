@@ -1,9 +1,11 @@
 package dev.stan.yotsuba.shell
 
 import android.content.Intent
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTextExactly
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.performClick
 import androidx.core.net.toUri
@@ -11,6 +13,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.stan.yotsuba.MainActivity
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.waitForText
+import kotlin.math.abs
 import org.junit.Assert.assertTrue
 
 /**
@@ -37,4 +40,20 @@ fun ComposeTestRule.assertAbove(upper: String, lower: String) {
     val top = nodeWithText(upper).fetchSemanticsNode().boundsInRoot.top
     val bottom = nodeWithText(lower).fetchSemanticsNode().boundsInRoot.top
     assertTrue("expected \"$upper\" above \"$lower\"", top < bottom)
+}
+
+/**
+ * The node matching [matcher] on the same line as the exact text [rowText].
+ *
+ * A plain Row contributes no semantics node of its own, so a label and the control beside it
+ * are siblings of every other row's label and control rather than of each other. Position is
+ * the only thing left that says which row a control belongs to.
+ */
+fun ComposeTestRule.nodeOnLineWith(rowText: String, matcher: SemanticsMatcher): SemanticsNodeInteraction {
+    val line = onNode(hasTextExactly(rowText), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.center.y
+    val candidates = onAllNodes(matcher, useUnmergedTree = true)
+    val index = candidates.fetchSemanticsNodes()
+        .indexOfFirst { abs(it.boundsInRoot.center.y - line) < it.size.height / 2f }
+    require(index >= 0) { "nothing matched on the line of \"$rowText\"" }
+    return candidates[index]
 }

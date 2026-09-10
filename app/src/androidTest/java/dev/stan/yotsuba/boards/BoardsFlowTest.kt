@@ -1,6 +1,5 @@
 package dev.stan.yotsuba.boards
 
-import androidx.compose.ui.test.hasAnySibling
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
@@ -15,6 +14,7 @@ import dev.stan.yotsuba.iconInRow
 import dev.stan.yotsuba.inRow
 import dev.stan.yotsuba.openBoardsTab
 import dev.stan.yotsuba.shell.assertAbove
+import dev.stan.yotsuba.shell.nodeOnLineWith
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.typeInField
@@ -37,8 +37,7 @@ class BoardsFlowTest : FlowTest() {
     private val videoBoardRow = hasText(TestSeed.VIDEO_BOARD_TITLE) and hasClickAction()
 
     /** The tri-state checkbox beside a category header in edit mode. */
-    private fun categoryCheckbox(label: String) =
-        composeRule.onNode(isToggleable() and hasAnySibling(hasText(label, substring = false)))
+    private fun categoryCheckbox(label: String) = composeRule.nodeOnLineWith(label, isToggleable())
 
     @Test
     fun list_showsEveryBoardWithCategoriesAndNsfwBadge() {
