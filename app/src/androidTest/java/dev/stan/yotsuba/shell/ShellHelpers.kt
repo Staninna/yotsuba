@@ -9,7 +9,9 @@ import androidx.compose.ui.test.performClick
 import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import dev.stan.yotsuba.MainActivity
+import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.waitForText
+import org.junit.Assert.assertTrue
 
 /**
  * A bottom-bar item by its label. The Home tab's title is also "Home" while no board is
@@ -29,3 +31,10 @@ fun viewIntent(url: String): Intent =
 
 fun threadUrl(board: String, threadNo: Long, postNo: Long? = null): String =
     "https://boards.4chan.org/$board/thread/$threadNo" + (postNo?.let { "#p$it" } ?: "")
+
+/** The row carrying [upper] sits above the one carrying [lower]: list order without indexing into `onAllNodes`. */
+fun ComposeTestRule.assertAbove(upper: String, lower: String) {
+    val top = nodeWithText(upper).fetchSemanticsNode().boundsInRoot.top
+    val bottom = nodeWithText(lower).fetchSemanticsNode().boundsInRoot.top
+    assertTrue("expected \"$upper\" above \"$lower\"", top < bottom)
+}
