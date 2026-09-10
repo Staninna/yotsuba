@@ -9,6 +9,7 @@
     <string name="boards_blur_thumbnails">Blur catalog thumbnails</string>
     <string name="boards_blur_thumbnails_summary">Tap a thumbnail to see it; tap again to open the thread</string>
     <string name="boards_profile_add">Board code</string>
+    <string name="boards_profile_code_invalid">A board code is 1 to 5 lowercase letters or digits, like g or biz</string>
     <string name="boards_profile_global">Uses global settings</string>
     <plurals name="boards_profile_overrides">
         <item quantity="one">%1$d override</item>

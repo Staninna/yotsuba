@@ -7,7 +7,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -79,19 +83,31 @@ fun BoardsSection(
             onClick = { editing = board },
         )
     }
+    // A code the regex rejects used to be a silent no-op on the Done key, the field's only
+    // way to commit. The button is the visible one, and the supporting text says why it is off.
+    val codeValid = BoardCode.matches(newCode)
+    val badCode = newCode.isNotEmpty() && !codeValid
+    fun addProfile() {
+        if (!codeValid) return
+        editing = newCode
+        newCode = ""
+    }
     OutlinedTextField(
         value = newCode,
         onValueChange = { newCode = it.trim().lowercase() },
         label = { Text(stringResource(R.string.boards_profile_add)) },
-        supportingText = { Text(stringResource(R.string.boards_profiles_summary)) },
+        isError = badCode,
+        supportingText = {
+            Text(stringResource(if (badCode) R.string.boards_profile_code_invalid else R.string.boards_profiles_summary))
+        },
+        trailingIcon = {
+            IconButton(onClick = ::addProfile, enabled = codeValid) {
+                Icon(Icons.Filled.Add, stringResource(R.string.boards_profile_add))
+            }
+        },
         singleLine = true,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = {
-            if (BoardCode.matches(newCode)) {
-                editing = newCode
-                newCode = ""
-            }
-        }),
+        keyboardActions = KeyboardActions(onDone = { addProfile() }),
         modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.lg, vertical = spacing.sm),
     )
 
