@@ -83,9 +83,13 @@ import dev.stan.yotsuba.feature.thread.components.ThreadTopBar
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBarActions
 import dev.stan.yotsuba.feature.thread.components.ThreadTopBarState
 import kotlin.math.abs
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+
+/** How long a scroll target waits for the rows that carry its post before it is dropped. */
+private const val SCROLL_TARGET_TIMEOUT_MS = 5_000L
 
 @Composable
 fun ThreadScreen(
@@ -275,9 +279,17 @@ fun ThreadScreen(
     val currentRows by rememberUpdatedState((state as? UiState.Success)?.data?.rows)
     LaunchedEffect(scrollTarget) {
         val target = scrollTarget ?: return@LaunchedEffect
-        val rows = snapshotFlow { currentRows }.filterNotNull().first()
-        val index = rows.indexOfFirst { (it as? ThreadRow.Post)?.post?.no == target.postNo }
-        if (index >= 0) {
+        // The first rows to arrive need not carry the target yet: a folded read run hides it
+        // until the unfold lands, and a poll can arrive before the post does. Taking that
+        // first list dropped the scroll silently, and a tapped post link opened at the top of
+        // the thread instead. Wait for the rows that hold the post, and give up eventually so
+        // a link to a post this thread never had does not leave the target set forever.
+        val index = withTimeoutOrNull(SCROLL_TARGET_TIMEOUT_MS) {
+            snapshotFlow { currentRows }
+                .map { rows -> rows.orEmpty().indexOfFirst { (it as? ThreadRow.Post)?.post?.no == target.postNo } }
+                .first { it >= 0 }
+        }
+        if (index != null) {
             if (target.animate) {
                 listState.animateScrollToItem(index)
                 haptics.tick()

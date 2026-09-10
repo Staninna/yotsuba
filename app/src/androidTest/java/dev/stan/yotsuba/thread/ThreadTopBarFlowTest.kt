@@ -1,6 +1,5 @@
 package dev.stan.yotsuba.thread
 
-import android.content.ClipboardManager
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
@@ -9,7 +8,6 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
-import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSeededThread
@@ -52,14 +50,20 @@ class ThreadTopBarFlowTest : FlowTest() {
         composeRule.waitUntilTrue { fakes.threads.calls.size > before && fakes.threads.calls.last().third }
     }
 
+    /**
+     * What the clipboard ends up holding is asserted on the JVM, in
+     * [dev.stan.yotsuba.feature.thread.components.ThreadTopBarCopyLinkTest]: from API 29 the
+     * platform refuses `getPrimaryClip` to an app without window focus, which nothing else in
+     * this suite needs, so the read failed here at random while the copy itself was fine.
+     * What is left is the part only a real device can show: the item is in the menu, and
+     * using it closes the menu instead of leaving it hanging over the thread.
+     */
     @Test
-    fun copyLink_putsTheThreadUrlOnTheClipboard() {
+    fun copyLink_closesTheMenu() {
         composeRule.openSeededThread()
         composeRule.tapMenuItem("Copy link")
-        // The item closes the menu as it copies. Reading the clipboard before that has settled
-        // reads it from behind a popup, and a timeout here then says nothing about the copy.
         composeRule.waitForTextGone("Copy link", substring = false)
-        composeRule.waitUntilTrue { clipboardText() == Urls.threadWebUrl(TestSeed.BOARD, TestSeed.THREAD_NO) }
+        composeRule.waitForText(TestSeed.OP_TEXT)
     }
 
     @Test
@@ -136,11 +140,5 @@ class ThreadTopBarFlowTest : FlowTest() {
     fun openInBrowser_leavesForTheBrowser() {
         composeRule.openSeededThread()
         composeRule.tapMenuItem("Open in browser")
-    }
-
-    private fun clipboardText(): String? {
-        var text: CharSequence? = null
-        onActivity { text = it.getSystemService(ClipboardManager::class.java).primaryClip?.getItemAt(0)?.text }
-        return text?.toString()
     }
 }
