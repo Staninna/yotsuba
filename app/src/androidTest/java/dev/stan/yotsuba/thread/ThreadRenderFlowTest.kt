@@ -2,12 +2,15 @@ package dev.stan.yotsuba.thread
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTextExactly
 import androidx.compose.ui.test.performClick
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.PostMedia
+import dev.stan.yotsuba.domain.model.TimestampMode
+import dev.stan.yotsuba.domain.model.TimestampZone
 import dev.stan.yotsuba.goBack
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSeededThread
@@ -17,6 +20,7 @@ import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitForTextGone
 import dev.stan.yotsuba.waitUntilTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /** Every kind of post body the seed carries renders, plus the OP's badges and backlinks. */
@@ -101,10 +105,40 @@ class ThreadRenderFlowTest : FlowTest() {
         composeRule.listNode("File deleted: gone.png").assertIsDisplayed()
     }
 
+    /**
+     * The three post-time modes on one card. The zone is the board's so the clock part is
+     * fixed: the seeded OP is 22:13 UTC, which is 5:13 PM in New York, and the seed is old
+     * enough that the relative part is always a count of years.
+     */
+    @Test
+    fun postTime_readsAsRelative_thenAbsolute_thenBoth() {
+        fakes.settings.set { it.copy(timestampZone = TimestampZone.BOARD) }
+        composeRule.openSeededThread()
+        composeRule.waitUntilTrue { opStampShows("ago") }
+        assertFalse(opStampShows(BOARD_CLOCK))
+
+        fakes.settings.set { it.copy(timestampMode = TimestampMode.ABSOLUTE) }
+        composeRule.waitUntilTrue { opStampShows(BOARD_CLOCK) }
+        assertFalse(opStampShows("ago"))
+
+        fakes.settings.set { it.copy(timestampMode = TimestampMode.BOTH) }
+        composeRule.waitUntilTrue { opStampShows("ago") && opStampShows(BOARD_CLOCK) }
+    }
+
+    /** The stamp is a plain Text in the OP's card, so it only exists in the unmerged tree. */
+    private fun opStampShows(text: String): Boolean =
+        composeRule.onAllNodes(hasText(text, substring = true) and inPost(TestSeed.OP_TEXT), useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty()
+
     @Test
     fun postNumberTap_copiesItAndSaysSo() {
         composeRule.openSeededThread()
         composeRule.tap("#${TestSeed.THREAD_NO}", substring = false)
         composeRule.waitForText("Post number copied")
+    }
+
+    private companion object {
+        /** The seeded OP's time of day in the board's zone, in the short form that locale uses. */
+        const val BOARD_CLOCK = "5:13"
     }
 }
