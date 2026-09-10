@@ -55,6 +55,20 @@ object VaultSeed {
 
     /** Seed order; the post-number sort keeps the two files without a number in it. */
     val entries = listOf(seededImage, spoilerImage, stickyPic, clip, soundPost, silentClip, holiday, stray)
+
+    /**
+     * Listed in the seeded /g/ thread's sidecar but not on disk, as a rescan leaves a file
+     * deleted outside the app: no path, so [VaultEntry.missing] is true. Its recorded size
+     * is large enough that counting it would show up in every total, and it stays out of
+     * [entries] so the counts and orders below are unchanged for the tests that ignore it.
+     */
+    val missingImage = TestSeed.vaultEntry(
+        TestSeed.mediaItem(TestSeed.THREAD_NO + 8, "gone_image", sizeBytes = 5_000_000L),
+        savedAt = T0 + 8 * HOUR,
+    ).copy(absolutePath = "")
+
+    /** The eight files on disk plus the one a rescan found gone. */
+    val withMissing = entries + missingImage
     val names: Set<String> = entries.mapTo(HashSet()) { it.displayName }
 
     val newestFirst = listOf(
