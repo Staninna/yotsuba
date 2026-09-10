@@ -69,6 +69,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -380,8 +382,19 @@ private fun ThreadCard(
     val spacing = LocalSpacing.current
     // The OP card in the thread carries the same key, so opening the thread carries the image.
     // A blurred thumbnail takes the first tap for itself; the card gets the next one.
+    val blurLabel = stringResource(R.string.catalog_thumbnail_blurred)
     val shared = (thread.thumbnailUrl?.let { Modifier.sharedMedia(it) } ?: Modifier)
-        .then(if (blurred) Modifier.hidden().combinedClickable(onClick = onReveal, onLongClick = onLongClick) else Modifier)
+        .then(
+            if (blurred) {
+                Modifier
+                    .hidden()
+                    // The blur is the only thing on the card with nothing to read out.
+                    .semantics { contentDescription = blurLabel }
+                    .combinedClickable(onClick = onReveal, onLongClick = onLongClick)
+            } else {
+                Modifier
+            },
+        )
     Card(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         when (layout) {
             CatalogLayout.LIST -> Row(Modifier.padding(spacing.md)) {

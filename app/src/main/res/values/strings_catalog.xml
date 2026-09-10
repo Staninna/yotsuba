@@ -11,6 +11,8 @@
     <string name="catalog_sort_replies">Most replies</string>
     <string name="catalog_sort_images">Most images</string>
     <string name="catalog_sort_replies_per_hour">Replies per hour</string>
+    <!-- A thumbnail this board keeps blurred until it is tapped. -->
+    <string name="catalog_thumbnail_blurred">Blurred thumbnail. Tap to show</string>
     <!-- Card at the top of a catalog the first time the board is opened in a session. -->
     <string name="catalog_about_title">About /%1$s/</string>
     <string name="catalog_about_dismiss">Dismiss</string>

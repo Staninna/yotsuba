@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.catalog
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
@@ -8,11 +9,15 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.clearField
 import dev.stan.yotsuba.di.TestSeed
+import dev.stan.yotsuba.domain.model.BoardProfile
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.iconInRow
+import dev.stan.yotsuba.inRow
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openBoardsTab
 import dev.stan.yotsuba.openCatalog
 import dev.stan.yotsuba.shell.tapTab
+import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.typeInField
 import dev.stan.yotsuba.waitForContentDescription
@@ -31,6 +36,22 @@ class CatalogFlowTest : FlowTest() {
     private fun seedLongCatalog() {
         fakes.catalog.catalogs[TestSeed.BOARD] = longCatalog(TestSeed.BOARD)
     }
+
+    /** The seeded threads carry no thumbnail, and a blur needs a picture to hide. */
+    private fun seedThumbnails() {
+        for (board in listOf(TestSeed.BOARD, TestSeed.VIDEO_BOARD)) {
+            fakes.catalog.catalogs[board] = fakes.catalog.catalogs.getValue(board)
+                .map { it.copy(thumbnailUrl = "https://example.invalid/${it.no}.jpg") }
+        }
+    }
+
+    private fun blurBoard(board: String) = fakes.settings.set {
+        it.copy(boardProfiles = mapOf(board to BoardProfile(blurThumbnails = true)))
+    }
+
+    /** Whether the card titled [title] still hides its thumbnail: one node or none. */
+    private fun blursIn(title: String) = composeRule
+        .onAllNodes(inRow(title, BLURRED), useUnmergedTree = true).fetchSemanticsNodes().size
 
     @Test
     fun cards_showTitlesMetadataAndBadges() {
@@ -130,5 +151,39 @@ class CatalogFlowTest : FlowTest() {
         // The button only shows past nine scrolled items, so it is proof the pane came back
         // where it was rather than at the top.
         composeRule.waitForContentDescription("Scroll to top")
+    }
+
+    @Test
+    fun blurredThumbnail_isRevealedByTappingItsOwnCard() {
+        seedThumbnails()
+        blurBoard(TestSeed.BOARD)
+        composeRule.openCatalog()
+        composeRule.waitForContentDescription(BLURRED)
+
+        composeRule.iconInRow(TestSeed.THREAD_SUBJECT, BLURRED).performClick()
+        composeRule.waitUntilTrue { blursIn(TestSeed.THREAD_SUBJECT) == 0 }
+        // The tap reveals one thumbnail, not the board's.
+        assertEquals(1, blursIn(TestSeed.STICKY_SUBJECT))
+    }
+
+    @Test
+    fun blurSetting_appliesPerBoard_orGloballyWhenNoProfileDoes() {
+        seedThumbnails()
+        blurBoard(TestSeed.BOARD)
+        composeRule.openCatalog()
+        composeRule.waitForContentDescription(BLURRED)
+
+        pressBack()
+        composeRule.tap(TestSeed.VIDEO_BOARD_TITLE)
+        composeRule.waitForText(TestSeed.VIDEO_SUBJECT)
+        composeRule.waitForContentDescriptionGone(BLURRED)
+
+        // The global setting covers the board that has no profile of its own.
+        fakes.settings.set { it.copy(blurThumbnails = true) }
+        composeRule.waitForContentDescription(BLURRED)
+    }
+
+    private companion object {
+        const val BLURRED = "Blurred thumbnail. Tap to show"
     }
 }
