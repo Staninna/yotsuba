@@ -9,6 +9,8 @@ import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.ThemeMode
+import dev.stan.yotsuba.domain.model.TimestampMode
+import dev.stan.yotsuba.domain.model.TimestampZone
 import dev.stan.yotsuba.domain.model.UsageEvent
 import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.openSeededThread
@@ -70,6 +72,21 @@ class AppearanceReadingFlowTest : FlowTest() {
         flip("Translate posts", true) { it.translatePosts }
         flip("Record history", false) { it.recordHistory }
         flip("Notify on new replies", false) { it.bookmarkNotifications }
+    }
+
+    @Test
+    fun reading_postTimeChips_andTheZoneThatWaitsOnAnAbsoluteTime() {
+        openReading()
+        // A relative time has no zone to read it in, so that row is dead under the default.
+        composeRule.tapRow("Board (New York)")
+        composeRule.waitForIdle()
+        assertEquals(TimestampZone.LOCAL, fakes.settings.state.value.timestampZone)
+
+        flip("Date and time", TimestampMode.ABSOLUTE) { it.timestampMode }
+        flip("Board (New York)", TimestampZone.BOARD) { it.timestampZone }
+        flip("Both", TimestampMode.BOTH) { it.timestampMode }
+        flip("This phone", TimestampZone.LOCAL) { it.timestampZone }
+        flip("Relative", TimestampMode.RELATIVE) { it.timestampMode }
     }
 
     /**
