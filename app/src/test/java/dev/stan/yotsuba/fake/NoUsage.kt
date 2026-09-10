@@ -16,4 +16,4 @@ class FakeUsageEventDao : UsageEventDao {
     override suspend fun deleteKind(kind: String) { events.removeAll { it.kind == kind } }
 }
 
-val NoUsage = UsageRecorder(FakeUsageEventDao(), CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined)
+val NoUsage = UsageRecorder(FakeUsageEventDao(), CoroutineScope(Dispatchers.Unconfined), Dispatchers.Unconfined, Dispatchers.Unconfined)

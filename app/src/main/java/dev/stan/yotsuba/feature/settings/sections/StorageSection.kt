@@ -35,8 +35,10 @@ import dev.stan.yotsuba.feature.settings.ClearResult
 import java.text.DateFormat
 import java.util.Date
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -167,6 +169,7 @@ fun StorageSection(
 class DataUsageViewModel @Inject constructor(private val usage: UsageRepository) : ViewModel() {
     val thisWeek: StateFlow<BytesFetched?> = usage.events()
         .map { BytesFetched.of(it, since = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000) }
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun reset() {

@@ -3,6 +3,7 @@ package dev.stan.yotsuba.feature.stats
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.stan.yotsuba.di.ComputeDispatcher
 import dev.stan.yotsuba.domain.model.UsageStats
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
 import dev.stan.yotsuba.domain.repository.HistoryRepository
@@ -10,9 +11,12 @@ import dev.stan.yotsuba.domain.repository.MediaVaultRepository
 import dev.stan.yotsuba.domain.repository.UsageRepository
 import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 
 /** The event fold plus the counts the existing tables already hold. */
@@ -30,6 +34,8 @@ class StatsViewModel @Inject constructor(
     history: HistoryRepository,
     bookmarks: BookmarkRepository,
     vault: MediaVaultRepository,
+    /** Where the event fold runs; tests pass their scheduler's dispatcher. */
+    @ComputeDispatcher compute: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
 
     val uiState: StateFlow<StatsUiState?> = combine(
@@ -42,5 +48,5 @@ class StatsViewModel @Inject constructor(
             vaultFiles = entries.size,
             vaultBytes = entries.sumOf { it.sizeBytes ?: 0L },
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+    }.flowOn(compute).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 }
