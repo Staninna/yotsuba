@@ -112,11 +112,40 @@ fun ComposeTestRule.tapViewerIcon(description: String) {
     clickContentDescription(description)
 }
 
-/** Pages the viewer's feed one item on. */
-fun ComposeTestRule.pageViewerForward() {
-    onRoot().performTouchInput { swipeUp() }
-    waitForIdle()
+/**
+ * True while the viewer's page is [name]. The page carries the file name as its content
+ * description, as the grid cell behind the viewer does, so they are told apart by width:
+ * a page is the screen, a cell is a fraction of it. Reads nothing off the chrome, which
+ * hides itself, so this says whether the feed moved rather than whether the bar is up.
+ */
+private fun ComposeTestRule.isViewerPage(name: String): Boolean {
+    val screen = onRoot().fetchSemanticsNode().size.width
+    return onAllNodes(
+        hasContentDescription(name, substring = false, ignoreCase = true) and
+            SemanticsMatcher("at least half the screen wide") { it.size.width * 2 >= screen },
+    ).fetchSemanticsNodes().isNotEmpty()
 }
+
+/**
+ * Swipes the feed on until the viewer's page is [name].
+ *
+ * One swipe is usually it. The drag is kept inside the middle of the screen rather than
+ * running edge to edge, where an injected gesture can be dropped, and it is repeated
+ * because a slow runner can miss a fling: another swipe on the last page does nothing, so
+ * repeating cannot overshoot.
+ */
+fun ComposeTestRule.pageViewerTo(name: String) {
+    repeat(PAGE_SWIPES) {
+        if (isViewerPage(name)) return
+        onRoot().performTouchInput {
+            swipeUp(startY = height * 0.8f, endY = height * 0.2f, durationMillis = 250)
+        }
+        waitForIdle()
+    }
+    assertTrue("the feed never paged to $name", isViewerPage(name))
+}
+
+private const val PAGE_SWIPES = 4
 
 /**
  * Reads the viewer's chrome, which hides itself three seconds after the last touch and can
