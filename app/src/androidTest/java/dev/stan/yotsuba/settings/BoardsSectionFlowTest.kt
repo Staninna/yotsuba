@@ -50,6 +50,14 @@ class BoardsSectionFlowTest : FlowTest() {
         flip("Confirm", setOf(TestSeed.NSFW_BOARD)) { it.hiddenBoards }
     }
 
+    /** Catalog thumbnails only, as its summary says; the profile dialog can override it per board. */
+    @Test
+    fun blurCatalogThumbnails_flipsItsSetting() {
+        openBoards()
+        composeRule.waitForText("Tap a thumbnail to see it; tap again to open the thread")
+        flip("Blur catalog thumbnails", true) { it.blurThumbnails }
+    }
+
     @Test
     fun hiddenThreadsDialog_unhidesAThread() {
         fakes.hidden.seed(HiddenThread(TestSeed.BOARD, TestSeed.THREAD_NO))
