@@ -6,7 +6,7 @@ import java.time.ZoneId
 
 /** Something the user did, written by the repository that saw it. Never leaves the device. */
 enum class UsageKind {
-    BOARD_OPENED,
+    /** One per thread opened, at most one per thread per half hour. */
     THREAD_VISITED,
     /** The read mark rose; [UsageEvent.value] is the post it rose to. */
     READ_MARK,
@@ -53,7 +53,7 @@ data class UsageStats(
     val threadsRead: Int,
     /** Read-mark advances, not a post count: the mark moves once per screenful settled on. */
     val postsRead: Int,
-    /** Most opened first, at most ten. */
+    /** Boards ranked by thread visits, most first, at most ten. */
     val boardsByVisits: List<Pair<String, Int>>,
     val imagesSaved: Int,
     val videosSaved: Int,
@@ -87,7 +87,7 @@ data class UsageStats(
                 threadsRead = events.filter { it.kind == UsageKind.THREAD_VISITED }
                     .distinctBy { it.board to it.threadNo }.size,
                 postsRead = count(UsageKind.READ_MARK),
-                boardsByVisits = events.filter { it.kind == UsageKind.BOARD_OPENED }
+                boardsByVisits = events.filter { it.kind == UsageKind.THREAD_VISITED }
                     .groupingBy { it.board.orEmpty() }.eachCount()
                     .toList().sortedByDescending { it.second }.take(10),
                 imagesSaved = count(UsageKind.IMAGE_SAVED),
