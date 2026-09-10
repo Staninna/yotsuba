@@ -3,11 +3,13 @@ package dev.stan.yotsuba.vault
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.hasText
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitUntilTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /** The browse bar's four menus and the settings gear, from the Recent root. */
@@ -38,6 +40,8 @@ class VaultTopBarFlowTest : FlowTest() {
         composeRule.tapIcon("Sync")
         composeRule.waitForText("Rebuild the index from the files on disk")
         composeRule.waitForText("Refresh saved threads from 4chan, one a second")
+        // Nothing is gone from disk here, so the pass that fetches files back is not offered.
+        assertFalse(composeRule.hasText("Re-download missing"))
         composeRule.tap("Rescan", substring = false)
         composeRule.waitUntilTrue { fakes.vault.rescanCalls == 1 }
         composeRule.waitForText("Index rebuilt")
