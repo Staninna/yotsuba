@@ -2,6 +2,7 @@ package dev.stan.yotsuba.feature.thread.components
 
 import android.content.Context
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +27,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -38,8 +40,9 @@ import dev.stan.yotsuba.core.util.Urls
 /**
  * External-link confirmation (D26). The persistent choice is a checkbox in the body, not a
  * third button beside Cancel: Open honours it by calling [onTrustDomain], which both
- * remembers the domain and opens the link. The page's Open Graph summary fills in under the
- * URL once fetched; trusted domains never reach this dialog, so they are never fetched.
+ * remembers the domain and opens the link. The dialog exists to get consent before the app
+ * talks to the host, so it fetches nothing on its own: the page's Open Graph summary only
+ * loads when the reader taps Preview, which is itself a visit to the untrusted host.
  */
 @Composable
 fun ExternalLinkDialog(
@@ -50,15 +53,27 @@ fun ExternalLinkDialog(
 ) {
     val spacing = LocalSpacing.current
     var trust by rememberSaveable { mutableStateOf(false) }
-    val preview = rememberLinkPreview(url)
+    var previewing by rememberSaveable(url) { mutableStateOf(false) }
+    val preview = if (previewing) rememberLinkPreview(url) else null
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.link_dialog_title)) },
         text = {
             Column {
                 Text(url)
-                if (preview != null && !preview.isEmpty) {
+                if (!previewing) {
+                    TextButton(onClick = { previewing = true }, contentPadding = PaddingValues(0.dp)) {
+                        Text(stringResource(R.string.link_preview_show))
+                    }
+                } else if (preview != null) {
                     Spacer(Modifier.height(spacing.md))
+                    if (preview.isEmpty) {
+                        Text(
+                            stringResource(R.string.link_preview_none),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     preview.siteName?.let {
                         Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -101,7 +116,7 @@ internal interface LinkPreviewEntryPoint {
     fun linkPreview(): LinkPreview
 }
 
-/** Null until the fetch answers; the dialog is up meanwhile. */
+/** Null until the fetch answers; only called once the reader has asked for a preview. */
 @Composable
 private fun rememberLinkPreview(url: String): LinkPreview.Preview? {
     val context: Context = LocalContext.current.applicationContext

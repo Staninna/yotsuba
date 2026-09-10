@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -87,7 +88,7 @@ fun StatsScreen(onBack: () -> Unit, viewModel: StatsViewModel = hiltViewModel())
             Header(R.string.stats_habits)
             u.busiestHour?.let { StatRow(R.string.stats_busiest_hour, "%02d:00".format(it)) }
             u.busiestDay?.let { StatRow(R.string.stats_busiest_day, it.getDisplayName(TextStyle.FULL, LocalLocale.current.platformLocale)) }
-            StatRow(R.string.stats_longest_streak, stringResource(R.string.stats_days, u.longestStreak))
+            StatRow(R.string.stats_longest_streak, pluralStringResource(R.plurals.stats_days, u.longestStreak, u.longestStreak))
             u.firstUseAt?.let { StatRow(R.string.stats_first_use, TimeFormat.date(it)) }
             Header(R.string.stats_rescues)
             StatRow(R.string.stats_archive_rescues, u.archiveRescues.toString())

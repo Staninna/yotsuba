@@ -15,6 +15,8 @@ import dev.stan.yotsuba.domain.model.CatalogSort
 import dev.stan.yotsuba.domain.model.Filter
 import dev.stan.yotsuba.domain.model.FilterAction
 import dev.stan.yotsuba.domain.model.FilterMatcher
+import dev.stan.yotsuba.domain.model.FontSize
+import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.removedCount
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.CatalogRepository
@@ -106,7 +108,14 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
     fun retry(): Job = result.load(forceRefresh = true, showLoading = true)
 
     /** The slice of settings the list depends on; compared by value so the matcher compiles once per change. */
-    private data class Prefs(val layout: CatalogLayout, val sort: CatalogSort, val blur: Boolean, val filters: List<Filter>)
+    private data class Prefs(
+        val layout: CatalogLayout,
+        val sort: CatalogSort,
+        val blur: Boolean,
+        val filters: List<Filter>,
+        val fontSize: FontSize,
+        val lineSpacing: LineSpacing,
+    )
 
     /** Everything the list is derived from besides the fetch result and the user's own toggles. */
     private data class Inputs(
@@ -120,7 +129,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
 
     private val inputs = combine(
         settingsRepository.settings
-            .map { Prefs(it.catalogLayout, it.catalogSorts[board] ?: CatalogSort.BUMP_ORDER, it.forBoard(board).blurThumbnails, it.filters) }
+            .map { it.forBoard(board) }
+            .map { Prefs(it.catalogLayout, it.catalogSorts[board] ?: CatalogSort.BUMP_ORDER, it.blurThumbnails, it.filters, it.fontSize, it.lineSpacing) }
             .distinctUntilChanged()
             .map { it to FilterMatcher(it.filters) },
         hiddenNos,
@@ -155,6 +165,8 @@ class CatalogViewModel @dagger.assisted.AssistedInject constructor(
                 faded = verdicts.filterValues { it.action == FilterAction.FADE }.keys,
                 filteredCount = verdicts.removedCount,
                 crossReferences = crossReferences(threads),
+                fontSize = i.prefs.fontSize,
+                lineSpacing = i.prefs.lineSpacing,
                 newReplies = shown.mapNotNull { t ->
                     i.readMarks[t.no]?.let { mark -> t.newRepliesSince(mark)?.let { t.no to it } }
                 }.toMap(),

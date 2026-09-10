@@ -4,6 +4,8 @@ import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogSort
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.Filter
+import dev.stan.yotsuba.domain.model.FontSize
+import dev.stan.yotsuba.domain.model.LineSpacing
 
 data class CatalogContent(
     val threads: List<CatalogThread>,
@@ -27,4 +29,8 @@ data class CatalogContent(
     val crossReferences: Map<Long, CrossReferences> = emptyMap(),
     /** Replies since the user last read each visited thread, keyed by thread number. */
     val newReplies: Map<Long, NewReplies> = emptyMap(),
+    /** Post text size for this board, the global one unless its profile overrides it. */
+    val fontSize: FontSize = FontSize.DEFAULT,
+    /** Post line spacing for this board, the global one unless its profile overrides it. */
+    val lineSpacing: LineSpacing = LineSpacing.DEFAULT,
 )

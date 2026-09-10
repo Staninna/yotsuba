@@ -170,9 +170,7 @@ class MediaVaultRepositoryImpl(
     override suspend fun delete(url: String): VaultError? = withContext(ioDispatcher) {
         val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
         attempt {
-            // A missing file still has a sidecar entry to drop, or the next rescan brings it back.
-            val file = File(entity.absolutePath).takeIf { entity.absolutePath.isNotEmpty() }
-                ?: entity.threadDir()?.let { File(it, entity.displayName) }
+            val file = entity.vaultFile()
             val dir = file?.parentFile
             if (file != null && dir != null) {
                 file.delete()
@@ -189,8 +187,9 @@ class MediaVaultRepositoryImpl(
 
     override suspend fun trash(url: String): VaultError? = withContext(ioDispatcher) {
         val entity = savedMediaDao.byUrl(url) ?: return@withContext VaultError.NotFound
-        if (entity.absolutePath.isEmpty()) return@withContext delete(url)
-        vaultTrash.trash(entity)
+        // A legacy row with no thread has no directory to be restored into, so it goes for good.
+        val file = entity.vaultFile() ?: return@withContext delete(url)
+        vaultTrash.trash(entity, file)
     }
 
     override val trashed: Flow<List<VaultEntry>> = vaultTrash.entries.map { rows -> rows.map { it.toVaultEntry() } }
@@ -336,6 +335,14 @@ class MediaVaultRepositoryImpl(
     }
 
     /** The directory a row's file lives in, by its thread rather than its path, which a missing row has none of. */
+    /**
+     * Where this row's file is, or would be: a missing one still has a name in its thread
+     * directory, which is what a delete has to strip out of the sidecar. Null for the
+     * legacy url-only rows, which never had a thread.
+     */
+    private fun SavedMediaEntity.vaultFile(): File? =
+        File(absolutePath).takeIf { absolutePath.isNotEmpty() } ?: threadDir()?.let { File(it, displayName) }
+
     private fun SavedMediaEntity.threadDir(): File? =
         threadNo?.let { store.threadDir(board ?: return null, it) }
 

@@ -68,6 +68,7 @@ import dev.stan.yotsuba.core.designsystem.component.sharedMedia
 import dev.stan.yotsuba.core.designsystem.rememberMotionSpec
 import dev.stan.yotsuba.core.designsystem.token.LocalMotion
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.media.VideoCache
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -407,7 +408,10 @@ private fun rememberVideoPlayback(
     LaunchedEffect(player, videoUri, loop) {
         if (loop == null) return@LaunchedEffect
         if (player.currentPosition !in loop) player.seekTo(loop.startMs)
+        // The message target defaults to the playback thread, where touching the player
+        // throws; the seek has to land on the thread the player is used from.
         val message = player.createMessage { _, _ -> player.seekTo(loop.startMs) }
+            .setLooper(player.applicationLooper)
             .setPosition(loop.endMs)
             .setDeleteAfterDelivery(false)
             .send()

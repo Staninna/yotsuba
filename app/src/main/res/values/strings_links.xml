@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="settings_confirm_links_preview_summary">Show the URL and the page\'s title before leaving the app</string>
+    <string name="settings_confirm_links_preview_summary">Show the URL before leaving the app, with an optional page summary</string>
+    <string name="link_preview_show">Preview</string>
+    <string name="link_preview_none">No summary on that page</string>
 </resources>

@@ -99,7 +99,7 @@ class RepositoryTest {
                 CatalogPageDto(page = 2, threads = listOf(PostDto(no = 3))),
             )
         }
-        val result = CatalogRepositoryImpl(api, NoUsage).catalog("g") as DataResult.Success
+        val result = CatalogRepositoryImpl(api).catalog("g") as DataResult.Success
         assertEquals(listOf(1L, 2L, 3L), result.value.map { it.no })
         assertTrue(result.value.all { it.board == "g" })
         assertEquals("first", result.value[0].subject)
@@ -110,7 +110,7 @@ class RepositoryTest {
             override suspend fun catalog(board: String, cacheControl: String?): List<CatalogPageDto> =
                 throw java.net.SocketTimeoutException()
         }
-        assertEquals(DataResult.Failure(NetworkError.Timeout), CatalogRepositoryImpl(api, NoUsage).catalog("g"))
+        assertEquals(DataResult.Failure(NetworkError.Timeout), CatalogRepositoryImpl(api).catalog("g"))
     }
 
     // ThreadRepositoryImpl
