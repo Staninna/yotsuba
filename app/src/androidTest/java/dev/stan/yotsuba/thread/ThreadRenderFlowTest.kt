@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.height
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
+import dev.stan.yotsuba.backToTabs
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.BoardProfile
 import dev.stan.yotsuba.domain.model.FontSize
@@ -17,7 +18,6 @@ import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.domain.model.TimestampMode
 import dev.stan.yotsuba.domain.model.TimestampZone
-import dev.stan.yotsuba.backToTabs
 import dev.stan.yotsuba.goBack
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSeededThread
@@ -145,13 +145,6 @@ class ThreadRenderFlowTest : FlowTest() {
         assertTrue("$plain on /${TestSeed.BOARD}/ should be shorter than $withProfile on /${TestSeed.VIDEO_BOARD}/", plain < withProfile)
     }
 
-    /** The body Text on screen, once the thread being left behind has stopped showing its own. */
-    private fun bodyHeight(): Dp {
-        val body = hasText(SHARED_BODY, substring = false) and !inSheet
-        composeRule.waitUntilTrue { composeRule.onAllNodes(body, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
-        return composeRule.onNode(body, useUnmergedTree = true).getBoundsInRoot().height
-    }
-
     /**
      * The three post-time modes on one card. The zone is the board's so the clock part is
      * fixed: the seeded OP is 22:13 UTC, which is 5:13 PM in New York, and the seed is old
@@ -172,17 +165,24 @@ class ThreadRenderFlowTest : FlowTest() {
         composeRule.waitUntilTrue { opStampShows("ago") && opStampShows(BOARD_CLOCK) }
     }
 
-    /** The stamp is a plain Text in the OP's card, so it only exists in the unmerged tree. */
-    private fun opStampShows(text: String): Boolean =
-        composeRule.onAllNodes(hasText(text, substring = true) and inPost(TestSeed.OP_TEXT), useUnmergedTree = true)
-            .fetchSemanticsNodes().isNotEmpty()
-
     @Test
     fun postNumberTap_copiesItAndSaysSo() {
         composeRule.openSeededThread()
         composeRule.tap("#${TestSeed.THREAD_NO}", substring = false)
         composeRule.waitForText("Post number copied")
     }
+
+    /** The body Text on screen, once the thread being left behind has stopped showing its own. */
+    private fun bodyHeight(): Dp {
+        val body = hasText(SHARED_BODY, substring = false) and !inSheet
+        composeRule.waitUntilTrue { composeRule.onAllNodes(body, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
+        return composeRule.onNode(body, useUnmergedTree = true).getBoundsInRoot().height
+    }
+
+    /** The stamp is a plain Text in the OP's card, so it only exists in the unmerged tree. */
+    private fun opStampShows(text: String): Boolean =
+        composeRule.onAllNodes(hasText(text, substring = true) and inPost(TestSeed.OP_TEXT), useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty()
 
     private companion object {
         /** The seeded OP's time of day in the board's zone, in the short form that locale uses. */
