@@ -121,6 +121,32 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      # Creating the AVD and booting it cold costs about four minutes of every run.
+      # Cached, the tests start from a warm snapshot instead. The key names the image,
+      # so a change of API level, target or arch builds a new one rather than reusing
+      # a stale device.
+      - name: Cache the AVD
+        uses: actions/cache@v6
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-35-google_apis-x86_64-pixel_7
+
+      - name: Create the AVD snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_7
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          disable-animations: false
+          script: echo "AVD created"
+
       - name: Instrumented tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -128,8 +154,10 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_7
+          force-avd-creation: false
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # -no-snapshot-save, so a red run cannot poison the cached snapshot.
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: ./gradlew :app:connectedDebugAndroidTest
 
       - name: Upload instrumented reports
