@@ -30,11 +30,12 @@ class LinkFlowTest : FlowTest() {
     }
 
     /**
-     * Replaces the seeded link with one no installed app can open, so a link that is let
-     * through comes back as the "nothing handles this" snackbar instead of backgrounding
-     * the app: once the browser is in front there is no compose tree left to assert on.
+     * Replaces the seeded link with [url] and taps it. The default is one no installed app
+     * can open, so a link that is let through comes back as the "nothing handles this"
+     * snackbar instead of backgrounding the app: once the browser is in front there is no
+     * compose tree left to assert on.
      */
-    private fun tapALinkNothingHandles() {
+    private fun tapALinkTo(url: String = ODD_URL) {
         fakes.threads.threads[TestSeed.BOARD to TestSeed.THREAD_NO] = threadOf(
             listOf(
                 TestSeed.post(TestSeed.BOARD, TestSeed.THREAD_NO, TestSeed.OP_TEXT, isOp = true, subject = TestSeed.THREAD_SUBJECT),
@@ -43,7 +44,7 @@ class LinkFlowTest : FlowTest() {
                     PostText(
                         listOf(
                             PostSegment("${TestSeed.LINK_REPLY_TEXT} "),
-                            PostSegment(ODD_URL, annotation = PostAnnotation.Link(ODD_URL)),
+                            PostSegment(url, annotation = PostAnnotation.Link(url)),
                         ),
                     ),
                 ),
@@ -70,7 +71,7 @@ class LinkFlowTest : FlowTest() {
     /** Open is the one button that leaves, so this one goes through the unopenable link. */
     @Test
     fun alwaysTrust_thenOpen_remembersTheDomain() {
-        tapALinkNothingHandles()
+        tapALinkTo()
         composeRule.waitForText("Open external link?")
 
         composeRule.tap("Always trust $ODD_DOMAIN")
@@ -84,7 +85,7 @@ class LinkFlowTest : FlowTest() {
     @Test
     fun withConfirmationOff_theLinkGoesStraightOut() {
         fakes.settings.set { it.copy(confirmBeforeOpeningLinks = false) }
-        tapALinkNothingHandles()
+        tapALinkTo()
 
         composeRule.waitForText("No app can open this link")
         assertFalse(composeRule.hasText("Open external link?"))
@@ -93,14 +94,33 @@ class LinkFlowTest : FlowTest() {
     @Test
     fun anAlreadyTrustedDomain_skipsTheDialog() {
         fakes.settings.set { it.copy(trustedDomains = setOf(ODD_DOMAIN)) }
-        tapALinkNothingHandles()
+        tapALinkTo()
 
         composeRule.waitForText("No app can open this link")
         assertFalse(composeRule.hasText("Open external link?"))
     }
 
+    /**
+     * The preview is itself a visit to the untrusted host, so the dialog asks before it
+     * fetches. The fetch goes out over OkHttp: this host does not resolve, and an answer
+     * that carries no Open Graph tags reads the same as one that never arrived.
+     */
+    @Test
+    fun previewAsksFirst_thenSaysThePageCarriesNoSummary() {
+        tapALinkTo(DEAD_URL)
+
+        composeRule.waitForText("Open external link?")
+        composeRule.sheetNode("Preview").assertIsDisplayed()
+        assertFalse(composeRule.hasText("No summary on that page"))
+
+        composeRule.tap("Preview", substring = false)
+        composeRule.waitForText("No summary on that page")
+        assertFalse(composeRule.hasText("Preview"))
+    }
+
     private companion object {
         const val ODD_DOMAIN = "nowhere.invalid"
         const val ODD_URL = "yotsuba-test://$ODD_DOMAIN/page"
+        const val DEAD_URL = "https://$ODD_DOMAIN/page"
     }
 }
