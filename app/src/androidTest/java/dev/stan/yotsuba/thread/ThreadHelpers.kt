@@ -110,6 +110,14 @@ fun ComposeTestRule.hasSheetText(text: String): Boolean =
 fun ComposeTestRule.waitForSheetText(text: String) =
     waitUntilTrue { onAllNodes(sheetText(text)).fetchSemanticsNodes().isNotEmpty() }
 
+/**
+ * Waits until no sheet or dialog window is up. Opening one while another is still sliding
+ * away leaves two compose roots mid-layout, which the test framework fetches semantics
+ * across; that race shows up as a measure-during-measure crash rather than a bad assertion.
+ */
+fun ComposeTestRule.waitForNoSheet() =
+    waitUntilTrue { onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() }
+
 fun ComposeTestRule.waitForSheetTextGone(text: String) =
     waitUntilTrue { onAllNodes(sheetText(text)).fetchSemanticsNodes().isEmpty() }
 
@@ -137,12 +145,14 @@ fun ComposeTestRule.tapPreviewCard(postText: String) {
  * but the action needs no coordinates inside a card that may have just been scrolled up.
  */
 fun ComposeTestRule.longPressPost(postText: String) {
+    waitForNoSheet()
     listNode(postText)
     onNode(postCard(postText)).performCustomAccessibilityActionWithLabel("Post actions")
 }
 
 /** The real hold on the card of the post showing [postText], on its top padding, clear of its controls. */
 fun ComposeTestRule.holdPost(postText: String) {
+    waitForNoSheet()
     listNode(postText)
     onNode(postCard(postText)).performTouchInput { longClick(Offset(centerX, 5f)) }
 }

@@ -19,6 +19,9 @@ import org.junit.Test
 @HiltAndroidTest
 class PostActionsFlowTest : FlowTest() {
 
+    /** The seeded OP, marked as the user's own. */
+    private val claimOnTheOp = Triple(TestSeed.BOARD, TestSeed.THREAD_NO, TestSeed.THREAD_NO)
+
     @Test
     fun longPress_opensTheSheet_andCopyTextSaysSo() {
         composeRule.openSeededThread()
@@ -54,21 +57,27 @@ class PostActionsFlowTest : FlowTest() {
     }
 
     @Test
-    fun markAsMine_thenNotMine_movesTheRepliesToYouChip() {
+    fun markAsMine_raisesTheRepliesToYouChip_whichRoutesToTheReply() {
         composeRule.openSeededThread()
         // The OP is quoted by the seeded quote reply, so claiming it is a reply to the user.
         composeRule.longPressPost(TestSeed.OP_TEXT)
         composeRule.tap("Mark as mine")
-        composeRule.waitUntilTrue {
-            fakes.claimed.state.value == setOf(Triple(TestSeed.BOARD, TestSeed.THREAD_NO, TestSeed.THREAD_NO))
-        }
+        composeRule.waitUntilTrue { fakes.claimed.state.value == setOf(claimOnTheOp) }
         composeRule.waitForText("1 reply to you")
 
-        // The chip routes to that reply like a quotelink.
+        // The chip routes to that reply like a quotelink, once the sheet is out of the way.
+        composeRule.waitForNoSheet()
         composeRule.tap("1 reply to you")
         composeRule.waitForSheetText(TestSeed.QUOTE_REPLY_TEXT)
         composeRule.tapIcon("Close preview")
         composeRule.waitForTextGone("Go to")
+    }
+
+    @Test
+    fun notMine_takesTheChipAwayAgain() {
+        fakes.claimed.state.value = setOf(claimOnTheOp)
+        composeRule.openSeededThread()
+        composeRule.waitForText("1 reply to you")
 
         composeRule.longPressPost(TestSeed.OP_TEXT)
         composeRule.tap("Not mine")
