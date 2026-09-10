@@ -146,6 +146,24 @@ class QuoteFlowTest : FlowTest() {
     }
 
     @Test
+    fun aGhostReadFromTheVaultsCopy_saysWhereItCameFrom() {
+        fakes.vault.sidecars[TestSeed.BOARD to TestSeed.STICKY_THREAD_NO] = threadOf(
+            listOf(
+                TestSeed.post(
+                    TestSeed.BOARD, TestSeed.STICKY_THREAD_NO, SAVED_GHOST_TEXT,
+                    isOp = true, subject = TestSeed.STICKY_SUBJECT,
+                ),
+            ),
+            threadNo = TestSeed.STICKY_THREAD_NO,
+        )
+        composeRule.openSeededThread()
+        composeRule.tapBodyLink(TestSeed.CROSS_QUOTE_REPLY_TEXT)
+
+        composeRule.waitForSheetText(SAVED_GHOST_TEXT)
+        composeRule.sheetNode("Saved copy").assertIsDisplayed()
+    }
+
+    @Test
     fun deadlink_opensTheSheetSayingThePostIsGone() {
         composeRule.openSeededThread()
         composeRule.tapBodyLink(TestSeed.DEADLINK_REPLY_TEXT)
@@ -171,5 +189,6 @@ class QuoteFlowTest : FlowTest() {
         const val REPLY_B = "Reply B of the chain"
         const val REPLY_C = "Reply C of the chain"
         const val PRUNED_TEXT = "The archive still has this pruned post"
+        const val SAVED_GHOST_TEXT = "The sticky OP as the vault kept it"
     }
 }

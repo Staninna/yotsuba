@@ -54,6 +54,12 @@ class PostActionsFlowTest : FlowTest() {
         }
         composeRule.waitForText("1 reply to you")
 
+        // The chip routes to that reply like a quotelink.
+        composeRule.tap("1 reply to you")
+        composeRule.waitForSheetText(TestSeed.QUOTE_REPLY_TEXT)
+        composeRule.tapIcon("Close preview")
+        composeRule.waitForTextGone("Go to")
+
         composeRule.longPressPost(TestSeed.OP_TEXT)
         composeRule.tap("Not mine")
         composeRule.waitUntilTrue { fakes.claimed.state.value.isEmpty() }

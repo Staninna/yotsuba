@@ -7,6 +7,7 @@ import androidx.compose.ui.test.performClick
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
+import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.goBack
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSeededThread
@@ -86,6 +87,18 @@ class ThreadRenderFlowTest : FlowTest() {
         composeRule.tapIcon("Clear filter")
         composeRule.waitForTextGone("ID: ${TestSeed.VIDEO_OP_POSTER_ID}")
         composeRule.listNode(TestSeed.VIDEO_REPLY_TEXT).assertIsDisplayed()
+    }
+
+    @Test
+    fun aFileTheServerDeleted_saysSoInPlaceOfTheThumbnail() {
+        fakes.threads.threads[TestSeed.BOARD to TestSeed.THREAD_NO] = threadOf(
+            listOf(
+                TestSeed.post(TestSeed.BOARD, TestSeed.THREAD_NO, TestSeed.OP_TEXT, isOp = true, subject = TestSeed.THREAD_SUBJECT),
+                TestSeed.post(TestSeed.BOARD, TestSeed.THREAD_NO + 1, TestSeed.REPLY_TEXT, media = PostMedia.Deleted("gone.png")),
+            ),
+        )
+        composeRule.openSeededThread()
+        composeRule.listNode("File deleted: gone.png").assertIsDisplayed()
     }
 
     @Test

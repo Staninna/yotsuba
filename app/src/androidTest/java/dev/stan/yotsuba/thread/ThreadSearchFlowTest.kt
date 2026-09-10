@@ -73,6 +73,19 @@ class ThreadSearchFlowTest : FlowTest() {
         composeRule.waitForText(TestSeed.OP_TEXT)
     }
 
+    @Test
+    fun theSearchBarAndItsQuerySurviveRotation() {
+        search()
+        composeRule.waitForText("1/2", substring = false)
+
+        recreate()
+
+        composeRule.waitForText("1/2", substring = false)
+        composeRule.waitUntilTrue {
+            composeRule.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
     private fun assertNoSearchField() {
         composeRule.waitUntilTrue {
             composeRule.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isEmpty()

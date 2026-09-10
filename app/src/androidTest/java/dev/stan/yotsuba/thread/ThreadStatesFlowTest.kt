@@ -31,6 +31,7 @@ class ThreadStatesFlowTest : FlowTest() {
             NetworkError.RateLimited to "Slow down, too many requests",
             NetworkError.Server(500) to "Server error (500)",
             NetworkError.NotFound to "Not found",
+            NetworkError.Unknown() to "Something went wrong",
         ).forEach { (error, message) ->
             fakes.threads.failWith = error
             composeRule.tap(TestSeed.THREAD_SUBJECT)
