@@ -3,9 +3,11 @@ package dev.stan.yotsuba.vault
 import androidx.compose.ui.test.performClick
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
+import dev.stan.yotsuba.clickContentDescription
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.VaultSyncSummary
+import dev.stan.yotsuba.hasText
 import dev.stan.yotsuba.iconInRow
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
@@ -13,6 +15,8 @@ import dev.stan.yotsuba.waitForContentDescription
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitUntilTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -31,6 +35,14 @@ class VaultMissingFlowTest : FlowTest() {
         composeRule.openVault()
         composeRule.tapIcon("Sync")
         composeRule.tap("Re-download missing")
+    }
+
+    /** Nothing on disk to view, so a tap on the tile opens the sheet a long press would. */
+    private fun openMissingSheet() {
+        composeRule.openVault()
+        composeRule.waitForContentDescription(VaultSeed.missingImage.displayName)
+        composeRule.clickContentDescription(VaultSeed.missingImage.displayName)
+        composeRule.waitForText(VaultSeed.missingImage.displayName, substring = false)
     }
 
     @Test
@@ -80,5 +92,50 @@ class VaultMissingFlowTest : FlowTest() {
         assertEquals(listOf(listOf(seededThread)), fakes.vault.redownloadCalls)
         // The default summary fetched nothing back and found nothing to give up on either.
         composeRule.waitForText("Couldn't fetch any file back")
+    }
+
+    @Test
+    fun missingFile_sheetOffersNoShareOrSaveToGallery() {
+        openMissingSheet()
+        composeRule.waitForText("Missing from disk")
+        listOf("Re-download missing", "Select", "Delete").forEach {
+            composeRule.waitForText(it, substring = false)
+        }
+        composeRule.waitForText("Open thread")
+        // Neither can copy a file that is not there.
+        assertFalse(composeRule.hasText("Share", substring = false))
+        assertFalse(composeRule.hasText("Save to gallery"))
+    }
+
+    @Test
+    fun mixedSelection_savesOnlyTheFilesStillOnDisk() {
+        composeRule.openVault()
+        composeRule.openVaultBoard("/${TestSeed.BOARD}/")
+        composeRule.longPressText(TestSeed.THREAD_SUBJECT)
+        composeRule.waitForText("3 selected")
+
+        composeRule.tapIcon("Save to gallery")
+        composeRule.waitUntilTrue { fakes.vault.exported.size == 2 }
+        assertEquals(
+            setOf(VaultSeed.seededImage.url, VaultSeed.spoilerImage.url),
+            fakes.vault.exported.toSet(),
+        )
+        composeRule.waitForText("Saved 2 files to the gallery")
+    }
+
+    @Test
+    fun selectionOfOnlyTheMissingFile_sharesAndSavesNothing() {
+        openMissingSheet()
+        composeRule.tap("Select", substring = false)
+        composeRule.waitForText("1 selected")
+
+        // The share builds no URI, which is what kept FileProvider from throwing here.
+        composeRule.tapIcon("Share")
+        composeRule.tapIcon("Save to gallery")
+        composeRule.waitForIdle()
+        assertTrue(fakes.vault.exported.isEmpty())
+        // Nothing was copied, so the bar stays up rather than reporting a save.
+        composeRule.waitForText("1 selected")
+        assertFalse(composeRule.hasText("Saved 1 file"))
     }
 }
