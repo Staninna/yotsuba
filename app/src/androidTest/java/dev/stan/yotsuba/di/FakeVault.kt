@@ -55,6 +55,7 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
     val saves = mutableListOf<Pair<MediaItem, VaultSaveContext>>()
     val snapshotCalls = mutableListOf<VaultLocation>()
     val snapshotBatchCalls = mutableListOf<List<VaultLocation>>()
+    val redownloadCalls = mutableListOf<List<VaultLocation>>()
     val exported = mutableListOf<String>()
     val renames = mutableListOf<Pair<VaultLocation, String>>()
     val merges = mutableListOf<Pair<VaultLocation, VaultLocation>>()
@@ -150,6 +151,12 @@ class FakeMediaVaultRepository @Inject constructor() : MediaVaultRepository {
 
     override suspend fun snapshotThreads(targets: List<VaultLocation>, onProgress: (Int, Int) -> Unit): VaultSyncSummary {
         snapshotBatchCalls += targets
+        return syncSummary
+    }
+
+    override suspend fun redownloadMissing(targets: List<VaultLocation>, onProgress: (Int, Int) -> Unit): VaultSyncSummary {
+        redownloadCalls += targets
+        repeat(syncProgressSteps) { onProgress(it + 1, syncProgressSteps) }
         return syncSummary
     }
 

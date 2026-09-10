@@ -207,5 +207,9 @@ class FakeUsageRepository @Inject constructor() : UsageRepository {
         state.update { it + UsageEvent(kind, now(), board, threadNo, value) }
     }
 
+    override suspend fun clear(kind: UsageKind) {
+        state.update { events -> events.filterNot { it.kind == kind } }
+    }
+
     fun count(kind: UsageKind) = state.value.count { it.kind == kind }
 }
