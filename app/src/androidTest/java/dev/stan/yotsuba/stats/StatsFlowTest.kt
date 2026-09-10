@@ -100,6 +100,13 @@ class StatsFlowTest : FlowTest() {
     }
 
     @Test
+    fun streak_readsOneDayInTheSingular() {
+        fakes.usage.seed(event(UsageKind.SEARCH_RUN))
+        openStats()
+        assertStat("Longest streak", "1 day")
+    }
+
+    @Test
     fun dataRows_splitTheBytesByBoard() {
         openStats()
         assertStat("Fetched over the network", FileSize.format(3_000L))
