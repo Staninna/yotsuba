@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import dev.stan.yotsuba.clickContentDescription
@@ -94,6 +95,26 @@ fun ComposeTestRule.openVaultViewer(name: String) {
 fun ComposeTestRule.showViewerChrome() {
     if (!hasContentDescription("Close viewer")) onRoot().performTouchInput { click(center) }
     waitForContentDescription("Close viewer")
+}
+
+/**
+ * Taps a chrome button, bringing the chrome back first. The chrome hides itself three
+ * seconds after the last touch, which can be mid-tap, so a lost node is retried rather
+ * than failing the test over the timer.
+ */
+fun ComposeTestRule.tapViewerIcon(description: String) {
+    repeat(3) {
+        showViewerChrome()
+        if (runCatching { clickContentDescription(description) }.isSuccess) return
+    }
+    showViewerChrome()
+    clickContentDescription(description)
+}
+
+/** Pages the viewer's feed one item on. */
+fun ComposeTestRule.pageViewerForward() {
+    onRoot().performTouchInput { swipeUp() }
+    waitForIdle()
 }
 
 /** The file name in the viewer's top bar, which only exists while the chrome shows. */
