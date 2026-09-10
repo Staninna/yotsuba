@@ -788,12 +788,14 @@ class VaultViewModel @Inject constructor(
 
     /** Copies [entries] into the gallery and reports how many made it. */
     fun exportToGallery(entries: List<VaultEntry>) {
-        if (entries.isEmpty()) return
+        // A missing file has nothing to copy, so it is not one of the files being reported on.
+        val present = entries.filterNot { it.missing }
+        if (present.isEmpty()) return
         selected.value = emptySet()
         viewModelScope.launch {
             var failed = 0
-            for (entry in entries) if (mediaVault.exportToGallery(entry.url) != null) failed++
-            notice.value = VaultNotice.SavedToGallery(count = entries.size - failed, failed = failed)
+            for (entry in present) if (mediaVault.exportToGallery(entry.url) != null) failed++
+            notice.value = VaultNotice.SavedToGallery(count = present.size - failed, failed = failed)
         }
     }
 
