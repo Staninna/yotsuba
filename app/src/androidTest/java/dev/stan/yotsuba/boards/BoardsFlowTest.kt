@@ -33,7 +33,7 @@ class BoardsFlowTest : FlowTest() {
         composeRule.waitForText(TestSeed.BOARD_TITLE)
     }
 
-    /** The /v/ row, not the "Video Games" category header above it. */
+    /** The /v/ row itself, not the category header above it. */
     private val videoBoardRow = hasText(TestSeed.VIDEO_BOARD_TITLE) and hasClickAction()
 
     /** The tri-state checkbox beside a category header in edit mode. */
@@ -65,7 +65,7 @@ class BoardsFlowTest : FlowTest() {
         openBoards()
         composeRule.typeInField("g")
         composeRule.waitForTextGone(TestSeed.NSFW_BOARD_TITLE)
-        // /g/ is an exact code match; "Video Games" only has a g in its title.
+        // /g/ is an exact code match; the /v/ board only has a g in its title.
         composeRule.assertAbove(TestSeed.BOARD_TITLE, TestSeed.VIDEO_BOARD_TITLE)
 
         composeRule.clearField()

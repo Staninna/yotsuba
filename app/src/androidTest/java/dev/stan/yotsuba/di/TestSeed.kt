@@ -33,7 +33,10 @@ object TestSeed {
     const val BOARD = "g"
     const val BOARD_TITLE = "Technology"
     const val VIDEO_BOARD = "v"
-    const val VIDEO_BOARD_TITLE = "Video Games"
+    // Not "Video Games": that is also the label of the VIDEO_GAMES category this board sits
+    // in, so every by-title selector matched the header too. Keeps a g so the boards search
+    // still has a lower-ranked match for the query "g".
+    const val VIDEO_BOARD_TITLE = "Gaming Talk"
     const val NSFW_BOARD = "b"
     const val NSFW_BOARD_TITLE = "Random"
 
