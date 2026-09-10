@@ -53,6 +53,8 @@ class CatalogFlowTest : FlowTest() {
     private fun blursIn(title: String) = composeRule
         .onAllNodes(inRow(title, BLURRED), useUnmergedTree = true).fetchSemanticsNodes().size
 
+    private fun aboutTitle(board: String) = "About /$board/"
+
     @Test
     fun cards_showTitlesMetadataAndBadges() {
         composeRule.openCatalog()
@@ -181,6 +183,32 @@ class CatalogFlowTest : FlowTest() {
         // The global setting covers the board that has no profile of its own.
         fakes.settings.set { it.copy(blurThumbnails = true) }
         composeRule.waitForContentDescription(BLURRED)
+    }
+
+    @Test
+    fun boardDescription_showsOncePerBoardPerSession() {
+        composeRule.openCatalog()
+        composeRule.waitForText(aboutTitle(TestSeed.BOARD), substring = false)
+        composeRule.waitForText("${TestSeed.BOARD_TITLE} board")
+
+        // Every board has its own card, on the first open of that board.
+        pressBack()
+        composeRule.tap(TestSeed.VIDEO_BOARD_TITLE)
+        composeRule.waitForText(aboutTitle(TestSeed.VIDEO_BOARD), substring = false)
+
+        pressBack()
+        composeRule.tap(TestSeed.BOARD_TITLE)
+        composeRule.waitForText(TestSeed.THREAD_SUBJECT)
+        composeRule.waitForTextGone(aboutTitle(TestSeed.BOARD), substring = false)
+    }
+
+    @Test
+    fun boardDescription_canBeDismissed() {
+        composeRule.openCatalog()
+        composeRule.waitForText(aboutTitle(TestSeed.BOARD), substring = false)
+        composeRule.tapIcon("Dismiss")
+        composeRule.waitForTextGone(aboutTitle(TestSeed.BOARD), substring = false)
+        composeRule.waitForText(TestSeed.THREAD_SUBJECT)
     }
 
     private companion object {
