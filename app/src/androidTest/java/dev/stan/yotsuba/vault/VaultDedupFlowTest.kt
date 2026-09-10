@@ -58,7 +58,8 @@ class VaultDedupFlowTest : FlowTest() {
     }
 
     /** The button that applies one group, told apart from the other group's by its size. */
-    private fun groupButton(size: String) = composeRule.button("Keep selected, delete 1 ($size)")
+    private fun groupButton(count: Int, size: String) =
+        composeRule.button("Keep selected, delete $count ($size)")
 
     @Test
     fun finder_summarisesTheGroupsItFound() {
@@ -90,19 +91,19 @@ class VaultDedupFlowTest : FlowTest() {
         openFinder()
         assertEquals(2, composeRule.onAllNodesWithContentDescription("Kept").fetchSemanticsNodes().size)
 
-        composeRule.inSheet("Duplicates", VaultSeed.spoilerImage.displayName).performClick()
+        composeRule.inSheet(VaultSeed.spoilerImage.displayName).performClick()
         composeRule.waitUntilTrue { composeRule.onAllNodesWithContentDescription("Kept").fetchSemanticsNodes().size == 3 }
-        groupButton("0 B").assertIsNotEnabled()
+        groupButton(0, "0 B").assertIsNotEnabled()
 
-        composeRule.inSheet("Duplicates", VaultSeed.spoilerImage.displayName).performClick()
+        composeRule.inSheet(VaultSeed.spoilerImage.displayName).performClick()
         composeRule.waitUntilTrue { composeRule.onAllNodesWithContentDescription("Kept").fetchSemanticsNodes().size == 2 }
-        groupButton("7 KB").assertIsEnabled()
+        groupButton(1, "7 KB").assertIsEnabled()
     }
 
     @Test
     fun applyOneGroup_deletesItsRedundantFile() {
         openFinder()
-        groupButton("7 KB").performClick()
+        groupButton(1, "7 KB").performClick()
         composeRule.waitForText("Delete 1 file (7 KB) from the vault, keeping the ticked copies?")
         composeRule.button("Delete").performClick()
 
