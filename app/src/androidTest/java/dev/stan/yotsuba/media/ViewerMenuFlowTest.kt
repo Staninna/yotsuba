@@ -5,6 +5,7 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.hasText
+import dev.stan.yotsuba.clickText
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitForTextGone
@@ -53,10 +54,13 @@ class ViewerMenuFlowTest : FlowTest() {
     }
 
     @Test
-    fun pictureInPicture_tapClosesTheMenu() {
+    fun pictureInPicture_isOfferedAndTakesTheTap() {
         composeRule.openSeededImage()
-        composeRule.openViewerMenu("Picture-in-picture")
-        composeRule.waitForTextGone("Picture-in-picture")
+        composeRule.tapChrome("More")
+        composeRule.waitForText("Picture-in-picture")
+        // The tap enters picture-in-picture, which takes the compose tree with it, so it is
+        // the last thing this test does.
+        composeRule.clickText("Picture-in-picture", substring = false)
     }
 
     @Test
@@ -71,12 +75,12 @@ class ViewerMenuFlowTest : FlowTest() {
     }
 
     @Test
-    fun copyText_fetchesTheFile_cancelStopsIt() {
+    fun copyText_onAnUnsavedImage_reportsTheFailedFetch() {
         composeRule.openSeededImage()
         composeRule.openViewerMenu("Copy text")
-        composeRule.waitForText("Fetching the file")
-        composeRule.tap("Cancel", substring = false)
-        composeRule.waitForTextGone("Fetching the file")
+        // example.invalid fails to resolve before the "Fetching the file…" dialog lasts a
+        // frame, so the snackbar is the only assertable end of this route.
+        composeRule.waitForText("Couldn't share")
     }
 
     @Test

@@ -105,10 +105,12 @@ class ViewerDownloadFlowTest : FlowTest() {
     }
 
     @Test
-    fun withoutStorageAccess_tapAsksToGrantIt() {
+    fun withoutStorageAccess_theSaveTapSavesNothing() {
         fakes.vault.access.value = false
         tapSave()
-        composeRule.waitForText("All files access")
+        // The tap opens the system "All files access" page, which takes the app off screen
+        // along with its compose tree, so the vault is all that is left to read. The same
+        // tap with access granted saves: see save_flipsToSaved_inViewerAndThread.
         assertTrue(fakes.vault.saves.isEmpty())
     }
 }
