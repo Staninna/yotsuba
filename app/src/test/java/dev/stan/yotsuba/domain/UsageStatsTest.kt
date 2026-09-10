@@ -22,19 +22,18 @@ class UsageStatsTest {
             UsageEvent(UsageKind.THREAD_VISITED, at(2, 21), "a", 1),
             UsageEvent(UsageKind.THREAD_VISITED, at(3, 21), "g", 2),
             UsageEvent(UsageKind.READ_MARK, at(3, 21), "g", 2, 5),
-            UsageEvent(UsageKind.BOARD_OPENED, at(3, 21), "g"),
-            UsageEvent(UsageKind.BOARD_OPENED, at(4, 21), "g"),
-            UsageEvent(UsageKind.BOARD_OPENED, at(4, 21), "a"),
+            UsageEvent(UsageKind.READ_MARK, at(4, 21), "g", 2, 6),
             UsageEvent(UsageKind.IMAGE_SAVED, at(4), "g", 2, 100),
             UsageEvent(UsageKind.VIDEO_SAVED, at(4), "g", 2, 250),
-            UsageEvent(UsageKind.BOOKMARK_ADDED, at(9), "g", 2),
-            UsageEvent(UsageKind.ARCHIVE_RESCUE, at(10), "g", 2),
-            UsageEvent(UsageKind.SEARCH_RUN, at(11)),
+            UsageEvent(UsageKind.BOOKMARK_ADDED, at(9, 21), "g", 2),
+            UsageEvent(UsageKind.ARCHIVE_RESCUE, at(10, 21), "g", 2),
+            UsageEvent(UsageKind.SEARCH_RUN, at(11, 21)),
         )
         val s = UsageStats.of(events, ZoneOffset.UTC)
         assertEquals(2, s.threadsRead)
-        assertEquals(1, s.postsRead)
-        assertEquals(listOf("g" to 2, "a" to 1), s.boardsByVisits)
+        assertEquals(2, s.postsRead)
+        // Boards rank by thread visits, not by a catalog fetch: /a/ twice, /g/ once.
+        assertEquals(listOf("a" to 2, "g" to 1), s.boardsByVisits)
         assertEquals(1, s.imagesSaved)
         assertEquals(1, s.videosSaved)
         assertEquals(350L, s.bytesSaved)
@@ -42,7 +41,7 @@ class UsageStatsTest {
         assertEquals(1, s.archiveRescues)
         assertEquals(1, s.searchesRun)
         assertEquals(21, s.busiestHour)
-        // Mar 2, 3, 4 2026 are Mon, Tue, Wed; Wednesday has five events.
+        // Mar 2, 3, 4 2026 are Mon, Tue, Wed; Wednesday has three events.
         assertEquals(DayOfWeek.WEDNESDAY, s.busiestDay)
         assertEquals(3, s.longestStreak) // 2, 3, 4; then 9, 10, 11 ties and the first run stays
         assertEquals(at(2, 9), s.firstUseAt)

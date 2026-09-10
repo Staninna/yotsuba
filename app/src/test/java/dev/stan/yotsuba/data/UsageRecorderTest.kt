@@ -23,7 +23,7 @@ class UsageRecorderTest {
     @After fun tearDown() { Logs.sink = sink }
 
     @Test fun `records off the caller and reads back as domain events`() = runTest {
-        val recorder = UsageRecorder(FakeUsageEventDao(), backgroundScope, StandardTestDispatcher(testScheduler))
+        val recorder = UsageRecorder(FakeUsageEventDao(), backgroundScope, StandardTestDispatcher(testScheduler), StandardTestDispatcher(testScheduler))
         recorder.record(UsageKind.IMAGE_SAVED, "g", 1, 42)
         runCurrent()
         val event = recorder.events().first().single()
@@ -40,8 +40,10 @@ class UsageRecorderTest {
             override suspend fun insert(event: UsageEventEntity) = throw IllegalStateException("disk full")
             override fun all(): Flow<List<UsageEventEntity>> = throw UnsupportedOperationException()
             override suspend fun deleteKind(kind: String) = throw UnsupportedOperationException()
+            override suspend fun deleteAll() = throw UnsupportedOperationException()
+            override suspend fun deleteOlderThan(cutoffMs: Long) = throw UnsupportedOperationException()
         }
-        val recorder = UsageRecorder(broken, backgroundScope, StandardTestDispatcher(testScheduler))
+        val recorder = UsageRecorder(broken, backgroundScope, StandardTestDispatcher(testScheduler), StandardTestDispatcher(testScheduler))
         recorder.record(UsageKind.SEARCH_RUN)
         runCurrent()
         assertTrue(warnings.single().contains("SEARCH_RUN"))

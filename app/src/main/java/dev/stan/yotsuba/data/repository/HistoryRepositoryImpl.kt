@@ -42,7 +42,7 @@ class HistoryRepositoryImpl @Inject constructor(
             HistoryRetention.DAYS_30 -> System.currentTimeMillis() - 30L * 86_400_000
             HistoryRetention.DAYS_7 -> System.currentTimeMillis() - 7L * 86_400_000
         }
-        dao.trimOlderThan(cutoff)
+        trim(cutoff)
     }
 
     override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) =
@@ -65,9 +65,17 @@ class HistoryRepositoryImpl @Inject constructor(
         dao.insertIgnore(entry.toEntity())
     }
 
-    override suspend fun clearAll() = dao.clearAll()
+    // The usage log carries the same board and thread numbers as history, so it is cleared
+    // and trimmed with it. Without this, "Clear history" would leave the record behind.
+    override suspend fun clearAll() {
+        dao.clearAll()
+        usage.clearAll()
+    }
 
-    override suspend fun trim(retainAfterMs: Long) = dao.trimOlderThan(retainAfterMs)
+    override suspend fun trim(retainAfterMs: Long) {
+        dao.trimOlderThan(retainAfterMs)
+        usage.trim(retainAfterMs)
+    }
 
     private companion object {
         const val VISIT_GAP_MS = 30 * 60_000L
