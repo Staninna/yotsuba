@@ -47,8 +47,13 @@ class ThreadRenderFlowTest : FlowTest() {
             ">>${TestSeed.DEADLINK_POST_NO} ${TestSeed.DEADLINK_REPLY_TEXT}",
             TestSeed.GREENTEXT_LINE,
         ).forEach { composeRule.listNode(it).assertIsDisplayed() }
-        // The OP: its subject under the header, and the backlink to the reply quoting it.
-        composeRule.listNode(TestSeed.THREAD_SUBJECT).assertIsDisplayed()
+        // The OP: its subject under the header (the top bar shows the same string), and the
+        // backlink to the reply quoting it.
+        composeRule.listNode(TestSeed.OP_TEXT)
+        composeRule.onNode(
+            hasText(TestSeed.THREAD_SUBJECT, substring = false) and inPost(TestSeed.OP_TEXT),
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
         composeRule.listNode("Quoted by:").assertIsDisplayed()
         composeRule.nodeWithText(">>${TestSeed.THREAD_NO + 3}", substring = false).assertIsDisplayed()
     }
@@ -139,8 +144,13 @@ class ThreadRenderFlowTest : FlowTest() {
         composeRule.openThread(TestSeed.VIDEO_BOARD_TITLE, TestSeed.VIDEO_SUBJECT, SHARED_BODY)
         val withProfile = bodyHeight()
 
-        composeRule.backToTabs()
-        composeRule.openThread(TestSeed.BOARD_TITLE, TestSeed.THREAD_SUBJECT, SHARED_BODY)
+        // Back out to the board list by hand: the bottom bar's Boards tab and the Boards
+        // screen's own title are the same word, and from here both are on screen.
+        composeRule.goBack()
+        composeRule.goBack()
+        composeRule.tap(TestSeed.BOARD_TITLE)
+        composeRule.waitForText(TestSeed.THREAD_SUBJECT)
+        composeRule.tap(TestSeed.THREAD_SUBJECT)
         val plain = bodyHeight()
         assertTrue("$plain on /${TestSeed.BOARD}/ should be shorter than $withProfile on /${TestSeed.VIDEO_BOARD}/", plain < withProfile)
     }

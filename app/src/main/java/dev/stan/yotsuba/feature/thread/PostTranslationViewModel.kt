@@ -8,6 +8,7 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.repository.SettingsRepository
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -40,10 +41,12 @@ class PostTranslationViewModel @Inject constructor(
     private val _translations = MutableStateFlow<Map<Long, PostTranslation>>(emptyMap())
     val translations: StateFlow<Map<Long, PostTranslation>> = _translations
 
+    private val jobs = mutableMapOf<Long, Job>()
+
     fun translate(post: ThreadPost) {
         if (_translations.value[post.no] is PostTranslation.Working) return
         set(post.no, PostTranslation.Working(downloading = false))
-        viewModelScope.launch {
+        jobs[post.no] = viewModelScope.launch {
             val result = try {
                 PostTranslation.Done(
                     translator.translate(post.body.plainText) { set(post.no, PostTranslation.Working(downloading = true)) },
@@ -57,7 +60,14 @@ class PostTranslationViewModel @Inject constructor(
         }
     }
 
-    fun hide(postNo: Long) = _translations.update { it - postNo }
+    /**
+     * Drops the block and the work behind it. Without the cancel, a translation still in
+     * flight wrote its result back after the user hid it and the block reappeared.
+     */
+    fun hide(postNo: Long) {
+        jobs.remove(postNo)?.cancel()
+        _translations.update { it - postNo }
+    }
 
     private fun set(postNo: Long, state: PostTranslation) = _translations.update { it + (postNo to state) }
 }

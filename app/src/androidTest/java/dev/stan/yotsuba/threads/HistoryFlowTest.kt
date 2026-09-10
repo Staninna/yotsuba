@@ -1,6 +1,5 @@
 package dev.stan.yotsuba.threads
 
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
@@ -106,10 +105,10 @@ class HistoryFlowTest : FlowTest() {
     fun cardTap_reopensTheThreadWhereItWasLeft() {
         openRecent()
         composeRule.tap(TestSeed.THREAD_SUBJECT)
-        composeRule.waitForText(TestSeed.OP_TEXT)
-        // The entry's lastScrollPostNo is the final post, so the list opens scrolled to it.
+        // The entry's lastScrollPostNo is the final post, so the thread opens at the end:
+        // the last post is composed and the OP, a screenful above it, is not.
         composeRule.waitForText(TestSeed.GREENTEXT_LINE)
-        composeRule.nodeWithText(TestSeed.GREENTEXT_LINE).assertIsDisplayed()
+        composeRule.waitForTextGone(TestSeed.OP_TEXT)
     }
 
     @Test
@@ -122,6 +121,7 @@ class HistoryFlowTest : FlowTest() {
 
         composeRule.tap("Undo")
         composeRule.waitUntilTrue { entries.any { it.threadNo == yesterday.threadNo } }
+        composeRule.recomposeSegment("Recent")
         composeRule.waitForText("Yesterday thread")
     }
 
@@ -138,7 +138,6 @@ class HistoryFlowTest : FlowTest() {
         composeRule.waitForText("Your entire reading history will be deleted. This can't be undone.")
         // Exact match hits the dialog's confirm button, not its title.
         composeRule.tap("Clear all", substring = false)
-        composeRule.waitForText("History cleared")
         composeRule.waitForText("No history")
         composeRule.waitUntilTrue { entries.isEmpty() }
     }

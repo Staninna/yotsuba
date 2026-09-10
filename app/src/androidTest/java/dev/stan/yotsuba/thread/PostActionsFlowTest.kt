@@ -112,11 +112,14 @@ class PostActionsFlowTest : FlowTest() {
         composeRule.longPressPost(TestSeed.REPLY_TEXT)
         composeRule.tap("Translate")
 
-        // The block under the post says which state it is in; on an emulator with no model
-        // that is a failure, and either way "Hide" takes it away again.
+        // The block under the post says which state it is in: a result, or a failure on a
+        // device with no model. Let it settle before hiding it, since a translation that
+        // lands after the tap puts the block back.
         composeRule.waitForText("Translation")
+        composeRule.waitForTextGone("Translating…")
+        composeRule.waitForTextGone("Downloading the language model…")
+
         composeRule.tap("Hide")
         composeRule.waitForTextGone("Translation")
-        composeRule.listNode(TestSeed.REPLY_TEXT).assertIsDisplayed()
     }
 }

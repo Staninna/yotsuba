@@ -9,6 +9,7 @@ import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.hasText
 import androidx.compose.ui.test.assertIsDisplayed
 import dev.stan.yotsuba.goBack
+import dev.stan.yotsuba.waitForContentDescriptionGone
 import dev.stan.yotsuba.openSeededThread
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
@@ -64,7 +65,7 @@ class ThreadNavigationFlowTest : FlowTest() {
     }
 
     @Test
-    fun jumpButtons_takeTheListToBothEnds() {
+    fun jumpToTop_returnsToTheOp_andTakesTheButtonsWithIt() {
         fakes.threads.threads[key] = longThread(FILLERS)
         composeRule.openSeededThread()
         composeRule.listNode(fillerText(FILLERS))
@@ -72,6 +73,16 @@ class ThreadNavigationFlowTest : FlowTest() {
         composeRule.tapIcon("Jump to top")
         composeRule.waitForTextGone(fillerText(FILLERS))
         composeRule.waitForText(TestSeed.OP_TEXT)
+        // An unscrolled list has nowhere to jump from: the buttons are only there once moved.
+        composeRule.waitForContentDescriptionGone("Jump to top")
+    }
+
+    @Test
+    fun jumpToBottom_reachesTheLastPost() {
+        fakes.threads.threads[key] = longThread(FILLERS)
+        composeRule.openSeededThread()
+        // Far enough down for the buttons to show, nowhere near the end.
+        composeRule.listNode(fillerText(2))
 
         composeRule.tapIcon("Jump to bottom")
         composeRule.waitForText(fillerText(FILLERS))

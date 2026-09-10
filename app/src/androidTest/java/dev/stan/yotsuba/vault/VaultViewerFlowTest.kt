@@ -45,7 +45,9 @@ class VaultViewerFlowTest : FlowTest() {
             "1 / 2 · 12 KB · 800×600 · ${TestSeed.THREAD_SUBJECT}",
         )
 
-        composeRule.pageViewerForward()
+        // The page itself, before the chrome: this says the swipe landed, whether or not
+        // the bar it would be read off has hidden itself by now.
+        composeRule.pageViewerTo(VaultSeed.spoilerImage.displayName)
         composeRule.waitForViewerChrome(VaultSeed.spoilerImage.displayName, "2 / 2 · 7 KB · 640×480")
     }
 
