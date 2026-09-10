@@ -121,7 +121,6 @@ class HistoryFlowTest : FlowTest() {
 
         composeRule.tap("Undo")
         composeRule.waitUntilTrue { entries.any { it.threadNo == yesterday.threadNo } }
-        composeRule.recomposeSegment("Recent")
         composeRule.waitForText("Yesterday thread")
     }
 

@@ -160,7 +160,6 @@ class BookmarksFlowTest : FlowTest() {
 
         composeRule.tap("Undo")
         composeRule.waitUntilTrue { rows.any { it.threadNo == bravo.threadNo } }
-        composeRule.recomposeSegment("Watched")
         composeRule.waitForText("Bravo bookmark")
     }
 
@@ -180,6 +179,7 @@ class BookmarksFlowTest : FlowTest() {
         composeRule.tap("Remove", substring = false)
         composeRule.waitForText("Bookmark removed")
         composeRule.waitUntilTrue { rows.none { it.threadNo == bravo.threadNo } }
+        composeRule.waitForTextGone("Bravo bookmark")
     }
 
     @Test
