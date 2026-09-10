@@ -211,6 +211,27 @@ class CatalogFlowTest : FlowTest() {
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
     }
 
+    @Test
+    fun crossReferenceBadges_countBothDirections_amongThreadsInTheCatalog() {
+        // The quoter also points at 9_999, which is not in the catalog and so counts for nothing.
+        fakes.catalog.catalogs[TestSeed.BOARD] = listOf(
+            TestSeed.catalogThread(TestSeed.BOARD, 8001L, "Quoting thread", "body 8001")
+                .copy(quotedThreadNos = setOf(8002L, 8003L, 9999L)),
+            TestSeed.catalogThread(TestSeed.BOARD, 8002L, "Middle thread", "body 8002")
+                .copy(quotedThreadNos = setOf(8003L)),
+            TestSeed.catalogThread(TestSeed.BOARD, 8003L, "Quoted thread", "body 8003"),
+            TestSeed.catalogThread(TestSeed.BOARD, 8004L, "Lonely thread", "body 8004"),
+        )
+        composeRule.openCatalog(firstThread = "Quoting thread")
+
+        composeRule.textInCard("Quoting thread", "Links to 2 threads").assertIsDisplayed()
+        composeRule.textInCard("Middle thread", "Links to 1 thread").assertIsDisplayed()
+        composeRule.textInCard("Middle thread", "1 thread references this").assertIsDisplayed()
+        composeRule.textInCard("Quoted thread", "2 threads reference this").assertIsDisplayed()
+        composeRule.textInCard("Lonely thread", "Links to").assertDoesNotExist()
+        composeRule.textInCard("Lonely thread", "references this").assertDoesNotExist()
+    }
+
     private companion object {
         const val BLURRED = "Blurred thumbnail. Tap to show"
     }

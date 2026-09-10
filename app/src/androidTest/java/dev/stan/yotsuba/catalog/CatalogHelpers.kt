@@ -3,7 +3,11 @@ package dev.stan.yotsuba.catalog
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.CatalogThread
@@ -24,4 +28,15 @@ const val FIRST_FILLER = "Filler 01"
  */
 fun ComposeTestRule.catalogGrid(): SemanticsNodeInteraction = onNode(
     SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange) and hasScrollToIndexAction(),
+)
+
+/**
+ * One text of the card titled [title]: a badge or the metadata line. Two cards can carry the
+ * same badge, so the card has to be part of the selector, as [dev.stan.yotsuba.inRow] does
+ * for an icon.
+ */
+fun ComposeTestRule.textInCard(title: String, text: String): SemanticsNodeInteraction = onNode(
+    hasText(text, substring = true, ignoreCase = true) and
+        hasAnyAncestor(hasClickAction() and hasAnyDescendant(hasText(title, substring = true, ignoreCase = true))),
+    useUnmergedTree = true,
 )
