@@ -28,6 +28,7 @@ import dev.stan.yotsuba.core.database.YotsubaDatabase
 import dev.stan.yotsuba.core.datastore.SettingsDataStore
 import dev.stan.yotsuba.core.network.ArchiveApi
 import dev.stan.yotsuba.core.network.CachePolicyInterceptor
+import dev.stan.yotsuba.core.network.DataUsageMeter
 import dev.stan.yotsuba.core.network.FourChanApi
 import dev.stan.yotsuba.core.network.InMemoryCookieJar
 import dev.stan.yotsuba.core.network.NetworkMonitor
@@ -52,6 +53,7 @@ import dev.stan.yotsuba.data.repository.ReverseSearchRepositoryImpl
 import dev.stan.yotsuba.data.repository.ThreadRepositoryImpl
 import dev.stan.yotsuba.data.repository.UsageRecorder
 import dev.stan.yotsuba.data.repository.VaultDedupRepositoryImpl
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.repository.BackupRepository
 import dev.stan.yotsuba.domain.repository.BoardRepository
 import dev.stan.yotsuba.domain.repository.BookmarkRepository
@@ -89,11 +91,18 @@ object NetworkModule {
      * One client shared with Coil and Media3, so the same pool, dispatcher and interceptors, but its
      * Cache is 10 MB and carries API JSON only; Coil gets its own diskCache (D8).
      */
+    /** Also a lifecycle observer: the application registers it so a background flushes the batch. */
+    @Provides
+    @Singleton
+    fun dataUsageMeter(usage: UsageRecorder): DataUsageMeter =
+        DataUsageMeter(sink = { board, bytes -> usage.record(UsageKind.BYTES_FETCHED, board = board, value = bytes) })
+
     @Provides
     @Singleton
     fun okHttpClient(
         @ApplicationContext context: Context,
         networkMonitor: NetworkMonitor,
+        dataUsageMeter: DataUsageMeter,
     ): OkHttpClient = OkHttpClient.Builder()
         .cache(Cache(File(context.cacheDir, "api_json_cache"), 10L * 1024 * 1024))
         .cookieJar(InMemoryCookieJar())
@@ -102,6 +111,7 @@ object NetworkModule {
         // Network interceptor so cache hits and only-if-cached requests are never throttled.
         .addNetworkInterceptor(RateLimitInterceptor())
         .addNetworkInterceptor(CachePolicyInterceptor())
+        .addNetworkInterceptor(dataUsageMeter)
         .build()
 
     @Provides

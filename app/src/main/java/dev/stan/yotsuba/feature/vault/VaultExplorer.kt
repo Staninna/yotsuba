@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CallMerge
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
@@ -111,6 +113,7 @@ internal fun VaultExplorer(
     onDeleteBoard: (String) -> Unit,
     onRenameThread: (VaultLocation) -> Unit,
     onMergeThread: (VaultLocation) -> Unit,
+    onRedownloadMissing: (VaultLocation) -> Unit,
     onSort: (VaultSort) -> Unit,
     onToggleReversed: () -> Unit,
     onFilter: (VaultFilter) -> Unit,
@@ -202,6 +205,7 @@ internal fun VaultExplorer(
                     onDelete = onDeleteThread,
                     onRename = onRenameThread,
                     onMerge = onMergeThread,
+                    onRedownload = onRedownloadMissing,
                 )
             }
         }
@@ -253,6 +257,7 @@ private fun ThreadList(
     onDelete: (VaultLocation) -> Unit,
     onRename: (VaultLocation) -> Unit,
     onMerge: (VaultLocation) -> Unit,
+    onRedownload: (VaultLocation) -> Unit,
 ) {
     val selecting = selected.isNotEmpty()
     val haptics = rememberHaptics()
@@ -272,7 +277,11 @@ private fun ThreadList(
             ListItem(
                 headlineContent = { Text(threadTitle(section.location, section.subject), maxLines = 1) },
                 supportingContent = {
-                    Text(itemsSummary(section.entries.size, section.sizeBytes) + " · " + TimeFormat.date(section.savedAt))
+                    var summary = itemsSummary(section.entries.size, section.sizeBytes) + " · " + TimeFormat.date(section.savedAt)
+                    if (section.missing > 0) {
+                        summary += " · " + pluralStringResource(R.plurals.vault_missing_count, section.missing, section.missing)
+                    }
+                    Text(summary)
                 },
                 leadingContent = {
                     if (selecting) {
@@ -294,6 +303,13 @@ private fun ThreadList(
                                     text = { Text(stringResource(R.string.vault_rename_thread)) },
                                     leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
                                     onClick = { it(); onRename(section.location) },
+                                )
+                            }
+                            if (section.missing > 0) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.vault_redownload_missing)) },
+                                    leadingIcon = { Icon(Icons.Filled.CloudSync, contentDescription = null) },
+                                    onClick = { it(); onRedownload(section.location) },
                                 )
                             }
                             if (!section.location.isUnsorted && threads.size > 1) {
@@ -539,7 +555,8 @@ private fun MediaGrid(
                     .aspectRatio(1f)
                     .selectable(selecting, checked)
                     .combinedClickable(
-                        onClick = { if (selecting) onToggleSelected(entry) else onOpen(entry) },
+                        // Nothing on disk to view: a missing file goes straight to its sheet.
+                        onClick = { if (selecting) onToggleSelected(entry) else if (entry.missing) onLongPress(entry) else onOpen(entry) },
                         onLongClick = {
                             if (!selecting) haptics.confirm()
                             onLongPress(entry)
@@ -596,17 +613,30 @@ internal fun itemsSummary(count: Int, bytes: Long): String =
 @Composable
 internal fun MediaThumb(entry: VaultEntry, modifier: Modifier = Modifier) {
     // Images decode straight from disk; videos show their local still, or the cached
-    // remote thumbnail for one saved before stills existed and not yet rescanned.
-    AsyncImage(
-        model = when {
-            !entry.isVideo -> File(entry.absolutePath)
-            entry.localThumbnailPath != null -> File(entry.localThumbnailPath!!)
-            else -> entry.thumbnailUrl
-        },
-        contentDescription = entry.displayName,
-        contentScale = ContentScale.Crop,
-        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-    )
+    // remote thumbnail for one saved before stills existed and not yet rescanned. A
+    // missing file has only the remote thumbnail, dimmed under a cloud-off mark.
+    Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
+        AsyncImage(
+            model = when {
+                entry.missing -> entry.thumbnailUrl
+                !entry.isVideo -> File(entry.absolutePath)
+                entry.localThumbnailPath != null -> File(entry.localThumbnailPath!!)
+                else -> entry.thumbnailUrl
+            },
+            contentDescription = entry.displayName,
+            contentScale = ContentScale.Crop,
+            alpha = if (entry.missing) 0.35f else 1f,
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (entry.missing) {
+            Icon(
+                Icons.Filled.CloudOff,
+                contentDescription = stringResource(R.string.vault_missing),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+    }
 }
 
 /**

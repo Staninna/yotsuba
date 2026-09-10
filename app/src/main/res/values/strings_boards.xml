@@ -5,7 +5,9 @@
     <string name="catalog_thread_link_copied">Link copied</string>
     <string name="boards_favourite_removed">Removed /%1$s/ from favourites</string>
     <string name="boards_profiles">Board profiles</string>
-    <string name="boards_profiles_summary">Override text size, spacing, autoplay, spoilers and inline images for one board</string>
+    <string name="boards_profiles_summary">Override text size, spacing, autoplay, spoilers, inline images and blur for one board</string>
+    <string name="boards_blur_thumbnails">Blur catalog thumbnails</string>
+    <string name="boards_blur_thumbnails_summary">Tap a thumbnail to see it; tap again to open the thread</string>
     <string name="boards_profile_add">Board code</string>
     <string name="boards_profile_global">Uses global settings</string>
     <plurals name="boards_profile_overrides">

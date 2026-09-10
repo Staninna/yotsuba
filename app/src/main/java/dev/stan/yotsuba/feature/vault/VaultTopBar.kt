@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
@@ -58,6 +59,7 @@ internal class VaultBarActions(
     val onImportFolder: () -> Unit,
     val onRescan: () -> Unit,
     val onFetchReplies: () -> Unit,
+    val onRedownloadMissing: () -> Unit,
     val onStats: () -> Unit,
     val onDedup: () -> Unit,
     val onTrash: () -> Unit,
@@ -104,7 +106,7 @@ internal fun VaultBrowseTopBar(state: VaultUiState, actions: VaultBarActions) {
             if (state.sync.running) {
                 SyncProgress(state.sync)
             } else if (state.hasStorageAccess) {
-                SyncMenu(actions.onRescan, actions.onFetchReplies)
+                SyncMenu(actions.onRescan, actions.onFetchReplies, actions.onRedownloadMissing.takeIf { state.missing.isNotEmpty() })
             }
             if (state.hasStorageAccess) {
                 MoreMenu(actions.onStats, actions.onDedup, actions.onTrash)
@@ -157,7 +159,7 @@ private fun ImportMenu(enabled: Boolean, onFiles: () -> Unit, onFolder: () -> Un
 }
 
 @Composable
-private fun SyncMenu(onRescan: () -> Unit, onFetchReplies: () -> Unit) {
+private fun SyncMenu(onRescan: () -> Unit, onFetchReplies: () -> Unit, onRedownloadMissing: (() -> Unit)?) {
     BarMenu(Icons.Filled.Refresh, stringResource(R.string.vault_sync)) { close ->
         DropdownMenuItem(
             text = { MenuLabel(R.string.vault_rescan_label, R.string.vault_rescan_explanation) },
@@ -169,6 +171,13 @@ private fun SyncMenu(onRescan: () -> Unit, onFetchReplies: () -> Unit) {
             leadingIcon = { Icon(Icons.Filled.CloudDownload, contentDescription = null) },
             onClick = { close(); onFetchReplies() },
         )
+        if (onRedownloadMissing != null) {
+            DropdownMenuItem(
+                text = { MenuLabel(R.string.vault_redownload_missing, R.string.vault_redownload_missing_explanation) },
+                leadingIcon = { Icon(Icons.Filled.CloudSync, contentDescription = null) },
+                onClick = { close(); onRedownloadMissing() },
+            )
+        }
     }
 }
 

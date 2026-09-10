@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Loop
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.RepeatOne
@@ -168,6 +169,16 @@ fun AutoAdvanceMenuItem(autoAdvance: Boolean, onToggle: () -> Unit) {
         label = stringResource(
             if (autoAdvance) R.string.vault_auto_advance_on else R.string.vault_auto_advance_off,
         ),
+        onClick = onToggle,
+    )
+}
+
+/** Loop a section of the open video, or go back to looping all of it. */
+@Composable
+fun LoopSectionMenuItem(loopSection: Boolean, onToggle: () -> Unit) {
+    ViewerMenuItem(
+        icon = Icons.Filled.Loop,
+        label = stringResource(if (loopSection) R.string.media_loop_whole else R.string.media_loop_section),
         onClick = onToggle,
     )
 }

@@ -52,6 +52,26 @@ data class VaultEntry(
 ) {
     val isVideo: Boolean get() = ext != null && isVideoExt(ext)
 
+    /**
+     * Listed in its thread's sidecar but not on disk: deleted outside the app, or a copy
+     * that never finished. Only a rescan finds these, and only a re-download clears them.
+     */
+    val missing: Boolean get() = absolutePath.isEmpty()
+
     /** A video that plays with sound: its own track, or a sound post's. Unprobed counts as silent. */
     val hasSound: Boolean get() = isVideo && (soundUrl != null || hasAudio == true)
+}
+
+/**
+ * Where each of [missing]'s files can be fetched from, as [thread] carries it: 4chan's own
+ * URL while the thread lives, the archive's copy once it has moved there. Null for a file
+ * whose post is not in [thread], or whose media it no longer carries. Files are matched to
+ * posts by number; one saved without a post number by its URL.
+ */
+fun redownloadSources(missing: List<VaultEntry>, thread: ThreadDetails): Map<VaultEntry, String?> {
+    val byPost = thread.posts.associateBy { it.no }
+    val byUrl = thread.posts.mapNotNull { it.presentMedia?.fullUrl }.toSet()
+    return missing.associateWith { entry ->
+        entry.postNo?.let { byPost[it]?.presentMedia?.fullUrl } ?: entry.url.takeIf { it in byUrl }
+    }
 }

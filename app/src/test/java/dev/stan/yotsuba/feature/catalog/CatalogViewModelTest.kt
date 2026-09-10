@@ -7,7 +7,9 @@ import dev.stan.yotsuba.core.network.NetworkMonitor
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.Board
 import dev.stan.yotsuba.domain.model.BoardCategory
+import dev.stan.yotsuba.domain.model.BoardProfile
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.domain.model.CatalogSort
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.DataResult
 import dev.stan.yotsuba.domain.model.Filter
@@ -62,7 +64,7 @@ class CatalogViewModelTest {
         }
     }
 
-    private val boards = FakeBoardRepository(listOf(FakeBoardRepository.stub("g")))
+    private val boards = FakeBoardRepository(listOf(FakeBoardRepository.stub("g").copy(description = "Technology")))
 
     private inner class Env(
         threads: List<CatalogThread> = listOf(thread(1, subject = "Alpha"), thread(2), thread(3)),
@@ -72,6 +74,7 @@ class CatalogViewModelTest {
     ) {
         val catalog = FakeCatalogRepository(DataResult.Success(threads))
         val siblings = ThreadSiblingsStore()
+        val aboutCards = BoardAboutCards()
 
         fun vm(initialSearch: String? = null) = CatalogViewModel(
             board = "g",
@@ -82,6 +85,7 @@ class CatalogViewModelTest {
             hiddenThreadsRepository = hidden,
             historyRepository = history,
             threadSiblings = siblings,
+            aboutCards = aboutCards,
             networkMonitor = NetworkMonitor(ApplicationProvider.getApplicationContext()),
             compute = dispatcher,
         )
@@ -238,6 +242,50 @@ class CatalogViewModelTest {
             vm.onCycleLayout()
             vm.onCycleLayout()
             assertEquals(CatalogLayout.COMFORTABLE, ((latest() as UiState.Success).data).layout)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `selecting a sort reorders the list and is saved per board`() = runTest(dispatcher.scheduler) {
+        val env = Env(threads = listOf(thread(1).copy(replyCount = 1), thread(2).copy(replyCount = 9), thread(3)))
+        val vm = env.vm()
+        vm.uiState.test {
+            latest()
+            vm.onSelectSort(CatalogSort.REPLY_COUNT)
+            assertEquals(listOf(2L, 1L, 3L), (latest() as UiState.Success).data.threads.map { it.no })
+            assertEquals(mapOf("g" to CatalogSort.REPLY_COUNT), env.settings.state.value.catalogSorts)
+            vm.onSelectSort(CatalogSort.BUMP_ORDER)
+            assertEquals(listOf(1L, 2L, 3L), (latest() as UiState.Success).data.threads.map { it.no })
+            assertEquals(emptyMap<String, CatalogSort>(), env.settings.state.value.catalogSorts)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `blur follows the board profile and a reveal sticks for the session`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        env.settings.state.value = Settings(boardProfiles = mapOf("g" to BoardProfile(blurThumbnails = true)))
+        val vm = env.vm()
+        vm.uiState.test {
+            assertEquals(setOf(1L, 2L, 3L), (latest() as UiState.Success).data.blurred)
+            vm.onRevealThumbnail(2)
+            assertEquals(setOf(1L, 3L), (latest() as UiState.Success).data.blurred)
+            env.settings.state.value = Settings()
+            assertEquals(emptySet<Long>(), (latest() as UiState.Success).data.blurred)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test fun `the about card shows once per board per session`() = runTest(dispatcher.scheduler) {
+        val env = Env()
+        val vm = env.vm()
+        vm.uiState.test {
+            assertEquals("Technology", (latest() as UiState.Success).data.about)
+            vm.onDismissAbout()
+            assertNull((latest() as UiState.Success).data.about)
+            cancelAndIgnoreRemainingEvents()
+        }
+        env.vm().uiState.test {
+            assertNull((latest() as UiState.Success).data.about)
             cancelAndIgnoreRemainingEvents()
         }
     }

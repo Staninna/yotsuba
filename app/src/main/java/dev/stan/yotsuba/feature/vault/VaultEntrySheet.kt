@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Share
@@ -40,11 +41,12 @@ internal fun VaultEntrySheet(
     onShare: () -> Unit,
     onSaveToGallery: () -> Unit,
     onDelete: () -> Unit,
+    onRedownload: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(bottom = 24.dp)) {
             SheetTitle(entry.displayName)
-            entryDetails(entry).takeIf { it.isNotBlank() }?.let {
+            entryDetails(entry, stringResource(R.string.vault_missing)).takeIf { it.isNotBlank() }?.let {
                 Text(
                     it,
                     style = MaterialTheme.typography.bodyMedium,
@@ -53,6 +55,9 @@ internal fun VaultEntrySheet(
                 )
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            if (entry.missing) {
+                SheetActionRow(stringResource(R.string.vault_redownload_missing), Icons.Filled.CloudSync, onRedownload)
+            }
             SheetActionRow(stringResource(R.string.vault_select), Icons.Filled.CheckCircle, onSelect)
             if (entry.location.isRemote) {
                 SheetActionRow(
@@ -72,7 +77,8 @@ internal fun VaultEntrySheet(
 }
 
 /** Size, dimensions, length, post number and save date: what the tile cannot fit. */
-internal fun entryDetails(entry: VaultEntry): String = buildList {
+internal fun entryDetails(entry: VaultEntry, missing: String): String = buildList {
+    if (entry.missing) add(missing)
     entry.sizeBytes?.let { add(FileSize.format(it)) }
     if ((entry.width ?: 0) > 0) add("${entry.width}×${entry.height}")
     entry.durationMs?.let { add(TimeFormat.duration(it)) }

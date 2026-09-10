@@ -1,6 +1,10 @@
 package dev.stan.yotsuba.util
 
 import dev.stan.yotsuba.core.util.TimeFormat
+import dev.stan.yotsuba.domain.model.TimestampMode
+import dev.stan.yotsuba.domain.model.TimestampZone
+import java.util.Locale
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -42,5 +46,22 @@ class TimeFormatTest {
         assertEquals("0:05", TimeFormat.duration(5_999))
         assertEquals("59:59", TimeFormat.duration(59 * 60_000L + 59_999L))
         assertEquals("1:23:20", TimeFormat.duration(83 * 60_000L + 20_000L))
+    }
+
+    @Test fun `post time follows the mode and the zone`() {
+        // 2026-01-06 02:04 UTC, which is still 5 Jan, 21:04 in New York.
+        val at = 1_767_665_040L
+        val now = at * 1000 + 3 * 60_000
+        val uk = Locale.UK
+        val saved = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            assertEquals("3m ago", TimeFormat.post(at, TimestampMode.RELATIVE, TimestampZone.BOARD, now, uk))
+            assertEquals("5 Jan 2026, 21:04", TimeFormat.post(at, TimestampMode.ABSOLUTE, TimestampZone.BOARD, now, uk))
+            assertEquals("6 Jan 2026, 02:04", TimeFormat.post(at, TimestampMode.ABSOLUTE, TimestampZone.LOCAL, now, uk))
+            assertEquals("3m ago, 21:04", TimeFormat.post(at, TimestampMode.BOTH, TimestampZone.BOARD, now, uk))
+        } finally {
+            TimeZone.setDefault(saved)
+        }
     }
 }

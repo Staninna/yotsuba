@@ -13,4 +13,13 @@
     <string name="settings_highlight_gets_summary">Tint posts whose number ends in dubs, trips or better.</string>
     <string name="settings_translate_posts">Translate posts</string>
     <string name="settings_translate_posts_summary">Adds Translate to the post menu. Runs on-device; the language model downloads on first use.</string>
+
+    <!-- Settings, Reading section: post time -->
+    <string name="settings_timestamp">Post time</string>
+    <string name="settings_timestamp_relative">Relative</string>
+    <string name="settings_timestamp_absolute">Date and time</string>
+    <string name="settings_timestamp_both">Both</string>
+    <string name="settings_timestamp_zone">Time zone</string>
+    <string name="settings_timestamp_zone_local">This phone</string>
+    <string name="settings_timestamp_zone_board">Board (New York)</string>
 </resources>

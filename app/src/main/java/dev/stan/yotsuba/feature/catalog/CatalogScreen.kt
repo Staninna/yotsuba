@@ -1,19 +1,24 @@
 package dev.stan.yotsuba.feature.catalog
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -21,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -29,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.domain.model.CatalogLayout
+import dev.stan.yotsuba.domain.model.CatalogSort
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,7 +86,7 @@ fun CatalogScreen(
     }
 }
 
-/** Search toggle and layout cycler for a catalog top bar; shared with the Home tab. */
+/** Search toggle, sort menu and layout cycler for a catalog top bar; shared with the Home tab. */
 @Composable
 fun CatalogActions(state: UiState<CatalogContent>, viewModel: CatalogViewModel) {
     val content = (state as? UiState.Success)?.data
@@ -100,4 +108,34 @@ fun CatalogActions(state: UiState<CatalogContent>, viewModel: CatalogViewModel) 
     IconButton(onClick = viewModel::onCycleLayout) {
         Icon(icon, stringResource(label))
     }
+    SortMenu(selected = content?.sort ?: CatalogSort.BUMP_ORDER, onSelect = viewModel::onSelectSort)
 }
+
+@Composable
+private fun SortMenu(selected: CatalogSort, onSelect: (CatalogSort) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    // The menu anchors to its parent, so the button and the menu share one box.
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.catalog_sort))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            for (sort in CatalogSort.entries) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(sort.labelRes)) },
+                    leadingIcon = { RadioButton(selected = sort == selected, onClick = null) },
+                    onClick = { open = false; onSelect(sort) },
+                )
+            }
+        }
+    }
+}
+
+private val CatalogSort.labelRes: Int
+    get() = when (this) {
+        CatalogSort.BUMP_ORDER -> R.string.catalog_sort_bump
+        CatalogSort.CREATION_TIME -> R.string.catalog_sort_created
+        CatalogSort.REPLY_COUNT -> R.string.catalog_sort_replies
+        CatalogSort.IMAGE_COUNT -> R.string.catalog_sort_images
+        CatalogSort.REPLIES_PER_HOUR -> R.string.catalog_sort_replies_per_hour
+    }

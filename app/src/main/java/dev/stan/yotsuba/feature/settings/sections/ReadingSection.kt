@@ -21,6 +21,8 @@ import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.Settings
+import dev.stan.yotsuba.domain.model.TimestampMode
+import dev.stan.yotsuba.domain.model.TimestampZone
 import dev.stan.yotsuba.feature.settings.labelRes
 
 @Composable
@@ -40,6 +42,21 @@ fun ReadingSection(settings: Settings, update: ((Settings) -> Settings) -> Unit)
         labelOf = { stringResource(it.labelRes) },
     )
     TextPreview()
+    ChipRow(
+        label = stringResource(R.string.settings_timestamp),
+        options = TimestampMode.entries,
+        selected = settings.timestampMode,
+        onSelect = { v -> update { it.copy(timestampMode = v) } },
+        labelOf = { stringResource(it.labelRes) },
+    )
+    ChipRow(
+        label = stringResource(R.string.settings_timestamp_zone),
+        options = TimestampZone.entries,
+        selected = settings.timestampZone,
+        onSelect = { v -> update { it.copy(timestampZone = v) } },
+        enabled = settings.timestampMode != TimestampMode.RELATIVE,
+        labelOf = { stringResource(it.labelRes) },
+    )
     SwitchRow(
         title = stringResource(R.string.settings_auto_refresh),
         summary = stringResource(R.string.settings_auto_refresh_summary),
@@ -100,6 +117,19 @@ fun ReadingSection(settings: Settings, update: ((Settings) -> Settings) -> Unit)
         onToggle = { v -> update { it.copy(bookmarkNotifications = v) } },
     )
 }
+
+private val TimestampMode.labelRes: Int
+    get() = when (this) {
+        TimestampMode.RELATIVE -> R.string.settings_timestamp_relative
+        TimestampMode.ABSOLUTE -> R.string.settings_timestamp_absolute
+        TimestampMode.BOTH -> R.string.settings_timestamp_both
+    }
+
+private val TimestampZone.labelRes: Int
+    get() = when (this) {
+        TimestampZone.LOCAL -> R.string.settings_timestamp_zone_local
+        TimestampZone.BOARD -> R.string.settings_timestamp_zone_board
+    }
 
 /** The current value is included even if it is not one of these, so the chip row always has a selection. */
 private val BookmarkRefreshOptions = listOf(15, 30, 60, 180)

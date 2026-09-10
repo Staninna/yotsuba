@@ -10,4 +10,7 @@ interface UsageRepository {
 
     /** Fire-and-forget; never blocks or throws. */
     fun record(kind: UsageKind, board: String? = null, threadNo: Long? = null, value: Long? = null)
+
+    /** Forgets every event of one kind; the data meter's reset is the one caller. */
+    suspend fun clear(kind: UsageKind)
 }

@@ -19,6 +19,11 @@ enum class UsageKind {
     SEARCH_RUN,
     /** A thread that neither 4chan nor an archive answered for was read from the vault sidecar. */
     OFFLINE_COPY,
+    /**
+     * Response bytes off the wire, batched per board by the network meter; [UsageEvent.value]
+     * is the byte count and [UsageEvent.board] is null for a host that names no board.
+     */
+    BYTES_FETCHED,
 }
 
 data class UsageEvent(
@@ -28,6 +33,20 @@ data class UsageEvent(
     val threadNo: Long? = null,
     val value: Long? = null,
 )
+
+/** [UsageKind.BYTES_FETCHED] summed, biggest board first; a null board is traffic outside any board. */
+data class BytesFetched(val total: Long, val byBoard: List<Pair<String?, Long>>) {
+    companion object {
+        /** Events at or after [since] only, so the same fold serves "ever" and "this week". */
+        fun of(events: List<UsageEvent>, since: Long = 0): BytesFetched {
+            val byBoard = events.asSequence()
+                .filter { it.kind == UsageKind.BYTES_FETCHED && it.at >= since }
+                .groupingBy { it.board }.fold(0L) { sum, e -> sum + (e.value ?: 0L) }
+                .toList().sortedByDescending { it.second }
+            return BytesFetched(byBoard.sumOf { it.second }, byBoard)
+        }
+    }
+}
 
 /** The "You" page's numbers, folded once from the whole event list. */
 data class UsageStats(
@@ -39,6 +58,7 @@ data class UsageStats(
     val imagesSaved: Int,
     val videosSaved: Int,
     val bytesSaved: Long,
+    val bytesFetched: BytesFetched,
     val bookmarksAdded: Int,
     val archiveRescues: Int,
     val offlineCopies: Int,
@@ -74,6 +94,7 @@ data class UsageStats(
                 videosSaved = count(UsageKind.VIDEO_SAVED),
                 bytesSaved = events.filter { it.kind == UsageKind.IMAGE_SAVED || it.kind == UsageKind.VIDEO_SAVED }
                     .sumOf { it.value ?: 0L },
+                bytesFetched = BytesFetched.of(events),
                 bookmarksAdded = count(UsageKind.BOOKMARK_ADDED),
                 archiveRescues = count(UsageKind.ARCHIVE_RESCUE),
                 offlineCopies = count(UsageKind.OFFLINE_COPY),

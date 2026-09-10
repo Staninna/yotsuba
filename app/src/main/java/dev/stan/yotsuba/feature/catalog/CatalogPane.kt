@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.feature.catalog
 
 import android.content.Intent
+import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -20,12 +21,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Link
@@ -36,6 +39,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -54,7 +58,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -201,6 +209,11 @@ fun CatalogPane(
                             verticalArrangement = Arrangement.spacedBy(spacing.md),
                             modifier = Modifier.fillMaxSize(),
                         ) {
+                            if (s.about != null) {
+                                item(key = "about", contentType = "about", span = { GridItemSpan(maxLineSpan) }) {
+                                    AboutCard(board, s.about, onDismiss = viewModel::onDismissAbout)
+                                }
+                            }
                             // A collapsed stub and a card are different shapes; keying the
                             // slot type keeps the grid from reusing one for the other.
                             fun stubbed(thread: CatalogThread) =
@@ -221,9 +234,12 @@ fun CatalogPane(
                                         ThreadCard(
                                             thread = thread,
                                             newReplies = s.newReplies[thread.no],
+                                            crossReferences = s.crossReferences[thread.no],
                                             layout = s.layout,
+                                            blurred = thread.no in s.blurred,
                                             onClick = { viewModel.onThreadOpened(thread.no); onOpenThread(thread.no) },
                                             onLongClick = { haptics.longPress(); sheetThread = thread },
+                                            onReveal = { viewModel.onRevealThumbnail(thread.no) },
                                         )
                                     }
                                 }
@@ -292,6 +308,23 @@ private fun ThreadActionsSheet(
     }
 }
 
+/** The board's description from boards.json, the first time the board is opened this session. */
+@Composable
+private fun AboutCard(board: String, text: String, onDismiss: () -> Unit) {
+    val spacing = LocalSpacing.current
+    Card {
+        Row(Modifier.padding(start = spacing.md, top = spacing.xs, bottom = spacing.md), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.catalog_about_title, board), style = MaterialTheme.typography.titleSmall)
+                Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Filled.Close, stringResource(R.string.catalog_about_dismiss))
+            }
+        }
+    }
+}
+
 /** One compact line standing in for a thread a Stub filter caught; tapping shows the real card. */
 @Composable
 private fun FilteredStub(filter: Filter, onClick: () -> Unit) {
@@ -324,13 +357,18 @@ private fun FilteredStub(filter: Filter, onClick: () -> Unit) {
 private fun ThreadCard(
     thread: CatalogThread,
     newReplies: NewReplies?,
+    crossReferences: CrossReferences?,
     layout: CatalogLayout,
+    blurred: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onReveal: () -> Unit,
 ) {
     val spacing = LocalSpacing.current
     // The OP card in the thread carries the same key, so opening the thread carries the image.
-    val shared = thread.thumbnailUrl?.let { Modifier.sharedMedia(it) } ?: Modifier
+    // A blurred thumbnail takes the first tap for itself; the card gets the next one.
+    val shared = (thread.thumbnailUrl?.let { Modifier.sharedMedia(it) } ?: Modifier)
+        .then(if (blurred) Modifier.hidden().combinedClickable(onClick = onReveal, onLongClick = onLongClick) else Modifier)
     Card(modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         when (layout) {
             CatalogLayout.LIST -> Row(Modifier.padding(spacing.md)) {
@@ -348,7 +386,7 @@ private fun ThreadCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    MetadataRow(thread)
+                    MetadataRow(thread, crossReferences)
                 }
             }
             CatalogLayout.COMPACT -> Column {
@@ -361,7 +399,7 @@ private fun ThreadCard(
                 }
                 Column(Modifier.padding(spacing.sm)) {
                     TitleAndBadges(thread, newReplies, maxLines = 2)
-                    MetadataRow(thread)
+                    MetadataRow(thread, crossReferences)
                 }
             }
             CatalogLayout.COMFORTABLE -> Column {
@@ -381,12 +419,20 @@ private fun ThreadCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(spacing.xs))
-                    MetadataRow(thread)
+                    MetadataRow(thread, crossReferences)
                 }
             }
         }
     }
 }
+
+/**
+ * Blur strong enough that nothing in the picture can be made out. RenderEffect blur needs
+ * API 31; below that the image is painted over instead, which hides it just as well.
+ */
+private fun Modifier.hidden(): Modifier =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) blur(24.dp, BlurredEdgeTreatment.Rectangle)
+    else drawWithContent { drawRect(Color.Gray) }
 
 @Composable
 private fun TitleAndBadges(thread: CatalogThread, newReplies: NewReplies?, maxLines: Int = 1) {
@@ -434,12 +480,14 @@ private fun TitleAndBadges(thread: CatalogThread, newReplies: NewReplies?, maxLi
 }
 
 @Composable
-private fun MetadataRow(thread: CatalogThread) {
+private fun MetadataRow(thread: CatalogThread, refs: CrossReferences?) {
     Text(
-        listOf(
+        listOfNotNull(
             pluralStringResource(R.plurals.replies_count, thread.replyCount, thread.replyCount),
             pluralStringResource(R.plurals.images_count, thread.imageCount, thread.imageCount),
             TimeFormat.relative(thread.lastModified),
+            refs?.linksTo?.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.catalog_links_to_threads, it, it) },
+            refs?.referencedBy?.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.catalog_referenced_by_threads, it, it) },
         ).joinToString(" · "),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,

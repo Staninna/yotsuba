@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -29,6 +30,8 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.stan.yotsuba.core.designsystem.theme.YotsubaTheme
+import dev.stan.yotsuba.feature.thread.components.LocalTimestampStyle
+import dev.stan.yotsuba.feature.thread.components.TimestampStyle
 import dev.stan.yotsuba.core.lock.AppLock
 import dev.stan.yotsuba.core.lock.LockPrompter
 import dev.stan.yotsuba.feature.lock.LockScreen
@@ -103,7 +106,11 @@ class MainActivity : FragmentActivity() {
                     }
                     else -> navState.SaveableStateProvider("app") {
                         NotificationPermissionPrompt()
-                        AppNavHost(shell = shell)
+                        CompositionLocalProvider(
+                            LocalTimestampStyle provides TimestampStyle(settings.timestampMode, settings.timestampZone),
+                        ) {
+                            AppNavHost(shell = shell)
+                        }
                     }
                 }
             }

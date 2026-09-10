@@ -57,6 +57,8 @@ sealed interface ViewerPage {
      * full URL, or a vault file's path); null when nothing on the previous screen shares.
      */
     val sharedKey: String? get() = null
+    /** The network copy, for fetching ahead of the swipe; null when the page plays from disk. */
+    val remoteUrl: String? get() = null
 
     val isVideo: Boolean get() = this is Video
     val pipInfo: PipMediaInfo get() = PipMediaInfo(width, height, isVideo)
@@ -75,6 +77,7 @@ sealed interface ViewerPage {
         val deferLoad: Boolean = false,
         override val soundUrl: String? = null,
         override val sharedKey: String? = null,
+        override val remoteUrl: String? = null,
     ) : ViewerPage
 
     data class Video(
@@ -94,6 +97,7 @@ sealed interface ViewerPage {
         override val contentDescription: String = "",
         override val soundUrl: String? = null,
         override val sharedKey: String? = null,
+        override val remoteUrl: String? = null,
     ) : ViewerPage
 }
 
@@ -125,6 +129,9 @@ class MediaFeedState internal constructor(
 
     /** True while the seek bar is being dragged; the chrome stays put until it is let go. */
     var scrubbing by mutableStateOf(false)
+
+    /** The open video loops between two handles on its seek bar. Reset on every page change. */
+    var loopSection by mutableStateOf(false)
 
     /** Keeps the chrome up and restarts its countdown. */
     fun touchChrome() {
@@ -186,6 +193,8 @@ fun MediaFeedViewer(
     onLongPressPage: (Int) -> Unit = {},
     /** Saves still queued or running; kept on screen after the chrome hides. */
     activeDownloads: Int = 0,
+    /** How many pages past the open one to fetch into the caches; 0 fetches nothing. */
+    precacheAhead: Int = 0,
     /** Inline actions, at most about three: past that the title gets no room. */
     topBarActions: @Composable RowScope.() -> Unit = {},
     /** Everything else, in the overflow menu after auto-advance and picture-in-picture. */
@@ -203,7 +212,15 @@ fun MediaFeedViewer(
         }
     }
 
-    LaunchedEffect(feed.currentPage) { onPageViewed(feed.currentPage) }
+    LaunchedEffect(feed.currentPage) {
+        feed.loopSection = false
+        onPageViewed(feed.currentPage)
+    }
+
+    val precacher = rememberPrecacher()
+    LaunchedEffect(precacher, pages, feed.currentPage, precacheAhead) {
+        precacher.retarget(precacheWindow(feed.currentPage, precacheAhead, pages.size).map(pages::get))
+    }
 
     // One owner for the wake lock. FLAG_KEEP_SCREEN_ON is window-scoped and not
     // refcounted, so letting each composed VideoPage set it would have them fighting;
@@ -261,6 +278,7 @@ fun MediaFeedViewer(
                     onLongPress = { onLongPressPage(page) },
                     soundUrl = p.soundUrl,
                     sharedKey = p.sharedKey,
+                    loopSection = feed.loopSection && feed.currentPage == page,
                 )
                 is ViewerPage.Image -> ImagePage(
                     model = p.model,
@@ -295,6 +313,9 @@ fun MediaFeedViewer(
                 ViewerOverflowMenu { close ->
                     AutoAdvanceMenuItem(autoAdvance) { close(); onToggleAutoAdvance() }
                     PipMenuItem { close(); pip.enter(current?.pipInfo, feed.playbackOn) }
+                    if (current?.isVideo == true) {
+                        LoopSectionMenuItem(feed.loopSection) { close(); feed.loopSection = !feed.loopSection }
+                    }
                     topBarMenu(close)
                 }
             }

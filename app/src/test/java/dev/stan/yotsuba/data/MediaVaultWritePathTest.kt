@@ -28,6 +28,7 @@ import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.domain.model.VaultError
+import dev.stan.yotsuba.domain.model.VaultLocation
 import dev.stan.yotsuba.domain.model.VaultPaths
 import dev.stan.yotsuba.domain.model.VaultSaveContext
 import dev.stan.yotsuba.domain.repository.SettingsRepository
@@ -40,6 +41,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
@@ -78,9 +80,12 @@ class MediaVaultWritePathTest {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var access = true
 
+    private var archived: DataResult<ThreadDetails> = DataResult.Failure(NetworkError.NotFound)
     private val threads = object : ThreadRepository {
         override suspend fun thread(board: String, no: Long, forceRefresh: Boolean): DataResult<ThreadDetails> =
             DataResult.Failure(NetworkError.NotFound)
+
+        override suspend fun archivedThread(board: String, no: Long): DataResult<ThreadDetails> = archived
     }
     private val settings = object : SettingsRepository {
         override val settings: Flow<Settings> = MutableStateFlow(Settings())
@@ -240,7 +245,17 @@ class MediaVaultWritePathTest {
         repo.rescan()
 
         val rows = db.savedMediaDao().allOnce().sortedBy { it.url }
-        assertEquals(listOf("https://i.4cdn.org/a/8.jpg", "https://i.4cdn.org/g/2.jpg"), rows.map { it.url })
+        assertEquals(
+            listOf("https://i.4cdn.org/a/8.jpg", "https://i.4cdn.org/g/2.jpg", "https://i.4cdn.org/g/3.jpg"),
+            rows.map { it.url },
+        )
+        // Listed in the sidecar but not on disk: kept as a row with no path, so the
+        // explorer can show it missing and offer to fetch it back.
+        val gone = rows.single { it.url.endsWith("/3.jpg") }
+        assertEquals("", gone.absolutePath)
+        assertEquals(1L, gone.threadNo)
+        assertTrue(repo.entries().first().single { it.url.endsWith("/3.jpg") }.missing)
+        assertFalse(repo.saved().first().containsKey(gone.url))
         val cat = rows.single { it.url.endsWith("/2.jpg") }
         assertEquals(File(cats, "2_cat.jpg").absolutePath, cat.absolutePath)
         assertEquals(1L, cat.threadNo)
@@ -250,6 +265,35 @@ class MediaVaultWritePathTest {
         val dog = rows.single { it.url.endsWith("/8.jpg") }
         assertEquals("a", dog.board)
         assertEquals(7L, dog.threadNo)
+    }
+
+    @Test fun `redownloadMissing fetches a missing file back from the archive once 4chan has dropped the thread`() = runTest {
+        val cats = threadDir("g", "1 - Cats")
+        sidecarFile(cats, 1, "2_cat.jpg", "https://i.4cdn.org/g/2.jpg", postNo = 2)
+        sidecarFile(cats, 1, "3_gone.jpg", "https://i.4cdn.org/g/3.jpg", postNo = 3, present = false)
+        sidecarFile(cats, 1, "4_lost.jpg", "https://i.4cdn.org/g/4.jpg", postNo = 4, present = false)
+        repo.rescan()
+        // The archive still carries post 3's file under its own host; post 4 is gone for good.
+        val archiveUrl = server.url("/archive/3.jpg").toString()
+        archived = DataResult.Success(
+            ThreadDetails(
+                board = "g", threadNo = 1, archived = true, closed = false, backlinks = emptyMap(),
+                posts = listOf(post(1, isOp = true), post(3, item(3, "cat", "archived bytes").copy(fullUrl = archiveUrl))),
+            ),
+        )
+        server.enqueue(MockResponse().setBody("archived bytes"))
+
+        val summary = repo.redownloadMissing(listOf(VaultLocation("g", 1)))
+
+        assertEquals(1, summary.redownloaded)
+        assertEquals(1, summary.unrecoverable)
+        assertEquals(1, summary.updated)
+        assertEquals("archived bytes", File(cats, "3_gone.jpg").readText())
+        val rows = db.savedMediaDao().allOnce().associateBy { it.url }
+        assertEquals(File(cats, "3_gone.jpg").absolutePath, rows.getValue("https://i.4cdn.org/g/3.jpg").absolutePath)
+        assertEquals("", rows.getValue("https://i.4cdn.org/g/4.jpg").absolutePath)
+        // The sidecar entry was never touched: same name, same 4chan URL.
+        assertEquals("https://i.4cdn.org/g/3.jpg", meta(cats).files.single { it.fileName == "3_gone.jpg" }.url)
     }
 
     @Test fun `unindexedThreadCount counts sidecar threads the index has no row for`() = runTest {

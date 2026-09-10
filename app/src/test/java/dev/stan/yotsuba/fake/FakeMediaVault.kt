@@ -37,6 +37,7 @@ open class FakeMediaVault : MediaVaultRepository {
     override suspend fun syncSavedThreads(onProgress: (Int, Int) -> Unit, skip: Set<VaultLocation>) = VaultSyncSummary()
     override suspend fun snapshotThread(board: String, threadNo: Long): VaultError? = null
     override suspend fun snapshotThreads(targets: List<VaultLocation>, onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
+    override suspend fun redownloadMissing(targets: List<VaultLocation>, onProgress: (Int, Int) -> Unit) = VaultSyncSummary()
     override suspend fun renameThread(board: String, threadNo: Long, name: String): VaultError? = null
     override suspend fun mergeThreads(fromBoard: String, fromThreadNo: Long, intoBoard: String, intoThreadNo: Long): VaultError? = null
     override suspend fun rescan() {}

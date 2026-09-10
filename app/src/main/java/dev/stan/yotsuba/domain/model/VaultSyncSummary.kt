@@ -13,6 +13,10 @@ data class VaultSyncSummary(
     val failed: Int = 0,
     /** Dead threads whose sidecar was compacted to the saved conversations during this pass. */
     val pruned: Int = 0,
+    /** Files a re-download pass fetched back onto disk. */
+    val redownloaded: Int = 0,
+    /** Missing files no source could be found for: the post is gone from 4chan and every archive. */
+    val unrecoverable: Int = 0,
     /** True when the API asked us to back off and the pass stopped short. */
     val rateLimited: Boolean = false,
     /**

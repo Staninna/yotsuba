@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import dev.stan.yotsuba.R
 import dev.stan.yotsuba.core.designsystem.component.EmptyState
 import dev.stan.yotsuba.core.designsystem.component.MediaThumbnail
+import dev.stan.yotsuba.core.designsystem.component.NoSearchResults
+import dev.stan.yotsuba.core.designsystem.component.SearchField
 import dev.stan.yotsuba.core.designsystem.component.VideoBadge
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.domain.model.MediaItem
@@ -68,19 +70,26 @@ enum class GalleryFilter(val labelRes: Int) {
 data class GalleryTile(val post: ThreadPost, val media: MediaItem, val copies: Int)
 
 /**
- * The cells for [posts] under [filter], in thread order, one per distinct file: reposts
- * (same MD5) fold into the first post that carried the file, which shows the count. A file
- * whose source gave no MD5 stands alone.
+ * The cells for [posts] under [filter] whose original filename contains [query] (case
+ * insensitive; blank matches all), in thread order, one per distinct file: reposts (same
+ * MD5) fold into the first post that carried the file, which shows the count. A file whose
+ * source gave no MD5 stands alone.
  */
-internal fun galleryTiles(posts: List<ThreadPost>, filter: GalleryFilter, boardAllowsAudio: Boolean): List<GalleryTile> =
+internal fun galleryTiles(
+    posts: List<ThreadPost>,
+    filter: GalleryFilter,
+    boardAllowsAudio: Boolean,
+    query: String = "",
+): List<GalleryTile> =
     posts.mapNotNull { post -> post.presentMedia?.let { post to it } }
-        .filter { (_, media) -> filter.matches(media, boardAllowsAudio) }
+        .filter { (_, media) -> filter.matches(media, boardAllowsAudio) && media.displayName.contains(query.trim(), true) }
         .groupBy { (_, media) -> media.md5 ?: media.fullUrl }
         .values.map { copies -> GalleryTile(copies.first().first, copies.first().second, copies.size) }
 
 /**
- * Every attachment in the thread as a grid, narrowed by a chip row; tapping one opens the
- * viewer at that post. [onSaveAll] receives the posts currently shown, not the whole thread.
+ * Every attachment in the thread as a grid, narrowed by a chip row and a filename search;
+ * tapping one opens the viewer at that post. [onSaveAll] receives the posts currently
+ * shown, not the whole thread.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,7 +103,8 @@ fun ThreadGallerySheet(
 ) {
     val spacing = LocalSpacing.current
     var filter by rememberSaveable { mutableStateOf(GalleryFilter.ALL) }
-    val withMedia = remember(posts, filter, boardAllowsAudio) { galleryTiles(posts, filter, boardAllowsAudio) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val withMedia = remember(posts, filter, boardAllowsAudio, query) { galleryTiles(posts, filter, boardAllowsAudio, query) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = spacing.md)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -130,19 +140,31 @@ fun ThreadGallerySheet(
                     modifier = Modifier.padding(bottom = spacing.xs),
                 )
             }
+            SearchField(
+                value = query,
+                onValueChange = { query = it },
+                hintRes = R.string.thread_gallery_search_hint,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = spacing.xs),
+            )
             if (withMedia.isEmpty()) {
-                EmptyState(
-                    title = stringResource(
-                        if (filter == GalleryFilter.ALL) R.string.thread_gallery_empty
-                        else R.string.thread_gallery_filter_empty,
-                    ),
-                    explanation = stringResource(
-                        if (filter == GalleryFilter.ALL) R.string.thread_gallery_empty_explanation
-                        else R.string.thread_gallery_filter_empty_explanation,
-                    ),
-                    icon = Icons.Filled.Image,
-                    modifier = Modifier.height(240.dp),
-                )
+                if (query.isNotBlank()) {
+                    NoSearchResults(query.trim(), modifier = Modifier.height(240.dp))
+                } else {
+                    EmptyState(
+                        title = stringResource(
+                            if (filter == GalleryFilter.ALL) R.string.thread_gallery_empty
+                            else R.string.thread_gallery_filter_empty,
+                        ),
+                        explanation = stringResource(
+                            if (filter == GalleryFilter.ALL) R.string.thread_gallery_empty_explanation
+                            else R.string.thread_gallery_filter_empty_explanation,
+                        ),
+                        icon = Icons.Filled.Image,
+                        modifier = Modifier.height(240.dp),
+                    )
+                }
                 return@Column
             }
             LazyVerticalGrid(
