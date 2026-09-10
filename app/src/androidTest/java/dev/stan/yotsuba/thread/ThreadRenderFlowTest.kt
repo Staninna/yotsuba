@@ -2,12 +2,22 @@ package dev.stan.yotsuba.thread
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTextExactly
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.height
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
+import dev.stan.yotsuba.backToTabs
 import dev.stan.yotsuba.di.TestSeed
+import dev.stan.yotsuba.domain.model.BoardProfile
+import dev.stan.yotsuba.domain.model.FontSize
+import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.PostMedia
+import dev.stan.yotsuba.domain.model.TimestampMode
+import dev.stan.yotsuba.domain.model.TimestampZone
 import dev.stan.yotsuba.goBack
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSeededThread
@@ -17,6 +27,8 @@ import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitForTextGone
 import dev.stan.yotsuba.waitUntilTrue
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Every kind of post body the seed carries renders, plus the OP's badges and backlinks. */
@@ -101,10 +113,82 @@ class ThreadRenderFlowTest : FlowTest() {
         composeRule.listNode("File deleted: gone.png").assertIsDisplayed()
     }
 
+    /**
+     * A board profile's text size and line spacing reach nothing a selector can read: the
+     * body is the same string either way. What they do change is how much room it takes, so
+     * the same body is drawn on both boards and the heights are compared.
+     */
+    @Test
+    fun aBoardProfile_growsThatBoardsPosts_andLeavesTheOtherBoardAlone() {
+        fakes.settings.set {
+            it.copy(
+                boardProfiles = mapOf(
+                    TestSeed.VIDEO_BOARD to BoardProfile(fontSize = FontSize.EXTRA_LARGE, lineSpacing = LineSpacing.RELAXED),
+                ),
+            )
+        }
+        fakes.threads.threads[TestSeed.BOARD to TestSeed.THREAD_NO] = threadOf(
+            listOf(TestSeed.post(TestSeed.BOARD, TestSeed.THREAD_NO, SHARED_BODY, isOp = true, subject = TestSeed.THREAD_SUBJECT)),
+        )
+        fakes.threads.threads[TestSeed.VIDEO_BOARD to TestSeed.VIDEO_THREAD_NO] = threadOf(
+            listOf(TestSeed.post(TestSeed.VIDEO_BOARD, TestSeed.VIDEO_THREAD_NO, SHARED_BODY, isOp = true, subject = TestSeed.VIDEO_SUBJECT)),
+            TestSeed.VIDEO_BOARD,
+            TestSeed.VIDEO_THREAD_NO,
+        )
+
+        composeRule.openThread(TestSeed.VIDEO_BOARD_TITLE, TestSeed.VIDEO_SUBJECT, SHARED_BODY)
+        val withProfile = bodyHeight()
+
+        composeRule.backToTabs()
+        composeRule.openThread(TestSeed.BOARD_TITLE, TestSeed.THREAD_SUBJECT, SHARED_BODY)
+        val plain = bodyHeight()
+        assertTrue("$plain on /${TestSeed.BOARD}/ should be shorter than $withProfile on /${TestSeed.VIDEO_BOARD}/", plain < withProfile)
+    }
+
+    /**
+     * The three post-time modes on one card. The zone is the board's so the clock part is
+     * fixed: the seeded OP is 22:13 UTC, which is 5:13 PM in New York, and the seed is old
+     * enough that the relative part is always a count of years.
+     */
+    @Test
+    fun postTime_readsAsRelative_thenAbsolute_thenBoth() {
+        fakes.settings.set { it.copy(timestampZone = TimestampZone.BOARD) }
+        composeRule.openSeededThread()
+        composeRule.waitUntilTrue { opStampShows("ago") }
+        assertFalse(opStampShows(BOARD_CLOCK))
+
+        fakes.settings.set { it.copy(timestampMode = TimestampMode.ABSOLUTE) }
+        composeRule.waitUntilTrue { opStampShows(BOARD_CLOCK) }
+        assertFalse(opStampShows("ago"))
+
+        fakes.settings.set { it.copy(timestampMode = TimestampMode.BOTH) }
+        composeRule.waitUntilTrue { opStampShows("ago") && opStampShows(BOARD_CLOCK) }
+    }
+
     @Test
     fun postNumberTap_copiesItAndSaysSo() {
         composeRule.openSeededThread()
         composeRule.tap("#${TestSeed.THREAD_NO}", substring = false)
         composeRule.waitForText("Post number copied")
+    }
+
+    /** The body Text on screen, once the thread being left behind has stopped showing its own. */
+    private fun bodyHeight(): Dp {
+        val body = hasText(SHARED_BODY, substring = false) and !inSheet
+        composeRule.waitUntilTrue { composeRule.onAllNodes(body, useUnmergedTree = true).fetchSemanticsNodes().size == 1 }
+        return composeRule.onNode(body, useUnmergedTree = true).getBoundsInRoot().height
+    }
+
+    /** The stamp is a plain Text in the OP's card, so it only exists in the unmerged tree. */
+    private fun opStampShows(text: String): Boolean =
+        composeRule.onAllNodes(hasText(text, substring = true) and inPost(TestSeed.OP_TEXT), useUnmergedTree = true)
+            .fetchSemanticsNodes().isNotEmpty()
+
+    private companion object {
+        /** The seeded OP's time of day in the board's zone, in the short form that locale uses. */
+        const val BOARD_CLOCK = "5:13"
+
+        /** One short line, so a taller line height is the whole difference between the boards. */
+        const val SHARED_BODY = "The same body on both boards"
     }
 }
