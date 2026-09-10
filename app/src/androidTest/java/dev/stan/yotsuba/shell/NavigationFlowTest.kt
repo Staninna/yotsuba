@@ -9,9 +9,10 @@ import dev.stan.yotsuba.goBack
 import dev.stan.yotsuba.hasContentDescription
 import dev.stan.yotsuba.hasText
 import dev.stan.yotsuba.openBoardsTab
-import dev.stan.yotsuba.openSeededThread
+import dev.stan.yotsuba.openCatalog
 import dev.stan.yotsuba.openThreadsTab
 import dev.stan.yotsuba.openVaultTab
+import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.textField
 import dev.stan.yotsuba.typeInField
@@ -72,8 +73,11 @@ class NavigationFlowTest : FlowTest() {
     }
 
     @Test
-    fun pushedScreens_hideBottomBar_andBackRestoresIt() {
-        composeRule.openSeededThread()
+    fun pushedScreens_hideBottomBar_andSystemBackRestoresIt() {
+        // Opened from the Home pane: /g/ is a favourite here, so its title is on the Boards
+        // tab twice, under Favourites and again in its category, and cannot be tapped by name.
+        composeRule.tap(TestSeed.THREAD_SUBJECT)
+        composeRule.waitForText(TestSeed.OP_TEXT)
         composeRule.waitForTextGone("Saved", substring = false)
         // The viewer is pushed on top of the thread; the bar stays hidden all the way down.
         composeRule.tapIcon(TestSeed.MEDIA_FILENAME, substring = true)
@@ -82,7 +86,14 @@ class NavigationFlowTest : FlowTest() {
         pressBack()
         composeRule.waitForText(TestSeed.OP_TEXT)
         pressBack()
-        composeRule.waitForText(TestSeed.STICKY_SUBJECT)
+        composeRule.waitForText("Saved", substring = false)
+        composeRule.tab("Home").assertIsSelected()
+    }
+
+    @Test
+    fun pushedCatalog_hidesTheBottomBar_untilBackReturnsToTheTab() {
+        // /v/ is no favourite here, so its title is on the Boards tab exactly once.
+        composeRule.openCatalog(TestSeed.VIDEO_BOARD_TITLE, TestSeed.VIDEO_SUBJECT)
         assertFalse(composeRule.hasText("Saved", substring = false))
         composeRule.goBack()
         composeRule.waitForText("Saved", substring = false)
@@ -100,7 +111,8 @@ class NavigationFlowTest : FlowTest() {
 
     @Test
     fun recreate_keepsOpenThread() {
-        composeRule.openSeededThread()
+        composeRule.tap(TestSeed.THREAD_SUBJECT)
+        composeRule.waitForText(TestSeed.OP_TEXT)
         recreate()
         composeRule.waitForText(TestSeed.OP_TEXT)
         composeRule.waitForText(TestSeed.REPLY_TEXT)

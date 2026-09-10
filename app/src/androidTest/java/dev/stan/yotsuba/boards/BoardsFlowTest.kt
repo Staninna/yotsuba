@@ -100,21 +100,29 @@ class BoardsFlowTest : FlowTest() {
         composeRule.waitForTextGone(TestSeed.NSFW_BOARD_TITLE)
     }
 
+    /** One star per row the board appears in: two while it is a favourite, one otherwise. */
+    private fun favouriteStars() = composeRule
+        .onAllNodes(inRow(TestSeed.BOARD_TITLE, "Toggle favourite"), useUnmergedTree = true)
+        .fetchSemanticsNodes().size
+
     @Test
     fun favouriteStar_addsSection_andRemovalOffersUndo() {
         openBoards()
         composeRule.iconInRow(TestSeed.BOARD_TITLE, "Toggle favourite").performClick()
         composeRule.waitForText("Favourites")
         composeRule.waitUntilTrue { TestSeed.BOARD in settings.favouriteBoards }
-
         // The board now sits in Favourites and in its category: either star will do.
+        composeRule.waitUntilTrue { favouriteStars() == 2 }
+
         composeRule.onAllNodes(inRow(TestSeed.BOARD_TITLE, "Toggle favourite"), useUnmergedTree = true).onFirst().performClick()
         composeRule.waitForText("Removed /${TestSeed.BOARD}/ from favourites")
         composeRule.waitUntilTrue { TestSeed.BOARD !in settings.favouriteBoards }
-        composeRule.waitForTextGone("Favourites")
+        // Back to one star, so the section is gone. The word itself stays on screen: it is
+        // in the snackbar's own message.
+        composeRule.waitUntilTrue { favouriteStars() == 1 }
         composeRule.tap("Undo")
         composeRule.waitUntilTrue { TestSeed.BOARD in settings.favouriteBoards }
-        composeRule.waitForText("Favourites")
+        composeRule.waitUntilTrue { favouriteStars() == 2 }
     }
 
     @Test

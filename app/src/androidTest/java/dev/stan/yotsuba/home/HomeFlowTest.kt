@@ -14,6 +14,7 @@ import dev.stan.yotsuba.shell.tab
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.waitForText
+import dev.stan.yotsuba.waitForTextGone
 import dev.stan.yotsuba.waitUntilTrue
 import org.junit.Test
 
@@ -22,10 +23,13 @@ import org.junit.Test
 class HomeFlowTest : FlowTest() {
 
     override fun seed() {
-        fakes.settings.set { it.copy(favouriteBoards = setOf(TestSeed.BOARD, TestSeed.VIDEO_BOARD)) }
+        fakes.settings.set {
+            it.copy(favouriteBoards = setOf(TestSeed.BOARD, TestSeed.VIDEO_BOARD, TestSeed.NSFW_BOARD))
+        }
     }
 
     private val favourites get() = fakes.settings.state.value.favouriteBoards.toList()
+    private val lastWrittenOrder get() = fakes.settings.writes.lastOrNull()?.favouriteBoards?.toList()
 
     private fun boardTab(board: String) = composeRule.nodeWithText("/$board/", substring = false)
 
@@ -65,18 +69,33 @@ class HomeFlowTest : FlowTest() {
     }
 
     @Test
-    fun accessibilityActions_reorderAndRemove_withUndo() {
+    fun accessibilityActions_reorderTheFavourites() {
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
+        // A move rewrites only the set's iteration order, so the new Settings `equals` the
+        // old one and StateFlow drops it: the write is where a reorder can be seen. The
+        // strip therefore still reads g, v, b, and the second move starts from there.
         boardTab(TestSeed.VIDEO_BOARD).performCustomAccessibilityActionWithLabel("Move left")
-        composeRule.waitUntilTrue { favourites == listOf(TestSeed.VIDEO_BOARD, TestSeed.BOARD) }
+        composeRule.waitUntilTrue {
+            lastWrittenOrder == listOf(TestSeed.VIDEO_BOARD, TestSeed.BOARD, TestSeed.NSFW_BOARD)
+        }
         boardTab(TestSeed.VIDEO_BOARD).performCustomAccessibilityActionWithLabel("Move right")
-        composeRule.waitUntilTrue { favourites == listOf(TestSeed.BOARD, TestSeed.VIDEO_BOARD) }
+        composeRule.waitUntilTrue {
+            lastWrittenOrder == listOf(TestSeed.BOARD, TestSeed.NSFW_BOARD, TestSeed.VIDEO_BOARD)
+        }
+    }
 
+    @Test
+    fun accessibilityActions_removeFromHome_withUndo() {
+        composeRule.waitForText(TestSeed.THREAD_SUBJECT)
         boardTab(TestSeed.VIDEO_BOARD).performCustomAccessibilityActionWithLabel("Remove from Home")
         composeRule.waitForText("Removed /${TestSeed.VIDEO_BOARD}/ from favourites")
-        composeRule.waitUntilTrue { favourites == listOf(TestSeed.BOARD) }
+        composeRule.waitUntilTrue { favourites == listOf(TestSeed.BOARD, TestSeed.NSFW_BOARD) }
+        composeRule.waitForTextGone("/${TestSeed.VIDEO_BOARD}/")
+
         composeRule.tap("Undo")
-        composeRule.waitUntilTrue { favourites == listOf(TestSeed.BOARD, TestSeed.VIDEO_BOARD) }
+        composeRule.waitUntilTrue {
+            favourites == listOf(TestSeed.BOARD, TestSeed.VIDEO_BOARD, TestSeed.NSFW_BOARD)
+        }
         composeRule.waitForText("/${TestSeed.VIDEO_BOARD}/")
     }
 
