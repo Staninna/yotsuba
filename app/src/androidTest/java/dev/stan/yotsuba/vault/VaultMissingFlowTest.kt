@@ -166,7 +166,8 @@ class VaultMissingFlowTest : FlowTest() {
         composeRule.tapIcon("More")
         composeRule.tap("What the vault holds, by board and thread")
         composeRule.waitForText("Vault statistics", substring = false)
-        composeRule.waitForText("3 files · 19 KB")
+        // /g/ by board: four files, and only the three that are there in the size.
+        composeRule.waitForText("4 files · 23 KB")
         composeRule.scrollSheetTo("/${TestSeed.BOARD}/ · 3 files · 19 KB")
     }
 }
