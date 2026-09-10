@@ -40,7 +40,8 @@ class QuoteFlowTest : FlowTest() {
         composeRule.tapBodyLink(TestSeed.QUOTE_REPLY_TEXT)
 
         composeRule.waitForSheetText(TestSeed.OP_TEXT)
-        composeRule.sheetNode(">>$opNo").assertIsDisplayed()
+        // The sheet also lists the reply whose body quotes ">>1000"; this is its header.
+        composeRule.onNode(hasTextExactly(">>$opNo") and inSheet).assertIsDisplayed()
 
         composeRule.tap("Go to")
         composeRule.waitForTextGone("Go to")
@@ -169,7 +170,7 @@ class QuoteFlowTest : FlowTest() {
         composeRule.tapBodyLink(TestSeed.DEADLINK_REPLY_TEXT)
 
         composeRule.waitForSheetText("Post not found")
-        composeRule.sheetNode(">>${TestSeed.DEADLINK_POST_NO}").assertIsDisplayed()
+        composeRule.onNode(hasTextExactly(">>${TestSeed.DEADLINK_POST_NO}") and inSheet).assertIsDisplayed()
     }
 
     @Test

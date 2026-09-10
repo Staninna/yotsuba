@@ -4,7 +4,6 @@ import android.content.ClipboardManager
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
-import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -47,7 +46,7 @@ class ThreadTopBarFlowTest : FlowTest() {
         composeRule.waitUntilTrue { fakes.threads.calls.last() == Triple(TestSeed.BOARD, TestSeed.THREAD_NO, true) }
 
         val before = fakes.threads.calls.size
-        composeRule.onNode(hasScrollToNodeAction() and !inSheet).performTouchInput { swipeDown() }
+        composeRule.threadListNode().performTouchInput { swipeDown() }
         composeRule.waitUntilTrue { fakes.threads.calls.size > before && fakes.threads.calls.last().third }
     }
 
