@@ -16,6 +16,7 @@ import dev.stan.yotsuba.domain.repository.SettingsRepository
 import dev.stan.yotsuba.domain.repository.UsageRepository
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -63,7 +64,12 @@ class FakeBookmarkRepository @Inject constructor() : BookmarkRepository {
 
     override suspend fun refreshAll(onProgress: (Int, Int) -> Unit): BookmarkRefreshSummary {
         refreshCalls++
-        repeat(refreshProgressSteps) { onProgress(it + 1, refreshProgressSteps) }
+        repeat(refreshProgressSteps) {
+            onProgress(it + 1, refreshProgressSteps)
+            // A real pass spends about a second per board. Without a pause the whole count
+            // lands inside one frame and "Checking i/N" never reaches the screen.
+            delay(150)
+        }
         return refreshSummary
     }
 
