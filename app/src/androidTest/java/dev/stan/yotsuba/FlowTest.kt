@@ -69,12 +69,6 @@ abstract class FlowTest {
     protected fun launch(intent: Intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java)) {
         check(scenario == null) { "The activity is already running" }
         scenario = ActivityScenario.launch(intent)
-        // Barrier, not a no-op: it blocks here until the main thread has drained, so the
-        // first composition happens there. The Compose test framework composes on an
-        // unconfined dispatcher, which runs on whichever thread resumes it, and this one is
-        // the instrumentation thread, which has no Looper for a lazy list's prefetch
-        // scheduler to take a Choreographer from.
-        onActivity { }
     }
 
     /** Destroys and recreates the activity, as a configuration change would. */
