@@ -56,6 +56,9 @@ class ThreadTopBarFlowTest : FlowTest() {
     fun copyLink_putsTheThreadUrlOnTheClipboard() {
         composeRule.openSeededThread()
         composeRule.tapMenuItem("Copy link")
+        // The item closes the menu as it copies. Reading the clipboard before that has settled
+        // reads it from behind a popup, and a timeout here then says nothing about the copy.
+        composeRule.waitForTextGone("Copy link", substring = false)
         composeRule.waitUntilTrue { clipboardText() == Urls.threadWebUrl(TestSeed.BOARD, TestSeed.THREAD_NO) }
     }
 
