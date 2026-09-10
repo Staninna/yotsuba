@@ -40,7 +40,8 @@ class StatsViewModel @Inject constructor(
             historyCount = history.size,
             bookmarkCount = bookmarks.size,
             vaultFiles = entries.size,
-            vaultBytes = entries.sumOf { it.sizeBytes ?: 0L },
+            // A file a rescan found gone takes no disk, whatever its row still records.
+            vaultBytes = entries.sumOf { if (it.missing) 0L else it.sizeBytes ?: 0L },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 }

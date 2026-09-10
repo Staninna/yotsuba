@@ -55,6 +55,15 @@ class VaultStatsTest {
     }
 
     @Test
+    fun `a missing file counts as a file but not as bytes`() {
+        val entries = listOf(entry("a", sizeBytes = 5), entry("b", sizeBytes = 20).copy(absolutePath = ""))
+        assertEquals(5L, entries.totalBytes)
+        val stats = VaultStats.of(entries, now)
+        assertEquals(2, stats.files)
+        assertEquals(5L, stats.bytes)
+    }
+
+    @Test
     fun `boards sort by bytes descending`() {
         val stats = VaultStats.of(
             listOf(

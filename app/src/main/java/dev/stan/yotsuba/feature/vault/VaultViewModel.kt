@@ -185,8 +185,11 @@ data class VaultBoardSection(
     val sizeBytes: Long get() = entries.totalBytes
 }
 
-/** Disk taken by these files, as far as their rows know; a row without a size counts as 0. */
-val List<VaultEntry>.totalBytes: Long get() = sumOf { it.sizeBytes ?: 0L }
+/**
+ * Disk taken by these files, as far as their rows know; a row without a size counts as 0.
+ * A file a rescan found gone takes no disk, whatever its sidecar still records for it.
+ */
+val List<VaultEntry>.totalBytes: Long get() = sumOf { if (it.missing) 0L else it.sizeBytes ?: 0L }
 
 /**
  * The explorer's drill-down shape: boards by directory name, which puts the `_`-prefixed
