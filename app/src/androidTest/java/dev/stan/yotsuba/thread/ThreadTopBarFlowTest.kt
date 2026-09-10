@@ -1,6 +1,7 @@
 package dev.stan.yotsuba.thread
 
 import android.content.ClipboardManager
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -17,6 +18,7 @@ import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.waitForContentDescription
 import dev.stan.yotsuba.waitForText
+import dev.stan.yotsuba.waitForTextGone
 import dev.stan.yotsuba.waitUntilTrue
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -91,6 +93,33 @@ class ThreadTopBarFlowTest : FlowTest() {
 
         composeRule.tapIcon("More options")
         composeRule.nodeWithText("Auto-refresh").assertIsOn()
+    }
+
+    @Test
+    fun unreadOnly_isDisabledInAThreadThatWasNeverRead() {
+        composeRule.openSeededThread()
+        composeRule.tapIcon("More options")
+        composeRule.nodeWithText("Unread only", substring = false).assertIsNotEnabled()
+    }
+
+    /** The read mark comes from history, and the cut keeps the OP so the thread keeps its header. */
+    @Test
+    fun unreadOnly_dropsWhatWasReadLastTime_andPutsItBack() {
+        fakes.history.readMarks[key] = TestSeed.THREAD_NO + 3
+        composeRule.openSeededThread()
+
+        composeRule.tapIcon("More options")
+        composeRule.nodeWithText("Unread only", substring = false).assertIsOff()
+        composeRule.tap("Unread only", substring = false)
+
+        composeRule.waitForTextGone(TestSeed.REPLY_TEXT)
+        composeRule.listNode(TestSeed.OP_TEXT).assertIsDisplayed()
+        composeRule.listNode(TestSeed.LINK_REPLY_TEXT).assertIsDisplayed()
+
+        composeRule.tapIcon("More options")
+        composeRule.nodeWithText("Unread only", substring = false).assertIsOn()
+        composeRule.tap("Unread only", substring = false)
+        composeRule.waitForText(TestSeed.REPLY_TEXT)
     }
 
     /** The share sheet belongs to the system; the test stops at the tap that opens it. */
