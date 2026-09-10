@@ -1,11 +1,9 @@
 package dev.stan.yotsuba.media
 
-import androidx.compose.ui.test.assertIsNotEnabled
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.VaultError
-import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.waitForContentDescription
 import dev.stan.yotsuba.waitForText
@@ -87,8 +85,9 @@ class ViewerDownloadFlowTest : FlowTest() {
         fakes.saveQueue.failNextWith = VaultError.Io("disk full")
         tapSave()
         composeRule.tapChrome("Couldn't save")
-        composeRule.waitForText("Couldn't write file")
-        composeRule.nodeWithText("Couldn't write file").assertIsNotEnabled()
+        // The error label is a dead row: tapping it leaves the menu where it was.
+        composeRule.tap("Couldn't write file")
+        composeRule.waitForText("Retry download")
         composeRule.tap("Retry download")
         composeRule.waitUntilTrue { fakes.saveQueue.retried == listOf(url) }
         waitForSaved()

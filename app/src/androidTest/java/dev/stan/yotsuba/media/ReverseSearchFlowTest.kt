@@ -1,13 +1,11 @@
 package dev.stan.yotsuba.media
 
-import androidx.compose.ui.test.assertIsNotEnabled
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.LocalSearchMethod
 import dev.stan.yotsuba.domain.repository.DirectUploadEngine
 import dev.stan.yotsuba.hasText
-import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitUntilTrue
@@ -47,8 +45,10 @@ class ReverseSearchFlowTest : FlowTest() {
         composeRule.waitForText("Search with")
         engines.forEach { assertTrue(it, composeRule.hasText(it, substring = false)) }
         assertFalse(composeRule.hasText(uploadNote))
-        // Nothing on disk yet, so there is no file to hand another app.
-        composeRule.nodeWithText("Share to another app").assertIsNotEnabled()
+        // Nothing on disk yet, so there is no file to hand another app: the row is dead
+        // and the sheet stays up, where an enabled one would have dismissed it.
+        composeRule.tap("Share to another app")
+        composeRule.waitForText("Search with")
     }
 
     @Test

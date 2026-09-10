@@ -1,15 +1,14 @@
 package dev.stan.yotsuba.settings
 
-import androidx.compose.ui.test.assertIsNotEnabled
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.domain.model.LocalSearchMethod
 import dev.stan.yotsuba.domain.model.MediaAutoplay
 import dev.stan.yotsuba.domain.model.SeekStep
-import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSettingsSection
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitForTextGone
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 @HiltAndroidTest
@@ -31,8 +30,11 @@ class MediaLinksPrivacyFlowTest : FlowTest() {
     fun media_skipByIsDeadUntilDoubleTapIsOn() {
         composeRule.openSettingsSection("Media & playback", "Data saver")
         flip("Double-tap to skip", false) { it.doubleTapSeekEnabled }
-        composeRule.nodeWithText("5 s", substring = false).assertIsNotEnabled()
+        composeRule.tapRow("5 s")
+        composeRule.waitForIdle()
+        assertEquals(SeekStep.TEN, fakes.settings.state.value.seekStep)
 
+        // Live again: the chip that did nothing a moment ago now sets the step.
         flip("Double-tap to skip", true) { it.doubleTapSeekEnabled }
         flip("15 s", SeekStep.FIFTEEN) { it.seekStep }
     }
@@ -55,7 +57,9 @@ class MediaLinksPrivacyFlowTest : FlowTest() {
     fun privacy_lockIsDeadWithoutAScreenLock() {
         composeRule.openSettingsSection("Privacy", "Lock the app")
         composeRule.waitForText("Set a screen lock on your phone first")
-        composeRule.nodeWithText("Lock the app", substring = false).assertIsNotEnabled()
+        composeRule.tapRow("Lock the app")
+        composeRule.waitForIdle()
+        assertEquals(false, fakes.settings.state.value.appLock)
         composeRule.waitForTextGone("Lock again after")
     }
 

@@ -1,6 +1,5 @@
 package dev.stan.yotsuba.settings
 
-import androidx.compose.ui.test.assertIsNotEnabled
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.domain.model.CatalogLayout
@@ -9,9 +8,9 @@ import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.ThemeMode
-import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSettingsSection
 import dev.stan.yotsuba.waitForText
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 @HiltAndroidTest
@@ -37,7 +36,10 @@ class AppearanceReadingFlowTest : FlowTest() {
     fun appearance_pureBlackIsDeadUnderTheLightTheme() {
         openAppearance()
         flip("Light", ThemeMode.LIGHT) { it.themeMode }
-        composeRule.nodeWithText("Pure black", substring = false).assertIsNotEnabled()
+        // Dead row: the same tap turns it on under any other theme.
+        composeRule.tapRow("Pure black")
+        composeRule.waitForIdle()
+        assertFalse(fakes.settings.state.value.pureBlack)
     }
 
     @Test

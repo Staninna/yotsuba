@@ -109,7 +109,7 @@ class FiltersFlowTest : FlowTest() {
         composeRule.waitForText("Comment · Fade · Regex · All boards", substring = false)
         composeRule.waitForText("Regex does not compile; this filter matches nothing.")
 
-        composeRule.onNode(isToggleable()).performClick()
+        composeRule.onNode(isToggleable(), useUnmergedTree = true).performClick()
         composeRule.waitUntilTrue { !savedFilter().enabled }
 
         composeRule.tapRow("[")
