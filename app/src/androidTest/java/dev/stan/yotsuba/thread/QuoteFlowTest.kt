@@ -93,7 +93,7 @@ class QuoteFlowTest : FlowTest() {
         composeRule.waitForSheetText(TestSeed.OP_TEXT)
 
         // The OP's reply is listed under it; tapping it refocuses the sheet a level deeper.
-        composeRule.previewCard(TestSeed.QUOTE_REPLY_TEXT).performClick()
+        composeRule.tapPreviewCard(TestSeed.QUOTE_REPLY_TEXT)
         composeRule.waitForText(">>$opNo › >>$quotingNo")
         composeRule.waitForContentDescription("Back to previous post")
 

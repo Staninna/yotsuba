@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.ComposeTestRule
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.performClick
@@ -121,6 +122,14 @@ fun ComposeTestRule.previewCard(postText: String): SemanticsNodeInteraction =
         hasClickAction() and inSheet and hasAnyDescendant(hasText(postText, substring = true, ignoreCase = true)),
         useUnmergedTree = true,
     )
+
+/**
+ * Taps the sheet's card for the post showing [postText], on its top padding: the centre of
+ * a card can be a quotelink in its body, which takes the tap and refocuses nothing.
+ */
+fun ComposeTestRule.tapPreviewCard(postText: String) {
+    previewCard(postText).performTouchInput { click(Offset(centerX, 5f)) }
+}
 
 /**
  * Opens the action sheet of the post showing [postText] through the card's own "Post actions"
