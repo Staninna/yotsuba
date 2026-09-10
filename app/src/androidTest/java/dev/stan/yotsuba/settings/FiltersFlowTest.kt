@@ -117,6 +117,19 @@ class FiltersFlowTest : FlowTest() {
     }
 
     @Test
+    fun addDialog_keepsItsDraftAcrossARotation() {
+        openFilters()
+        openAddDialog()
+        field("Pattern").performTextInput(pattern)
+        recreate()
+        // The dialog is reopened from the saved id and the draft is still in the field.
+        composeRule.waitForText("Add filter")
+        composeRule.tapRow("Save")
+        composeRule.waitUntilTrue { fakes.settings.state.value.filters.size == 1 }
+        assertEquals(pattern, savedFilter().pattern)
+    }
+
+    @Test
     fun swipeDeletesTheRow_andUndoPutsItBack() {
         openFilters(Filter(id = "a", pattern = pattern), Filter(id = "b", pattern = "bait"))
         composeRule.nodeWithText(pattern, substring = false).performTouchInput { swipeLeft() }

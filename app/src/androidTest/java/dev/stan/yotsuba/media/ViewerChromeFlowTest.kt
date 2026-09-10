@@ -45,6 +45,15 @@ class ViewerChromeFlowTest : FlowTest() {
     }
 
     @Test
+    fun currentPage_survivesARotation() {
+        composeRule.openSeededImage()
+        composeRule.nextPage()
+        composeRule.waitForText("2 / 2 · 7 KB · 640×480", substring = false)
+        recreate()
+        composeRule.waitForText("2 / 2 · 7 KB · 640×480", substring = false)
+    }
+
+    @Test
     fun closeButton_returnsToThread() {
         composeRule.openSeededImage()
         composeRule.tapChrome(CLOSE_VIEWER)
