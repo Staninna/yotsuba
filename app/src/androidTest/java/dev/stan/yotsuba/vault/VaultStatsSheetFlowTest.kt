@@ -42,11 +42,11 @@ class VaultStatsSheetFlowTest : FlowTest() {
 
         composeRule.waitForText("By board")
         composeRule.waitForText("3 files · 3.9 MB")
-        composeRule.scrollSheetTo("Vault statistics", "Biggest threads")
-        composeRule.scrollSheetTo("Vault statistics", "/v/ · 3 files · 3.9 MB")
-        composeRule.scrollSheetTo("Vault statistics", "Saved per week")
-        composeRule.scrollSheetTo("Vault statistics", "Last 12 weeks")
-        composeRule.scrollSheetTo("Vault statistics", "Oldest save")
+        composeRule.scrollSheetTo("Biggest threads")
+        composeRule.scrollSheetTo("/v/ · 3 files · 3.9 MB")
+        composeRule.scrollSheetTo("Saved per week")
+        composeRule.scrollSheetTo("Last 12 weeks")
+        composeRule.scrollSheetTo("Oldest save")
         composeRule.waitForText("Newest save")
     }
 
@@ -54,7 +54,7 @@ class VaultStatsSheetFlowTest : FlowTest() {
     fun biggestThreadRow_revealsThatThreadInTheExplorer() {
         fakes.vault.seed(*VaultSeed.entries.toTypedArray())
         openStats()
-        composeRule.scrollSheetTo("Vault statistics", "/v/ · 3 files · 3.9 MB")
+        composeRule.scrollSheetTo("/v/ · 3 files · 3.9 MB")
         composeRule.nodeWithText(TestSeed.VIDEO_SUBJECT, substring = false).performClick()
 
         // The sheet closes and the explorer lands inside the thread, three levels deep in one step.

@@ -40,12 +40,13 @@ class VaultViewerFlowTest : FlowTest() {
     fun gridTap_opensTheViewerOnThatFile_andSwipePagesTheThread() {
         composeRule.openSeededVaultThread()
         composeRule.openVaultViewer(VaultSeed.seededImage.displayName)
-        composeRule.waitForViewerTitle(VaultSeed.seededImage.displayName)
-        composeRule.waitForText("1 / 2 · 12 KB · 800×600 · ${TestSeed.THREAD_SUBJECT}")
+        composeRule.waitForViewerChrome(
+            VaultSeed.seededImage.displayName,
+            "1 / 2 · 12 KB · 800×600 · ${TestSeed.THREAD_SUBJECT}",
+        )
 
         composeRule.pageViewerForward()
-        composeRule.waitForViewerTitle(VaultSeed.spoilerImage.displayName)
-        composeRule.waitForText("2 / 2 · 7 KB · 640×480")
+        composeRule.waitForViewerChrome(VaultSeed.spoilerImage.displayName, "2 / 2 · 7 KB · 640×480")
     }
 
     @Test
@@ -93,7 +94,7 @@ class VaultViewerFlowTest : FlowTest() {
         composeRule.tapViewerIcon("Close viewer")
 
         shuffle("Silent videos")
-        composeRule.waitForViewerTitle(VaultSeed.silentClip.displayName)
+        composeRule.waitForViewerChrome(VaultSeed.silentClip.displayName)
         composeRule.tapViewerIcon("Close viewer")
 
         shuffle("Images only")

@@ -30,6 +30,7 @@ import dev.stan.yotsuba.waitForContentDescription
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitUntilTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 /*
  * The vault's own selectors. Segmented rows share their labels with the bottom bar
@@ -117,17 +118,31 @@ fun ComposeTestRule.pageViewerForward() {
     waitForIdle()
 }
 
-/** The file name in the viewer's top bar, which only exists while the chrome shows. */
-fun ComposeTestRule.waitForViewerTitle(name: String) {
-    showViewerChrome()
-    waitForText(name, substring = false)
+/**
+ * Reads the viewer's chrome, which hides itself three seconds after the last touch and can
+ * do so mid-assertion. Each attempt taps the page, which toggles the chrome back up, so
+ * [shown] gets several looks at a bar that is actually on screen.
+ */
+private fun ComposeTestRule.onChrome(what: String, shown: () -> Boolean) {
+    repeat(CHROME_ATTEMPTS) {
+        waitForIdle()
+        if (shown()) return
+        onRoot().performTouchInput { click(center) }
+    }
+    waitForIdle()
+    assertTrue("the viewer chrome never showed $what", shown())
 }
 
-/** One of [names] is in the viewer's title; which one a shuffle picked is random. */
-fun ComposeTestRule.waitForViewerTitleIn(names: Collection<String>) {
-    showViewerChrome()
-    waitUntilTrue { names.any { showsText(it, substring = false) } }
-}
+/** Waits for the viewer's chrome to show all of [texts] at once: its title, its subtitle. */
+fun ComposeTestRule.waitForViewerChrome(vararg texts: String) =
+    onChrome(texts.joinToString(" and ")) { texts.all { showsText(it) } }
+
+/** One of [names] is the viewer's title; which one a shuffle picked is random. */
+fun ComposeTestRule.waitForViewerTitleIn(names: Collection<String>) =
+    onChrome("one of $names") { names.any { showsText(it, substring = false) } }
+
+/** Chrome taps before giving up. Every other one leaves the bar up, so half are real looks. */
+private const val CHROME_ATTEMPTS = 8
 
 private val vaultThumbnail = SemanticsMatcher("a seeded vault thumbnail") { node ->
     node.config.getOrNull(SemanticsProperties.ContentDescription)?.any { it in VaultSeed.names } == true
@@ -155,19 +170,35 @@ fun ComposeTestRule.confirmDelete() {
  * open sheet shows, so a sheet's own copy of a file wins.
  */
 
-/** A node inside the sheet titled [titled], by the content description [cd]. */
-fun ComposeTestRule.inSheet(titled: String, cd: String): SemanticsNodeInteraction = onNode(
-    hasContentDescription(cd, substring = false, ignoreCase = true) and
-        hasAnyAncestor(hasAnyDescendant(hasText(titled, substring = false, ignoreCase = true))),
+/**
+ * Inside the open sheet, rather than the explorer behind it. The anchor is the sheet's drag
+ * handle: it sits outside the scrolling list, so it identifies the sheet at any scroll
+ * position, which a title item scrolled out of composition no longer does.
+ */
+private val inOpenSheet = hasAnyAncestor(
+    hasAnyDescendant(hasContentDescription("Drag handle", substring = false, ignoreCase = true)),
 )
 
+/** A node inside the open sheet, by the content description [cd]. */
+fun ComposeTestRule.inSheet(cd: String): SemanticsNodeInteraction =
+    onNode(hasContentDescription(cd, substring = false, ignoreCase = true) and inOpenSheet)
+
 /**
- * Scrolls the sheet titled [titled] until [text] is composed. A sheet long enough to need
- * this only composes the rows near the top, so its buttons cannot be tapped until it does.
+ * Scrolls the open sheet until [text] is composed. A full-height sheet only composes the
+ * rows around the fold, so a section further down does not exist until it does.
+ *
+ * The list is re-fetched per attempt: the vault's numbers refresh underneath it, and a
+ * recomposition between finding the list and scrolling it drops the node mid-gesture.
  */
-fun ComposeTestRule.scrollSheetTo(titled: String, text: String) {
-    waitForText(titled, substring = false)
-    onNode(hasScrollAction() and hasAnyDescendant(hasText(titled, substring = false, ignoreCase = true)))
-        .performScrollToNode(hasText(text, substring = true, ignoreCase = true))
+fun ComposeTestRule.scrollSheetTo(text: String) {
+    val target = hasText(text, substring = true, ignoreCase = true)
+    repeat(3) {
+        waitForIdle()
+        if (runCatching { onNode(hasScrollAction() and inOpenSheet).performScrollToNode(target) }.isSuccess) {
+            waitForText(text)
+            return
+        }
+    }
+    onNode(hasScrollAction() and inOpenSheet).performScrollToNode(target)
     waitForText(text)
 }
