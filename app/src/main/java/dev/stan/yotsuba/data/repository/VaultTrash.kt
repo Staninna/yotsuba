@@ -35,6 +35,7 @@ class VaultTrash @Inject constructor(
         val fileMeta: VaultFileMeta?,
         /** The thread directory the file came from. */
         val dir: String,
+        /** Where the file sits in the trash dir; empty for a row trashed with no file on disk. */
         val trashFile: String,
         val trashedAt: Long,
     )
@@ -80,15 +81,24 @@ class VaultTrash @Inject constructor(
     /** Reads the index so [entries] reflects the disk before anything is trashed or restored. */
     suspend fun warm() = mutex.withLock { load() }
 
-    /** Moves [entity]'s file (it must have one) to the trash dir and drops its row and sidecar entry. */
-    suspend fun trash(entity: SavedMediaEntity, now: Long = System.currentTimeMillis()): VaultError? = attempt {
+    /**
+     * Moves [file] to the trash dir and drops [entity]'s row and sidecar entry. A file a
+     * rescan found gone is not on disk to move: only the row and the sidecar entry go to
+     * the trash, and restoring puts those back, which is what a re-download needs.
+     */
+    suspend fun trash(
+        entity: SavedMediaEntity,
+        file: File = File(entity.absolutePath),
+        now: Long = System.currentTimeMillis(),
+    ): VaultError? = attempt {
         mutex.withLock {
             load()
-            val file = File(entity.absolutePath)
             val dir = file.parentFile ?: throw IOException("no parent for ${file.name}")
             trashDir.mkdirs()
-            val target = store.uniqueFile(trashDir, "${System.nanoTime()}_${file.name}")
-            if (!store.moveFile(file, target)) throw IOException("Couldn't move ${file.name} to trash")
+            val target = if (file.isFile) store.uniqueFile(trashDir, "${System.nanoTime()}_${file.name}") else null
+            if (target != null && !store.moveFile(file, target)) {
+                throw IOException("Couldn't move ${file.name} to trash")
+            }
             var removed: VaultFileMeta? = null
             store.withStore {
                 store.updateMeta(dir) { meta ->
@@ -98,7 +108,7 @@ class VaultTrash @Inject constructor(
             }
             // The thread dir is deliberately not pruned here: a restore needs its sidecars
             // intact. Emptied directories go when their files do, in [purgeExpired] or [empty].
-            items[entity.url] = Item(entity, removed, dir.absolutePath, target.absolutePath, now)
+            items[entity.url] = Item(entity, removed, dir.absolutePath, target?.absolutePath.orEmpty(), now)
             savedMediaDao.delete(entity.url)
             persist()
         }
@@ -110,7 +120,9 @@ class VaultTrash @Inject constructor(
         attempt {
             val dir = File(item.dir).apply { mkdirs() }
             val back = File(item.entity.absolutePath)
-            if (!store.moveFile(File(item.trashFile), back)) throw IOException("Couldn't restore ${back.name}")
+            if (item.trashFile.isNotEmpty() && !store.moveFile(File(item.trashFile), back)) {
+                throw IOException("Couldn't restore ${back.name}")
+            }
             store.withStore {
                 store.updateMeta(dir) { meta -> item.fileMeta?.let { meta.upsert(it) } ?: meta }
             }
@@ -142,6 +154,7 @@ class VaultTrash @Inject constructor(
     /** Removes the trashed files and the stills that stayed at their original spot; prunes emptied dirs. */
     private suspend fun discard(gone: List<Item>) {
         gone.forEach {
+            if (it.trashFile.isEmpty()) return@forEach
             File(it.trashFile).delete()
             VideoStills.stillFor(File(it.entity.absolutePath)).delete()
         }
