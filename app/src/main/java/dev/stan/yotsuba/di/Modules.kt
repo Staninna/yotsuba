@@ -87,16 +87,16 @@ object NetworkModule {
     @Singleton
     fun json(): Json = Json { ignoreUnknownKeys = true }
 
-    /**
-     * One client shared with Coil and Media3, so the same pool, dispatcher and interceptors, but its
-     * Cache is 10 MB and carries API JSON only; Coil gets its own diskCache (D8).
-     */
     /** Also a lifecycle observer: the application registers it so a background flushes the batch. */
     @Provides
     @Singleton
     fun dataUsageMeter(usage: UsageRecorder): DataUsageMeter =
         DataUsageMeter(sink = { board, bytes -> usage.record(UsageKind.BYTES_FETCHED, board = board, value = bytes) })
 
+    /**
+     * One client shared with Coil and Media3, so the same pool, dispatcher and interceptors, but its
+     * Cache is 10 MB and carries API JSON only; Coil gets its own diskCache (D8).
+     */
     @Provides
     @Singleton
     fun okHttpClient(
