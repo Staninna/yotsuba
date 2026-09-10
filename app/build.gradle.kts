@@ -17,6 +17,8 @@ android {
         versionCode = 26
         versionName = "2.3.0"
         testInstrumentationRunner = "dev.stan.yotsuba.HiltTestRunner"
+        // With the orchestrator below, wipe app data between tests as well as the process.
+        testInstrumentationRunnerArguments["clearPackageData"] = "true"
     }
 
     // CI provides the release keystore via environment variables. Local release
@@ -72,6 +74,10 @@ android {
         buildConfig = true
     }
     testOptions {
+        // Every instrumented test in its own process. One long-lived process let a test that
+        // left the activity dead or a Compose snapshot observer wedged fail the next two or
+        // three tests, differently on every run.
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
         unitTests {
             isIncludeAndroidResources = true
         }
@@ -154,6 +160,7 @@ dependencies {
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.hilt.android.testing)
     kspAndroidTest(libs.hilt.compiler)
+    androidTestUtil(libs.androidx.test.orchestrator)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 }
