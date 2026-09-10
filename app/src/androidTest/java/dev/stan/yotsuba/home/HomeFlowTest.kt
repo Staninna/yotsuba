@@ -1,14 +1,13 @@
 package dev.stan.yotsuba.home
 
-import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
+import dev.stan.yotsuba.shell.performCustomAction
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
@@ -18,7 +17,6 @@ import dev.stan.yotsuba.waitUntilTrue
 import org.junit.Test
 
 @HiltAndroidTest
-@OptIn(ExperimentalTestApi::class)
 class HomeFlowTest : FlowTest() {
 
     override fun seed() {
@@ -73,11 +71,11 @@ class HomeFlowTest : FlowTest() {
         // A move rewrites only the set's iteration order, so the new Settings `equals` the
         // old one and StateFlow drops it: the write is where a reorder can be seen. The
         // strip therefore still reads g, v, b, and the second move starts from there.
-        boardTab(TestSeed.VIDEO_BOARD).performCustomAccessibilityActionWithLabel("Move left")
+        composeRule.performCustomAction(boardTab(TestSeed.VIDEO_BOARD), "Move left")
         composeRule.waitUntilTrue {
             lastWrittenOrder == listOf(TestSeed.VIDEO_BOARD, TestSeed.BOARD, TestSeed.NSFW_BOARD)
         }
-        boardTab(TestSeed.VIDEO_BOARD).performCustomAccessibilityActionWithLabel("Move right")
+        composeRule.performCustomAction(boardTab(TestSeed.VIDEO_BOARD), "Move right")
         composeRule.waitUntilTrue {
             lastWrittenOrder == listOf(TestSeed.BOARD, TestSeed.NSFW_BOARD, TestSeed.VIDEO_BOARD)
         }
@@ -86,7 +84,7 @@ class HomeFlowTest : FlowTest() {
     @Test
     fun accessibilityActions_removeFromHome_withUndo() {
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
-        boardTab(TestSeed.VIDEO_BOARD).performCustomAccessibilityActionWithLabel("Remove from Home")
+        composeRule.performCustomAction(boardTab(TestSeed.VIDEO_BOARD), "Remove from Home")
         composeRule.waitForText("Removed /${TestSeed.VIDEO_BOARD}/ from favourites")
         composeRule.waitUntilTrue { favourites == listOf(TestSeed.BOARD, TestSeed.NSFW_BOARD) }
         // Exact: the snackbar still on screen reads "Removed /v/ from favourites", so a

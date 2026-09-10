@@ -1,6 +1,8 @@
 package dev.stan.yotsuba.shell
 
 import android.content.Intent
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasClickAction
@@ -47,4 +49,20 @@ fun ComposeTestRule.nodeOnLineWith(rowText: String, matcher: SemanticsMatcher): 
         .indexOfFirst { abs(it.boundsInRoot.center.y - line) < it.size.height / 2f }
     require(index >= 0) { "nothing matched on the line of \"$rowText\"" }
     return candidates[index]
+}
+
+/**
+ * Runs [node]'s custom accessibility action labelled [label] on the main thread.
+ *
+ * `performCustomAccessibilityActionWithLabel` is the one `perform*` in the Compose test API
+ * that invokes the action where it stands, on the instrumentation thread, rather than
+ * wrapping it in `runOnUiThread`. An action that writes Compose state from there leaves the
+ * runtime observing layout from two threads: "Detected multithreaded access to
+ * SnapshotStateObserver".
+ */
+fun ComposeTestRule.performCustomAction(node: SemanticsNodeInteraction, label: String) {
+    val action = node.fetchSemanticsNode().config.getOrNull(SemanticsActions.CustomActions)
+        ?.singleOrNull { it.label == label }
+    requireNotNull(action) { "no custom action labelled \"$label\"" }
+    runOnUiThread { action.action() }
 }
