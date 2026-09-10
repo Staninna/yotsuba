@@ -132,4 +132,29 @@ class VaultViewerFlowTest : FlowTest() {
         composeRule.waitForText("Deleted", substring = false)
         assertFalse(composeRule.hasText("Undo"))
     }
+
+    /*
+     * Both files are seeded with a path under the vault root that nothing wrote, so each
+     * of these two reports the failure of a file it cannot read. That is the whole reach
+     * of either action on this emulator.
+     */
+
+    @Test
+    fun copyText_opensTheSheetOverASavedImage() {
+        composeRule.openVault()
+        composeRule.openVaultViewer(VaultSeed.seededImage.displayName)
+        openViewerMenu()
+        composeRule.tap("Copy text")
+        composeRule.waitForText("Text in this image")
+        composeRule.waitForText("No text was recognised in this image")
+    }
+
+    @Test
+    fun exportAsAnimatedWebp_reportsTheVideoItCannotRead() {
+        composeRule.openVault()
+        composeRule.openVaultViewer(VaultSeed.clip.displayName)
+        openViewerMenu()
+        composeRule.tap("Export as animated WebP")
+        composeRule.waitForText("Couldn't export this video")
+    }
 }
