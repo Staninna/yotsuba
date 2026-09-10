@@ -1,0 +1,90 @@
+package dev.stan.yotsuba.media
+
+import androidx.compose.ui.test.hasStateDescription
+import dagger.hilt.android.testing.HiltAndroidTest
+import dev.stan.yotsuba.FlowTest
+import dev.stan.yotsuba.di.TestSeed
+import dev.stan.yotsuba.hasText
+import dev.stan.yotsuba.tap
+import dev.stan.yotsuba.waitForText
+import dev.stan.yotsuba.waitForTextGone
+import dev.stan.yotsuba.waitUntilTrue
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+@HiltAndroidTest
+class ViewerMenuFlowTest : FlowTest() {
+
+    private val looping = "Looping. Tap to auto-advance"
+    private val autoAdvancing = "Auto-advance on. Tap to loop"
+
+    @Test
+    fun imageMenu_listsImageActions_andNoVideoOnes() {
+        composeRule.openSeededImage()
+        composeRule.tapChrome("More")
+        composeRule.waitForText("Search image")
+        assertTrue(composeRule.hasText("Copy text"))
+        assertTrue(composeRule.hasText("Picture-in-picture"))
+        assertTrue(composeRule.hasText(looping))
+        assertFalse(composeRule.hasText("Search a frame"))
+        assertFalse(composeRule.hasText("Export as animated WebP"))
+    }
+
+    @Test
+    fun videoMenu_listsVideoActions_andNoImageOnes() {
+        composeRule.openSeededVideo()
+        composeRule.tapChrome("More")
+        composeRule.waitForText("Search a frame")
+        assertTrue(composeRule.hasText("Export as animated WebP"))
+        assertFalse(composeRule.hasText("Search image"))
+        assertFalse(composeRule.hasText("Copy text"))
+    }
+
+    @Test
+    fun autoAdvance_menuLabelFlipsOnEachTap() {
+        composeRule.openSeededImage()
+        composeRule.openViewerMenu(looping)
+        composeRule.waitForTextGone(looping)
+        composeRule.openViewerMenu(autoAdvancing)
+        composeRule.waitForTextGone(autoAdvancing)
+        composeRule.tapChrome("More")
+        composeRule.waitForText(looping)
+    }
+
+    @Test
+    fun pictureInPicture_tapClosesTheMenu() {
+        composeRule.openSeededImage()
+        composeRule.openViewerMenu("Picture-in-picture")
+        composeRule.waitForTextGone("Picture-in-picture")
+    }
+
+    @Test
+    fun share_preparesTheFile_thenReportsTheFailedFetch() {
+        composeRule.openSeededImage()
+        composeRule.tapChrome("Share")
+        composeRule.waitUntilTrue {
+            composeRule.onAllNodes(hasStateDescription("Preparing to share")).fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.hasText("Couldn't share")
+        }
+        composeRule.waitForText("Couldn't share")
+    }
+
+    @Test
+    fun copyText_fetchesTheFile_cancelStopsIt() {
+        composeRule.openSeededImage()
+        composeRule.openViewerMenu("Copy text")
+        composeRule.waitForText("Fetching the file")
+        composeRule.tap("Cancel", substring = false)
+        composeRule.waitForTextGone("Fetching the file")
+    }
+
+    @Test
+    fun copyText_onSavedImage_opensTheSheet_findsNoText() {
+        fakes.vault.seedLocalCopy(TestSeed.mediaItem)
+        composeRule.openSeededImage()
+        composeRule.openViewerMenu("Copy text")
+        composeRule.waitForText("Text in this image")
+        composeRule.waitForText("No text was recognised in this image")
+    }
+}
