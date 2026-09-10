@@ -52,7 +52,11 @@ class StatsFlowTest : FlowTest() {
             event(UsageKind.ARCHIVE_RESCUE),
             event(UsageKind.OFFLINE_COPY), event(UsageKind.OFFLINE_COPY),
             event(UsageKind.SEARCH_RUN), event(UsageKind.SEARCH_RUN), event(UsageKind.SEARCH_RUN),
-            // A second consecutive day: the streak is two.
+            // Bytes off the wire, one batch against a board nothing else here opens (so its
+            // row cannot be confused with a "boards by visits" one) and one against no board.
+            event(UsageKind.BYTES_FETCHED, TestSeed.NSFW_BOARD, value = 2_000L),
+            event(UsageKind.BYTES_FETCHED, value = 1_000L),
+            // A second consecutive day makes the streak two, and a fourth search.
             event(UsageKind.SEARCH_RUN, at = nextDay),
         )
     }
@@ -94,7 +98,15 @@ class StatsFlowTest : FlowTest() {
         assertStat("First use", TimeFormat.date(firstUse))
         assertStat("Threads rescued from an archive", "1")
         assertStat("Offline copies opened", "2")
-        assertStat("Reverse image searches", "3")
+        assertStat("Reverse image searches", "4")
+    }
+
+    @Test
+    fun dataRows_splitTheBytesByBoard() {
+        openStats()
+        assertStat("Fetched over the network", FileSize.format(3_000L))
+        assertStat("/${TestSeed.NSFW_BOARD}/", FileSize.format(2_000L))
+        assertStat("Outside any board", FileSize.format(1_000L))
     }
 
     @Test
@@ -103,6 +115,7 @@ class StatsFlowTest : FlowTest() {
         composeRule.waitForText("Reading", substring = false)
         composeRule.waitForText("Boards by visits", substring = false)
         composeRule.waitForText("Saving", substring = false)
+        composeRule.waitForText("Data", substring = false)
         composeRule.waitForText("Habits", substring = false)
         composeRule.waitForText("Elsewhere", substring = false)
     }

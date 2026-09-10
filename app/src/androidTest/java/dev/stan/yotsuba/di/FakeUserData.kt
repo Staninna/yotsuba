@@ -178,11 +178,18 @@ class FakeSettingsRepository @Inject constructor() : SettingsRepository {
     val state = MutableStateFlow(Settings())
     override val settings: Flow<Settings> = state
 
+    /**
+     * Every value the app wrote, in order. A write that only reorders a Set (Home's
+     * favourite tabs) produces a Settings that `equals` the last one, and StateFlow drops
+     * those, so [state] never shows it. This is where a test sees such a write.
+     */
+    val writes = mutableListOf<Settings>()
+
     /** Shorthand for `state.update`, for `seed()` blocks. */
     fun set(transform: (Settings) -> Settings) = state.update(transform)
 
     override suspend fun update(transform: (Settings) -> Settings) {
-        state.update(transform)
+        state.update { current -> transform(current).also { writes += it } }
     }
 }
 

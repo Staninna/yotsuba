@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTextExactly
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import dev.stan.yotsuba.MainActivity
@@ -50,7 +51,9 @@ fun ComposeTestRule.assertAbove(upper: String, lower: String) {
  * the only thing left that says which row a control belongs to.
  */
 fun ComposeTestRule.nodeOnLineWith(rowText: String, matcher: SemanticsMatcher): SemanticsNodeInteraction {
-    val line = onNode(hasTextExactly(rowText), useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.center.y
+    // Bounds are clipped to the scrolling viewport, so a row below the fold has no line.
+    val label = onNode(hasTextExactly(rowText), useUnmergedTree = true).performScrollTo()
+    val line = label.fetchSemanticsNode().boundsInRoot.center.y
     val candidates = onAllNodes(matcher, useUnmergedTree = true)
     val index = candidates.fetchSemanticsNodes()
         .indexOfFirst { abs(it.boundsInRoot.center.y - line) < it.size.height / 2f }
