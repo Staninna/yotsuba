@@ -641,11 +641,12 @@ class ThreadViewModel @AssistedInject constructor(
     }
 
     /**
-     * Queues the attachments of [posts] (by default every one in the thread); already saved
+     * Queues the attachments of [posts], or of every post in the thread when it is null:
+     * the top bar's save-all has no list to pass and means the whole thread. Already saved
      * or queued items are skipped by the queue.
      */
-    fun onSaveAllMedia(posts: List<ThreadPost>? = loadedPosts()) {
-        posts?.filter { it.presentMedia != null }?.forEach(::onSaveMedia)
+    fun onSaveAllMedia(posts: List<ThreadPost>? = null) {
+        (posts ?: loadedPosts()).orEmpty().filter { it.presentMedia != null }.forEach(::onSaveMedia)
     }
 
     fun onTrustDomain(url: String) = viewModelScope.launch {
