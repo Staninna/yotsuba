@@ -20,6 +20,8 @@ class ThreadHistoryFlowTest : FlowTest() {
 
     private val key = TestSeed.BOARD to TestSeed.THREAD_NO
 
+    private fun readingPosition(): Long? = fakes.history.scrollPositions[key]
+
     @Test
     fun openingAThread_recordsIt() {
         composeRule.openSeededThread()
@@ -37,8 +39,10 @@ class ThreadHistoryFlowTest : FlowTest() {
         composeRule.openSeededThread()
         composeRule.listNode(fillerText(FILLERS))
 
-        composeRule.waitUntilTrue { fakes.history.scrollPositions[key] != null }
-        assertTrue(fakes.history.scrollPositions.getValue(key) > TestSeed.THREAD_NO + 100)
+        // The position is written half a second after the list stops, and it is a filler:
+        // the run of posts the seed puts under the OP is long behind by now.
+        composeRule.waitUntilTrue { readingPosition() != null }
+        assertTrue(readingPosition()!! > TestSeed.THREAD_NO + 100)
     }
 
     @Test
@@ -46,8 +50,8 @@ class ThreadHistoryFlowTest : FlowTest() {
         fakes.threads.threads[key] = longThread(FILLERS)
         composeRule.openSeededThread()
         composeRule.listNode(fillerText(FILLERS))
-        composeRule.waitUntilTrue { fakes.history.scrollPositions[key] != null }
-        val left = fakes.history.scrollPositions.getValue(key)
+        composeRule.waitUntilTrue { readingPosition() != null }
+        val left = readingPosition()!!
 
         composeRule.backToTabs()
         composeRule.openThreadsTab("Recent")
@@ -69,6 +73,6 @@ class ThreadHistoryFlowTest : FlowTest() {
     }
 
     private companion object {
-        const val FILLERS = 40
+        const val FILLERS = 24
     }
 }

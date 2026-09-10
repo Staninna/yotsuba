@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalTestApi::class)
+
 package dev.stan.yotsuba.thread
 
 import androidx.compose.ui.geometry.Offset
@@ -13,7 +15,9 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import dev.stan.yotsuba.di.TestSeed
@@ -25,7 +29,6 @@ import dev.stan.yotsuba.domain.model.ThreadDetails
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
-import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitUntilTrue
 
 /*
@@ -70,14 +73,20 @@ fun ComposeTestRule.threadListNode(): SemanticsNodeInteraction {
     return onNode(threadList)
 }
 
-/** Scrolls the thread list until a node showing [text] is composed. */
+/**
+ * Scrolls the thread list until a node showing [text] is composed, then lets it settle: a
+ * tap that lands while the list is still gliding is consumed by the scroll, not the card.
+ */
 fun ComposeTestRule.scrollThreadTo(text: String) {
     threadListNode().performScrollToNode(hasText(text, substring = true, ignoreCase = true))
+    waitForIdle()
 }
 
-/** Waits for [text] in the thread list, then scrolls it into view and returns it. */
+/**
+ * The node showing [text] in the thread list, scrolled into view. The scroll comes first:
+ * a post further down the thread than the list has composed does not exist to wait for.
+ */
 fun ComposeTestRule.listNode(text: String): SemanticsNodeInteraction {
-    waitForText(text)
     scrollThreadTo(text)
     return onNode(hasText(text, substring = true, ignoreCase = true) and !inSheet)
 }
@@ -103,15 +112,28 @@ fun ComposeTestRule.waitForSheetText(text: String) =
 fun ComposeTestRule.waitForSheetTextGone(text: String) =
     waitUntilTrue { onAllNodes(sheetText(text)).fetchSemanticsNodes().isEmpty() }
 
-/** A post card inside a sheet, which is tappable there: tapping refocuses the preview on it. */
+/**
+ * A post card inside a sheet, which is tappable there: tapping refocuses the preview on it.
+ * Unmerged, since the tappable wrapper merges the card's text into itself.
+ */
 fun ComposeTestRule.previewCard(postText: String): SemanticsNodeInteraction =
-    onNode(hasClickAction() and inSheet and hasAnyDescendant(hasText(postText, substring = true, ignoreCase = true)))
+    onNode(
+        hasClickAction() and inSheet and hasAnyDescendant(hasText(postText, substring = true, ignoreCase = true)),
+        useUnmergedTree = true,
+    )
 
 /**
- * Holds the card of the post showing [postText], on its top padding: the body text and
- * the header's tappable pieces have gesture handlers of their own that would take the hold.
+ * Opens the action sheet of the post showing [postText] through the card's own "Post actions"
+ * accessibility action. A held card is the gesture behind it, and [holdPost] injects that,
+ * but the action needs no coordinates inside a card that may have just been scrolled up.
  */
 fun ComposeTestRule.longPressPost(postText: String) {
+    listNode(postText)
+    onNode(postCard(postText)).performCustomAccessibilityActionWithLabel("Post actions")
+}
+
+/** The real hold on the card of the post showing [postText], on its top padding, clear of its controls. */
+fun ComposeTestRule.holdPost(postText: String) {
     listNode(postText)
     onNode(postCard(postText)).performTouchInput { longClick(Offset(centerX, 5f)) }
 }

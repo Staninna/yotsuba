@@ -5,7 +5,6 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.hasText
-import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSeededThread
 import dev.stan.yotsuba.openThread
 import dev.stan.yotsuba.tap
@@ -26,12 +25,23 @@ class PostActionsFlowTest : FlowTest() {
         composeRule.longPressPost(TestSeed.QUOTE_REPLY_TEXT)
 
         composeRule.waitForText("Copy text")
-        composeRule.nodeWithText("#${TestSeed.THREAD_NO + 3}", substring = false).assertIsDisplayed()
+        // The card behind the sheet shows the same number, so this one has to be the sheet's.
+        composeRule.sheetNode("#${TestSeed.THREAD_NO + 3}").assertIsDisplayed()
         // A post with no attachment has nothing to copy the URL of.
         assertFalse(composeRule.hasText("Copy image URL"))
 
         composeRule.tap("Copy text")
         composeRule.waitForText("Post text copied")
+    }
+
+    /** The hold itself, on the OP, which never has to be scrolled to. */
+    @Test
+    fun aHeldCard_opensItsSheet() {
+        composeRule.openSeededThread()
+        composeRule.holdPost(TestSeed.OP_TEXT)
+
+        composeRule.waitForText("Copy text")
+        composeRule.sheetNode("#${TestSeed.THREAD_NO}").assertIsDisplayed()
     }
 
     @Test
@@ -69,16 +79,16 @@ class PostActionsFlowTest : FlowTest() {
     @Test
     fun filterById_hidesTheOtherPoster_andClearFilterRestoresIt() {
         composeRule.openThread(TestSeed.VIDEO_BOARD_TITLE, TestSeed.VIDEO_SUBJECT, TestSeed.VIDEO_OP_TEXT)
-        composeRule.longPressPost(TestSeed.VIDEO_REPLY_TEXT)
+        composeRule.longPressPost(TestSeed.VIDEO_SAME_POSTER_TEXT)
         composeRule.tap("Filter by ID")
 
-        composeRule.waitForText("ID: ${TestSeed.VIDEO_REPLY_POSTER_ID}")
-        composeRule.waitForTextGone(TestSeed.VIDEO_SAME_POSTER_TEXT)
-        composeRule.listNode(TestSeed.SOUND_REPLY_TEXT).assertIsDisplayed()
+        composeRule.waitForText("ID: ${TestSeed.VIDEO_OP_POSTER_ID}")
+        composeRule.waitForTextGone(TestSeed.VIDEO_REPLY_TEXT)
+        composeRule.listNode(TestSeed.VIDEO_SAME_POSTER_TEXT).assertIsDisplayed()
 
         composeRule.tapIcon("Clear filter")
-        composeRule.waitForTextGone("ID: ${TestSeed.VIDEO_REPLY_POSTER_ID}")
-        composeRule.listNode(TestSeed.VIDEO_SAME_POSTER_TEXT).assertIsDisplayed()
+        composeRule.waitForTextGone("ID: ${TestSeed.VIDEO_OP_POSTER_ID}")
+        composeRule.listNode(TestSeed.VIDEO_REPLY_TEXT).assertIsDisplayed()
     }
 
     /** The board with poster IDs is the only one the row shows on. */

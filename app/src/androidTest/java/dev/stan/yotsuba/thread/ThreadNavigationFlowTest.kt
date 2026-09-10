@@ -7,6 +7,7 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.hasText
+import androidx.compose.ui.test.assertIsDisplayed
 import dev.stan.yotsuba.goBack
 import dev.stan.yotsuba.openSeededThread
 import dev.stan.yotsuba.tap
@@ -76,8 +77,8 @@ class ThreadNavigationFlowTest : FlowTest() {
         composeRule.waitForText(fillerText(FILLERS))
     }
 
-    @Test
-    fun aRefreshThatBringsNewPosts_marksThemAndTheFabJumpsThere() {
+    /** Loads the thread, then answers the next fetch with two more posts than it had. */
+    private fun openThenRefreshWithTwoNewPosts() {
         fakes.threads.threads[key] = longThread(FILLERS)
         composeRule.openSeededThread()
 
@@ -88,15 +89,23 @@ class ThreadNavigationFlowTest : FlowTest() {
             ),
         )
         composeRule.tapIcon("Refresh")
-        composeRule.waitForText("2 new posts")
+    }
+
+    @Test
+    fun aRefreshThatBringsNewPosts_marksThem_untilTheMarkIsTapped() {
+        openThenRefreshWithTwoNewPosts()
+
+        composeRule.listNode("2 new posts").assertIsDisplayed()
+        composeRule.tap("2 new posts")
+        composeRule.waitForTextGone("2 new posts")
+    }
+
+    @Test
+    fun theFirstNewPostFab_jumpsToTheNewPosts() {
+        openThenRefreshWithTwoNewPosts()
 
         composeRule.tapIcon("Jump to first new post")
         composeRule.waitForText(FIRST_NEW_TEXT)
-
-        // Tapping the divider, just above where the jump landed, dismisses it.
-        composeRule.listNode("2 new posts")
-        composeRule.tap("2 new posts")
-        composeRule.waitForTextGone("2 new posts")
     }
 
     @Test
@@ -126,11 +135,11 @@ class ThreadNavigationFlowTest : FlowTest() {
         composeRule.tapMenuItem("Tree view")
 
         // Five levels deep is the cap; what hangs below it folds into one row.
-        composeRule.waitForText("2 more replies")
+        composeRule.listNode("2 more replies").assertIsDisplayed()
         assertFalse(composeRule.hasText("Chain reply 6 of six"))
 
         composeRule.tap("2 more replies")
-        composeRule.waitForText("Chain reply 6 of six")
+        composeRule.listNode("Chain reply 6 of six").assertIsDisplayed()
     }
 
     private companion object {
