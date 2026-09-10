@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.MainActivity
+import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.waitForContentDescription
@@ -35,7 +36,8 @@ class DeepLinkFlowTest : FlowTest() {
 
     @Test
     fun catalogUrl_landsInCatalog() {
-        launch(viewIntent("https://boards.4chan.org/${TestSeed.BOARD}/catalog"))
+        // The other host and the plain http scheme are in the manifest too.
+        launch(viewIntent("http://boards.4channel.org/${TestSeed.BOARD}/catalog"))
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
         composeRule.waitForText(TestSeed.CLOSED_SUBJECT)
         // A pushed catalog, not the Home pane: it carries its own back arrow.
@@ -57,6 +59,16 @@ class DeepLinkFlowTest : FlowTest() {
         composeRule.waitForText("No favourite boards yet")
         deliver(viewIntent(threadUrl(TestSeed.VIDEO_BOARD, TestSeed.VIDEO_THREAD_NO)))
         composeRule.waitForText(TestSeed.VIDEO_OP_TEXT)
+    }
+
+    @Test
+    fun widgetTap_opensTheThreadFromItsExtras() {
+        launch(
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java)
+                .putExtra(WidgetDeepLink.EXTRA_BOARD, TestSeed.BOARD)
+                .putExtra(WidgetDeepLink.EXTRA_THREAD_NO, TestSeed.STICKY_THREAD_NO),
+        )
+        composeRule.waitForText(TestSeed.STICKY_OP_TEXT)
     }
 
     @Test

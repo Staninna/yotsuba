@@ -46,6 +46,24 @@ class CatalogFlowTest : FlowTest() {
     }
 
     @Test
+    fun visitedThread_badgesHowManyRepliesAreNew() {
+        fakes.catalog.catalogs[TestSeed.BOARD] = listOf(
+            TestSeed.catalogThread(
+                TestSeed.BOARD, TestSeed.THREAD_NO, TestSeed.THREAD_SUBJECT, TestSeed.OP_TEXT,
+                replyCount = 7, lastReplyNos = listOf(1_001L, 1_002L, 1_003L),
+            ),
+        )
+        fakes.history.seed(TestSeed.historyEntry(lastScrollPostNo = 1_001L))
+        composeRule.openCatalog()
+        composeRule.waitForText("+2 new")
+
+        // Read no further than the OP: the catalog lists only the last few replies, so the
+        // count it can prove is a floor.
+        fakes.history.seed(TestSeed.historyEntry())
+        composeRule.waitForText("3+ new")
+    }
+
+    @Test
     fun search_filtersThreads_andClosingRestoresThem() {
         composeRule.openCatalog()
         composeRule.tapIcon("Search")
