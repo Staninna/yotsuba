@@ -58,7 +58,8 @@ Open work first; everything finished lives under `# Done` at the bottom.
 - [ ] Re-orderable favourites and per-board accents on Home
 - [ ] Playback speed and frame stepping for webm (loop range is wave 11)
 - [ ] Per-bookmark auto-save of all media in a watched thread
-- [ ] Per-board font size and line spacing from a board profile are stored but not applied: post typography is set once in `MainActivity` through `YotsubaTheme`. Needs `CompositionLocalProvider(LocalPostTypography ...)` around the thread and catalog content with `settings.forBoard(board)`
+- [ ] Under a 7 or 30 day history retention the You page's lifetime numbers (first use, longest streak, bytes fetched ever) narrow to the retained window, since usage rows are trimmed with history. Fine under the FOREVER default; revisit if anyone sets a shorter one
+- [ ] Browsing a catalog without opening a thread no longer counts toward the You page's board ranking (`BOARD_OPENED` was deleted in wave 12). Ranking is by thread visits now
 - [ ] The data meter does not count video or sound-post streaming: ExoPlayer uses Media3's own HTTP stack. Needs `media3-datasource-okhttp` and an `OkHttpDataSource.Factory(client)` in `VideoCache.playbackFactory` and `rememberSoundPlayer`
 - [ ] The sound-post audio player does not play through `VideoCache`, so a precached sound post still fetches its audio on open
 - [ ] Removed-thread ETA, hot-right-now, and the other unpicked ideas from the 2026-09-09 lists live only in that session; nothing here
@@ -66,6 +67,32 @@ Open work first; everything finished lives under `# Done` at the bottom.
 # Done
 
 Finished work, kept for the record. Sections mirror the ones above.
+
+### 13. Wave 12 review fixes, 2026-09-10
+
+Nineteen findings confirmed by a seven-agent review (five specialised finders, two
+line scanners) with two independent skeptics per finding, then fixed by four agents.
+Thirty-eight further candidates were refuted and are not recorded.
+
+#### 2. Bugs
+
+- [x] Sharing or exporting a vault file deleted outside the app crashed out of FileProvider. Wave 11 made `entries()` keep pathless rows; `shareVaultEntries` and `exportToGallery` now drop them, the entry sheet hides both actions, and byte totals count a missing file as 0
+- [x] Trashing a missing file hard-deleted it behind an Undo that could not work. `VaultTrash.trash` takes the file explicitly and trashes the row and sidecar entry alone when nothing is on disk, so Undo and a later re-download both work
+- [x] The webm loop section never looped: the `PlayerMessage` target ran on the playback thread and `seekTo` threw the wrong-thread check, killing playback. Pinned to `player.applicationLooper`
+- [x] Clear cache left the 256 MB video cache untouched. `clearCaches` empties it per key on the live `SimpleCache` rather than releasing it, which would strand in-flight readers. `VideoCache` moved to `core/media` so `data/` does not import from `feature/`
+- [x] Per-board font size and line spacing were settable, counted as overrides and promised in the summary, but never read. The thread and catalog states carry the resolved pair and re-provide `LocalPostTypography`
+
+#### 3. Privacy and third parties
+
+- [x] The link preview fetched the page as soon as the confirm-before-opening dialog appeared, so declining still contacted the host. Now behind a Preview button in the dialog
+- [x] `usage_events` was a permanent per-thread record that ignored the history toggle, the retention setting and Clear history. `clearAll` and `trim` cover it; both stats folds moved off the main thread
+- [x] `BOARD_OPENED` was inferred inside the shared catalog fetch, so background sweeps and dice rolls counted as visits. The kind is deleted; boards rank by thread visits
+
+#### 4. Code quality
+
+- [x] `stats_days` was a plain string, so a one-day streak read "1 days"
+- [x] The board-code field in the profile editor failed silently on a rejected code and only responded to the IME Done key. It has an add button, an error state and a format message
+- [x] A KDoc block above `okHttpClient` had drifted onto the meter provider; the per-board blur KDoc overpromised what it covers
 
 ### 12. Wave 11, 2026-09-09
 
