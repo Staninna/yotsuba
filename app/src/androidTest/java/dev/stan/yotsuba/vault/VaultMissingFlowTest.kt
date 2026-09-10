@@ -156,4 +156,17 @@ class VaultMissingFlowTest : FlowTest() {
         composeRule.waitUntilTrue { fakes.vault.trashState.value.isEmpty() }
         composeRule.waitForContentDescription("Missing from disk")
     }
+
+    @Test
+    fun missingFile_countsAsAFile_butNotAsDiskTaken() {
+        composeRule.openVault()
+        // Nine files, and the 5 MB the row with no file behind it records is in neither total.
+        composeRule.waitForText("9 files · 3.9 MB")
+
+        composeRule.tapIcon("More")
+        composeRule.tap("What the vault holds, by board and thread")
+        composeRule.waitForText("Vault statistics", substring = false)
+        composeRule.waitForText("3 files · 19 KB")
+        composeRule.scrollSheetTo("/${TestSeed.BOARD}/ · 3 files · 19 KB")
+    }
 }
