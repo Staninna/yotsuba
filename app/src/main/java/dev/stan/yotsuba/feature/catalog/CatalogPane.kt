@@ -47,6 +47,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -88,6 +89,7 @@ import dev.stan.yotsuba.core.designsystem.motionEnter
 import dev.stan.yotsuba.core.designsystem.motionExit
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
+import dev.stan.yotsuba.core.designsystem.theme.LocalPostTypography
 import dev.stan.yotsuba.core.designsystem.theme.postTypography
 import dev.stan.yotsuba.core.util.TimeFormat
 import dev.stan.yotsuba.core.util.UiState
@@ -95,6 +97,8 @@ import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.CatalogThread
 import dev.stan.yotsuba.domain.model.Filter
+import dev.stan.yotsuba.domain.model.FontSize
+import dev.stan.yotsuba.domain.model.LineSpacing
 import kotlinx.coroutines.launch
 
 /**
@@ -170,102 +174,111 @@ fun CatalogPane(
         )
     }
 
-    Box(modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            UiStateContent(state, onRetry = viewModel::retry) { s ->
-                if (s.offline) {
-                    OfflineBanner(cachedAtLabel = null, onRetry = { viewModel.load(forceRefresh = true) })
-                }
-                if (s.searchQuery != null) {
-                    // The field only exists while search is open, so entering composition is
-                    // the reveal: put the caret in it so the keyboard comes up on the first tap.
-                    val focus = remember { FocusRequester() }
-                    LaunchedEffect(Unit) { focus.requestFocus() }
-                    SearchField(
-                        value = s.searchQuery,
-                        onValueChange = viewModel::onSearchChange,
-                        hintRes = R.string.catalog_search_hint,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = spacing.lg, vertical = spacing.sm)
-                            .focusRequester(focus),
-                    )
-                }
-                PullToRefreshBox(
-                    isRefreshing = s.refreshing,
-                    onRefresh = { haptics.tick(); viewModel.load(forceRefresh = true) },
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    when {
-                        s.threads.isNotEmpty() -> LazyVerticalGrid(
-                            state = gridState,
-                            columns = when (s.layout) {
-                                CatalogLayout.COMFORTABLE -> GridCells.Adaptive(260.dp)
-                                CatalogLayout.COMPACT -> GridCells.Adaptive(150.dp)
-                                CatalogLayout.LIST -> GridCells.Fixed(1)
-                            },
-                            contentPadding = PaddingValues(spacing.md),
-                            horizontalArrangement = Arrangement.spacedBy(spacing.md),
-                            verticalArrangement = Arrangement.spacedBy(spacing.md),
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            if (s.about != null) {
-                                item(key = "about", contentType = "about", span = { GridItemSpan(maxLineSpan) }) {
-                                    AboutCard(board, s.about, onDismiss = viewModel::onDismissAbout)
+    // The theme provides post typography once from the global settings; re-providing it
+    // from the board's resolved settings is what makes a board profile's text size and
+    // line spacing apply to this catalog.
+    val content = (state as? UiState.Success)?.data
+    val postType = remember(content?.fontSize, content?.lineSpacing) {
+        postTypography(content?.fontSize ?: FontSize.DEFAULT, content?.lineSpacing ?: LineSpacing.DEFAULT)
+    }
+    CompositionLocalProvider(LocalPostTypography provides postType) {
+        Box(modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize()) {
+                UiStateContent(state, onRetry = viewModel::retry) { s ->
+                    if (s.offline) {
+                        OfflineBanner(cachedAtLabel = null, onRetry = { viewModel.load(forceRefresh = true) })
+                    }
+                    if (s.searchQuery != null) {
+                        // The field only exists while search is open, so entering composition is
+                        // the reveal: put the caret in it so the keyboard comes up on the first tap.
+                        val focus = remember { FocusRequester() }
+                        LaunchedEffect(Unit) { focus.requestFocus() }
+                        SearchField(
+                            value = s.searchQuery,
+                            onValueChange = viewModel::onSearchChange,
+                            hintRes = R.string.catalog_search_hint,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = spacing.lg, vertical = spacing.sm)
+                                .focusRequester(focus),
+                        )
+                    }
+                    PullToRefreshBox(
+                        isRefreshing = s.refreshing,
+                        onRefresh = { haptics.tick(); viewModel.load(forceRefresh = true) },
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        when {
+                            s.threads.isNotEmpty() -> LazyVerticalGrid(
+                                state = gridState,
+                                columns = when (s.layout) {
+                                    CatalogLayout.COMFORTABLE -> GridCells.Adaptive(260.dp)
+                                    CatalogLayout.COMPACT -> GridCells.Adaptive(150.dp)
+                                    CatalogLayout.LIST -> GridCells.Fixed(1)
+                                },
+                                contentPadding = PaddingValues(spacing.md),
+                                horizontalArrangement = Arrangement.spacedBy(spacing.md),
+                                verticalArrangement = Arrangement.spacedBy(spacing.md),
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                if (s.about != null) {
+                                    item(key = "about", contentType = "about", span = { GridItemSpan(maxLineSpan) }) {
+                                        AboutCard(board, s.about, onDismiss = viewModel::onDismissAbout)
+                                    }
                                 }
-                            }
-                            // A collapsed stub and a card are different shapes; keying the
-                            // slot type keeps the grid from reusing one for the other.
-                            fun stubbed(thread: CatalogThread) =
-                                thread.no in s.stubs && thread.no !in expandedStubs
-                            items(
-                                count = s.threads.size,
-                                key = { s.threads[it].no },
-                                contentType = { if (stubbed(s.threads[it])) "stub" else "thread" },
-                            ) { i ->
-                                val thread = s.threads[i]
-                                Box(animatedGridItem().then(if (thread.no in s.faded) Modifier.alpha(0.4f) else Modifier)) {
-                                    if (stubbed(thread)) {
-                                        FilteredStub(
-                                            s.stubs.getValue(thread.no),
-                                            onClick = { expandedStubs = expandedStubs + thread.no },
-                                        )
-                                    } else {
-                                        ThreadCard(
-                                            thread = thread,
-                                            newReplies = s.newReplies[thread.no],
-                                            crossReferences = s.crossReferences[thread.no],
-                                            layout = s.layout,
-                                            blurred = thread.no in s.blurred,
-                                            onClick = { viewModel.onThreadOpened(thread.no); onOpenThread(thread.no) },
-                                            onLongClick = { haptics.longPress(); sheetThread = thread },
-                                            onReveal = { viewModel.onRevealThumbnail(thread.no) },
-                                        )
+                                // A collapsed stub and a card are different shapes; keying the
+                                // slot type keeps the grid from reusing one for the other.
+                                fun stubbed(thread: CatalogThread) =
+                                    thread.no in s.stubs && thread.no !in expandedStubs
+                                items(
+                                    count = s.threads.size,
+                                    key = { s.threads[it].no },
+                                    contentType = { if (stubbed(s.threads[it])) "stub" else "thread" },
+                                ) { i ->
+                                    val thread = s.threads[i]
+                                    Box(animatedGridItem().then(if (thread.no in s.faded) Modifier.alpha(0.4f) else Modifier)) {
+                                        if (stubbed(thread)) {
+                                            FilteredStub(
+                                                s.stubs.getValue(thread.no),
+                                                onClick = { expandedStubs = expandedStubs + thread.no },
+                                            )
+                                        } else {
+                                            ThreadCard(
+                                                thread = thread,
+                                                newReplies = s.newReplies[thread.no],
+                                                crossReferences = s.crossReferences[thread.no],
+                                                layout = s.layout,
+                                                blurred = thread.no in s.blurred,
+                                                onClick = { viewModel.onThreadOpened(thread.no); onOpenThread(thread.no) },
+                                                onLongClick = { haptics.longPress(); sheetThread = thread },
+                                                onReveal = { viewModel.onRevealThumbnail(thread.no) },
+                                            )
+                                        }
                                     }
                                 }
                             }
+                            !s.searchQuery.isNullOrBlank() -> NoSearchResults(
+                                s.searchQuery,
+                                Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            )
+                            else -> EmptyState(
+                                title = stringResource(R.string.catalog_empty_title),
+                                explanation = stringResource(R.string.catalog_empty_explanation),
+                                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                            )
                         }
-                        !s.searchQuery.isNullOrBlank() -> NoSearchResults(
-                            s.searchQuery,
-                            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                        )
-                        else -> EmptyState(
-                            title = stringResource(R.string.catalog_empty_title),
-                            explanation = stringResource(R.string.catalog_empty_explanation),
-                            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                        )
                     }
                 }
             }
-        }
-        AnimatedVisibility(
-            visible = showScrollTop,
-            enter = motionEnter(),
-            exit = motionExit(),
-            modifier = Modifier.align(Alignment.BottomEnd).padding(spacing.lg),
-        ) {
-            FloatingActionButton(onClick = { scope.launch { gridState.animateScrollToItem(0) } }) {
-                Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.catalog_scroll_to_top))
+            AnimatedVisibility(
+                visible = showScrollTop,
+                enter = motionEnter(),
+                exit = motionExit(),
+                modifier = Modifier.align(Alignment.BottomEnd).padding(spacing.lg),
+            ) {
+                FloatingActionButton(onClick = { scope.launch { gridState.animateScrollToItem(0) } }) {
+                    Icon(Icons.Filled.KeyboardArrowUp, stringResource(R.string.catalog_scroll_to_top))
+                }
             }
         }
     }

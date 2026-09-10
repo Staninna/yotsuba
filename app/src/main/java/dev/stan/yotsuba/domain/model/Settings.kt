@@ -52,7 +52,7 @@ data class BoardProfile(
     val mediaAutoplay: MediaAutoplay? = null,
     val revealAllSpoilers: Boolean? = null,
     val inlineImageExpansion: Boolean? = null,
-    /** Blur catalog and thread thumbnails until tapped. Not NSFW hiding, just discretion. */
+    /** Blur catalog thumbnails until tapped. Not NSFW hiding, just discretion. */
     val blurThumbnails: Boolean? = null,
 ) {
     /** How many fields diverge from the global; 0 means the profile is not worth keeping. */

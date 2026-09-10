@@ -3,6 +3,8 @@ package dev.stan.yotsuba.feature.thread
 import dev.stan.yotsuba.core.util.Urls
 import dev.stan.yotsuba.domain.model.ArchiveSource
 import dev.stan.yotsuba.domain.model.Board
+import dev.stan.yotsuba.domain.model.FontSize
+import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.MediaSaveStatus
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadDetails
@@ -55,6 +57,10 @@ data class ThreadContent(
     val filteredCount: Int = 0,
     /** Posts with a present attachment, in thread order. */
     val mediaPosts: List<ThreadPost> = emptyList(),
+    /** Post text size for this board, the global one unless its profile overrides it. */
+    val fontSize: FontSize = FontSize.DEFAULT,
+    /** Post line spacing for this board, the global one unless its profile overrides it. */
+    val lineSpacing: LineSpacing = LineSpacing.DEFAULT,
 )
 
 /**
