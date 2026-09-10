@@ -13,6 +13,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import dev.stan.yotsuba.di.TestSeed
@@ -25,6 +26,7 @@ import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.waitForText
+import dev.stan.yotsuba.waitUntilTrue
 
 /*
  * Selectors for the thread screen. A post's card carries the "Post actions" accessibility
@@ -56,10 +58,16 @@ fun bodyLinks(bodyText: String, where: SemanticsMatcher = !inSheet): SemanticsMa
 fun ComposeTestRule.bodyLink(bodyText: String, where: SemanticsMatcher = !inSheet): SemanticsNodeInteraction =
     onNode(bodyLinks(bodyText, where), useUnmergedTree = true)
 
-/** Scrolls the thread list until a node showing [text] is composed. */
+/** The thread's own list, told apart from a sheet's list by the window it lives in. */
+val threadList: SemanticsMatcher = hasScrollToNodeAction() and !inSheet
+
+/**
+ * Scrolls the thread list until a node showing [text] is composed. Waits for the screen
+ * being left behind to go first: mid-transition two screens both have a list.
+ */
 fun ComposeTestRule.scrollThreadTo(text: String) {
-    onNode(hasScrollToNodeAction() and !inSheet)
-        .performScrollToNode(hasText(text, substring = true, ignoreCase = true))
+    waitUntilTrue { onAllNodes(threadList).fetchSemanticsNodes().size == 1 }
+    onNode(threadList).performScrollToNode(hasText(text, substring = true, ignoreCase = true))
 }
 
 /** Waits for [text] in the thread list, then scrolls it into view and returns it. */
@@ -68,6 +76,31 @@ fun ComposeTestRule.listNode(text: String): SemanticsNodeInteraction {
     scrollThreadTo(text)
     return onNode(hasText(text, substring = true, ignoreCase = true) and !inSheet)
 }
+
+/** Scrolls the post showing [bodyText] into view, then taps the one tappable run in its body. */
+fun ComposeTestRule.tapBodyLink(bodyText: String) {
+    listNode(bodyText)
+    bodyLink(bodyText).performClick()
+}
+
+/** Text inside an open sheet or dialog, where the same string is usually also on the screen behind. */
+fun sheetText(text: String): SemanticsMatcher =
+    hasText(text, substring = true, ignoreCase = true) and inSheet
+
+fun ComposeTestRule.sheetNode(text: String): SemanticsNodeInteraction = onNode(sheetText(text))
+
+fun ComposeTestRule.hasSheetText(text: String): Boolean =
+    onAllNodes(sheetText(text)).fetchSemanticsNodes().isNotEmpty()
+
+fun ComposeTestRule.waitForSheetText(text: String) =
+    waitUntilTrue { onAllNodes(sheetText(text)).fetchSemanticsNodes().isNotEmpty() }
+
+fun ComposeTestRule.waitForSheetTextGone(text: String) =
+    waitUntilTrue { onAllNodes(sheetText(text)).fetchSemanticsNodes().isEmpty() }
+
+/** A post card inside a sheet, which is tappable there: tapping refocuses the preview on it. */
+fun ComposeTestRule.previewCard(postText: String): SemanticsNodeInteraction =
+    onNode(hasClickAction() and inSheet and hasAnyDescendant(hasText(postText, substring = true, ignoreCase = true)))
 
 /**
  * Holds the card of the post showing [postText], on its top padding: the body text and
