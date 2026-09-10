@@ -12,8 +12,10 @@ import dev.stan.yotsuba.di.FakeMediaVaultRepository
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.MediaItem
 import dev.stan.yotsuba.hasContentDescription
+import dev.stan.yotsuba.clickContentDescription
 import dev.stan.yotsuba.nodeWithContentDescription
 import dev.stan.yotsuba.openSeededViewer
+import dev.stan.yotsuba.openVaultTab
 import dev.stan.yotsuba.openThread
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
@@ -67,14 +69,26 @@ fun ComposeTestRule.openViewerMenu(item: String) {
 /** Flicks the feed to the next page. */
 fun ComposeTestRule.nextPage() = onRoot().performTouchInput { swipeUp(startY = height * 0.8f, endY = height * 0.2f) }
 
-/** Puts [item] in the vault as a real file (garbage bytes), so actions that need a local copy skip the fetch. */
+/**
+ * Puts [item] in the vault as a real file (garbage bytes), so actions that need a local
+ * copy skip the fetch. A `file:` [url] makes it a vault-only file with no online copy.
+ */
 fun FakeMediaVaultRepository.seedLocalCopy(
     item: MediaItem,
+    url: String = item.fullUrl,
     board: String = TestSeed.BOARD,
     threadNo: Long = TestSeed.THREAD_NO,
 ): File {
     val file = File(ApplicationProvider.getApplicationContext<Context>().cacheDir, item.displayName)
     file.writeBytes(ByteArray(64))
-    seed(TestSeed.vaultEntry(item, board, threadNo).copy(absolutePath = file.path))
+    seed(TestSeed.vaultEntry(item, board, threadNo).copy(url = url, absolutePath = file.path))
     return file
+}
+
+/** The Saved tab, then the tile named [displayName], which opens the vault's own viewer. */
+fun ComposeTestRule.openVaultViewer(displayName: String) {
+    openVaultTab()
+    waitForContentDescription(displayName)
+    clickContentDescription(displayName)
+    waitForContentDescription(CLOSE_VIEWER)
 }
