@@ -62,12 +62,17 @@ fun ComposeTestRule.bodyLink(bodyText: String, where: SemanticsMatcher = !inShee
 val threadList: SemanticsMatcher = hasScrollToNodeAction() and !inSheet
 
 /**
- * Scrolls the thread list until a node showing [text] is composed. Waits for the screen
- * being left behind to go first: mid-transition two screens both have a list.
+ * The thread's list, once it is the only one: mid-transition the screen being left behind
+ * still has one, and either would answer the matcher.
  */
-fun ComposeTestRule.scrollThreadTo(text: String) {
+fun ComposeTestRule.threadListNode(): SemanticsNodeInteraction {
     waitUntilTrue { onAllNodes(threadList).fetchSemanticsNodes().size == 1 }
-    onNode(threadList).performScrollToNode(hasText(text, substring = true, ignoreCase = true))
+    return onNode(threadList)
+}
+
+/** Scrolls the thread list until a node showing [text] is composed. */
+fun ComposeTestRule.scrollThreadTo(text: String) {
+    threadListNode().performScrollToNode(hasText(text, substring = true, ignoreCase = true))
 }
 
 /** Waits for [text] in the thread list, then scrolls it into view and returns it. */
