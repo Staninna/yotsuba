@@ -92,8 +92,7 @@ jobs:
   # not wait on a ten-minute boot, and so a red here points at the UI, not the build.
   instrumented:
     runs-on: ubuntu-latest
-    # The orchestrator gives every test its own process, which roughly doubles the run.
-    timeout-minutes: 70
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
