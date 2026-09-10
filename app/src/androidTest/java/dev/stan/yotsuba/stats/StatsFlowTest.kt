@@ -37,14 +37,12 @@ class StatsFlowTest : FlowTest() {
         fakes.bookmarks.seed(TestSeed.bookmark())
         fakes.vault.seed(TestSeed.vaultEntry())
         fakes.usage.seed(
-            // The same thread twice counts once; a second board makes it two threads read.
+            // The same thread twice counts once for threads read, but twice for the board's
+            // visits: wave 12 ranks boards by thread visits rather than by catalog fetches.
             event(UsageKind.THREAD_VISITED, TestSeed.BOARD, TestSeed.THREAD_NO),
             event(UsageKind.THREAD_VISITED, TestSeed.BOARD, TestSeed.THREAD_NO),
             event(UsageKind.THREAD_VISITED, TestSeed.VIDEO_BOARD, TestSeed.VIDEO_THREAD_NO),
             event(UsageKind.READ_MARK), event(UsageKind.READ_MARK), event(UsageKind.READ_MARK),
-            event(UsageKind.BOARD_OPENED, TestSeed.BOARD),
-            event(UsageKind.BOARD_OPENED, TestSeed.BOARD),
-            event(UsageKind.BOARD_OPENED, TestSeed.VIDEO_BOARD),
             event(UsageKind.BOOKMARK_ADDED, TestSeed.BOARD, TestSeed.THREAD_NO),
             event(UsageKind.IMAGE_SAVED, value = 1_000L),
             event(UsageKind.IMAGE_SAVED, value = 1_000L),

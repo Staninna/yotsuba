@@ -209,6 +209,7 @@ class FakeUsageRepository @Inject constructor() : UsageRepository {
     val state = MutableStateFlow<List<UsageEvent>>(emptyList())
     /** Wall clock for new events; fix it so the Stats page's dates are predictable. */
     var now: () -> Long = System::currentTimeMillis
+    var trimCalls = 0
 
     override fun events(): Flow<List<UsageEvent>> = state
 
@@ -222,6 +223,15 @@ class FakeUsageRepository @Inject constructor() : UsageRepository {
 
     override suspend fun clear(kind: UsageKind) {
         state.update { events -> events.filterNot { it.kind == kind } }
+    }
+
+    override suspend fun clearAll() {
+        state.value = emptyList()
+    }
+
+    override suspend fun trim(retainAfterMs: Long) {
+        trimCalls++
+        state.update { events -> events.filter { it.at >= retainAfterMs } }
     }
 
     fun count(kind: UsageKind) = state.value.count { it.kind == kind }
