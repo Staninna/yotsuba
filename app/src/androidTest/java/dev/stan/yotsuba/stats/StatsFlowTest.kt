@@ -115,6 +115,14 @@ class StatsFlowTest : FlowTest() {
     }
 
     @Test
+    fun vaultRow_leavesOutTheFilesARescanFoundGone() {
+        fakes.vault.seed(TestSeed.vaultEntry(), TestSeed.vaultEntry(TestSeed.spoilerMediaItem).copy(absolutePath = ""))
+        openStats()
+        // Both files are still listed, but the one that is not on disk takes no space.
+        assertStat("In the vault now", "2 files, " + FileSize.format(12_345L))
+    }
+
+    @Test
     fun sectionHeaders_nameEveryGroup() {
         openStats()
         composeRule.waitForText("Reading", substring = false)
