@@ -1,17 +1,20 @@
 package dev.stan.yotsuba.thread
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.performClick
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
+import dev.stan.yotsuba.clearField
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.domain.model.PostMedia
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openSeededThread
 import dev.stan.yotsuba.openThread
 import dev.stan.yotsuba.tap
+import dev.stan.yotsuba.typeInField
 import dev.stan.yotsuba.waitForContentDescription
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitUntilTrue
@@ -59,6 +62,36 @@ class GalleryFlowTest : FlowTest() {
 
         composeRule.waitUntilTrue { fakes.vault.saves.isNotEmpty() }
         assertEquals(listOf(clip.fullUrl), fakes.vault.saves.map { (item, _) -> item.fullUrl })
+    }
+
+    @Test
+    fun search_keepsOnlyTheFileWhoseNameMatches_andClearingBringsBothBack() {
+        openGallery()
+        composeRule.waitForText("2 files")
+
+        composeRule.typeInField(TestSeed.MEDIA_FILENAME)
+        composeRule.waitForText("1 file", substring = false)
+        tile(TestSeed.mediaItem.displayName).assertIsDisplayed()
+        composeRule.onAllNodes(hasContentDescription(TestSeed.spoilerMediaItem.displayName) and inSheet).assertCountEquals(0)
+
+        composeRule.clearField()
+        composeRule.waitForText("2 files")
+    }
+
+    /** A query and a chip narrow the same grid, and the query owns the empty state it leaves. */
+    @Test
+    fun aQueryThatMatchesNothing_saysSo_andSoDoesOneTheChipsEmpty() {
+        openGallery()
+        composeRule.waitForText("2 files")
+
+        composeRule.typeInField("no_such_file")
+        composeRule.waitForText("""Nothing matches "no_such_file".""")
+
+        composeRule.clearField()
+        composeRule.typeInField("image")
+        composeRule.waitForText("2 files")
+        composeRule.tap("Videos", substring = false)
+        composeRule.waitForText("""Nothing matches "image".""")
     }
 
     @Test
