@@ -32,6 +32,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -63,9 +64,13 @@ import dev.stan.yotsuba.core.designsystem.component.errorMessage
 import dev.stan.yotsuba.core.designsystem.motionEnter
 import dev.stan.yotsuba.core.designsystem.motionExit
 import dev.stan.yotsuba.core.designsystem.rememberHaptics
+import dev.stan.yotsuba.core.designsystem.theme.LocalPostTypography
+import dev.stan.yotsuba.core.designsystem.theme.postTypography
 import dev.stan.yotsuba.core.designsystem.token.LocalSpacing
 import dev.stan.yotsuba.core.util.UiState
 import dev.stan.yotsuba.core.util.Urls
+import dev.stan.yotsuba.domain.model.FontSize
+import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.NetworkError
 import dev.stan.yotsuba.domain.model.ThreadPost
 import dev.stan.yotsuba.feature.catalog.ThreadNeighbours
@@ -348,116 +353,124 @@ fun ThreadScreen(
             }
             detectViewerSwipe(onSwipeLeft = { swipe(forward = true) }, onSwipeRight = { swipe(forward = false) })
         }
-        Box(Modifier.padding(padding).fillMaxSize().then(swipeModifier)) {
-            UiStateContent(state, onRetry = viewModel::retry) { s ->
-                val opLabel = stringResource(R.string.thread_quote_label_op)
-                val youLabel = stringResource(R.string.thread_quote_label_you)
-                val quoteLabels = remember(s.quoteLabels, opLabel, youLabel) {
-                    s.quoteLabels.mapValues { (_, label) ->
-                        when (label) {
-                            QuoteLabel.OP -> opLabel
-                            QuoteLabel.YOU -> youLabel
+        // Per-board text size and line spacing: the theme provides post typography once
+        // from the global settings, so a board profile only takes effect if the screen
+        // re-provides it from the settings the view model already resolved for this board.
+        val postType = remember(content?.fontSize, content?.lineSpacing) {
+            postTypography(content?.fontSize ?: FontSize.DEFAULT, content?.lineSpacing ?: LineSpacing.DEFAULT)
+        }
+        CompositionLocalProvider(LocalPostTypography provides postType) {
+            Box(Modifier.padding(padding).fillMaxSize().then(swipeModifier)) {
+                UiStateContent(state, onRetry = viewModel::retry) { s ->
+                    val opLabel = stringResource(R.string.thread_quote_label_op)
+                    val youLabel = stringResource(R.string.thread_quote_label_you)
+                    val quoteLabels = remember(s.quoteLabels, opLabel, youLabel) {
+                        s.quoteLabels.mapValues { (_, label) ->
+                            when (label) {
+                                QuoteLabel.OP -> opLabel
+                                QuoteLabel.YOU -> youLabel
+                            }
                         }
                     }
-                }
-                val postCard: @Composable (ThreadPost, Boolean) -> Unit = { post, inPreview ->
-                    PostCard(
-                        post = post,
-                        board = s.board,
-                        ui = s.postStates[post.no] ?: PostUiState.Default,
-                        revealAll = s.revealAllSpoilers,
-                        darkTheme = dark,
-                        actions = if (inPreview) previewActions else listActions,
-                        sharesMediaWithViewer = !inPreview,
-                        highlight = if (inPreview) null else s.searchQuery,
-                        quoteLabels = quoteLabels,
-                        highlightGets = s.highlightGets,
-                    )
-                }
-
-                Column {
-                    ThreadNotice(s)
-                    if (searchOpen) {
-                        SearchBar(
-                            query = s.searchQuery,
-                            matchCount = s.searchMatches.size,
-                            matchIndex = s.searchIndex,
-                            onQueryChange = viewModel::onSearchChange,
-                            onStep = viewModel::onSearchStep,
-                            onClose = ::closeSearch,
+                    val postCard: @Composable (ThreadPost, Boolean) -> Unit = { post, inPreview ->
+                        PostCard(
+                            post = post,
+                            board = s.board,
+                            ui = s.postStates[post.no] ?: PostUiState.Default,
+                            revealAll = s.revealAllSpoilers,
+                            darkTheme = dark,
+                            actions = if (inPreview) previewActions else listActions,
+                            sharesMediaWithViewer = !inPreview,
+                            highlight = if (inPreview) null else s.searchQuery,
+                            quoteLabels = quoteLabels,
+                            highlightGets = s.highlightGets,
                         )
                     }
-                    PullToRefreshBox(
-                        isRefreshing = s.refreshing,
-                        onRefresh = { haptics.tick(); viewModel.load(forceRefresh = true) },
-                    ) {
-                        LazyColumn(
-                            state = listState,
-                            contentPadding = PaddingValues(spacing.md),
-                            verticalArrangement = Arrangement.spacedBy(spacing.md),
-                            modifier = Modifier.fillMaxSize(),
+
+                    Column {
+                        ThreadNotice(s)
+                        if (searchOpen) {
+                            SearchBar(
+                                query = s.searchQuery,
+                                matchCount = s.searchMatches.size,
+                                matchIndex = s.searchIndex,
+                                onQueryChange = viewModel::onSearchChange,
+                                onStep = viewModel::onSearchStep,
+                                onClose = ::closeSearch,
+                            )
+                        }
+                        PullToRefreshBox(
+                            isRefreshing = s.refreshing,
+                            onRefresh = { haptics.tick(); viewModel.load(forceRefresh = true) },
                         ) {
-                            items(
-                                count = s.rows.size,
-                                key = { i ->
+                            LazyColumn(
+                                state = listState,
+                                contentPadding = PaddingValues(spacing.md),
+                                verticalArrangement = Arrangement.spacedBy(spacing.md),
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                items(
+                                    count = s.rows.size,
+                                    key = { i ->
+                                        when (val row = s.rows[i]) {
+                                            is ThreadRow.Post -> row.post.no
+                                            is ThreadRow.NewPostsDivider -> "new-posts"
+                                            is ThreadRow.EarlierPosts -> "earlier-posts"
+                                            is ThreadRow.MoreReplies -> "more-${row.parentNo}"
+                                            is ThreadRow.Filtered -> "filtered-${row.postNo}"
+                                        }
+                                    },
+                                    // Four different subtrees; only a slot of the same kind is worth reusing.
+                                    contentType = { i ->
+                                        when (s.rows[i]) {
+                                            is ThreadRow.Post -> "post"
+                                            is ThreadRow.NewPostsDivider -> "divider"
+                                            is ThreadRow.EarlierPosts -> "divider"
+                                            is ThreadRow.MoreReplies -> "more"
+                                            is ThreadRow.Filtered -> "filtered"
+                                        }
+                                    },
+                                ) { i ->
+                                    Box(animatedListItem()) {
                                     when (val row = s.rows[i]) {
-                                        is ThreadRow.Post -> row.post.no
-                                        is ThreadRow.NewPostsDivider -> "new-posts"
-                                        is ThreadRow.EarlierPosts -> "earlier-posts"
-                                        is ThreadRow.MoreReplies -> "more-${row.parentNo}"
-                                        is ThreadRow.Filtered -> "filtered-${row.postNo}"
+                                        is ThreadRow.Post -> Box(Modifier.padding(start = treeIndent * row.depth)) {
+                                            postCard(row.post, false)
+                                        }
+                                        is ThreadRow.NewPostsDivider -> NewPostsDivider(
+                                            count = row.count,
+                                            onTap = viewModel::onDismissNewPostsDivider,
+                                        )
+                                        is ThreadRow.EarlierPosts -> EarlierPostsRow(
+                                            count = row.count,
+                                            onTap = viewModel::onExpandEarlier,
+                                        )
+                                        is ThreadRow.MoreReplies -> MoreRepliesRow(
+                                            count = row.count,
+                                            modifier = Modifier.padding(start = treeIndent * MAX_TREE_DEPTH),
+                                            onTap = { viewModel.onExpandTail(row.parentNo) },
+                                        )
+                                        is ThreadRow.Filtered -> FilteredRow(
+                                            pattern = row.pattern,
+                                            modifier = Modifier.padding(start = treeIndent * row.depth),
+                                            onTap = { viewModel.onExpandFiltered(row.postNo) },
+                                        )
                                     }
-                                },
-                                // Four different subtrees; only a slot of the same kind is worth reusing.
-                                contentType = { i ->
-                                    when (s.rows[i]) {
-                                        is ThreadRow.Post -> "post"
-                                        is ThreadRow.NewPostsDivider -> "divider"
-                                        is ThreadRow.EarlierPosts -> "divider"
-                                        is ThreadRow.MoreReplies -> "more"
-                                        is ThreadRow.Filtered -> "filtered"
                                     }
-                                },
-                            ) { i ->
-                                Box(animatedListItem()) {
-                                when (val row = s.rows[i]) {
-                                    is ThreadRow.Post -> Box(Modifier.padding(start = treeIndent * row.depth)) {
-                                        postCard(row.post, false)
-                                    }
-                                    is ThreadRow.NewPostsDivider -> NewPostsDivider(
-                                        count = row.count,
-                                        onTap = viewModel::onDismissNewPostsDivider,
-                                    )
-                                    is ThreadRow.EarlierPosts -> EarlierPostsRow(
-                                        count = row.count,
-                                        onTap = viewModel::onExpandEarlier,
-                                    )
-                                    is ThreadRow.MoreReplies -> MoreRepliesRow(
-                                        count = row.count,
-                                        modifier = Modifier.padding(start = treeIndent * MAX_TREE_DEPTH),
-                                        onTap = { viewModel.onExpandTail(row.parentNo) },
-                                    )
-                                    is ThreadRow.Filtered -> FilteredRow(
-                                        pattern = row.pattern,
-                                        modifier = Modifier.padding(start = treeIndent * row.depth),
-                                        onTap = { viewModel.onExpandFiltered(row.postNo) },
-                                    )
-                                }
                                 }
                             }
                         }
                     }
-                }
 
-                ThreadOverlays(
-                    s = s,
-                    board = board,
-                    threadNo = threadNo,
-                    searchOpen = searchOpen,
-                    actions = overlayActions,
-                    snackbar = snackbar,
-                    postCard = postCard,
-                )
+                    ThreadOverlays(
+                        s = s,
+                        board = board,
+                        threadNo = threadNo,
+                        searchOpen = searchOpen,
+                        actions = overlayActions,
+                        snackbar = snackbar,
+                        postCard = postCard,
+                    )
+                }
             }
         }
     }

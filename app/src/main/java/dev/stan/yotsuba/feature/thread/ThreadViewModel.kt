@@ -160,6 +160,8 @@ class ThreadViewModel @AssistedInject constructor(
                         board = board,
                         bookmarked = bookmarked,
                         revealAllSpoilers = settings.revealAllSpoilers,
+                        fontSize = settings.fontSize,
+                        lineSpacing = settings.lineSpacing,
                         highlightGets = settings.highlightGets,
                         postStates = postStates(details, session, saveStatuses, savedPaths, settings.dataSaver, verdicts),
                         rows = rows,
