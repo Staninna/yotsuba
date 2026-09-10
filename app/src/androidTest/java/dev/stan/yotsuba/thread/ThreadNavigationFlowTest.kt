@@ -11,7 +11,6 @@ import dev.stan.yotsuba.goBack
 import dev.stan.yotsuba.openSeededThread
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
-import dev.stan.yotsuba.waitForContentDescription
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitForTextGone
 import org.junit.Assert.assertFalse
