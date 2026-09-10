@@ -45,13 +45,18 @@ fun ComposeTestRule.openVault() {
 }
 
 /** One segment of a segmented row: the only radio-button role in the app. */
-fun ComposeTestRule.segment(label: String): SemanticsNodeInteraction = onNode(
-    hasText(label, substring = false, ignoreCase = true) and
-        SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton),
-)
+fun ComposeTestRule.segment(label: String): SemanticsNodeInteraction = onNode(segmentMatcher(label))
 
+private fun segmentMatcher(label: String): SemanticsMatcher =
+    hasText(label, substring = false, ignoreCase = true) and
+        SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton)
+
+/**
+ * Waits for the segment itself, not for its text: the bottom bar carries "Threads" too, so
+ * waiting on the word alone returns before the search scope row has composed.
+ */
 fun ComposeTestRule.tapSegment(label: String) {
-    waitForText(label, substring = false)
+    waitUntilTrue { onAllNodes(segmentMatcher(label)).fetchSemanticsNodes().isNotEmpty() }
     segment(label).performClick()
 }
 
