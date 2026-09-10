@@ -16,4 +16,10 @@ interface UsageEventDao {
 
     @Query("DELETE FROM usage_events WHERE kind = :kind")
     suspend fun deleteKind(kind: String)
+
+    @Query("DELETE FROM usage_events")
+    suspend fun deleteAll()
+
+    @Query("DELETE FROM usage_events WHERE at < :cutoffMs")
+    suspend fun deleteOlderThan(cutoffMs: Long)
 }

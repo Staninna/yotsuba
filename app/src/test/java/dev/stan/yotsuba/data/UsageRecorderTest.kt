@@ -40,6 +40,8 @@ class UsageRecorderTest {
             override suspend fun insert(event: UsageEventEntity) = throw IllegalStateException("disk full")
             override fun all(): Flow<List<UsageEventEntity>> = throw UnsupportedOperationException()
             override suspend fun deleteKind(kind: String) = throw UnsupportedOperationException()
+            override suspend fun deleteAll() = throw UnsupportedOperationException()
+            override suspend fun deleteOlderThan(cutoffMs: Long) = throw UnsupportedOperationException()
         }
         val recorder = UsageRecorder(broken, backgroundScope, StandardTestDispatcher(testScheduler), StandardTestDispatcher(testScheduler))
         recorder.record(UsageKind.SEARCH_RUN)

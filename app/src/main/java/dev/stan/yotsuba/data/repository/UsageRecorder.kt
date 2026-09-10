@@ -44,6 +44,10 @@ class UsageRecorder @Inject constructor(
 
     override suspend fun clear(kind: UsageKind) = dao.deleteKind(kind.name)
 
+    override suspend fun clearAll() = dao.deleteAll()
+
+    override suspend fun trim(retainAfterMs: Long) = dao.deleteOlderThan(retainAfterMs)
+
     override fun events(): Flow<List<UsageEvent>> = dao.all().map { rows ->
         rows.mapNotNull { row ->
             // A kind this build no longer knows is skipped rather than crashing the page.
