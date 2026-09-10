@@ -73,7 +73,7 @@ class StatsFlowTest : FlowTest() {
     @Test
     fun everyRow_showsTheNumberTheEventsAddUpTo() {
         openStats()
-        composeRule.waitForText("Counted on this phone since it was installed.")
+        composeRule.waitForText("Counted on this phone, cleared and trimmed with your history.")
         assertStat("Threads read", "2")
         assertStat("Read marks", "3")
         assertStat("In history now", "2")
@@ -100,11 +100,26 @@ class StatsFlowTest : FlowTest() {
     }
 
     @Test
+    fun streak_readsOneDayInTheSingular() {
+        fakes.usage.seed(event(UsageKind.SEARCH_RUN))
+        openStats()
+        assertStat("Longest streak", "1 day")
+    }
+
+    @Test
     fun dataRows_splitTheBytesByBoard() {
         openStats()
         assertStat("Fetched over the network", FileSize.format(3_000L))
         assertStat("/${TestSeed.NSFW_BOARD}/", FileSize.format(2_000L))
         assertStat("Outside any board", FileSize.format(1_000L))
+    }
+
+    @Test
+    fun vaultRow_leavesOutTheFilesARescanFoundGone() {
+        fakes.vault.seed(TestSeed.vaultEntry(), TestSeed.vaultEntry(TestSeed.spoilerMediaItem).copy(absolutePath = ""))
+        openStats()
+        // Both files are still listed, but the one that is not on disk takes no space.
+        assertStat("In the vault now", "2 files, " + FileSize.format(12_345L))
     }
 
     @Test

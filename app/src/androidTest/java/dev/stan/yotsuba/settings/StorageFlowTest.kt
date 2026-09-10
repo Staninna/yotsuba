@@ -1,14 +1,21 @@
 package dev.stan.yotsuba.settings
 
+import androidx.compose.ui.test.hasTextExactly
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
+import dev.stan.yotsuba.core.util.FileSize
 import dev.stan.yotsuba.di.TestSeed
+import dev.stan.yotsuba.domain.model.UsageEvent
+import dev.stan.yotsuba.domain.model.UsageKind
 import dev.stan.yotsuba.domain.repository.BackupInfo
+import dev.stan.yotsuba.hasText
 import dev.stan.yotsuba.openSettingsSection
+import dev.stan.yotsuba.shell.nodeOnLineWith
 import dev.stan.yotsuba.waitForText
 import dev.stan.yotsuba.waitForTextGone
 import dev.stan.yotsuba.waitUntilTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 @HiltAndroidTest
@@ -23,6 +30,13 @@ class StorageFlowTest : FlowTest() {
         composeRule.tapRow(answer)
         composeRule.waitForTextGone("Are you sure?")
     }
+
+    /**
+     * Bytes the network meter would have written just now. The Storage row only looks back
+     * seven days, so an event dated like the stats page's would not reach it.
+     */
+    private fun bytesFetched(board: String?, value: Long) =
+        UsageEvent(UsageKind.BYTES_FETCHED, System.currentTimeMillis(), board, value = value)
 
     @Test
     fun clearCache_confirmed_clearsAndReports() {
@@ -114,5 +128,39 @@ class StorageFlowTest : FlowTest() {
         composeRule.tapRow("Restore")
         composeRule.waitUntilTrue { fakes.backup.importCalls == 1 }
         composeRule.waitForText("Restored 2 bookmarks and 1 hidden threads")
+    }
+
+    @Test
+    fun clearHistory_alsoForgetsTheUsageLog() {
+        fakes.history.seed(TestSeed.historyEntry())
+        fakes.usage.seed(bytesFetched(TestSeed.NSFW_BOARD, 2_000L))
+        openStorage()
+        confirm("Clear history")
+
+        composeRule.waitUntilTrue { fakes.history.state.value.isEmpty() && fakes.usage.state.value.isEmpty() }
+        composeRule.waitForText("${FileSize.format(0L)} fetched in the last seven days")
+    }
+
+    @Test
+    fun dataThisWeek_totalsTheBytes_andNamesEachBoard() {
+        fakes.usage.seed(bytesFetched(TestSeed.NSFW_BOARD, 2_000L), bytesFetched(null, 1_000L))
+        openStorage()
+        composeRule.waitForText("${FileSize.format(3_000L)} fetched in the last seven days")
+        composeRule.nodeOnLineWith("/${TestSeed.NSFW_BOARD}/", hasTextExactly(FileSize.format(2_000L))).assertExists()
+        composeRule.nodeOnLineWith("Outside any board", hasTextExactly(FileSize.format(1_000L))).assertExists()
+    }
+
+    @Test
+    fun dataThisWeek_resetTakesTheBytesAndNothingElse() {
+        val visit = UsageEvent(UsageKind.THREAD_VISITED, System.currentTimeMillis(), TestSeed.BOARD, TestSeed.THREAD_NO)
+        fakes.usage.seed(bytesFetched(TestSeed.NSFW_BOARD, 2_000L), visit)
+        openStorage()
+        confirm("Data this week")
+
+        composeRule.waitUntilTrue { fakes.usage.count(UsageKind.BYTES_FETCHED) == 0 }
+        composeRule.waitForText("${FileSize.format(0L)} fetched in the last seven days")
+        assertFalse(composeRule.hasText("/${TestSeed.NSFW_BOARD}/"))
+        // The rest of the numbers stay, as the dialog promises.
+        assertEquals(1, fakes.usage.count(UsageKind.THREAD_VISITED))
     }
 }

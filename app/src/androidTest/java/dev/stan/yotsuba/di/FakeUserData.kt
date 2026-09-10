@@ -3,6 +3,7 @@ package dev.stan.yotsuba.di
 import dev.stan.yotsuba.domain.model.Bookmark
 import dev.stan.yotsuba.domain.model.HiddenThread
 import dev.stan.yotsuba.domain.model.HistoryEntry
+import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.Settings
 import dev.stan.yotsuba.domain.model.UsageEvent
 import dev.stan.yotsuba.domain.model.UsageKind
@@ -89,8 +90,17 @@ class FakeBookmarkRepository @Inject constructor() : BookmarkRepository {
     }
 }
 
+/**
+ * Also the usage log's owner, as [dev.stan.yotsuba.data.repository.HistoryRepositoryImpl] is:
+ * the log is reading history by another name, so clearing and trimming reach it from here,
+ * and the retention preference is applied on every write. Trimming the history table itself
+ * is the DAO's business in production, so [trim] only records the call.
+ */
 @Singleton
-class FakeHistoryRepository @Inject constructor() : HistoryRepository {
+class FakeHistoryRepository @Inject constructor(
+    private val settings: FakeSettingsRepository,
+    private val usage: FakeUsageRepository,
+) : HistoryRepository {
     val state = MutableStateFlow<List<HistoryEntry>>(emptyList())
     val scrollPositions = mutableMapOf<Pair<String, Long>, Long>()
     val readMarks = mutableMapOf<Pair<String, Long>, Long>()
@@ -103,9 +113,13 @@ class FakeHistoryRepository @Inject constructor() : HistoryRepository {
     }
 
     override suspend fun record(entry: HistoryEntry) {
-        state.update { list ->
-            list.filterNot { it.board == entry.board && it.threadNo == entry.threadNo } + entry
+        restore(entry)
+        val cutoff = when (settings.state.value.historyRetention) {
+            HistoryRetention.FOREVER -> return
+            HistoryRetention.DAYS_30 -> System.currentTimeMillis() - 30L * 86_400_000
+            HistoryRetention.DAYS_7 -> System.currentTimeMillis() - 7L * 86_400_000
         }
+        trim(cutoff)
     }
 
     override suspend fun updateScrollPosition(board: String, threadNo: Long, postNo: Long) {
@@ -125,14 +139,21 @@ class FakeHistoryRepository @Inject constructor() : HistoryRepository {
         state.update { list -> list.filterNot { it.board == board && it.threadNo == threadNo } }
     }
 
-    override suspend fun restore(entry: HistoryEntry) = record(entry)
+    /** An undone removal: it goes back in, and unlike [record] it trims nothing. */
+    override suspend fun restore(entry: HistoryEntry) {
+        state.update { list ->
+            list.filterNot { it.board == entry.board && it.threadNo == entry.threadNo } + entry
+        }
+    }
 
     override suspend fun clearAll() {
         state.value = emptyList()
+        usage.clearAll()
     }
 
     override suspend fun trim(retainAfterMs: Long) {
         trimCalls++
+        usage.trim(retainAfterMs)
     }
 }
 
