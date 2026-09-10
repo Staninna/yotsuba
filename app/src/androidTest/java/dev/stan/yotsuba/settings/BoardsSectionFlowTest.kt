@@ -78,20 +78,13 @@ class BoardsSectionFlowTest : FlowTest() {
         flip("Large", FontSize.LARGE) { it.boardProfiles[TestSeed.BOARD]?.fontSize }
         composeRule.tapRow("Done")
         composeRule.waitForText("1 override", substring = false)
+        // The field emptied on the way in, so the next code starts from nothing.
+        composeRule.textField().assert(hasText(TestSeed.BOARD, substring = false).not())
 
         composeRule.tapRow("/${TestSeed.BOARD}/")
         composeRule.waitForText("Remove profile")
         flip("Remove profile", emptyMap()) { it.boardProfiles }
         composeRule.waitForTextGone("Remove profile")
-    }
-
-    @Test
-    fun boardCode_addButton_opensTheProfile_andEmptiesTheField() {
-        openBoards()
-        addProfile(TestSeed.BOARD)
-        composeRule.tapRow("Done")
-        // Emptied on success, so the next code starts from nothing.
-        composeRule.textField().assert(hasText(TestSeed.BOARD, substring = false).not())
     }
 
     @Test
