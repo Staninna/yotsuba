@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
@@ -29,6 +30,12 @@ import kotlinx.coroutines.launch
 class HistoryTopBar internal constructor(
     private val viewModel: HistoryViewModel,
     private val snackbar: SnackbarHostState,
+    /**
+     * Outlives the dialog on purpose. Confirming closes the dialog in the same frame it asks
+     * for the snackbar, so a scope remembered inside [Dialogs] is cancelled in that frame and
+     * the message is a coin toss.
+     */
+    private val scope: CoroutineScope,
     searching: MutableState<Boolean>,
     confirmClear: MutableState<Boolean>,
 ) {
@@ -71,7 +78,6 @@ class HistoryTopBar internal constructor(
     @Composable
     fun Dialogs() {
         if (!confirmClear) return
-        val scope = rememberCoroutineScope()
         val clearedMessage = stringResource(R.string.history_cleared)
         HistoryClearDialog(
             onConfirm = {
@@ -88,5 +94,6 @@ class HistoryTopBar internal constructor(
 fun rememberHistoryTopBar(viewModel: HistoryViewModel, snackbar: SnackbarHostState): HistoryTopBar {
     val searching = rememberSaveable { mutableStateOf(false) }
     val confirmClear = rememberSaveable { mutableStateOf(false) }
-    return remember(viewModel, snackbar) { HistoryTopBar(viewModel, snackbar, searching, confirmClear) }
+    val scope = rememberCoroutineScope()
+    return remember(viewModel, snackbar, scope) { HistoryTopBar(viewModel, snackbar, scope, searching, confirmClear) }
 }
