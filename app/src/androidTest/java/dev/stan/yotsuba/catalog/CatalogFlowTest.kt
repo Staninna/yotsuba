@@ -16,7 +16,7 @@ import dev.stan.yotsuba.inRow
 import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.openBoardsTab
 import dev.stan.yotsuba.openCatalog
-import dev.stan.yotsuba.shell.tapTab
+import dev.stan.yotsuba.openHomeTab
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.typeInField
@@ -149,7 +149,7 @@ class CatalogFlowTest : FlowTest() {
 
         composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
-        composeRule.tapTab("Home")
+        composeRule.openHomeTab()
         // The button only shows past nine scrolled items, so it is proof the pane came back
         // where it was rather than at the top.
         composeRule.waitForContentDescription("Scroll to top")

@@ -10,7 +10,6 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.di.TestSeed
 import dev.stan.yotsuba.nodeWithText
-import dev.stan.yotsuba.shell.tab
 import dev.stan.yotsuba.tap
 import dev.stan.yotsuba.tapIcon
 import dev.stan.yotsuba.waitForText
@@ -41,7 +40,7 @@ class HomeFlowTest : FlowTest() {
         composeRule.waitForText("Star a board and it shows up here as a tab.")
         composeRule.tap("Pick boards")
         composeRule.waitForText(TestSeed.BOARD_TITLE)
-        composeRule.tab("Boards").assertIsSelected()
+        composeRule.waitForText(TestSeed.NSFW_BOARD_TITLE)
     }
 
     @Test
@@ -65,7 +64,7 @@ class HomeFlowTest : FlowTest() {
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
         composeRule.tapIcon("Add a board")
         composeRule.waitForText(TestSeed.BOARD_TITLE)
-        composeRule.tab("Boards").assertIsSelected()
+        composeRule.waitForText(TestSeed.NSFW_BOARD_TITLE)
     }
 
     @Test
@@ -90,13 +89,15 @@ class HomeFlowTest : FlowTest() {
         boardTab(TestSeed.VIDEO_BOARD).performCustomAccessibilityActionWithLabel("Remove from Home")
         composeRule.waitForText("Removed /${TestSeed.VIDEO_BOARD}/ from favourites")
         composeRule.waitUntilTrue { favourites == listOf(TestSeed.BOARD, TestSeed.NSFW_BOARD) }
-        composeRule.waitForTextGone("/${TestSeed.VIDEO_BOARD}/")
+        // Exact: the snackbar still on screen reads "Removed /v/ from favourites", so a
+        // substring match never sees the tab go.
+        composeRule.waitForTextGone("/${TestSeed.VIDEO_BOARD}/", substring = false)
 
         composeRule.tap("Undo")
         composeRule.waitUntilTrue {
             favourites == listOf(TestSeed.BOARD, TestSeed.VIDEO_BOARD, TestSeed.NSFW_BOARD)
         }
-        composeRule.waitForText("/${TestSeed.VIDEO_BOARD}/")
+        composeRule.waitForText("/${TestSeed.VIDEO_BOARD}/", substring = false)
     }
 
     @Test

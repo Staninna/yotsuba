@@ -1,16 +1,15 @@
 package dev.stan.yotsuba.shell
 
 import android.content.Intent
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.test.core.app.ApplicationProvider
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
 import dev.stan.yotsuba.MainActivity
 import dev.stan.yotsuba.core.widget.WidgetDeepLink
 import dev.stan.yotsuba.di.TestSeed
-import dev.stan.yotsuba.nodeWithText
 import dev.stan.yotsuba.waitForContentDescription
 import dev.stan.yotsuba.waitForText
+import dev.stan.yotsuba.waitForTextGone
 import org.junit.Test
 
 @HiltAndroidTest
@@ -28,10 +27,10 @@ class DeepLinkFlowTest : FlowTest() {
     @Test
     fun postFragment_scrollsToThatPost() {
         launch(viewIntent(threadUrl(TestSeed.BOARD, TestSeed.THREAD_NO, TestSeed.THREAD_NO + 7)))
-        // The list only composes what is near the viewport, so the last post being on screen
-        // means the scroll happened.
+        // The list only composes what is near the viewport, so the thread's last post being
+        // composed at all, with the OP no longer composed, is the scroll.
         composeRule.waitForText(TestSeed.GREENTEXT_LINE)
-        composeRule.nodeWithText(TestSeed.GREENTEXT_LINE).assertIsDisplayed()
+        composeRule.waitForTextGone(TestSeed.OP_TEXT)
     }
 
     @Test

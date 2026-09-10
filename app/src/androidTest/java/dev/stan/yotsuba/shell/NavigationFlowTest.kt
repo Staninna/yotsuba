@@ -1,6 +1,8 @@
 package dev.stan.yotsuba.shell
 
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertTextContains
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
@@ -9,6 +11,7 @@ import dev.stan.yotsuba.goBack
 import dev.stan.yotsuba.hasContentDescription
 import dev.stan.yotsuba.hasText
 import dev.stan.yotsuba.openBoardsTab
+import dev.stan.yotsuba.openHomeTab
 import dev.stan.yotsuba.openCatalog
 import dev.stan.yotsuba.openThreadsTab
 import dev.stan.yotsuba.openVaultTab
@@ -25,6 +28,14 @@ import org.junit.Test
 @HiltAndroidTest
 class NavigationFlowTest : FlowTest() {
 
+    /**
+     * The bottom-bar item for [label] is the selected one. Local to this class: the shared
+     * helpers have no matcher-shaped `hasText`, and a tab label doubles as a screen title.
+     */
+    private fun assertTabSelected(label: String) {
+        composeRule.onNode(hasText(label, substring = false) and hasClickAction()).assertIsSelected()
+    }
+
     /** One favourite, so Home shows a catalog and its title is the board's, not "Home". */
     override fun seed() {
         fakes.settings.set { it.copy(favouriteBoards = setOf(TestSeed.BOARD)) }
@@ -39,9 +50,9 @@ class NavigationFlowTest : FlowTest() {
         composeRule.waitForText("No bookmarks yet")
         composeRule.openVaultTab()
         composeRule.waitForText("Vault is empty")
-        composeRule.tapTab("Home")
+        composeRule.openHomeTab()
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
-        composeRule.tab("Home").assertIsSelected()
+        assertTabSelected("Home")
     }
 
     @Test
@@ -54,7 +65,7 @@ class NavigationFlowTest : FlowTest() {
 
         composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
-        composeRule.tapTab("Home")
+        composeRule.openHomeTab()
         composeRule.waitForText(TestSeed.THREAD_SUBJECT)
         composeRule.textField().assertTextContains("Yotsuba")
         assertFalse(composeRule.hasText(TestSeed.STICKY_SUBJECT))
@@ -66,7 +77,7 @@ class NavigationFlowTest : FlowTest() {
         composeRule.waitForContentDescription("Clear all")
         composeRule.openBoardsTab()
         composeRule.waitForText(TestSeed.BOARD_TITLE)
-        composeRule.tapTab("Threads")
+        composeRule.openThreadsTab(select = false)
         composeRule.waitForContentDescription("Clear all")
         // Recent's own actions are up, so the segment came back selected, not Watched.
         assertFalse(composeRule.hasContentDescription("Bookmark options"))
@@ -87,7 +98,7 @@ class NavigationFlowTest : FlowTest() {
         composeRule.waitForText(TestSeed.OP_TEXT)
         pressBack()
         composeRule.waitForText("Saved", substring = false)
-        composeRule.tab("Home").assertIsSelected()
+        assertTabSelected("Home")
     }
 
     @Test
@@ -97,7 +108,7 @@ class NavigationFlowTest : FlowTest() {
         assertFalse(composeRule.hasText("Saved", substring = false))
         composeRule.goBack()
         composeRule.waitForText("Saved", substring = false)
-        composeRule.tab("Boards").assertIsSelected()
+        assertTabSelected("Boards")
     }
 
     @Test
@@ -106,7 +117,7 @@ class NavigationFlowTest : FlowTest() {
         composeRule.waitForText("Vault is empty")
         recreate()
         composeRule.waitForText("Vault is empty")
-        composeRule.tab("Saved").assertIsSelected()
+        assertTabSelected("Saved")
     }
 
     @Test
