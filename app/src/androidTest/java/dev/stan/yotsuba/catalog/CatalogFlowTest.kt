@@ -49,7 +49,7 @@ class CatalogFlowTest : FlowTest() {
         it.copy(boardProfiles = mapOf(board to BoardProfile(blurThumbnails = true)))
     }
 
-    /** Whether the card titled [title] still hides its thumbnail: one node or none. */
+    /** How many thumbnails the card titled [title] still hides: one, or none once revealed. */
     private fun blursIn(title: String) = composeRule
         .onAllNodes(inRow(title, BLURRED), useUnmergedTree = true).fetchSemanticsNodes().size
 
@@ -228,6 +228,9 @@ class CatalogFlowTest : FlowTest() {
         composeRule.textInCard("Middle thread", "Links to 1 thread").assertIsDisplayed()
         composeRule.textInCard("Middle thread", "1 thread references this").assertIsDisplayed()
         composeRule.textInCard("Quoted thread", "2 threads reference this").assertIsDisplayed()
+        // Anchored on the metadata line, so the two absences below cannot pass by the card
+        // being off screen.
+        composeRule.textInCard("Lonely thread", "0 images").assertIsDisplayed()
         composeRule.textInCard("Lonely thread", "Links to").assertDoesNotExist()
         composeRule.textInCard("Lonely thread", "references this").assertDoesNotExist()
     }
