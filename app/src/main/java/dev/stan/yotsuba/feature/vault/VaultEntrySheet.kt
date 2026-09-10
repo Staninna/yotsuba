@@ -29,7 +29,7 @@ import dev.stan.yotsuba.domain.model.VaultEntry
 /**
  * The grid's long-press sheet: what the file is, and everything that can be done with it.
  * Thread and post links only exist for files that came from a live thread; imported and
- * unsorted files have nowhere to go.
+ * unsorted files have nowhere to go, and a missing file can only be re-downloaded or dropped.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,8 +69,11 @@ internal fun VaultEntrySheet(
                     SheetActionRow(stringResource(R.string.vault_go_to_post), Icons.Filled.Tag, onClick = { onOpenThread(entry.postNo) })
                 }
             }
-            SheetActionRow(stringResource(R.string.thread_share), Icons.Filled.Share, onShare)
-            SheetActionRow(stringResource(R.string.vault_save_to_gallery), Icons.Filled.SaveAlt, onSaveToGallery)
+            // Nothing to hand another app when the file is gone; re-download is the way back.
+            if (!entry.missing) {
+                SheetActionRow(stringResource(R.string.thread_share), Icons.Filled.Share, onShare)
+                SheetActionRow(stringResource(R.string.vault_save_to_gallery), Icons.Filled.SaveAlt, onSaveToGallery)
+            }
             SheetActionRow(stringResource(R.string.vault_delete), Icons.Filled.Delete, onDelete)
         }
     }

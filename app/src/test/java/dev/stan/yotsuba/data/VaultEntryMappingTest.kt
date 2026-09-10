@@ -47,6 +47,12 @@ class VaultEntryMappingTest {
     }
 
     @Test
+    fun `a row without a path is missing`() {
+        assertFalse(entity().toVaultEntry().missing)
+        assertTrue(entity().copy(absolutePath = "").toVaultEntry().missing)
+    }
+
+    @Test
     fun `video detection follows the extension`() {
         assertTrue(entity(ext = ".webm").toVaultEntry().isVideo)
         assertTrue(entity(ext = ".mp4").toVaultEntry().isVideo)

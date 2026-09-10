@@ -153,6 +153,28 @@ class MediaVaultDeleteTest {
         assertFalse(trashDir.exists())
     }
 
+    @Test fun `trashing a missing file keeps its row and sidecar entry restorable`() = runTest {
+        val dir = File(File(tmp.root, "g"), "1 - Cats").apply { mkdirs() }
+        val gone = saved(dir, "2_gone.jpg", "https://i.4cdn.org/g/2.jpg")
+        saved(dir, "3_pic.jpg", "https://i.4cdn.org/g/3.jpg")
+        db.savedMediaDao().insert(row(gone, "https://i.4cdn.org/g/2.jpg").copy(absolutePath = ""))
+        gone.delete()
+
+        assertNull(repo.trash("https://i.4cdn.org/g/2.jpg"))
+
+        assertNull(db.savedMediaDao().byUrl("https://i.4cdn.org/g/2.jpg"))
+        val without = VaultMetaCodec.decode(File(dir, VaultPaths.META_FILE_NAME).readText())!!
+        assertTrue(without.files.none { it.fileName == "2_gone.jpg" })
+
+        // The undo the snackbar offers has to put the row and the sidecar line back, which
+        // is the only record of what to re-download.
+        assertNull(repo.restoreTrashed("https://i.4cdn.org/g/2.jpg"))
+        assertNotNull(db.savedMediaDao().byUrl("https://i.4cdn.org/g/2.jpg"))
+        val back = VaultMetaCodec.decode(File(dir, VaultPaths.META_FILE_NAME).readText())!!
+        assertTrue(back.files.any { it.fileName == "2_gone.jpg" })
+        assertFalse("nothing was on disk to bring back", gone.exists())
+    }
+
     @Test fun `delete removes the video's still along with the file`() = runTest {
         val dir = File(File(tmp.root, "g"), "1 - Cats").apply { mkdirs() }
         val video = saved(dir, "2_clip.webm", "https://i.4cdn.org/g/2.webm")

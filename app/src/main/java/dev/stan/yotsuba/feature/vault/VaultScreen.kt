@@ -605,9 +605,7 @@ private fun VaultViewer(
             }
         }
         IconButton(onClick = {
-            entries.getOrNull(page)?.let { entry ->
-                shareMediaFile(context, File(entry.absolutePath), entry.ext.orEmpty())
-            }
+            entries.getOrNull(page)?.let { shareVaultEntries(context, listOf(it)) }
         }) {
             Icon(Icons.Filled.Share, stringResource(R.string.thread_share), tint = Color.White)
         }
