@@ -2,14 +2,20 @@ package dev.stan.yotsuba.settings
 
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.stan.yotsuba.FlowTest
+import dev.stan.yotsuba.backToTabs
 import dev.stan.yotsuba.domain.model.CatalogLayout
 import dev.stan.yotsuba.domain.model.FontSize
 import dev.stan.yotsuba.domain.model.HistoryRetention
 import dev.stan.yotsuba.domain.model.LineSpacing
 import dev.stan.yotsuba.domain.model.QuoteTapAction
 import dev.stan.yotsuba.domain.model.ThemeMode
+import dev.stan.yotsuba.domain.model.UsageEvent
+import dev.stan.yotsuba.domain.model.UsageKind
+import dev.stan.yotsuba.openSeededThread
 import dev.stan.yotsuba.openSettingsSection
 import dev.stan.yotsuba.waitForText
+import dev.stan.yotsuba.waitUntilTrue
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 
@@ -64,6 +70,25 @@ class AppearanceReadingFlowTest : FlowTest() {
         flip("Translate posts", true) { it.translatePosts }
         flip("Record history", false) { it.recordHistory }
         flip("Notify on new replies", false) { it.bookmarkNotifications }
+    }
+
+    /**
+     * Retention reaches the usage log the way it reaches history: the repository applies the
+     * preference on every write, so the trim lands on the next thread the app records.
+     */
+    @Test
+    fun reading_historyRetentionTrimsTheUsageLog() {
+        fakes.usage.seed(
+            UsageEvent(UsageKind.SEARCH_RUN, System.currentTimeMillis() - 30L * 86_400_000),
+            UsageEvent(UsageKind.SEARCH_RUN, System.currentTimeMillis()),
+        )
+        openReading()
+        flip("7 days", HistoryRetention.DAYS_7) { it.historyRetention }
+        composeRule.backToTabs()
+        composeRule.openSeededThread()
+
+        composeRule.waitUntilTrue { fakes.usage.trimCalls > 0 }
+        assertEquals(1, fakes.usage.count(UsageKind.SEARCH_RUN))
     }
 
     @Test

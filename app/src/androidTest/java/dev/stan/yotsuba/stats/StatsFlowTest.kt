@@ -73,7 +73,7 @@ class StatsFlowTest : FlowTest() {
     @Test
     fun everyRow_showsTheNumberTheEventsAddUpTo() {
         openStats()
-        composeRule.waitForText("Counted on this phone since it was installed.")
+        composeRule.waitForText("Counted on this phone, cleared and trimmed with your history.")
         assertStat("Threads read", "2")
         assertStat("Read marks", "3")
         assertStat("In history now", "2")

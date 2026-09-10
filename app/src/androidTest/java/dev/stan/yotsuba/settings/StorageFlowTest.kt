@@ -131,6 +131,17 @@ class StorageFlowTest : FlowTest() {
     }
 
     @Test
+    fun clearHistory_alsoForgetsTheUsageLog() {
+        fakes.history.seed(TestSeed.historyEntry())
+        fakes.usage.seed(bytesFetched(TestSeed.NSFW_BOARD, 2_000L))
+        openStorage()
+        confirm("Clear history")
+
+        composeRule.waitUntilTrue { fakes.history.state.value.isEmpty() && fakes.usage.state.value.isEmpty() }
+        composeRule.waitForText("${FileSize.format(0L)} fetched in the last seven days")
+    }
+
+    @Test
     fun dataThisWeek_totalsTheBytes_andNamesEachBoard() {
         fakes.usage.seed(bytesFetched(TestSeed.NSFW_BOARD, 2_000L), bytesFetched(null, 1_000L))
         openStorage()
